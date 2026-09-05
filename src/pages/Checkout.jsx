@@ -38,6 +38,14 @@ const FALLBACK_TAX_RATES = {
   Yukon: 0.05,
 };
 
+const CANADIAN_POSTAL_CODE_RE = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i;
+
+function normalizeCanadianPostalCode(value) {
+  const compact = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!CANADIAN_POSTAL_CODE_RE.test(compact)) return "";
+  return `${compact.slice(0, 3)} ${compact.slice(3)}`;
+}
+
 export default function Checkout() {
   const { items, subtotal, clearCart, itemCount } = useCart();
   const navigate = useNavigate();
@@ -179,6 +187,19 @@ export default function Checkout() {
         setError("Please fill in all required fields before continuing to payment.");
         return;
       }
+      const normalizedPostalCode = normalizeCanadianPostalCode(form.postalCode);
+      if (!normalizedPostalCode) {
+        setError("Enter a valid Canadian postal code in the format A1A 1A1.");
+        return;
+      }
+      const checkoutForm = {
+        ...form,
+        country: "Canada",
+        postalCode: normalizedPostalCode,
+      };
+      if (form.postalCode !== normalizedPostalCode) {
+        setForm((current) => ({ ...current, postalCode: normalizedPostalCode }));
+      }
       if (isIframe) {
         setError("Checkout works only from the published app. Open the app in a new tab to complete payment.");
         return;
@@ -188,8 +209,8 @@ export default function Checkout() {
       try {
         const data = await customerApi.createOrder(
           items,
-          form,
-          form.discountCode,
+          checkoutForm,
+          checkoutForm.discountCode,
           window.location.origin,
           checkoutSessionToken
         );
