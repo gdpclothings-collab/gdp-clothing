@@ -1,76 +1,110 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Facebook, Instagram, Mail, MapPin, Phone } from "lucide-react";
+import { Facebook, Instagram, Mail, Youtube } from "lucide-react";
 
 export default function StoreFooter() {
   const [email, setEmail] = useState("");
-  const [done, setDone] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+
+  const submit = (event) => {
+    event.preventDefault();
+    if (!email.trim()) return;
+    setSubscribed(true);
+  };
 
   return (
-    <footer className="bg-primary text-primary-foreground mt-20">
-      <div className="border-b border-primary-foreground/15">
-        <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-12 grid md:grid-cols-2 gap-8 items-center">
+    <footer className="bg-[#0a0a0a] text-white">
+      <div className="border-b border-white/10">
+        <div className="mx-auto grid max-w-[1500px] gap-5 px-5 py-9 md:grid-cols-[1fr_auto] md:items-center lg:px-8">
           <div>
-            <h3 className="font-display text-4xl md:text-5xl leading-none">JOIN THE GDP MOVEMENT</h3>
-            <p className="mt-2 text-primary-foreground/70 text-sm">Drops, custom design tips & subscriber-only discounts.</p>
+            <h3 className="font-display text-4xl leading-none sm:text-5xl">Join the GDP Family</h3>
+            <p className="mt-2 text-sm text-white/60">
+              Get new drops, custom design updates and special offers.
+            </p>
           </div>
-          <form onSubmit={(e) => { e.preventDefault(); if (email) setDone(true); }}
-            className="flex gap-2">
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
-              className="flex-1 bg-primary-foreground/10 border border-primary-foreground/20 px-4 py-3 text-sm placeholder:text-primary-foreground/40 outline-none focus:border-accent" />
-            <button className="bg-accent text-accent-foreground px-6 py-3 text-sm font-bold uppercase tracking-wide hover:opacity-90">
-              {done ? "Subscribed ✓" : "Subscribe"}
+          <form onSubmit={submit} className="flex w-full max-w-xl">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="Your email address"
+              className="min-w-0 flex-1 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+            />
+            <button
+              type="submit"
+              className="bg-[#e11d2e] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white sm:px-7"
+            >
+              {subscribed ? "Subscribed ✓" : "Subscribe"}
             </button>
           </form>
         </div>
       </div>
 
-      <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-12 grid md:grid-cols-4 gap-8 text-sm">
-        <div>
-          <div className="font-display text-3xl">GDP</div>
-          <p className="mt-3 text-primary-foreground/60">Design Your Dream, Wear Your Vision! Custom apparel & print-on-demand streetwear from Saskatoon, Saskatchewan.</p>
-          <div className="flex gap-3 mt-4">
-            <a href="https://www.facebook.com/gdpclothing" target="_blank" rel="noopener noreferrer" className="p-2 border border-primary-foreground/20 hover:border-accent hover:text-accent" aria-label="Facebook"><Facebook size={16} /></a>
-            <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" className="p-2 border border-primary-foreground/20 hover:border-accent hover:text-accent" aria-label="Instagram"><Instagram size={16} /></a>
-            <a href="mailto:hello@gdpclothing.ca" className="p-2 border border-primary-foreground/20 hover:border-accent hover:text-accent" aria-label="Email"><Mail size={16} /></a>
+      <div className="mx-auto flex max-w-[1500px] flex-col gap-8 px-5 py-8 lg:px-8">
+        <div className="flex flex-col gap-7 md:flex-row md:items-center md:justify-between">
+          <Link to="/" className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white font-display text-2xl">
+              GDP
+            </div>
+            <div>
+              <div className="font-display text-2xl leading-none">GDP Clothing</div>
+              <div className="mt-1 text-[10px] uppercase tracking-[0.25em] text-white/50">
+                Good People. Dope Clothes.
+              </div>
+            </div>
+          </Link>
+
+          <nav className="flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-white/75">
+            <Link to="/" className="hover:text-white">Home</Link>
+            <Link to="/shop" className="hover:text-white">Shop</Link>
+            <Link to="/custom-studio" className="hover:text-white">Custom</Link>
+            <Link to="/pages/about" className="hover:text-white">About</Link>
+            <Link to="/faq" className="hover:text-white">Contact</Link>
+            <Link to="/faq" className="hover:text-white">Shipping & Returns</Link>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <a
+              href="https://www.instagram.com/gdpclothings"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-white/75 hover:text-white"
+              aria-label="Instagram"
+            >
+              <Instagram size={20} />
+            </a>
+            <a
+              href="https://www.youtube.com/@GDPClothingYXE"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-white/75 hover:text-white"
+              aria-label="YouTube"
+            >
+              <Youtube size={21} />
+            </a>
+            <a
+              href="https://www.facebook.com/gdpclothing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 text-white/75 hover:text-white"
+              aria-label="Facebook"
+            >
+              <Facebook size={20} />
+            </a>
+            <a
+              href="mailto:gdpclothings@gmail.com"
+              className="p-2 text-white/75 hover:text-white"
+              aria-label="Email GDP Clothing"
+            >
+              <Mail size={20} />
+            </a>
           </div>
         </div>
-        <div>
-          <h4 className="font-mono text-xs uppercase tracking-[0.2em] text-primary-foreground/50 mb-3">Shop</h4>
-          <ul className="space-y-2 text-primary-foreground/80">
-            <li><Link to="/shop" className="hover:text-accent">All Products</Link></li>
-            <li><Link to="/custom-studio" className="hover:text-accent">GDP Custom Studio</Link></li>
-            <li><Link to="/shop?category=DTF Transfer" className="hover:text-accent">DTF Transfers</Link></li>
-            <li><Link to="/shop?filter=best" className="hover:text-accent">Best Sellers</Link></li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="font-mono text-xs uppercase tracking-[0.2em] text-primary-foreground/50 mb-3">Support</h4>
-          <ul className="space-y-2 text-primary-foreground/80">
-            <li><Link to="/account" className="hover:text-accent">My Account</Link></li>
-            <li><Link to="/account?tab=track" className="hover:text-accent">Track Order</Link></li>
-            <li><Link to="/faq" className="hover:text-accent">FAQ</Link></li>
-            <li><Link to="/contact" className="hover:text-accent">Contact</Link></li>
-            <li><Link to="/faq" className="hover:text-accent">Shipping & Returns</Link></li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="font-mono text-xs uppercase tracking-[0.2em] text-primary-foreground/50 mb-3">Visit Us</h4>
-          <ul className="space-y-2 text-primary-foreground/80">
-            <li className="flex gap-2"><MapPin size={16} className="shrink-0" /> Saskatoon, SK, Canada</li>
-            <li className="flex gap-2"><Phone size={16} className="shrink-0" /> (306) 555-GDP1</li>
-            <li className="flex gap-2"><Mail size={16} className="shrink-0" /> hello@gdpclothing.ca</li>
-          </ul>
-        </div>
-      </div>
-      <div className="border-t border-primary-foreground/15">
-        <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-5 flex flex-col sm:flex-row justify-between gap-2 text-xs text-primary-foreground/50 font-mono">
-          <span>© {new Date().getFullYear()} GDP CLOTHING. ALL RIGHTS RESERVED.</span>
-          <div className="flex gap-4">
-            <Link to="/faq" className="hover:text-accent">Privacy Policy</Link>
-            <Link to="/faq" className="hover:text-accent">Terms of Service</Link>
-          </div>
+
+        <div className="flex flex-col justify-between gap-3 border-t border-white/10 pt-5 text-[11px] text-white/40 sm:flex-row">
+          <span>© {new Date().getFullYear()} GDP Clothing. All rights reserved.</span>
+          <span>Design your dream. Wear your vision.</span>
         </div>
       </div>
     </footer>
