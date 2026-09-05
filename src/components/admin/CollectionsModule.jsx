@@ -272,7 +272,7 @@ function CollectionEditor({ collection, products, onClose, onSaved }) {
                 />
               </Field>
               <Field label="Description">
-                <textarea value={form.description} onChange={(event) => set("description", event.target.value)} className={textareaClass} rows="4" />
+                <textarea value={form.description} onChange={(event) => set("description", event.target.value)} className={textareaClass} rows={4} />
               </Field>
               <Field label="Tagline">
                 <input value={form.tagline} onChange={(event) => set("tagline", event.target.value)} className={inputClass} />
