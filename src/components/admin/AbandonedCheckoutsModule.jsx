@@ -169,13 +169,13 @@ export default function AbandonedCheckoutsModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="py-14 text-center text-[#777]">
+                  <td colSpan={6} className="py-14 text-center text-[#777]">
                     Loading checkout sessions…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-14 text-center">
+                  <td colSpan={6} className="py-14 text-center">
                     <ShoppingCart size={23} className="mx-auto text-[#aaa]" />
                     <div className="font-medium mt-3">No matching checkout sessions</div>
                   </td>
@@ -273,10 +273,10 @@ function StatusPill({ value }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
