@@ -90,8 +90,8 @@ export default function Cart() {
           <div className="space-y-2 text-sm">
             <Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} />
             {discount > 0 && <Row k="Qty discount" v={`-$${discount.toFixed(2)}`} accent />}
-            <Row k="Shipping" v={shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`} />
-            <Row k="Tax (11%)" v={`$${tax.toFixed(2)}`} />
+            <Row k="Shipping" v="Calculated at checkout" />
+            <Row k="Tax" v="Calculated at checkout" />
           </div>
           {discount > 0 && (
             <div className="mt-2 text-xs font-mono uppercase text-accent bg-accent/10 px-2 py-1">
@@ -99,9 +99,9 @@ export default function Cart() {
             </div>
           )}
           <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-border">
-            <span>Total</span><span className="font-mono">${total.toFixed(2)}</span>
+            <span>Subtotal after discounts</span><span className="font-mono">${discountedSubtotal.toFixed(2)} CAD</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 font-mono">CAD · Free shipping over $150</p>
+          <p className="text-xs text-muted-foreground mt-2 font-mono">Shipping, destination-based tax, and coupons are finalized at checkout.</p>
           <button onClick={() => navigate("/checkout")} className="w-full mt-5 bg-primary text-primary-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90">
             Checkout →
           </button>
