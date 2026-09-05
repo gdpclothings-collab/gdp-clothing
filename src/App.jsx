@@ -20,6 +20,7 @@ import Account from '@/pages/Account';
 import Admin from '@/pages/Admin';
 import AdminV2 from '@/pages/AdminV2';
 import FAQ from '@/pages/FAQ';
+import ContentPage from '@/pages/ContentPage';
 // Auth pages
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -67,6 +68,7 @@ const AuthenticatedApp = () => {
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/order/:orderNumber" element={<OrderConfirmation />} />
         <Route path="/faq" element={<FAQ />} />
+        <Route path="/pages/:slug" element={<ContentPage />} />
       </Route>
 
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
