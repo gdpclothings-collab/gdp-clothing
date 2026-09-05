@@ -15,6 +15,7 @@ import {
   Database,
 } from "lucide-react";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
+import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
 
 export default function SettingsModule() {
   const [data, setData] = useState({ settings: null, profiles: [] });
@@ -195,6 +196,8 @@ export default function SettingsModule() {
           </section>
         </div>
       </div>
+
+      <AdvancedSettingsModule />
     </div>
   );
 }
