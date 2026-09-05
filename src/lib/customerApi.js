@@ -290,7 +290,21 @@ export const customerApi = {
         origin,
       },
     });
-    if (error) throw error;
+
+    if (error) {
+      let message = error.message || "Checkout failed.";
+      try {
+        const context = error.context;
+        if (context && typeof context.clone === "function") {
+          const body = await context.clone().json();
+          message = body?.message || body?.error || message;
+        }
+      } catch {
+        // Keep the original Functions error message if the response body is unavailable.
+      }
+      throw new Error(message);
+    }
+
     return data;
   },
 
