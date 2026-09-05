@@ -16,6 +16,14 @@ const mapProduct = (row) => ({
   taxable: row.taxable !== false,
   weight: row.weight,
   weightUnit: row.weight_unit || "g",
+  salesChannels: row.sales_channels || ["online_store"],
+  sellWhenOutOfStock: Boolean(row.sell_when_out_of_stock),
+  shippingPackage: row.shipping_package || {},
+  countryOfOrigin: row.country_of_origin || "",
+  hsCode: row.hs_code || "",
+  themeTemplate: row.theme_template || "default",
+  metafields: row.metafields || {},
+  unitPrice: row.unit_price || {},
   price: Number(row.price || 0),
   compareAtPrice: row.compare_at_price,
   images: row.images || [],
@@ -36,6 +44,7 @@ const mapProduct = (row) => ({
     id: variant.id,
     name: variant.name || "Default",
     sku: variant.sku || "",
+    barcode: variant.barcode || "",
     podSku: variant.pod_sku || "",
     stock: Number(variant.stock || 0),
     price: variant.price === null ? null : Number(variant.price),
@@ -140,6 +149,31 @@ export const adminProductsApi = {
 
     if (error) throw error;
     return data || { low_stock_threshold: 5, currency: "CAD" };
+  },
+
+  async uploadMedia(file) {
+    if (!file) throw new Error("Choose an image to upload.");
+    if (!String(file.type || "").startsWith("image/")) {
+      throw new Error("Product media currently supports image files.");
+    }
+
+    const safeName = String(file.name || "product-image")
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const unique = typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+    const path = `products/${Date.now()}-${unique}-${safeName || "image"}`;
+
+    const { error } = await supabase.storage
+      .from("product-images")
+      .upload(path, file, { upsert: false, cacheControl: "3600" });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error("Could not create a public product image URL.");
+    return data.publicUrl;
   },
 
   async save(productId, payload) {
