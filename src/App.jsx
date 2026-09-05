@@ -18,6 +18,7 @@ import Checkout from '@/pages/Checkout';
 import OrderConfirmation from '@/pages/OrderConfirmation';
 import Account from '@/pages/Account';
 import Admin from '@/pages/Admin';
+import AdminV2 from '@/pages/AdminV2';
 import FAQ from '@/pages/FAQ';
 // Auth pages
 import Login from '@/pages/Login';
@@ -73,7 +74,8 @@ const AuthenticatedApp = () => {
       </Route>
 
       <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}>
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/legacy" element={<Admin />} />
+        <Route path="/admin/*" element={<AdminV2 />} />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />
