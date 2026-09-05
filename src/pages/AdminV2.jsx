@@ -44,6 +44,7 @@ import {
   Star,
   RotateCcw,
   ShoppingCart,
+  ArrowRightLeft,
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
@@ -51,6 +52,7 @@ import ReturnsModule from "@/components/admin/ReturnsModule";
 import AbandonedCheckoutsModule from "@/components/admin/AbandonedCheckoutsModule";
 import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
+import InventoryOperationsModule from "@/components/admin/InventoryOperationsModule";
 import CustomersModule from "@/components/admin/CustomersModule";
 import CollectionsModule from "@/components/admin/CollectionsModule";
 import ReviewsModule from "@/components/admin/ReviewsModule";
@@ -81,6 +83,7 @@ const NAV_GROUPS = [
       { id: "products", label: "Products", icon: Package },
       { id: "collections", label: "Collections", icon: Tags },
       { id: "inventory", label: "Inventory", icon: Boxes },
+      { id: "inventory-operations", label: "Locations & transfers", icon: ArrowRightLeft },
       { id: "customers", label: "Customers", icon: Users },
     ],
   },
@@ -385,6 +388,15 @@ export default function AdminV2() {
                 description="Track stock by variant, identify low inventory and make controlled adjustments."
               />
               <InventoryModule />
+            </div>
+          ) : section === "inventory-operations" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Locations & transfers"
+                description="Operate multi-location stock, controlled transfers and inventory adjustment history."
+              />
+              <InventoryOperationsModule />
             </div>
           ) : section === "customers" ? (
             <div>
