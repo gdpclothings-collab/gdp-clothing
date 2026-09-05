@@ -1,17 +1,24 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
+const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
 
+function corsHeaders(req: Request) {
+  return {
+    ...baseCors,
+    "Access-Control-Allow-Origin": validOrigin(req.headers.get("origin")),
+    "Vary": "Origin",
+  };
+}
+
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const roundMoney = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
-function respond(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: cors });
+function respond(req: Request, body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
 }
 
 function validOrigin(value: unknown) {
@@ -101,6 +108,18 @@ function normalizeProvinceCode(value: unknown) {
     .toUpperCase()
     .replace(/\s+/g, " ");
   return provinceCodes[normalized] || normalized.slice(0, 2);
+}
+
+const canadianProvinceCodes = new Set([
+  "AB", "BC", "MB", "NB", "NL", "NT", "NS", "NU", "ON", "PE", "QC", "SK", "YT",
+]);
+const canadianPostalCodeRe = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i;
+const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeCanadianPostalCode(value: unknown) {
+  const compact = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!canadianPostalCodeRe.test(compact)) return "";
+  return `${compact.slice(0, 3)} ${compact.slice(3)}`;
 }
 
 async function getTaxRule(service: any, province: unknown) {
@@ -225,8 +244,8 @@ async function getCheckoutRules(
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return respond({ error: true, message: "Method not allowed." }, 405);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method !== "POST") return respond(req, { error: true, message: "Method not allowed." }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -241,7 +260,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "validateCoupon") {
       const code = String(body?.code || "").trim().toUpperCase();
-      if (!code) return respond({ active: false });
+      if (!code) return respond(req, { active: false });
 
       const { data } = await service
         .from("discounts")
@@ -251,7 +270,7 @@ Deno.serve(async (req: Request) => {
 
       const purchase = Math.max(0, Number(body?.purchase || 0));
       const active = couponIsUsable(data, purchase);
-      return respond(active ? {
+      return respond(req, active ? {
         active: true,
         code: data.code,
         type: data.type,
@@ -272,7 +291,7 @@ Deno.serve(async (req: Request) => {
         amount,
         Boolean(body?.freeShipping),
       );
-      return respond({ configured: true, ...rules });
+      return respond(req, { configured: true, ...rules });
     }
 
     if (action === "getOrder") {
@@ -280,7 +299,7 @@ Deno.serve(async (req: Request) => {
       const token = String(body?.token || "").trim();
       const user = await optionalUser(req, supabaseUrl, anonKey);
 
-      if (!orderNumber) return respond({ error: true, message: "Missing order number." }, 400);
+      if (!orderNumber) return respond(req, { error: true, message: "Missing order number." }, 400);
 
       let query = service
         .from("orders")
@@ -292,13 +311,13 @@ Deno.serve(async (req: Request) => {
       } else if (user) {
         query = query.eq("user_id", user.id);
       } else {
-        return respond({ error: true, message: "Order access denied." }, 403);
+        return respond(req, { error: true, message: "Order access denied." }, 403);
       }
 
       const { data, error } = await query.maybeSingle();
       if (error) throw error;
-      if (!data) return respond({ error: true, message: "Order not found." }, 404);
-      return respond({ order: data });
+      if (!data) return respond(req, { error: true, message: "Order not found." }, 404);
+      return respond(req, { order: data });
     }
 
 
@@ -339,7 +358,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (existing?.status === "converted") {
-        return respond({
+        return respond(req, {
           sessionToken,
           status: "converted",
           convertedOrderId: existing.converted_order_id,
@@ -371,11 +390,11 @@ Deno.serve(async (req: Request) => {
 
       if (error) throw error;
 
-      return respond({ sessionToken, status: "active" });
+      return respond(req, { sessionToken, status: "active" });
     }
 
     if (action !== "createOrder") {
-      return respond({ error: true, message: "Unknown checkout action." }, 400);
+      return respond(req, { error: true, message: "Unknown checkout action." }, 400);
     }
 
     const cart = Array.isArray(body?.cart) ? body.cart : [];
@@ -386,15 +405,37 @@ Deno.serve(async (req: Request) => {
     const origin = validOrigin(body?.origin || req.headers.get("origin"));
 
     if (!cart.length || cart.length > 100) {
-      return respond({ error: true, message: "Cart is empty or too large." }, 400);
+      return respond(req, { error: true, message: "Cart is empty or too large." }, 400);
     }
     if (!customer.email || !customer.firstName || !customer.address || !customer.city || !customer.postalCode) {
-      return respond({ error: true, message: "Missing required customer fields." }, 400);
+      return respond(req, { error: true, message: "Missing required customer fields." }, 400);
     }
+
+    const customerEmail = String(customer.email || "").trim();
+    const country = String(customer.country || "Canada").trim().toUpperCase();
+    const provinceCode = normalizeProvinceCode(customer.province);
+    const postalCode = normalizeCanadianPostalCode(customer.postalCode);
+
+    if (!emailRe.test(customerEmail) || customerEmail.length > 254) {
+      return respond(req, { error: true, message: "Enter a valid email address." }, 400);
+    }
+    if (country !== "CANADA" && country !== "CA") {
+      return respond(req, { error: true, message: "Shipping is currently available within Canada only." }, 400);
+    }
+    if (!canadianProvinceCodes.has(provinceCode)) {
+      return respond(req, { error: true, message: "Choose a valid Canadian province or territory." }, 400);
+    }
+    if (!postalCode) {
+      return respond(req, { error: true, message: "Enter a valid Canadian postal code in the format A1A 1A1." }, 400);
+    }
+
+    customer.email = customerEmail.toLowerCase();
+    customer.country = "Canada";
+    customer.postalCode = postalCode;
 
     const productIds = [...new Set(cart.map((item: any) => String(item?.productId || "")).filter((id: string) => uuidRe.test(id)))];
     if (productIds.length !== new Set(cart.map((item: any) => String(item?.productId || ""))).size) {
-      return respond({ error: true, message: "One or more cart products are invalid." }, 400);
+      return respond(req, { error: true, message: "One or more cart products are invalid." }, 400);
     }
 
     const { data: productRows, error: productError } = await service
@@ -406,7 +447,7 @@ Deno.serve(async (req: Request) => {
 
     const products = new Map((productRows || []).map((p: any) => [p.id, p]));
     if (products.size !== productIds.length) {
-      return respond({ error: true, message: "One or more products are unavailable." }, 400);
+      return respond(req, { error: true, message: "One or more products are unavailable." }, 400);
     }
 
     const { data: variantRows, error: variantError } = await service
@@ -431,7 +472,7 @@ Deno.serve(async (req: Request) => {
     const customDesigns = new Map<string, any>();
 
     if (customIds.length) {
-      if (!user) return respond({ error: true, message: "Sign in before checking out a custom design." }, 401);
+      if (!user) return respond(req, { error: true, message: "Sign in before checking out a custom design." }, 401);
 
       const { data: designs, error: designError } = await service
         .from("custom_designs")
@@ -442,7 +483,7 @@ Deno.serve(async (req: Request) => {
       for (const design of designs || []) customDesigns.set(design.id, design);
 
       if (customDesigns.size !== customIds.length) {
-        return respond({ error: true, message: "A custom design is missing or does not belong to this account." }, 403);
+        return respond(req, { error: true, message: "A custom design is missing or does not belong to this account." }, 403);
       }
     }
 
@@ -465,7 +506,7 @@ Deno.serve(async (req: Request) => {
         : null;
 
       if (requestedVariantId && (!variantRow || variantRow.product_id !== product.id)) {
-        return respond(
+        return respond(req, 
           { error: true, message: `A selected variant for ${product.name} is unavailable.` },
           400
         );
@@ -490,7 +531,7 @@ Deno.serve(async (req: Request) => {
       }
 
       if (product.track_inventory && productVariants.length && !variantRow) {
-        return respond(
+        return respond(req, 
           { error: true, message: `Choose an available variant for ${product.name}.` },
           400
         );
@@ -501,7 +542,7 @@ Deno.serve(async (req: Request) => {
         variantRow &&
         Number(variantRow.stock || 0) < quantity
       ) {
-        return respond(
+        return respond(req, 
           {
             error: true,
             message: `${product.name} only has ${Number(variantRow.stock || 0)} unit(s) available for the selected variant.`,
@@ -683,7 +724,7 @@ Deno.serve(async (req: Request) => {
           .eq("session_token", checkoutSessionToken);
       }
 
-      return respond({
+      return respond(req, {
         orderNumber: order.order_number,
         confirmationToken: order.confirmation_token,
         configured: false,
@@ -751,7 +792,7 @@ Deno.serve(async (req: Request) => {
           .eq("session_token", checkoutSessionToken);
       }
 
-      return respond(
+      return respond(req, 
         {
           error: true,
           message: stripeData?.error?.message || "Stripe payment form could not be created.",
@@ -776,7 +817,7 @@ Deno.serve(async (req: Request) => {
         .eq("session_token", checkoutSessionToken);
     }
 
-    return respond({
+    return respond(req, {
       orderNumber: order.order_number,
       confirmationToken: order.confirmation_token,
       clientSecret: stripeData.client_secret,
@@ -795,6 +836,6 @@ Deno.serve(async (req: Request) => {
     });
   } catch (error) {
     console.error("checkout error", error);
-    return respond({ error: true, message: error?.message || "Checkout failed." }, 500);
+    return respond(req, { error: true, message: error?.message || "Checkout failed." }, 500);
   }
 });
