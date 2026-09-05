@@ -1,22 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL ||
+  "https://mcmancxsqlhxnjhlnfkz.supabase.co";
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  console.warn(
-    "Supabase is not configured. Copy .env.example to .env.local and add the GDP Clothing project values."
-  );
-}
+const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  "sb_publishable_K0FttoPALmJZ33RMTxBOIg_UbHDlpl7";
 
-export const supabase = createClient(
-  supabaseUrl || "https://example.supabase.co",
-  supabasePublishableKey || "missing-publishable-key",
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  }
-);
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
