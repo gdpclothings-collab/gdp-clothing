@@ -46,6 +46,7 @@ import OrdersModule from "@/components/admin/OrdersModule";
 import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
 import CustomersModule from "@/components/admin/CustomersModule";
+import DiscountsModule from "@/components/admin/DiscountsModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -331,6 +332,15 @@ export default function AdminV2() {
                 description="Understand customer value, order history, repeat business and account status."
               />
               <CustomersModule />
+            </div>
+          ) : section === "discounts" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Discounts"
+                description="Create promotion codes, eligibility rules, usage limits and campaign schedules."
+              />
+              <DiscountsModule />
             </div>
           ) : (
             <ModuleLanding
