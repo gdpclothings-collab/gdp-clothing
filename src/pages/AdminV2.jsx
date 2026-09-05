@@ -40,12 +40,16 @@ import {
   ReceiptText,
   UserRoundCog,
   LifeBuoy,
+  Tags,
+  Star,
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
 import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
-import CustomersModule from "@/components/admin/CustomersModule";\nimport CollectionsModule from "@/components/admin/CollectionsModule";\nimport ReviewsModule from "@/components/admin/ReviewsModule";
+import CustomersModule from "@/components/admin/CustomersModule";
+import CollectionsModule from "@/components/admin/CollectionsModule";
+import ReviewsModule from "@/components/admin/ReviewsModule";
 import DiscountsModule from "@/components/admin/DiscountsModule";
 import CustomStudioAdminModule from "@/components/admin/CustomStudioAdminModule";
 import ProductionModule from "@/components/admin/ProductionModule";
