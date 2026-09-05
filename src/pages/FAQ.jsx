@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, ChevronUp, Mail, MapPin, Send } from "lucide-react";
-import { customerApi } from "@/lib/customerApi";\nimport Seo from "@/components/Seo";
+import { customerApi } from "@/lib/customerApi";
+import Seo from "@/components/Seo";
 
 const FAQS = [
   { q: "How does the custom design process work?", a: "Upload 1–5 photos, choose a style, personalize with names/dates, pick placement, color & size, then preview and order. Our designer creates a digital proof you approve before anything is printed." },
@@ -35,7 +36,8 @@ export default function FAQ() {
   };
 
   return (
-    <div className="max-w-[900px] mx-auto px-4 py-12">\n      <Seo title="FAQ & Support" description="Get help with GDP Clothing custom designs, proofs, Canadian shipping, returns and order support." path="/faq" />
+    <div className="max-w-[900px] mx-auto px-4 py-12">
+      <Seo title="FAQ & Support" description="Get help with GDP Clothing custom designs, proofs, Canadian shipping, returns and order support." path="/faq" />
       <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">Help Center</span>
       <h1 className="font-display text-5xl md:text-6xl leading-none mt-1 mb-8">FAQ & SUPPORT</h1>
 
