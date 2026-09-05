@@ -122,10 +122,10 @@ export default function ContentManagementModule() {
       <div className="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="inline-flex rounded-lg border border-[#d5d5d5] bg-white p-1 w-fit">
           {[
-            ["pages", "Pages", FileText],
-            ["navigation", "Navigation", MenuIcon],
-            ["media", "Media", ImageIcon],
-          ].map(([id, label, Icon]) => (
+            { id: "pages", label: "Pages", Icon: FileText },
+            { id: "navigation", label: "Navigation", Icon: MenuIcon },
+            { id: "media", label: "Media", Icon: ImageIcon },
+          ].map(({ id, label, Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -251,7 +251,7 @@ function PagesTab({ pages, loading, onCreate, onEdit, onStatus }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" className="py-12 text-center text-[#777]">Loading pages…</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-[#777]">Loading pages…</td></tr>
             ) : visible.length ? (
               visible.map((page) => (
                 <tr key={page.id} className="border-t border-[#eeeeee]">
@@ -283,7 +283,7 @@ function PagesTab({ pages, loading, onCreate, onEdit, onStatus }) {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="6" className="py-12 text-center text-[#777]">No pages found.</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-[#777]">No pages found.</td></tr>
             )}
           </tbody>
         </table>
@@ -456,11 +456,11 @@ function PageEditor({ page, onClose, onSaved }) {
       </div>
 
       <Field label="Excerpt">
-        <textarea value={form.excerpt} onChange={(event) => setForm({ ...form, excerpt: event.target.value })} className={textareaClass} rows="2" />
+        <textarea value={form.excerpt} onChange={(event) => setForm({ ...form, excerpt: event.target.value })} className={textareaClass} rows={2} />
       </Field>
 
       <Field label="Page content" helper="Plain text / structured-content foundation">
-        <textarea value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} className={textareaClass} rows="12" />
+        <textarea value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} className={textareaClass} rows={12} />
       </Field>
 
       <div className="grid sm:grid-cols-2 gap-3">
@@ -468,7 +468,7 @@ function PageEditor({ page, onClose, onSaved }) {
           <input value={form.seoTitle} onChange={(event) => setForm({ ...form, seoTitle: event.target.value })} className={inputClass} />
         </Field>
         <Field label="SEO description">
-          <textarea value={form.seoDescription} onChange={(event) => setForm({ ...form, seoDescription: event.target.value })} className={textareaClass} rows="3" />
+          <textarea value={form.seoDescription} onChange={(event) => setForm({ ...form, seoDescription: event.target.value })} className={textareaClass} rows={3} />
         </Field>
       </div>
     </Editor>
@@ -649,7 +649,7 @@ function MenuEditor({ menu, pages, products, collections, onClose, onSaved }) {
   );
 }
 
-function Editor({ title, onClose, onSave, saving, children, wide }) {
+function Editor({ title, onClose, onSave, saving, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className={`w-full ${wide ? "max-w-4xl" : "max-w-2xl"} bg-white rounded-2xl shadow-2xl overflow-hidden my-6`}>
@@ -704,7 +704,7 @@ function Status({ active }) {
   );
 }
 
-function Field({ label, helper, children }) {
+function Field({ label, helper = null, children }) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-[#555]">{label}</span>
@@ -714,11 +714,11 @@ function Field({ label, helper, children }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
 
