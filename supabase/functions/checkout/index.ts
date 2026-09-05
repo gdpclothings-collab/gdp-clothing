@@ -330,21 +330,30 @@ Deno.serve(async (req: Request) => {
     }
 
     const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeSecret) {
+    const stripePublishableKey = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
+
+    if (!stripeSecret || !stripePublishableKey) {
       return respond({
         orderNumber: order.order_number,
         confirmationToken: order.confirmation_token,
         configured: false,
+        missing: !stripeSecret ? "STRIPE_SECRET_KEY" : "STRIPE_PUBLISHABLE_KEY",
       });
     }
 
     const form = new URLSearchParams();
     form.set("mode", "payment");
-    form.set("success_url", `${origin}/order/${encodeURIComponent(order.order_number)}?status=success&token=${order.confirmation_token}&session_id={CHECKOUT_SESSION_ID}`);
-    form.set("cancel_url", `${origin}/checkout?cancelled=1`);
+    form.set("ui_mode", "custom");
+    form.set(
+      "return_url",
+      `${origin}/order/${encodeURIComponent(order.order_number)}?status=success&token=${order.confirmation_token}&session_id={CHECKOUT_SESSION_ID}`
+    );
     form.set("customer_email", user?.email || customer.email);
     form.set("line_items[0][price_data][currency]", "cad");
-    form.set("line_items[0][price_data][product_data][name]", `GDP Clothing Order ${order.order_number}`);
+    form.set(
+      "line_items[0][price_data][product_data][name]",
+      `GDP Clothing Order ${order.order_number}`
+    );
     form.set("line_items[0][price_data][unit_amount]", String(Math.round(total * 100)));
     form.set("line_items[0][quantity]", "1");
     form.set("metadata[order_id]", order.id);
@@ -362,12 +371,21 @@ Deno.serve(async (req: Request) => {
     });
 
     const stripeData = await stripeResponse.json();
-    if (!stripeResponse.ok || !stripeData?.url) {
+    if (!stripeResponse.ok || !stripeData?.client_secret) {
       for (const design of uniqueDesigns as any[]) {
-        await service.from("custom_designs").update({ order_id: null, status: "in_cart" }).eq("id", design.id);
+        await service
+          .from("custom_designs")
+          .update({ order_id: null, status: "in_cart" })
+          .eq("id", design.id);
       }
       await service.from("orders").delete().eq("id", order.id);
-      return respond({ error: true, message: stripeData?.error?.message || "Stripe checkout could not be created." }, 502);
+      return respond(
+        {
+          error: true,
+          message: stripeData?.error?.message || "Stripe payment form could not be created.",
+        },
+        502
+      );
     }
 
     await service
@@ -378,8 +396,10 @@ Deno.serve(async (req: Request) => {
     return respond({
       orderNumber: order.order_number,
       confirmationToken: order.confirmation_token,
-      checkoutUrl: stripeData.url,
+      clientSecret: stripeData.client_secret,
+      publishableKey: stripePublishableKey,
       configured: true,
+      uiMode: "custom",
     });
   } catch (error) {
     console.error("checkout error", error);
