@@ -31,7 +31,7 @@ export default function StoreNav() {
   useEffect(() => {
     setMenuOpen(false);
     setSearchOpen(false);
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, location.hash]);
 
   const submitSearch = (event) => {
     event.preventDefault();
@@ -40,6 +40,11 @@ export default function StoreNav() {
     navigate("/shop?q=" + encodeURIComponent(value));
     setSearchOpen(false);
     setMenuOpen(false);
+  };
+
+  const closeMobileMenu = () => {
+    setMenuOpen(false);
+    setSearchOpen(false);
   };
 
   const active = (path) => {
@@ -146,13 +151,14 @@ export default function StoreNav() {
                 <Link
                   key={item.label}
                   to={item.path}
+                  onClick={closeMobileMenu}
                   className="group flex items-center justify-between border-b border-white/15 py-5"
                 >
                   <span className="font-display text-5xl leading-none tracking-wide">{item.label}</span>
                   <span className="font-mono text-[10px] text-white/35">0{index + 1}</span>
                 </Link>
               ))}
-              <Link to="/account" className="flex items-center justify-between border-b border-white/15 py-5 sm:hidden">
+              <Link to="/account" onClick={closeMobileMenu} className="flex items-center justify-between border-b border-white/15 py-5 sm:hidden">
                 <span className="font-display text-5xl leading-none tracking-wide">Account</span>
                 <User size={20} className="text-white/45" />
               </Link>
