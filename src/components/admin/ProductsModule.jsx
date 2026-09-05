@@ -465,6 +465,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
           description: form.seoDescription || null,
         },
         variants: variants.map((variant, index) => ({
+          id: variant.id || null,
           name: variant.name || `Variant ${index + 1}`,
           sku: variant.sku || null,
           podSku: variant.podSku || null,
