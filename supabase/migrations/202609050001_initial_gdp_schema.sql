@@ -55,11 +55,7 @@ language sql
 stable
 security definer
 set search_path = public
-as $
-  select role
-  from public.profiles
-  where id = auth.uid();
-$;
+as 'select role from public.profiles where id = auth.uid();';
 
 create or replace function public.handle_new_user()
 returns trigger
