@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 
 const OCCASIONS = [
@@ -107,7 +107,7 @@ async function uploadWithRetry(file, attempts = 2) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      return await base44.integrations.Core.UploadFile({ file });
+      return await customerApi.uploadArtwork(file);
     } catch (error) {
       lastError = error;
       if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 650));
@@ -148,17 +148,38 @@ export default function CustomStudio() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const productId = params.get("product");
-    if (!productId) return;
-    base44.entities.Product.get(productId).then(p => {
-      setProduct(p);
-      setColor(p?.colors?.[0] || "Black");
-      setSize(p?.sizes?.[0] || "M");
-      setProofRequired(p?.customization?.proofRequired !== false);
-      if (p?.customization?.allowedStyles?.length) setDesignStyle(p.customization.allowedStyles[0]);
-      const match = GARMENTS.find(g => g.type === p?.type);
-      if (match) setGarment({ ...match, price: Number(p.price || match.price), label: p.name || match.label });
-    }).catch(() => {});
+    let active = true;
+
+    (async () => {
+      try {
+        const productId = params.get("product");
+        const p = productId
+          ? await customerApi.getProduct(productId)
+          : await customerApi.getDefaultCustomProduct();
+
+        if (!active || !p) return;
+        setProduct(p);
+        setColor(p?.colors?.[0] || "Black");
+        setSize(p?.sizes?.[0] || "M");
+        setProofRequired(p?.customization?.proofRequired !== false);
+        if (p?.customization?.allowedStyles?.length) setDesignStyle(p.customization.allowedStyles[0]);
+
+        const match = GARMENTS.find(g => g.type === p?.type);
+        if (match) {
+          setGarment({
+            ...match,
+            price: Number(p.price || match.price),
+            label: p.name || match.label
+          });
+        }
+      } catch (error) {
+        if (active) setWarn(error?.message || "Could not load the custom product.");
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const config = product?.customization || {};
@@ -209,13 +230,14 @@ export default function CustomStudio() {
           const uploaded = await uploadWithRetry(prepared.file);
           results[index] = {
             url: uploaded.file_url,
+            path: uploaded.storage_path,
             name: original.name,
             width: prepared.width,
             height: prepared.height,
             quality: qualityFor(prepared.width, prepared.height)
           };
-        } catch {
-          errors.push("Upload failed for " + original.name + ".");
+        } catch (error) {
+          errors.push(error?.message || ("Upload failed for " + original.name + "."));
         } finally {
           completed += 1;
           setUploadProgress({ done: completed, total: valid.length });
@@ -257,8 +279,8 @@ export default function CustomStudio() {
     try {
       let primaryIndex = photos.findIndex(p => p.isPrimary);
       if (primaryIndex < 0) primaryIndex = 0;
-      const productId = product?.id || ("custom_" + garment.type.toLowerCase().replaceAll(" ","_"));
-      const design = await base44.entities.CustomDesign.create({
+      const productId = product?.id || null;
+      const design = await customerApi.createCustomDesign({
         productId,
         productName: product?.name || garment.label,
         name: personalization.name || (occasion + " Custom Design"),
