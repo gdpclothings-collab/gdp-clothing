@@ -1,0 +1,34 @@
+name: GDP Clothing Build Verification
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  standalone-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify no active Base44 runtime dependency
+        shell: bash
+        run: |
+          if grep -RniE 'base44Client|@base44/|@base44"|https://base44\.app|media\.base44\.com' src package.json vite.config.js; then
+            echo "Active Base44 runtime reference detected."
+            exit 1
+          fi
+          echo "No active Base44 runtime references found."
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build production app
+        run: npm run build
