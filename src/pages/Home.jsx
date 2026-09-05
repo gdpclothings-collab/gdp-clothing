@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Heart, ShieldCheck, Shirt, Truck } from "lucide-react";
+import { ArrowRight, Heart, ShieldCheck, Shirt, Truck } from "lucide-react";\nimport Seo from "@/components/Seo";
 
 const CATEGORY_SPRITE = "/images/gdp-sold-categories.webp";
 
@@ -98,7 +98,7 @@ function SampleCard({ item }) {
 
 export default function Home() {
   return (
-    <div className="bg-white text-black">
+    <div className="bg-white text-black">\n      <Seo title="Custom Apparel & Personalized Streetwear" description="GDP Clothing creates custom tees, photo designs, personalized streetwear and wearable keepsakes from Saskatoon, Saskatchewan." path="/" />
       <section className="relative min-h-[490px] overflow-hidden bg-black text-white md:min-h-[610px]">
         <img
           src="/images/gdp-hero-approved.webp"
