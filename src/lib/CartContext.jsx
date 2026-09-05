@@ -23,7 +23,7 @@ export function CartProvider({ children }) {
     setItems(prev => {
       const key = item.customDesignId
         ? `custom_${item.customDesignId}_${item.size || ""}_${item.color || ""}_${item.variant || ""}`
-        : `${item.productId}_${item.size || ""}_${item.color || ""}`;
+        : `${item.productId}_${item.variantId || ""}_${item.size || ""}_${item.color || ""}`;
       const existing = prev.find(i => i.key === key);
       if (existing) {
         return prev.map(i => i.key === key ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i);
