@@ -35,37 +35,28 @@ export default function StoreNav() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-[#0a0a0a] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
-      <div className="border-b border-white/10 bg-black text-white">
-        <div className="mx-auto flex min-h-8 max-w-[1500px] items-center justify-center gap-4 px-4 text-center text-[10px] font-bold uppercase tracking-[0.18em] sm:text-[11px]">
-          <span>Custom designs available</span>
+    <header className="sticky top-0 z-50 bg-white text-black shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+      <div className="bg-black text-white">
+        <div className="mx-auto flex min-h-8 max-w-[1500px] items-center justify-center gap-3 px-3 text-center text-[9px] font-black uppercase tracking-[0.14em] sm:gap-4 sm:text-[10px] md:text-[11px]">
+          <span>Free Shipping on Orders $100+</span>
+          <span className="text-white/35">|</span>
+          <span>Custom Designs Available</span>
           <span className="hidden text-white/35 sm:inline">|</span>
-          <span className="hidden sm:inline">Saskatoon, Canada</span>
-          <span className="hidden text-white/35 md:inline">|</span>
-          <span className="hidden md:inline">Wear your story</span>
+          <span className="hidden sm:inline">Wear Your Story</span>
         </div>
       </div>
 
       <div className="mx-auto max-w-[1500px] px-4 lg:px-8">
-        <div className="flex h-[72px] items-center justify-between sm:h-[78px]">
-          <button
-            type="button"
-            className="p-2 text-white lg:hidden"
-            onClick={() => setMenuOpen((value) => !value)}
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-          >
+        <div className="flex h-[78px] items-center justify-between">
+          <button type="button" className="p-2 lg:hidden" onClick={() => setMenuOpen((v) => !v)} aria-label={menuOpen ? "Close menu" : "Open menu"}>
             {menuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
 
           <Link to="/" className="flex shrink-0 items-center gap-3" aria-label="GDP Clothing home">
-            <img
-              src="/images/gdp-logo.webp"
-              alt="GDP Clothing"
-              className="h-12 w-12 rounded-full object-cover sm:h-14 sm:w-14"
-            />
+            <img src="/images/gdp-logo.webp" alt="GDP Clothing" className="h-14 w-14 rounded-full object-cover sm:h-16 sm:w-16" />
             <div className="hidden sm:block">
-              <div className="font-display text-3xl leading-[0.8] tracking-wide">GDP Clothing</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/55">Wear your story</div>
+              <div className="font-display text-3xl leading-[0.82] tracking-wide">GDP</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.35em]">Clothing</div>
             </div>
           </Link>
 
@@ -74,9 +65,7 @@ export default function StoreNav() {
               <Link
                 key={item.label}
                 to={item.path}
-                className={`relative py-2 text-sm font-semibold transition hover:text-white/65 ${
-                  active(item.path) ? "after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-white" : ""
-                }`}
+                className={`relative py-2 text-sm font-semibold transition hover:text-neutral-500 ${active(item.path) ? "after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-black" : ""}`}
               >
                 {item.label}
               </Link>
@@ -84,23 +73,16 @@ export default function StoreNav() {
           </nav>
 
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setSearchOpen((value) => !value)}
-              className="p-2.5 text-white transition hover:text-white/65"
-              aria-label="Search"
-            >
-              <Search size={22} strokeWidth={1.7} />
+            <button type="button" onClick={() => setSearchOpen((v) => !v)} className="p-2.5 transition hover:text-neutral-500" aria-label="Search">
+              <Search size={23} strokeWidth={1.7} />
             </button>
-            <Link to="/account" className="hidden p-2.5 text-white transition hover:text-white/65 sm:block" aria-label="Account">
-              <User size={22} strokeWidth={1.7} />
+            <Link to="/account" className="hidden p-2.5 transition hover:text-neutral-500 sm:block" aria-label="Account">
+              <User size={23} strokeWidth={1.7} />
             </Link>
-            <Link to="/cart" className="relative p-2.5 text-white transition hover:text-white/65" aria-label="Cart">
-              <ShoppingBag size={22} strokeWidth={1.7} />
+            <Link to="/cart" className="relative p-2.5 transition hover:text-neutral-500" aria-label="Cart">
+              <ShoppingBag size={23} strokeWidth={1.7} />
               {itemCount > 0 && (
-                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#e11d2e] px-1 text-[9px] font-bold text-white">
-                  {itemCount}
-                </span>
+                <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[9px] font-black text-white">{itemCount}</span>
               )}
             </Link>
           </div>
@@ -108,43 +90,24 @@ export default function StoreNav() {
       </div>
 
       {searchOpen && (
-        <div className="border-t border-white/10 bg-[#111]">
+        <div className="border-t border-neutral-200 bg-white">
           <form onSubmit={submitSearch} className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-            <Search size={18} className="text-white/40" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search products, collections, custom styles..."
-              className="min-w-0 flex-1 bg-transparent py-2 text-sm text-white outline-none placeholder:text-white/35"
-            />
-            <button type="submit" className="text-xs font-black uppercase tracking-wide text-white">
-              Search
-            </button>
+            <Search size={18} className="text-neutral-400" />
+            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products, custom designs..." className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-neutral-400" />
+            <button type="submit" className="text-xs font-black uppercase tracking-wide">Search</button>
           </form>
         </div>
       )}
 
       {menuOpen && (
-        <div className="border-t border-white/10 bg-[#0a0a0a] lg:hidden">
+        <div className="border-t border-neutral-200 bg-white lg:hidden">
           <nav className="mx-auto grid max-w-[1500px] grid-cols-2 gap-x-6 px-5 py-5">
             {NAV.map((item) => (
-              <Link
-                key={item.label}
-                to={item.path}
-                onClick={() => setMenuOpen(false)}
-                className="border-b border-white/10 py-3 text-sm font-bold text-white"
-              >
+              <Link key={item.label} to={item.path} onClick={() => setMenuOpen(false)} className="border-b border-neutral-100 py-3 text-sm font-bold">
                 {item.label}
               </Link>
             ))}
-            <Link
-              to="/account"
-              onClick={() => setMenuOpen(false)}
-              className="border-b border-white/10 py-3 text-sm font-bold text-white sm:hidden"
-            >
-              Account
-            </Link>
+            <Link to="/account" onClick={() => setMenuOpen(false)} className="border-b border-neutral-100 py-3 text-sm font-bold sm:hidden">Account</Link>
           </nav>
         </div>
       )}
