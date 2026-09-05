@@ -1,0 +1,205 @@
+{
+  "name": "Order",
+  "type": "object",
+  "properties": {
+    "orderNumber": {
+      "type": "string"
+    },
+    "customerEmail": {
+      "type": "string"
+    },
+    "customerName": {
+      "type": "string"
+    },
+    "customerPhone": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "fulfillmentMode": {
+            "type": "string"
+          },
+          "customDesignId": {
+            "type": "string"
+          },
+          "isCustom": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "subtotal": {
+      "type": "number"
+    },
+    "discount": {
+      "type": "number"
+    },
+    "shipping": {
+      "type": "number"
+    },
+    "tax": {
+      "type": "number"
+    },
+    "total": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "pending_payment",
+        "paid",
+        "payment_failed",
+        "artwork_needed",
+        "design_in_progress",
+        "proof_ready",
+        "awaiting_approval",
+        "revision_requested",
+        "approved",
+        "production_queue",
+        "printing",
+        "quality_control",
+        "packing",
+        "ready_for_pickup",
+        "shipped",
+        "out_for_delivery",
+        "delivered",
+        "completed",
+        "cancelled",
+        "refunded",
+        "partially_refunded"
+      ],
+      "default": "pending_payment"
+    },
+    "fulfillmentStatus": {
+      "type": "string"
+    },
+    "shippingAddress": {
+      "type": "string"
+    },
+    "billingAddress": {
+      "type": "string"
+    },
+    "shippingMethod": {
+      "type": "string"
+    },
+    "paymentStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "paid",
+        "failed",
+        "refunded",
+        "partially_refunded"
+      ],
+      "default": "pending"
+    },
+    "paymentIntentId": {
+      "type": "string"
+    },
+    "trackingNumber": {
+      "type": "string"
+    },
+    "carrier": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "discountCode": {
+      "type": "string"
+    },
+    "isGuest": {
+      "type": "boolean",
+      "default": false
+    },
+    "needByDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "rush",
+        "due_soon"
+      ],
+      "default": "standard"
+    },
+    "customDesignIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "productionChecklist": {
+      "type": "object",
+      "properties": {
+        "customerChecked": {
+          "type": "boolean",
+          "default": false
+        },
+        "garmentChecked": {
+          "type": "boolean",
+          "default": false
+        },
+        "sizeColorQtyChecked": {
+          "type": "boolean",
+          "default": false
+        },
+        "spellingChecked": {
+          "type": "boolean",
+          "default": false
+        },
+        "proofVersionChecked": {
+          "type": "boolean",
+          "default": false
+        },
+        "placementChecked": {
+          "type": "boolean",
+          "default": false
+        },
+        "approvalCaptured": {
+          "type": "boolean",
+          "default": false
+        },
+        "printFileAttached": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  },
+  "required": [
+    "orderNumber",
+    "customerEmail",
+    "total"
+  ]
+}
