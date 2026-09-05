@@ -93,8 +93,8 @@ export default function Shop() {
           <div className="grid grid-cols-2 gap-x-3 gap-y-7 lg:grid-cols-4 lg:gap-x-4">
             {[0,1,2,3,4,5,6,7].map((item) => (
               <div key={item}>
-                <div className="aspect-[3/4] animate-pulse bg-black/8" />
-                <div className="mt-3 h-3 w-2/3 animate-pulse bg-black/8" />
+                <div className="aspect-[3/4] animate-pulse bg-black/10" />
+                <div className="mt-3 h-3 w-2/3 animate-pulse bg-black/10" />
               </div>
             ))}
           </div>
