@@ -45,7 +45,7 @@ import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
 import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
-import CustomersModule from "@/components/admin/CustomersModule";
+import CustomersModule from "@/components/admin/CustomersModule";\nimport CollectionsModule from "@/components/admin/CollectionsModule";\nimport ReviewsModule from "@/components/admin/ReviewsModule";
 import DiscountsModule from "@/components/admin/DiscountsModule";
 import CustomStudioAdminModule from "@/components/admin/CustomStudioAdminModule";
 import ProductionModule from "@/components/admin/ProductionModule";
@@ -69,6 +69,7 @@ const NAV_GROUPS = [
       { id: "home", label: "Home", icon: LayoutDashboard },
       { id: "orders", label: "Orders", icon: ShoppingBag },
       { id: "products", label: "Products", icon: Package },
+      { id: "collections", label: "Collections", icon: Tags },
       { id: "inventory", label: "Inventory", icon: Boxes },
       { id: "customers", label: "Customers", icon: Users },
     ],
@@ -80,6 +81,7 @@ const NAV_GROUPS = [
       { id: "marketing", label: "Marketing", icon: Megaphone },
       { id: "discounts", label: "Discounts", icon: BadgePercent },
       { id: "content", label: "Content", icon: FileText },
+      { id: "reviews", label: "Reviews", icon: Star },
       { id: "markets", label: "Markets", icon: Globe2 },
     ],
   },
@@ -117,6 +119,11 @@ const MODULE_COPY = {
     description: "Create and manage products, variants, collections, media, merchandising and SEO.",
     items: ["Products", "Variants", "Collections", "Categories", "Gift cards"],
   },
+  collections: {
+    title: "Collections",
+    description: "Organize products into curated storefront groups and seasonal merchandising sets.",
+    items: ["Collections", "Product membership", "Sort order", "Seasonal groups", "Collection media"],
+  },
   inventory: {
     title: "Inventory",
     description: "Track stock by variant and prepare for multi-location inventory, adjustments and transfers.",
@@ -146,6 +153,11 @@ const MODULE_COPY = {
     title: "Content",
     description: "Manage storefront media, pages and reusable commerce content from one place.",
     items: ["Files", "Pages", "Media library", "Reusable content", "SEO content"],
+  },
+  reviews: {
+    title: "Reviews",
+    description: "Moderate customer reviews, verification and storefront trust signals.",
+    items: ["Pending reviews", "Approved reviews", "Rejected reviews", "Verified reviews", "Review media"],
   },
   markets: {
     title: "Markets",
@@ -328,6 +340,15 @@ export default function AdminV2() {
               />
               <ProductsModule />
             </div>
+          ) : section === "collections" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Collections"
+                description="Build curated product groups, seasonal drops and storefront merchandising sets."
+              />
+              <CollectionsModule />
+            </div>
           ) : section === "inventory" ? (
             <div>
               <PageHeader
@@ -426,6 +447,15 @@ export default function AdminV2() {
                 description="Manage product media and the customer proof layer used across the storefront."
               />
               <ContentModule onOpen={openSection} />
+            </div>
+          ) : section === "reviews" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Reviews"
+                description="Moderate customer feedback, verification badges and storefront social proof."
+              />
+              <ReviewsModule />
             </div>
           ) : section === "markets" ? (
             <div>
