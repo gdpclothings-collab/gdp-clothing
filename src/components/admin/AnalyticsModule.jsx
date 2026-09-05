@@ -159,7 +159,7 @@ export default function AnalyticsModule() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="4" className="py-12 text-center text-[#777]">Loading products…</td></tr>
+                <tr><td colSpan={4} className="py-12 text-center text-[#777]">Loading products…</td></tr>
               ) : (data?.topProducts || []).length ? (
                 data.topProducts.map((row) => (
                   <tr key={row.name} className="border-t border-[#eeeeee]">
@@ -170,7 +170,7 @@ export default function AnalyticsModule() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="4" className="py-12 text-center text-[#777]">No paid product sales in this period.</td></tr>
+                <tr><td colSpan={4} className="py-12 text-center text-[#777]">No paid product sales in this period.</td></tr>
               )}
             </tbody>
           </table>
@@ -192,10 +192,10 @@ function MetricCard({ label, value, icon: Icon }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
