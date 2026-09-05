@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { storefrontContentApi } from "@/lib/storefrontContentApi";
+import { storefrontContentApi } from "@/lib/storefrontContentApi";\nimport Seo from "@/components/Seo";
 
 export default function ContentPage() {
   const { slug } = useParams();
@@ -71,6 +71,7 @@ export default function ContentPage() {
   if (notFound || !page) {
     return (
       <div className="max-w-4xl mx-auto px-4 lg:px-8 py-20 text-center">
+        <Seo title="Page Not Found" description="This GDP Clothing page is unavailable." path={`/pages/${slug}`} noIndex />
         <h1 className="font-display text-5xl">PAGE NOT FOUND</h1>
         <p className="text-muted-foreground mt-3">
           This GDP Clothing page is unavailable or has not been published.
@@ -89,6 +90,11 @@ export default function ContentPage() {
 
   return (
     <article className="max-w-4xl mx-auto px-4 lg:px-8 py-10 md:py-16">
+      <Seo
+        title={page.seo?.title || page.title}
+        description={page.seo?.description || page.excerpt || "GDP Clothing information."}
+        path={`/pages/${slug}`}
+      />
       <div className="font-mono text-xs uppercase tracking-[0.18em] text-accent">
         {page.page_type || "Page"}
       </div>
