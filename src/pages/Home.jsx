@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Upload, Palette, Eye, CreditCard, Printer, Truck, Star } from "lucide-react";
+import { ArrowRight, Upload, Palette, Eye, CreditCard, Printer, Truck } from "lucide-react";
 import { useProducts } from "@/lib/useProducts";
 import ProductCard from "@/components/storefront/ProductCard";
 import { Image } from "@/components/ui/image";
