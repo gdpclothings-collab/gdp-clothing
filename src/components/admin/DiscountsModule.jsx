@@ -138,10 +138,10 @@ export default function DiscountsModule() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" className="py-14 text-center text-[#777]">Loading discounts…</td></tr>
+                <tr><td colSpan={7} className="py-14 text-center text-[#777]">Loading discounts…</td></tr>
               ) : discounts.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-14 text-center">
+                  <td colSpan={7} className="py-14 text-center">
                     <BadgePercent size={22} className="mx-auto text-[#aaa]" />
                     <div className="font-medium mt-3">No discounts yet</div>
                   </td>
@@ -415,7 +415,7 @@ function Field({ label, children }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
