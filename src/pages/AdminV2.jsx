@@ -639,7 +639,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
   );
 }
 
-function AdminSidebar({ active, onSelect, className = "", onClose }) {
+function AdminSidebar({ active, onSelect, className = "", onClose = undefined }) {
   return (
     <aside className={`${className} flex-col bg-[#efefef] border-r border-[#dadada] w-[250px] shrink-0`}>
       <div className="lg:hidden h-14 px-4 border-b border-[#ddd] flex items-center justify-between">
@@ -946,7 +946,7 @@ function ModuleLanding({ module, section, onOpen }) {
   );
 }
 
-function PageHeader({ eyebrow, title, description, actions }) {
+function PageHeader({ eyebrow, title, description, actions = null }) {
   return (
     <div className="border-b border-[#dedede] bg-white">
       <div className="max-w-[1450px] mx-auto px-4 md:px-6 lg:px-8 py-5 md:py-6 flex flex-col md:flex-row md:items-center gap-4 md:justify-between">
@@ -981,7 +981,7 @@ function MetricCard({ icon: Icon, label, value, helper, tone = "neutral" }) {
   );
 }
 
-function Panel({ title, action, children }) {
+function Panel({ title, action = null, children }) {
   return (
     <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
       <div className="min-h-12 px-4 py-3 border-b border-[#e8e8e8] flex items-center justify-between gap-4">
@@ -1071,7 +1071,7 @@ function AttentionRow({ icon: Icon, label, value, onClick }) {
   );
 }
 
-function WorkflowStep({ icon: Icon, title, text, last }) {
+function WorkflowStep({ icon: Icon, title, text, last = false }) {
   return (
     <div className="px-4 py-3 flex gap-3">
       <div className="flex flex-col items-center">
