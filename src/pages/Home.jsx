@@ -92,26 +92,26 @@ export default function Home() {
   return (
     <div className="bg-white text-black">
       {/* HERO */}
-      <section className="relative min-h-[520px] md:min-h-[610px] overflow-hidden bg-[#0a0a0a] text-white">
+      <section className="relative min-h-[470px] md:min-h-[590px] overflow-hidden bg-[#0a0a0a] text-white">
         <div className="absolute inset-0">
           <Image
             src="/images/gdp-hero.svg"
             alt="GDP Clothing custom streetwear"
             fittingType="fill"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-[68%_center] md:object-center"
           />
         </div>
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-black/25" />
         <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_80%_20%,white_0,transparent_25%)]" />
 
-        <div className="relative mx-auto flex min-h-[520px] md:min-h-[610px] max-w-[1500px] items-center px-5 lg:px-10">
+        <div className="relative mx-auto flex min-h-[470px] md:min-h-[590px] max-w-[1500px] items-center px-5 py-10 lg:px-10">
           <div className="max-w-2xl">
             <div className="mb-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.35em] text-white/70">
               GDP Clothing
               <span className="h-px w-10 bg-[#e11d2e]" />
             </div>
 
-            <h1 className="font-display text-[72px] leading-[0.82] sm:text-[92px] md:text-[120px] lg:text-[138px]">
+            <h1 className="font-display text-[62px] leading-[0.84] sm:text-[82px] md:text-[112px] lg:text-[132px]">
               WEAR YOUR
               <br />
               STORY
@@ -126,7 +126,7 @@ export default function Home() {
               Turn photos, memories, people, pets and milestones into clothing made to be remembered.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-7 flex flex-wrap gap-3">
               <Link
                 to="/shop"
                 className="inline-flex items-center gap-2 bg-white px-7 py-4 text-sm font-black uppercase tracking-wider text-black transition hover:bg-[#e11d2e] hover:text-white"
