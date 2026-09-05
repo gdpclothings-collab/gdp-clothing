@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Lock, CreditCard, Check, AlertTriangle, Truck, Store } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
-import { base44 } from "@/api/base44Client";
+import { customerApi } from "@/lib/customerApi";
 import { isIframe } from "@/lib/utils";
 
 export default function Checkout() {
@@ -26,7 +26,7 @@ export default function Checkout() {
   const discountAmt = subtotal - discounted;
   const couponAmt = appliedDiscount ? (appliedDiscount.type === "fixed" ? appliedDiscount.value : discounted * (appliedDiscount.value / 100)) : 0;
   const afterCoupon = Math.max(0, discounted - couponAmt);
-  const shipping = form.shippingMethod === "pickup" ? 0 : (afterCoupon >= 150 ? 0 : 12.99);
+  const shipping = form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping" ? 0 : (afterCoupon >= 150 ? 0 : 12.99);
   const tax = (afterCoupon + shipping) * 0.11;
   const total = afterCoupon + shipping + tax;
 
@@ -38,7 +38,7 @@ export default function Checkout() {
     if (!form.discountCode) return;
     setError("");
     try {
-      const { data } = await base44.functions.invoke('checkout', { action: 'validateCoupon', code: form.discountCode });
+      const data = await customerApi.validateCoupon(form.discountCode);
       if (data?.active) setAppliedDiscount(data); else setError("Invalid or expired code.");
     } catch { setError("Could not validate code."); }
   };
@@ -55,10 +55,12 @@ export default function Checkout() {
     }
     setPlacing(true);
     try {
-      const { data } = await base44.functions.invoke('checkout', {
-        action: 'createOrder', cart: items, customer: form, discountCode: form.discountCode,
-        origin: window.location.origin
-      });
+      const data = await customerApi.createOrder(
+        items,
+        form,
+        form.discountCode,
+        window.location.origin
+      );
       if (data?.error) {
         setError(data.message || "Order could not be placed. Please try again.");
       } else if (data?.checkoutUrl) {
@@ -66,7 +68,8 @@ export default function Checkout() {
         window.location.href = data.checkoutUrl;
       } else {
         clearCart();
-        navigate(`/order/${data.orderNumber}?status=pending_payment&configured=0`);
+        const token = data.confirmationToken ? `&token=${encodeURIComponent(data.confirmationToken)}` : "";
+        navigate(`/order/${data.orderNumber}?status=pending_payment&configured=0${token}`);
       }
     } catch (e) {
       setError("Network error placing order. Please try again.");
