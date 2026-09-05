@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
+import ProductsModule from "@/components/admin/ProductsModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -301,6 +302,15 @@ export default function AdminV2() {
                 description="Manage order lifecycle, payments, fulfillment, custom work and shipping."
               />
               <OrdersModule />
+            </div>
+          ) : section === "products" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Products"
+                description="Create and manage products, variants, inventory, merchandising and SEO."
+              />
+              <ProductsModule />
             </div>
           ) : (
             <ModuleLanding
