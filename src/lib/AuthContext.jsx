@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-const AuthContext = createContext();
+const AuthContext = createContext(/** @type {any} */ (null));
 
 async function hydrateUser(authUser) {
   if (!authUser) return null;
