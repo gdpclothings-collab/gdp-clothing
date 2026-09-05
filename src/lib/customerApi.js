@@ -274,11 +274,26 @@ export const customerApi = {
     return data;
   },
 
-  async validateCoupon(code) {
+  async validateCoupon(code, purchase = 0) {
     const { data, error } = await supabase.functions.invoke("checkout", {
-      body: { action: "validateCoupon", code },
+      body: { action: "validateCoupon", code, purchase },
     });
     if (error) throw error;
+    return data;
+  },
+
+  async getCheckoutConfig({ amount, province, shippingMethod, freeShipping = false }) {
+    const { data, error } = await supabase.functions.invoke("checkout", {
+      body: {
+        action: "checkoutConfig",
+        amount,
+        province,
+        shippingMethod,
+        freeShipping,
+      },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.message || "Checkout configuration failed.");
     return data;
   },
 

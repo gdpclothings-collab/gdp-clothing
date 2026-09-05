@@ -6,6 +6,38 @@ import { customerApi } from "@/lib/customerApi";
 import { isIframe } from "@/lib/utils";
 import { loadStripe } from "@stripe/stripe-js";
 
+const PROVINCES = [
+  "Alberta",
+  "British Columbia",
+  "Manitoba",
+  "New Brunswick",
+  "Newfoundland and Labrador",
+  "Northwest Territories",
+  "Nova Scotia",
+  "Nunavut",
+  "Ontario",
+  "Prince Edward Island",
+  "Quebec",
+  "Saskatchewan",
+  "Yukon",
+];
+
+const FALLBACK_TAX_RATES = {
+  Alberta: 0.05,
+  "British Columbia": 0.05,
+  Manitoba: 0.05,
+  "New Brunswick": 0.15,
+  "Newfoundland and Labrador": 0.15,
+  "Northwest Territories": 0.05,
+  "Nova Scotia": 0.14,
+  Nunavut: 0.05,
+  Ontario: 0.13,
+  "Prince Edward Island": 0.15,
+  Quebec: 0.05,
+  Saskatchewan: 0.11,
+  Yukon: 0.05,
+};
+
 export default function Checkout() {
   const { items, subtotal, clearCart, itemCount } = useCart();
   const navigate = useNavigate();
@@ -17,6 +49,7 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(null);
+  const [checkoutConfig, setCheckoutConfig] = useState(null);
   const [checkoutActions, setCheckoutActions] = useState(null);
   const [paymentSession, setPaymentSession] = useState(null);
   const [paymentCanConfirm, setPaymentCanConfirm] = useState(false);
@@ -38,9 +71,47 @@ export default function Checkout() {
   const discountAmt = subtotal - discounted;
   const couponAmt = appliedDiscount ? (appliedDiscount.type === "fixed" ? appliedDiscount.value : discounted * (appliedDiscount.value / 100)) : 0;
   const afterCoupon = Math.max(0, discounted - couponAmt);
-  const shipping = form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping" ? 0 : (afterCoupon >= 150 ? 0 : 12.99);
-  const tax = (afterCoupon + shipping) * 0.11;
+  const fallbackShipping =
+    form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping"
+      ? 0
+      : (afterCoupon >= 150 ? 0 : 12.99);
+  const shipping = checkoutConfig?.shipping ?? fallbackShipping;
+  const taxRate = checkoutConfig?.taxRate ?? (FALLBACK_TAX_RATES[form.province] ?? 0.05);
+  const taxShipping = checkoutConfig?.taxShipping ?? true;
+  const tax = (afterCoupon + (taxShipping ? shipping : 0)) * taxRate;
   const total = afterCoupon + shipping + tax;
+
+  useEffect(() => {
+    if (!items.length || checkoutActions) return undefined;
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        const data = await customerApi.getCheckoutConfig({
+          amount: afterCoupon,
+          province: form.province,
+          shippingMethod: form.shippingMethod,
+          freeShipping: appliedDiscount?.type === "free_shipping",
+        });
+        if (active) setCheckoutConfig(data);
+      } catch (configError) {
+        if (active) setCheckoutConfig(null);
+        console.debug("Checkout pricing configuration fallback:", configError?.message || configError);
+      }
+    }, 200);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [
+    items.length,
+    afterCoupon,
+    form.province,
+    form.shippingMethod,
+    appliedDiscount?.type,
+    checkoutActions,
+  ]);
 
   useEffect(() => {
     if (!items.length || checkoutActions) return undefined;
@@ -95,7 +166,7 @@ export default function Checkout() {
     if (!form.discountCode) return;
     setError("");
     try {
-      const data = await customerApi.validateCoupon(form.discountCode);
+      const data = await customerApi.validateCoupon(form.discountCode, discounted);
       if (data?.active) setAppliedDiscount(data); else setError("Invalid or expired code.");
     } catch { setError("Could not validate code."); }
   };
@@ -126,6 +197,15 @@ export default function Checkout() {
         if (data?.error) {
           setError(data.message || "Order could not be prepared. Please try again.");
           return;
+        }
+
+        if (data?.pricing) {
+          setCheckoutConfig((previous) => ({
+            ...(previous || {}),
+            shipping: Number(data.pricing.shipping || 0),
+            taxRate: Number(data.pricing.taxRate || 0),
+            taxName: data.pricing.taxName || previous?.taxName || "Tax",
+          }));
         }
 
         if (!data?.configured || !data?.clientSecret || !data?.publishableKey) {
@@ -238,16 +318,16 @@ export default function Checkout() {
               <Input label="Last name" value={form.lastName} onChange={v => set("lastName", v)} />
               <div className="sm:col-span-2"><Input label="Address" value={form.address} onChange={v => set("address", v)} /></div>
               <Input label="City" value={form.city} onChange={v => set("city", v)} />
-              <Input label="Province/State" value={form.province} onChange={v => set("province", v)} />
-              <Input label="Postal/Zip" value={form.postalCode} onChange={v => set("postalCode", v)} />
-              <Input label="Country" value={form.country} onChange={v => set("country", v)} />
+              <SelectInput label="Province/Territory" value={form.province} onChange={v => set("province", v)} options={PROVINCES} />
+              <Input label="Postal Code" value={form.postalCode} onChange={v => set("postalCode", v)} />
+              <Input label="Country" value={form.country} readOnly />
             </div>
           </Section>
 
           <Section n="03" title="Shipping Method">
             <div className="grid sm:grid-cols-2 gap-3">
               <Option selected={form.shippingMethod === "standard"} onClick={() => set("shippingMethod", "standard")}
-                icon={Truck} title="Standard Shipping" desc={afterCoupon >= 150 ? "FREE (over $150)" : "$12.99 · 3-7 business days"} />
+                icon={Truck} title="Standard Shipping" desc={shipping === 0 ? "FREE · 3-7 business days" : `$${shipping.toFixed(2)} · 3-7 business days`} />
               <Option selected={form.shippingMethod === "pickup"} onClick={() => set("shippingMethod", "pickup")}
                 icon={Store} title="Local Pickup" desc="Free · Saskatoon studio" />
             </div>
@@ -314,7 +394,7 @@ export default function Checkout() {
             {discountAmt > 0 && <Row k="Qty discount" v={`-$${discountAmt.toFixed(2)}`} accent />}
             {couponAmt > 0 && <Row k="Coupon" v={`-$${couponAmt.toFixed(2)}`} accent />}
             <Row k="Shipping" v={shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`} />
-            <Row k="Tax" v={`$${tax.toFixed(2)}`} />
+            <Row k={checkoutConfig?.taxName || "Tax"} v={`${tax.toFixed(2)}`} />
           </div>
           <div className="flex justify-between font-bold text-lg mt-3 pt-3 border-t border-border">
             <span>Total CAD</span><span className="font-mono">${total.toFixed(2)}</span>
@@ -343,10 +423,20 @@ export default function Checkout() {
 function Section({ n, title, children }) {
   return <div><div className="flex items-center gap-2 mb-3"><span className="font-mono text-xs text-accent">{n}</span><h2 className="font-display text-2xl">{title}</h2></div>{children}</div>;
 }
-function Input({ label, value, onChange, type = "text" }) {
-  return <div><label className="font-mono text-xs uppercase text-muted-foreground">{label}</label>
-    <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-background border border-border px-3 py-2 mt-1 outline-none focus:border-accent" /></div>;
+function Input({ label, value, onChange = undefined, type = "text", readOnly = false }) {
+  const id = `checkout-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return <div><label htmlFor={id} className="font-mono text-xs uppercase text-muted-foreground">{label}</label>
+    <input id={id} type={type} value={value} readOnly={readOnly}
+      onChange={(e) => onChange?.(e.target.value)}
+      className="w-full bg-background border border-border px-3 py-2 mt-1 outline-none focus:border-accent read-only:opacity-70" /></div>;
+}
+function SelectInput({ label, value, onChange, options }) {
+  const id = `checkout-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return <div><label htmlFor={id} className="font-mono text-xs uppercase text-muted-foreground">{label}</label>
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}
+      className="w-full bg-background border border-border px-3 py-2 mt-1 outline-none focus:border-accent">
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select></div>;
 }
 function Option({ selected, onClick, icon: Icon, title, desc }) {
   return <button onClick={onClick}
