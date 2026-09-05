@@ -95,7 +95,7 @@ export default function FinanceModule() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="8" className="py-12 text-center text-[#777]">Loading transactions…</td></tr>
+                <tr><td colSpan={8} className="py-12 text-center text-[#777]">Loading transactions…</td></tr>
               ) : (data?.transactions || []).length ? (
                 data.transactions.map((order) => (
                   <tr key={order.id} className="border-t border-[#eeeeee]">
@@ -113,7 +113,7 @@ export default function FinanceModule() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="py-12 text-center text-[#777]">No transactions yet.</td></tr>
+                <tr><td colSpan={8} className="py-12 text-center text-[#777]">No transactions yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -148,10 +148,10 @@ function Status({ value }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${cls}`}>{normalized.replaceAll("_", " ")}</span>;
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
