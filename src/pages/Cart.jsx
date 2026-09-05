@@ -2,7 +2,8 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Heart } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
-import { Image } from "@/components/ui/image";\nimport Seo from "@/components/Seo";
+import { Image } from "@/components/ui/image";
+import Seo from "@/components/Seo";
 
 export default function Cart() {
   const { items, updateQty, removeItem, subtotal, saved, moveToCart, itemCount } = useCart();
@@ -19,7 +20,8 @@ export default function Cart() {
 
   if (items.length === 0) {
     return (
-      <div className="max-w-[1500px] mx-auto px-4 py-20 text-center">\n        <Seo title="Your Cart" description="GDP Clothing shopping cart." path="/cart" noIndex />
+      <div className="max-w-[1500px] mx-auto px-4 py-20 text-center">
+        <Seo title="Your Cart" description="GDP Clothing shopping cart." path="/cart" noIndex />
         <ShoppingBag size={48} className="mx-auto text-muted-foreground mb-4" />
         <h1 className="font-display text-4xl">YOUR CART IS EMPTY</h1>
         <p className="text-muted-foreground mt-2">Time to design something legendary.</p>
@@ -31,7 +33,8 @@ export default function Cart() {
   }
 
   return (
-    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">\n      <Seo title="Your Cart" description="GDP Clothing shopping cart." path="/cart" noIndex />
+    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">
+      <Seo title="Your Cart" description="GDP Clothing shopping cart." path="/cart" noIndex />
       <h1 className="font-display text-5xl md:text-6xl leading-none mb-8">YOUR CART</h1>
       <div className="grid lg:grid-cols-[1fr_380px] gap-8">
         <div className="space-y-4">
