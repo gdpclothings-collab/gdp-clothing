@@ -1,0 +1,195 @@
+{
+  "name": "CustomDesign",
+  "type": "object",
+  "properties": {
+    "productName": {
+      "type": "string"
+    },
+    "productId": {
+      "type": "string"
+    },
+    "designStyle": {
+      "type": "string"
+    },
+    "photos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "personalization": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "dates": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "quote": {
+          "type": "string"
+        },
+        "number": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        }
+      }
+    },
+    "placement": {
+      "type": "string",
+      "enum": [
+        "front",
+        "front_back",
+        "back",
+        "left_chest",
+        "large_front",
+        "large_back",
+        "sleeve"
+      ],
+      "default": "front"
+    },
+    "color": {
+      "type": "string"
+    },
+    "size": {
+      "type": "string"
+    },
+    "previewUrl": {
+      "type": "string"
+    },
+    "photoAssets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "excellent",
+              "usable",
+              "replace_recommended"
+            ]
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "occasion": {
+      "type": "string"
+    },
+    "recipientType": {
+      "type": "string"
+    },
+    "designMood": {
+      "type": "string"
+    },
+    "story": {
+      "type": "string"
+    },
+    "designIntensity": {
+      "type": "number",
+      "default": 3
+    },
+    "garmentTier": {
+      "type": "string",
+      "enum": [
+        "classic",
+        "premium_vintage",
+        "oversized"
+      ],
+      "default": "classic"
+    },
+    "needByDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "rush"
+      ],
+      "default": "standard"
+    },
+    "proofRequired": {
+      "type": "boolean",
+      "default": true
+    },
+    "revisionAllowance": {
+      "type": "number",
+      "default": 2
+    },
+    "primaryPhotoIndex": {
+      "type": "number",
+      "default": 0
+    },
+    "customerConfirmedRights": {
+      "type": "boolean",
+      "default": false
+    },
+    "approvalPolicyAcknowledged": {
+      "type": "boolean",
+      "default": false
+    },
+    "orderId": {
+      "type": "string"
+    },
+    "additionalGarments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "saved",
+        "in_cart",
+        "ordered",
+        "in_production"
+      ],
+      "default": "draft"
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "productName"
+  ]
+}
