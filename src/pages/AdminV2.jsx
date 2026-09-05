@@ -44,6 +44,7 @@ import {
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
 import ProductsModule from "@/components/admin/ProductsModule";
+import InventoryModule from "@/components/admin/InventoryModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -311,6 +312,15 @@ export default function AdminV2() {
                 description="Create and manage products, variants, inventory, merchandising and SEO."
               />
               <ProductsModule />
+            </div>
+          ) : section === "inventory" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Inventory"
+                description="Track stock by variant, identify low inventory and make controlled adjustments."
+              />
+              <InventoryModule />
             </div>
           ) : (
             <ModuleLanding
