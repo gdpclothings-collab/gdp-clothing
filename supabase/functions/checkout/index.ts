@@ -116,12 +116,88 @@ Deno.serve(async (req: Request) => {
       return respond({ order: data });
     }
 
+
+    if (action === "trackCheckout") {
+      const user = await optionalUser(req, supabaseUrl, anonKey);
+      const incomingToken = String(body?.sessionToken || "").trim();
+      const sessionToken = uuidRe.test(incomingToken) ? incomingToken : crypto.randomUUID();
+      const cart = Array.isArray(body?.cart) ? body.cart.slice(0, 100) : [];
+      const customer = body?.customer || {};
+      const totals = body?.totals || {};
+
+      const safeMoney = (value: unknown) => {
+        const number = Number(value || 0);
+        if (!Number.isFinite(number) || number < 0) return 0;
+        return roundMoney(Math.min(number, 1000000));
+      };
+
+      const customerName = [customer.firstName, customer.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      const shippingAddress = {
+        address: customer.address || "",
+        city: customer.city || "",
+        province: customer.province || "",
+        postalCode: customer.postalCode || "",
+        country: customer.country || "Canada",
+      };
+
+      const nowIso = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: existing } = await service
+        .from("checkout_sessions")
+        .select("id,status,converted_order_id")
+        .eq("session_token", sessionToken)
+        .maybeSingle();
+
+      if (existing?.status === "converted") {
+        return respond({
+          sessionToken,
+          status: "converted",
+          convertedOrderId: existing.converted_order_id,
+        });
+      }
+
+      const payload = {
+        user_id: user?.id || null,
+        session_token: sessionToken,
+        customer_email: String(customer.email || user?.email || "").trim() || null,
+        customer_name: customerName || null,
+        cart,
+        shipping_address: shippingAddress,
+        billing_address: shippingAddress,
+        currency: "CAD",
+        subtotal: safeMoney(totals.subtotal),
+        discount: safeMoney(totals.discount),
+        shipping: safeMoney(totals.shipping),
+        tax: safeMoney(totals.tax),
+        total: safeMoney(totals.total),
+        status: "active",
+        last_activity_at: nowIso,
+        expires_at: expiresAt,
+      };
+
+      const { error } = await service
+        .from("checkout_sessions")
+        .upsert(payload, { onConflict: "session_token" });
+
+      if (error) throw error;
+
+      return respond({ sessionToken, status: "active" });
+    }
+
     if (action !== "createOrder") {
       return respond({ error: true, message: "Unknown checkout action." }, 400);
     }
 
     const cart = Array.isArray(body?.cart) ? body.cart : [];
     const customer = body?.customer || {};
+    const checkoutSessionToken = uuidRe.test(String(body?.checkoutSessionToken || ""))
+      ? String(body.checkoutSessionToken)
+      : null;
     const origin = validOrigin(body?.origin || req.headers.get("origin"));
 
     if (!cart.length || cart.length > 100) {
@@ -333,6 +409,17 @@ Deno.serve(async (req: Request) => {
     const stripePublishableKey = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
 
     if (!stripeSecret || !stripePublishableKey) {
+      if (checkoutSessionToken) {
+        await service
+          .from("checkout_sessions")
+          .update({
+            status: "converted",
+            converted_order_id: order.id,
+            last_activity_at: new Date().toISOString(),
+          })
+          .eq("session_token", checkoutSessionToken);
+      }
+
       return respond({
         orderNumber: order.order_number,
         confirmationToken: order.confirmation_token,
@@ -380,6 +467,18 @@ Deno.serve(async (req: Request) => {
           .eq("id", design.id);
       }
       await service.from("orders").delete().eq("id", order.id);
+
+      if (checkoutSessionToken) {
+        await service
+          .from("checkout_sessions")
+          .update({
+            status: "active",
+            converted_order_id: null,
+            last_activity_at: new Date().toISOString(),
+          })
+          .eq("session_token", checkoutSessionToken);
+      }
+
       return respond(
         {
           error: true,
@@ -393,6 +492,17 @@ Deno.serve(async (req: Request) => {
       .from("orders")
       .update({ stripe_checkout_session_id: stripeData.id })
       .eq("id", order.id);
+
+    if (checkoutSessionToken) {
+      await service
+        .from("checkout_sessions")
+        .update({
+          status: "converted",
+          converted_order_id: order.id,
+          last_activity_at: new Date().toISOString(),
+        })
+        .eq("session_token", checkoutSessionToken);
+    }
 
     return respond({
       orderNumber: order.order_number,
