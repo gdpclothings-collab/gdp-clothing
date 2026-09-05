@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Sparkles, X, Send } from "lucide-react";
 
 const SUGGESTIONS = [
@@ -9,11 +10,27 @@ const SUGGESTIONS = [
   "What's your return policy?",
 ];
 
+const HIDDEN_ROUTES = [
+  "/custom-studio",
+  "/cart",
+  "/checkout",
+  "/order-confirmation",
+];
+
 export default function AIAssistant() {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const hiddenForPurchaseFlow = HIDDEN_ROUTES.some((route) =>
+    location.pathname === route || location.pathname.startsWith(route + "/")
+  );
+
+  useEffect(() => {
+    if (hiddenForPurchaseFlow) setOpen(false);
+  }, [hiddenForPurchaseFlow]);
 
   const ask = async (q) => {
     if (!q.trim() || loading) return;
@@ -34,6 +51,8 @@ export default function AIAssistant() {
       setLoading(false);
     }
   };
+
+  if (hiddenForPurchaseFlow) return null;
 
   return (
     <>
