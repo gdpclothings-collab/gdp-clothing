@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { storefrontContentApi } from "@/lib/storefrontContentApi";\nimport Seo from "@/components/Seo";
+import { storefrontContentApi } from "@/lib/storefrontContentApi";
+import Seo from "@/components/Seo";
 
 export default function ContentPage() {
   const { slug } = useParams();
