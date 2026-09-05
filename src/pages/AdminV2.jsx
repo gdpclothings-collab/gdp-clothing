@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
+import DraftOrdersModule from "@/components/admin/DraftOrdersModule";
 import ReturnsModule from "@/components/admin/ReturnsModule";
 import AbandonedCheckoutsModule from "@/components/admin/AbandonedCheckoutsModule";
 import ProductsModule from "@/components/admin/ProductsModule";
@@ -80,6 +81,7 @@ const NAV_GROUPS = [
     items: [
       { id: "home", label: "Home", icon: LayoutDashboard },
       { id: "orders", label: "Orders", icon: ShoppingBag },
+      { id: "draft-orders", label: "Draft orders", icon: FileText },
       { id: "returns", label: "Returns", icon: RotateCcw },
       { id: "abandoned-checkouts", label: "Abandoned checkouts", icon: ShoppingCart },
       { id: "products", label: "Products", icon: Package },
@@ -346,6 +348,15 @@ export default function AdminV2() {
                 description="Manage order lifecycle, payments, fulfillment, custom work and shipping."
               />
               <OrdersModule />
+            </div>
+          ) : section === "draft-orders" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Draft orders"
+                description="Prepare quotes, phone orders and manual orders before payment or fulfillment begins."
+              />
+              <DraftOrdersModule />
             </div>
           ) : section === "returns" ? (
             <div>
