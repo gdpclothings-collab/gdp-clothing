@@ -32,7 +32,7 @@ const mapProduct = (row) => ({
   customization: row.customization || {},
   material: row.material || "",
   seo: row.seo || {},
-  variants: (row.product_variants || []).map((variant) => ({
+  variants: (row.product_variants || []).filter((variant) => variant.active !== false).map((variant) => ({
     id: variant.id,
     name: variant.name || "Default",
     sku: variant.sku || "",
