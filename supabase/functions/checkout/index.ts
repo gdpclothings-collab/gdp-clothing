@@ -366,6 +366,7 @@ Deno.serve(async (req: Request) => {
       headers: {
         Authorization: `Bearer ${stripeSecret}`,
         "Content-Type": "application/x-www-form-urlencoded",
+        "Stripe-Version": "2026-08-26.dahlia",
       },
       body: form,
     });
