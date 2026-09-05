@@ -1,0 +1,63 @@
+{
+  "name": "StoreSettings",
+  "type": "object",
+  "properties": {
+    "logo": {
+      "type": "string"
+    },
+    "storeName": {
+      "type": "string",
+      "default": "GDP Clothing"
+    },
+    "slogan": {
+      "type": "string",
+      "default": "Design Your Dream, Wear Your Vision!"
+    },
+    "primaryColor": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string",
+      "default": "CAD"
+    },
+    "timezone": {
+      "type": "string",
+      "default": "America/Regina"
+    },
+    "orderPrefix": {
+      "type": "string",
+      "default": "GDP"
+    },
+    "lowStockThreshold": {
+      "type": "number",
+      "default": 5
+    },
+    "contactEmail": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "facebook": {
+      "type": "string"
+    },
+    "instagram": {
+      "type": "string"
+    },
+    "tiktok": {
+      "type": "string"
+    },
+    "youtube": {
+      "type": "string"
+    },
+    "footerText": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "storeName"
+  ]
+}
