@@ -423,7 +423,7 @@ export default function Checkout() {
 function Section({ n, title, children }) {
   return <div><div className="flex items-center gap-2 mb-3"><span className="font-mono text-xs text-accent">{n}</span><h2 className="font-display text-2xl">{title}</h2></div>{children}</div>;
 }
-function Input({ label, value, onChange, type = "text", readOnly = false }) {
+function Input({ label, value, onChange = undefined, type = "text", readOnly = false }) {
   const id = `checkout-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return <div><label htmlFor={id} className="font-mono text-xs uppercase text-muted-foreground">{label}</label>
     <input id={id} type={type} value={value} readOnly={readOnly}
