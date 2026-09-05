@@ -44,9 +44,11 @@ export default function StoreFooter() {
       <div className="mx-auto flex max-w-[1500px] flex-col gap-8 px-5 py-8 lg:px-8">
         <div className="flex flex-col gap-7 md:flex-row md:items-center md:justify-between">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white font-display text-2xl">
-              GDP
-            </div>
+            <img
+              src="/images/gdp-logo.webp"
+              alt="GDP Clothing"
+              className="h-12 w-12 rounded-full object-cover"
+            />
             <div>
               <div className="font-display text-2xl leading-none">GDP Clothing</div>
               <div className="mt-1 text-[10px] uppercase tracking-[0.25em] text-white/50">
