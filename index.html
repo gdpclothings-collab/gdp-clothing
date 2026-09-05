@@ -13,42 +13,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
     <title>GDP Clothing — Design Your Dream, Wear Your Vision!</title>
-    <script type="module" crossorigin src="/assets/index-0EBB1izX.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DiU1NV1_.css">
-    <script type="module">
-if (window.self === window.top) {
-  let lastPath = "";
-  function getPageNameFromPath(path) {
-    const segments = path.split("/").filter(Boolean);
-    return segments[0] || null;
-  }
-  function trackPageView() {
-    const path = window.location.pathname;
-    if (path === lastPath) return;
-    lastPath = path;
-    const pageName = getPageNameFromPath(path) || "home";
-    const appId = "6a81578c129b25b9cd782538";
-    if (!appId) return;
-    fetch(`/api/app-logs/${appId}/log-user-in-app/${pageName}`, {
-      method: "POST",
-    }).catch(() => {});
-  }
-  const originalPushState = history.pushState.bind(history);
-  history.pushState = function (...args) {
-    originalPushState(...args);
-    trackPageView();
-  };
-  const originalReplaceState = history.replaceState.bind(history);
-  history.replaceState = function (...args) {
-    originalReplaceState(...args);
-    trackPageView();
-  };
-  window.addEventListener("popstate", trackPageView);
-  trackPageView();
-}
-</script>
   </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
