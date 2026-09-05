@@ -1,294 +1,209 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import {
-  ArrowRight,
-  Heart,
-  ShieldCheck,
-  Shirt,
-  Truck,
-} from "lucide-react";
-import { useProducts } from "@/lib/useProducts";
-import ProductCard from "@/components/storefront/ProductCard";
-import { Image } from "@/components/ui/image";
+import { ArrowRight, Heart, ShieldCheck, Shirt, Truck } from "lucide-react";
 
-const CATEGORIES = [
-  {
-    title: "T-Shirts",
-    subtitle: "Everyday essentials",
-    image: "/images/gdp-tshirt.svg",
-    to: "/shop?category=T-Shirt",
-  },
-  {
-    title: "Hoodies",
-    subtitle: "Stay warm. Stay real.",
-    image: "/images/gdp-crewneck.svg",
-    to: "/shop?category=Hoodie",
-  },
-  {
-    title: "Custom Tees",
-    subtitle: "Your design. Our print.",
-    image: "/images/gdp-process.svg",
-    to: "/custom-studio",
-  },
-  {
-    title: "Collections",
-    subtitle: "Explore all",
-    image: "/images/gdp-couples.svg",
-    to: "/shop",
-  },
+const CATEGORY_SPRITE = "/images/gdp-sold-categories.webp";
+
+const categories = [
+  { title: "T-Shirts", subtitle: "Everyday Essentials", position: "0% 50%", to: "/shop?category=T-Shirt" },
+  { title: "Custom Tees", subtitle: "Your Design, Our Print", position: "33.333% 50%", to: "/custom-studio" },
+  { title: "Pet Designs", subtitle: "Photos Into Keepsakes", position: "66.666% 50%", to: "/custom-studio" },
+  { title: "Birthday Tees", subtitle: "Made For The Moment", position: "100% 50%", to: "/custom-studio" },
 ];
 
-const FEATURES = [
+const benefits = [
   { icon: Truck, title: "Fast & Reliable Shipping", text: "Across Canada" },
   { icon: ShieldCheck, title: "Premium Quality", text: "Built to last" },
   { icon: Shirt, title: "Custom Designs", text: "Bring your ideas to life" },
-  { icon: Heart, title: "Support Local", text: "Small business. Big dreams." },
+  { icon: Heart, title: "Support Local", text: "Small Business. Big Dreams." },
 ];
 
-const FALLBACKS = [
-  { title: "Custom Photo Tee", price: "34.99", image: "/images/gdp-tshirt.svg" },
-  { title: "Memory Collage Tee", price: "36.99", image: "/images/gdp-couples.svg" },
-  { title: "GDP Essential Hoodie", price: "64.99", image: "/images/gdp-crewneck.svg" },
-  { title: "Pet Tribute Tee", price: "36.99", image: "/images/gdp-process.svg" },
-  { title: "Birthday Custom Tee", price: "34.99", image: "/images/gdp-tshirt.svg" },
+const soldSamples = [
+  { title: "Custom Family Graphic Tee", price: "$34.99", image: "/images/gdp-sold-family.webp" },
+  { title: "Custom Photo Collage Tee", price: "$34.99", sprite: "33.333% 50%" },
+  { title: "Custom Pet Photo Tee", price: "$36.99", image: "/images/gdp-sold-pets.webp" },
+  { title: "Custom Name Pet Tee", price: "$34.99", sprite: "66.666% 50%" },
+  { title: "Birthday Custom Tee", price: "$34.99", sprite: "100% 50%" },
 ];
 
-function FallbackProduct({ item }) {
+function SpriteImage({ position, className = "" }) {
   return (
-    <article className="group">
-      <Link to="/custom-studio" className="block relative overflow-hidden bg-[#efefef]">
-        <div className="aspect-[4/5] overflow-hidden">
-          <Image
-            src={item.image}
-            alt={item.title}
-            fittingType="fill"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
+    <div
+      className={className}
+      style={{
+        backgroundImage: `url(${CATEGORY_SPRITE})`,
+        backgroundSize: "400% 100%",
+        backgroundPosition: position,
+        backgroundRepeat: "no-repeat",
+      }}
+    />
+  );
+}
+
+function CategoryTile({ item }) {
+  return (
+    <Link to={item.to} className="group relative overflow-hidden bg-neutral-900 aspect-[1.55/1]">
+      <SpriteImage
+        position={item.position}
+        className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/5" />
+      <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-5">
+        <div className="font-display text-3xl leading-none sm:text-4xl">{item.title}</div>
+        <div className="mt-1 flex items-center gap-2 text-xs text-white/80 sm:text-sm">
+          {item.subtitle} <ArrowRight size={14} />
         </div>
-        <span className="absolute top-3 left-3 bg-black text-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide">
+      </div>
+    </Link>
+  );
+}
+
+function SampleCard({ item }) {
+  return (
+    <article className="group min-w-0">
+      <Link to="/custom-studio" className="relative block overflow-hidden bg-[#efefef]">
+        <div className="aspect-[4/5] overflow-hidden">
+          {item.image ? (
+            <img
+              src={item.image}
+              alt={item.title}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <SpriteImage
+              position={item.sprite}
+              className="h-full w-full transition-transform duration-500 group-hover:scale-105"
+            />
+          )}
+        </div>
+        <span className="absolute left-2 top-2 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-wide text-white sm:left-3 sm:top-3 sm:text-[10px]">
           Best Seller
         </span>
       </Link>
       <div className="pt-3">
-        <Link to="/custom-studio" className="text-sm font-semibold hover:underline">
+        <Link to="/custom-studio" className="line-clamp-2 text-xs font-semibold hover:underline sm:text-sm">
           {item.title}
         </Link>
-        <div className="mt-1 font-mono text-sm">${item.price}</div>
+        <div className="mt-1 text-sm font-semibold">{item.price}</div>
         <div className="mt-2 flex gap-1.5" aria-hidden="true">
-          <span className="h-5 w-5 rounded-full border border-black bg-black" />
-          <span className="h-5 w-5 rounded-full border border-neutral-400 bg-white" />
-          <span className="h-5 w-5 rounded-full border border-neutral-400 bg-neutral-300" />
+          <span className="h-4 w-4 rounded-full border border-black bg-black sm:h-5 sm:w-5" />
+          <span className="h-4 w-4 rounded-full border border-neutral-400 bg-white sm:h-5 sm:w-5" />
+          <span className="h-4 w-4 rounded-full border border-neutral-400 bg-neutral-300 sm:h-5 sm:w-5" />
         </div>
+        <div className="mt-2 text-[11px] tracking-[0.08em]">★★★★★</div>
       </div>
     </article>
   );
 }
 
 export default function Home() {
-  const { products } = useProducts({ status: "active" });
-  const bestSellers = products.filter((p) => p.bestSeller).slice(0, 5);
-  const showcase = bestSellers.length ? bestSellers : products.slice(0, 5);
-
   return (
     <div className="bg-white text-black">
-      {/* HERO */}
-      <section className="relative min-h-[470px] md:min-h-[590px] overflow-hidden bg-[#0a0a0a] text-white">
-        <div className="absolute inset-0">
-          <Image
-            src="/images/gdp-hero.svg"
-            alt="GDP Clothing custom streetwear"
-            fittingType="fill"
-            className="h-full w-full object-cover object-[68%_center] md:object-center"
-          />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-black/25" />
-        <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_80%_20%,white_0,transparent_25%)]" />
-
-        <div className="relative mx-auto flex min-h-[470px] md:min-h-[590px] max-w-[1500px] items-center px-5 py-10 lg:px-10">
-          <div className="max-w-2xl">
-            <div className="mb-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.35em] text-white/70">
-              GDP Clothing
-              <span className="h-px w-10 bg-[#e11d2e]" />
-            </div>
-
-            <h1 className="font-display text-[62px] leading-[0.84] sm:text-[82px] md:text-[112px] lg:text-[132px]">
-              WEAR YOUR
-              <br />
-              STORY
+      <section className="relative min-h-[490px] overflow-hidden bg-black text-white md:min-h-[610px]">
+        <img
+          src="/images/gdp-hero-approved.webp"
+          alt="GDP Clothing custom streetwear"
+          className="absolute inset-0 h-full w-full object-cover object-[67%_center] md:object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-black/5" />
+        <div className="relative mx-auto flex min-h-[490px] max-w-[1500px] items-center px-5 py-10 md:min-h-[610px] lg:px-10">
+          <div className="max-w-[630px]">
+            <p className="mb-4 text-xs font-black uppercase tracking-[0.38em] text-white/80">GDP Clothing</p>
+            <h1 className="font-display text-[68px] leading-[0.82] sm:text-[88px] md:text-[112px] lg:text-[128px]">
+              WEAR YOUR<br />STORY
             </h1>
-
-            <div className="mt-3 h-2 w-56 -skew-x-12 bg-[#e11d2e] sm:w-72" />
-
-            <p className="mt-7 max-w-xl text-sm font-semibold uppercase tracking-[0.25em] text-white/85 sm:text-base">
-              Custom apparel · Streetwear · Good vibes
+            <div className="mt-3 h-[7px] w-56 -skew-x-12 bg-[#e11d2e] sm:w-72" />
+            <p className="mt-6 text-xs font-bold uppercase tracking-[0.26em] text-white/90 sm:text-sm">
+              Custom Apparel · Streetwear · Good Vibes
             </p>
-            <p className="mt-3 max-w-lg text-base text-white/65">
+            <p className="mt-3 max-w-lg text-sm text-white/70 sm:text-base">
               Turn photos, memories, people, pets and milestones into clothing made to be remembered.
             </p>
-
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                to="/shop"
-                className="inline-flex items-center gap-2 bg-white px-7 py-4 text-sm font-black uppercase tracking-wider text-black transition hover:bg-[#e11d2e] hover:text-white"
-              >
-                Shop Now <ArrowRight size={17} />
-              </Link>
-              <Link
-                to="/custom-studio"
-                className="inline-flex items-center gap-2 border border-white/40 px-7 py-4 text-sm font-black uppercase tracking-wider text-white transition hover:border-white hover:bg-white hover:text-black"
-              >
-                Create Custom Tee
-              </Link>
-            </div>
+            <Link
+              to="/shop"
+              className="mt-7 inline-flex items-center gap-3 bg-white px-7 py-4 text-sm font-black uppercase tracking-wide text-black transition hover:bg-[#e11d2e] hover:text-white"
+            >
+              Shop Now <ArrowRight size={17} />
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* SERVICE STRIP */}
-      <section className="bg-[#0b0b0b] text-white border-t border-white/10">
+      <section className="bg-[#0a0a0a] text-white">
         <div className="mx-auto grid max-w-[1500px] grid-cols-2 lg:grid-cols-4">
-          {FEATURES.map((feature, index) => (
+          {benefits.map((item, index) => (
             <div
-              key={feature.title}
-              className={`flex min-h-[104px] items-center gap-4 px-5 py-5 lg:px-8 ${
-                index > 0 ? "lg:border-l lg:border-white/15" : ""
-              }`}
+              key={item.title}
+              className={`flex min-h-[96px] items-center gap-3 px-4 py-5 sm:gap-4 sm:px-6 lg:px-8 ${index ? "lg:border-l lg:border-white/15" : ""}`}
             >
-              <feature.icon size={30} strokeWidth={1.7} className="shrink-0" />
+              <item.icon size={28} strokeWidth={1.7} className="shrink-0" />
               <div>
-                <div className="text-xs font-black uppercase tracking-wide sm:text-sm">
-                  {feature.title}
-                </div>
-                <div className="mt-1 text-xs text-white/60 sm:text-sm">{feature.text}</div>
+                <div className="text-[11px] font-black uppercase leading-tight sm:text-sm">{item.title}</div>
+                <div className="mt-1 text-[10px] text-white/60 sm:text-xs">{item.text}</div>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* CATEGORIES */}
       <section className="mx-auto max-w-[1500px] px-3 py-3 sm:px-5 lg:px-7">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {CATEGORIES.map((category) => (
-            <Link
-              key={category.title}
-              to={category.to}
-              className="group relative aspect-[1.65/1] overflow-hidden bg-neutral-900"
-            >
-              <Image
-                src={category.image}
-                alt={category.title}
-                fittingType="fill"
-                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/5" />
-              <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-5">
-                <div className="font-display text-3xl leading-none sm:text-4xl">{category.title}</div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-white/75 sm:text-sm">
-                  {category.subtitle} <ArrowRight size={14} />
-                </div>
-              </div>
-            </Link>
-          ))}
+          {categories.map((item) => <CategoryTile key={item.title} item={item} />)}
         </div>
       </section>
 
-      {/* BEST SELLERS */}
-      <section className="mx-auto max-w-[1500px] px-5 py-12 lg:px-8 lg:py-16">
-        <div className="mb-8 flex items-end justify-between gap-4">
+      <section className="mx-auto max-w-[1500px] px-5 py-10 lg:px-8 lg:py-14">
+        <div className="mb-7 flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-4xl font-black tracking-tight md:text-5xl">
-              Best Sellers
-              <span className="ml-3 inline-block h-8 w-1 bg-[#e11d2e] align-middle" />
-            </h2>
-            <p className="mt-2 text-sm text-neutral-500">Fan favorites. Real style. Everyday wear.</p>
+            <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">Best Sellers</h2>
+            <p className="mt-1 text-xs text-neutral-500 sm:text-sm">Sold-sample favorites. Custom made. Real customer ideas.</p>
           </div>
-          <Link
-            to="/shop?filter=best"
-            className="hidden items-center gap-2 text-sm font-semibold underline-offset-4 hover:underline sm:flex"
-          >
-            View All Products <ArrowRight size={16} />
+          <Link to="/shop" className="hidden items-center gap-2 text-sm font-semibold hover:underline sm:flex">
+            View All Products <ArrowRight size={15} />
           </Link>
         </div>
-
-        {showcase.length ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 xl:grid-cols-5">
-            {showcase.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 xl:grid-cols-5">
-            {FALLBACKS.map((item) => (
-              <FallbackProduct key={item.title} item={item} />
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-9 md:grid-cols-3 lg:gap-x-5 xl:grid-cols-5">
+          {soldSamples.map((item) => <SampleCard key={item.title} item={item} />)}
+        </div>
       </section>
 
-      {/* PROMO PANELS */}
       <section className="grid md:grid-cols-3">
-        <Link to="/custom-studio" className="group relative min-h-[300px] overflow-hidden bg-black text-white">
-          <Image
-            src="/images/gdp-process.svg"
-            alt="GDP Clothing custom tee design process"
-            fittingType="fill"
-            className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="absolute inset-x-0 bottom-0 p-7">
+        <Link to="/custom-studio" className="group relative min-h-[280px] overflow-hidden bg-black text-white">
+          <img src="/images/gdp-sold-family.webp" alt="GDP custom tee example" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <div className="absolute inset-0 bg-black/55" />
+          <div className="absolute inset-x-0 bottom-0 p-6">
             <h3 className="font-display text-5xl leading-none">Custom Tees</h3>
-            <p className="mt-1 text-white/75">Turn your ideas into reality.</p>
+            <p className="mt-1 text-sm text-white/75">Turn your ideas into reality.</p>
             <span className="mt-5 inline-flex items-center gap-2 bg-white px-5 py-3 text-xs font-black uppercase tracking-wide text-black">
               Start Your Design <ArrowRight size={15} />
             </span>
           </div>
         </Link>
 
-        <Link to="/pages/about" className="group relative min-h-[300px] overflow-hidden bg-black text-white">
-          <Image
-            src="/images/gdp-couples.svg"
-            alt="GDP Clothing community"
-            fittingType="fill"
-            className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-black/45" />
-          <div className="absolute inset-x-0 bottom-0 p-7">
+        <Link to="/pages/about" className="group relative min-h-[280px] overflow-hidden bg-black text-white">
+          <SpriteImage position="0% 50%" className="absolute inset-0 transition duration-500 group-hover:scale-105" />
+          <div className="absolute inset-0 bg-black/55" />
+          <div className="absolute inset-x-0 bottom-0 p-6">
             <h3 className="font-display text-5xl leading-none">Our Story</h3>
-            <p className="mt-1 text-white/75">Built by the culture, for the culture.</p>
+            <p className="mt-1 text-sm text-white/75">Built around memories, creativity and community.</p>
             <span className="mt-5 inline-flex items-center gap-2 border border-white px-5 py-3 text-xs font-black uppercase tracking-wide">
               Learn More <ArrowRight size={15} />
             </span>
           </div>
         </Link>
 
-        <Link to="/shop" className="group relative min-h-[300px] overflow-hidden bg-black text-white">
-          <Image
-            src="/images/gdp-crewneck.svg"
-            alt="GDP Clothing premium quality"
-            fittingType="fill"
-            className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-black/55" />
-          <div className="absolute inset-x-0 bottom-0 p-7">
+        <Link to="/shop" className="group relative min-h-[280px] overflow-hidden bg-black text-white">
+          <img src="/images/gdp-sold-pets.webp" alt="GDP Clothing print quality sample" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <div className="absolute inset-0 bg-black/65" />
+          <div className="absolute inset-x-0 bottom-0 p-6">
             <h3 className="font-display text-5xl leading-none">Quality. Bigger Moves.</h3>
-            <p className="mt-1 text-white/75">It is in the details.</p>
+            <p className="mt-1 text-sm text-white/75">Made to turn your photos into wearable keepsakes.</p>
             <span className="mt-5 inline-flex items-center gap-2 bg-white px-5 py-3 text-xs font-black uppercase tracking-wide text-black">
               Shop Now <ArrowRight size={15} />
             </span>
           </div>
         </Link>
       </section>
-
-      {/* MOBILE VIEW ALL */}
-      <div className="px-5 py-8 text-center sm:hidden">
-        <Link
-          to="/shop"
-          className="inline-flex items-center gap-2 border border-black px-6 py-3 text-xs font-black uppercase tracking-wide"
-        >
-          View All Products <ArrowRight size={15} />
-        </Link>
-      </div>
     </div>
   );
 }
