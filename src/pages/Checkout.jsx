@@ -4,7 +4,7 @@ import { Lock, CreditCard, Check, AlertTriangle, Truck, Store } from "lucide-rea
 import { useCart } from "@/lib/CartContext";
 import { customerApi } from "@/lib/customerApi";
 import { isIframe } from "@/lib/utils";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe } from "@stripe/stripe-js";\nimport Seo from "@/components/Seo";
 
 const PROVINCES = [
   "Alberta",
@@ -159,7 +159,7 @@ export default function Checkout() {
   ]);
 
   if (items.length === 0) {
-    return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center"><h1 className="font-display text-4xl">Cart is empty</h1><Link to="/shop" className="text-accent mt-4 inline-block">Browse products</Link></div>;
+    return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center"><Seo title="Checkout" description="GDP Clothing secure checkout." path="/checkout" noIndex /><h1 className="font-display text-4xl">Cart is empty</h1><Link to="/shop" className="text-accent mt-4 inline-block">Browse products</Link></div>;
   }
 
   const applyCoupon = async () => {
@@ -301,7 +301,7 @@ export default function Checkout() {
   };
 
   return (
-    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">
+    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">\n      <Seo title="Checkout" description="GDP Clothing secure checkout." path="/checkout" noIndex />
       <h1 className="font-display text-5xl md:text-6xl leading-none mb-8">CHECKOUT</h1>
       <div className="grid lg:grid-cols-[1fr_400px] gap-8">
         <div className="space-y-8">
