@@ -8,6 +8,7 @@ import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
+import { PASSWORD_POLICY_HINT, validatePassword } from "@/lib/passwordPolicy";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -20,6 +21,11 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -144,6 +150,7 @@ export default function Register() {
               required
             />
           </div>
+          <p className="text-xs text-muted-foreground">{PASSWORD_POLICY_HINT}</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm">Confirm Password</Label>
