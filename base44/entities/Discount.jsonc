@@ -1,0 +1,69 @@
+{
+  "name": "Discount",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "percentage",
+        "fixed",
+        "free_shipping"
+      ],
+      "default": "percentage"
+    },
+    "value": {
+      "type": "number"
+    },
+    "appliesTo": {
+      "type": "string",
+      "enum": [
+        "all",
+        "collection",
+        "product",
+        "customer"
+      ],
+      "default": "all"
+    },
+    "appliesToId": {
+      "type": "string"
+    },
+    "minPurchase": {
+      "type": "number"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "startsAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "endsAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "usageCount": {
+      "type": "number",
+      "default": 0
+    },
+    "usageLimit": {
+      "type": "number"
+    },
+    "qtyTier2": {
+      "type": "number",
+      "default": 20
+    },
+    "qtyTier3": {
+      "type": "number",
+      "default": 25
+    }
+  },
+  "required": [
+    "code",
+    "type",
+    "value"
+  ]
+}
