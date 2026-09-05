@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lock, Loader2, AlertTriangle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import { PASSWORD_POLICY_HINT, validatePassword } from "@/lib/passwordPolicy";
 
 export default function ResetPassword() {
   const [newPassword, setNewPassword] = useState("");
@@ -44,6 +45,11 @@ export default function ResetPassword() {
     e.preventDefault();
     setError("");
 
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -124,6 +130,7 @@ export default function ResetPassword() {
               required
             />
           </div>
+          <p className="text-xs text-muted-foreground">{PASSWORD_POLICY_HINT}</p>
         </div>
 
         <div className="space-y-2">
