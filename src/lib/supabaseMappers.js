@@ -12,6 +12,17 @@ export function normalizeProduct(row) {
     bestSeller: row.best_seller,
     newArrival: row.new_arrival,
     customDesignable: row.custom_designable,
+    variants: (row.product_variants || []).filter((variant) => variant.active !== false).map((variant) => ({
+      id: variant.id,
+      name: variant.name || "Default",
+      sku: variant.sku || "",
+      podSku: variant.pod_sku || "",
+      stock: Number(variant.stock || 0),
+      price: variant.price == null ? null : Number(variant.price),
+      color: variant.color || "",
+      size: variant.size || "",
+      active: variant.active !== false,
+    })),
     createdDate: row.created_at,
     updatedDate: row.updated_at,
   };
