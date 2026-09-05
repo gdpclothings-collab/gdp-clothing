@@ -38,27 +38,6 @@ export default function ContentPage() {
     };
   }, [slug]);
 
-  useEffect(() => {
-    if (!page) return;
-    const originalTitle = document.title;
-    const title = page.seo?.title || page.title;
-    document.title = `${title} · GDP Clothing`;
-
-    const description = page.seo?.description || page.excerpt || "";
-    let meta = document.querySelector('meta[name="description"]');
-    const previous = meta?.getAttribute("content") || "";
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.setAttribute("name", "description");
-      document.head.appendChild(meta);
-    }
-    if (description) meta.setAttribute("content", description);
-
-    return () => {
-      document.title = originalTitle;
-      if (meta) meta.setAttribute("content", previous);
-    };
-  }, [page]);
 
   if (loading) {
     return (
