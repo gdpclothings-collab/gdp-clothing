@@ -104,6 +104,47 @@ Deno.serve(async (req: Request) => {
             .eq("order_id", orderId)
             .eq("status", "pending");
         }
+
+        // Allocate tracked variant inventory only after Stripe confirms payment.
+        // The database RPC is idempotent per order item, so webhook retries do
+        // not deduct stock twice.
+        const { data: inventoryResult, error: inventoryError } = await service.rpc(
+          "apply_paid_order_inventory",
+          { p_order_id: orderId }
+        );
+
+        const shortages = Array.isArray(inventoryResult?.shortages)
+          ? inventoryResult.shortages
+          : [];
+
+        if (inventoryError || shortages.length) {
+          console.error(
+            "paid-order inventory allocation requires attention",
+            inventoryError || shortages
+          );
+
+          const { data: currentOrder } = await service
+            .from("orders")
+            .select("notes")
+            .eq("id", orderId)
+            .maybeSingle();
+
+          const detail = inventoryError
+            ? inventoryError.message
+            : `${shortages.length} paid line item(s) could not be allocated from an online-fulfillment location.`;
+          const existingNotes = String(currentOrder?.notes || "").trim();
+          const inventoryNote = `Inventory attention: ${detail}`;
+
+          await service
+            .from("orders")
+            .update({
+              priority: "due_soon",
+              notes: existingNotes
+                ? `${existingNotes}\n${inventoryNote}`
+                : inventoryNote,
+            })
+            .eq("id", orderId);
+        }
       }
     }
 
