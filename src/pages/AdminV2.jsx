@@ -51,6 +51,7 @@ import CustomStudioAdminModule from "@/components/admin/CustomStudioAdminModule"
 import ProductionModule from "@/components/admin/ProductionModule";
 import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import FinanceModule from "@/components/admin/FinanceModule";
+import SettingsModule from "@/components/admin/SettingsModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -381,6 +382,15 @@ export default function AdminV2() {
                 description="Review sales, discounts, tax, shipping, payment status and refund exposure."
               />
               <FinanceModule />
+            </div>
+          ) : section === "settings" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Settings"
+                description="Manage store identity, commerce defaults, social links and operational configuration."
+              />
+              <SettingsModule />
             </div>
           ) : (
             <ModuleLanding
