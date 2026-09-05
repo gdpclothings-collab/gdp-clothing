@@ -1,0 +1,112 @@
+{
+  "name": "DesignProof",
+  "type": "object",
+  "properties": {
+    "customDesignId": {
+      "type": "string"
+    },
+    "orderId": {
+      "type": "string"
+    },
+    "orderItemId": {
+      "type": "string"
+    },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number"
+          },
+          "url": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "currentVersion": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "ready",
+        "sent",
+        "awaiting_approval",
+        "revision_requested",
+        "revised",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "customerComments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "adminComments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "approvedAt": {
+      "type": "string"
+    },
+    "revisionCount": {
+      "type": "number",
+      "default": 0
+    },
+    "maxRevisions": {
+      "type": "number",
+      "default": 2
+    },
+    "revisionPins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved"
+            ],
+            "default": "open"
+          }
+        }
+      }
+    },
+    "approvedBy": {
+      "type": "string"
+    },
+    "approvalAcknowledged": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "customDesignId"
+  ]
+}
