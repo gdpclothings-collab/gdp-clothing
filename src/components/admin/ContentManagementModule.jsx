@@ -327,9 +327,9 @@ function NavigationTab({ menus, loading, onCreate, onEdit, onToggle }) {
                     <span className="text-[10px] text-[#888] capitalize">{item.link_type}</span>
                   </div>
                 ))}
-                !(menu.navigation_items || []).length && (
+                {!(menu.navigation_items || []).length && (
                   <div className="px-4 py-4 text-xs text-[#888]">No menu items yet.</div>
-                )
+                )}
               </div>
               <div className="p-3 border-t border-[#eeeeee] flex gap-2">
                 <button onClick={() => onEdit(menu)} className={secondaryButton}>Edit</button>
