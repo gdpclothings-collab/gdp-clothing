@@ -6,7 +6,7 @@ import AIAssistant from "./AIAssistant";
 
 export default function Layout() {
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="gdp-storefront min-h-screen flex flex-col bg-background">
       <StoreNav />
       <main className="flex-1">
         <Outlet />
