@@ -57,12 +57,14 @@ export default function StoreNav() {
           </button>
 
           <Link to="/" className="flex shrink-0 items-center gap-3" aria-label="GDP Clothing home">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-black font-display text-2xl leading-none">
-              GDP
-            </div>
+            <img
+              src="/images/gdp-logo.webp"
+              alt="GDP Clothing"
+              className="h-14 w-14 rounded-full object-cover sm:h-16 sm:w-16"
+            />
             <div className="hidden sm:block">
-              <div className="font-display text-3xl leading-[0.8] tracking-wide">GDP</div>
-              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.38em]">Clothing</div>
+              <div className="font-display text-3xl leading-[0.8] tracking-wide">GDP Clothing</div>
+              <div className="mt-1 text-[9px] font-black uppercase tracking-[0.28em]">Wear your story</div>
             </div>
           </Link>
 
