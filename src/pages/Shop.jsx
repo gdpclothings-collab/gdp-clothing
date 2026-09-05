@@ -2,7 +2,8 @@ import React, { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useProducts } from "@/lib/useProducts";
 import ProductCard from "@/components/storefront/ProductCard";
-import { SlidersHorizontal } from "lucide-react";\nimport Seo from "@/components/Seo";
+import { SlidersHorizontal } from "lucide-react";
+import Seo from "@/components/Seo";
 
 const CATEGORIES = ["All", "T-Shirt", "Hoodie", "Sweatshirt", "Crewneck", "Sweater", "DTF Transfer", "Custom"];
 
@@ -33,7 +34,8 @@ export default function Shop() {
   };
 
   return (
-    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">\n      <Seo title="Shop Custom Apparel" description="Shop GDP Clothing custom apparel, personalized tees, hoodies, crewnecks and streetwear in Canadian dollars." path="/shop" />
+    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">
+      <Seo title="Shop Custom Apparel" description="Shop GDP Clothing custom apparel, personalized tees, hoodies, crewnecks and streetwear in Canadian dollars." path="/shop" />
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
         <div>
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">Catalog</span>
