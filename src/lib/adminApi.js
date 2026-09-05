@@ -148,6 +148,20 @@ const productPayload = (data) => ({
   track_inventory: data.trackInventory !== false,
   requires_shipping: data.requiresShipping !== false,
   taxable: data.taxable !== false,
+  weight: data.weight === "" || data.weight === null || data.weight === undefined
+    ? null
+    : Number(data.weight),
+  weight_unit: data.weightUnit || "g",
+  sales_channels: Array.isArray(data.salesChannels) && data.salesChannels.length
+    ? data.salesChannels
+    : ["online_store"],
+  sell_when_out_of_stock: Boolean(data.sellWhenOutOfStock),
+  shipping_package: data.shippingPackage || {},
+  country_of_origin: data.countryOfOrigin || null,
+  hs_code: data.hsCode || null,
+  theme_template: data.themeTemplate || "default",
+  metafields: data.metafields || {},
+  unit_price: data.unitPrice || {},
   price: Number(data.price || 0),
   compare_at_price: data.compareAtPrice,
   images: data.images || [],
@@ -170,6 +184,7 @@ const variantPayload = (productId, variant) => ({
   product_id: productId,
   name: variant.name || "Default",
   sku: variant.sku || null,
+  barcode: variant.barcode || null,
   pod_sku: variant.podSku || null,
   stock: Number(variant.stock || 0),
   price: variant.price === null || variant.price === undefined ? null : Number(variant.price),
