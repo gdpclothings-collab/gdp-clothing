@@ -30,6 +30,7 @@ export default function Seo({
     const canonicalPath =
       path || (typeof window !== "undefined" ? window.location.pathname : "/");
     const canonicalUrl = new URL(canonicalPath, SITE_URL).toString();
+    const resolvedImage = new URL(image || DEFAULT_IMAGE, SITE_URL).toString();
 
     document.title = pageTitle;
 
@@ -49,11 +50,11 @@ export default function Seo({
       ['meta[property="og:description"]', "property", "og:description", description || ""],
       ['meta[property="og:type"]', "property", "og:type", type],
       ['meta[property="og:url"]', "property", "og:url", canonicalUrl],
-      ['meta[property="og:image"]', "property", "og:image", image],
+      ['meta[property="og:image"]', "property", "og:image", resolvedImage],
       ['meta[name="twitter:card"]', "name", "twitter:card", "summary_large_image"],
       ['meta[name="twitter:title"]', "name", "twitter:title", pageTitle],
       ['meta[name="twitter:description"]', "name", "twitter:description", description || ""],
-      ['meta[name="twitter:image"]', "name", "twitter:image", image],
+      ['meta[name="twitter:image"]', "name", "twitter:image", resolvedImage],
     ];
 
     for (const [selector, key, name, value] of values) {
