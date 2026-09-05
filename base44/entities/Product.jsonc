@@ -1,0 +1,237 @@
+{
+  "name": "Product",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "T-Shirt",
+        "Hoodie",
+        "Crewneck",
+        "Sweatshirt",
+        "Sweater",
+        "Kids",
+        "DTF Transfer",
+        "DTF Gang Sheet",
+        "Custom"
+      ]
+    },
+    "category": {
+      "type": "string"
+    },
+    "vendor": {
+      "type": "string",
+      "default": "GDP Clothing"
+    },
+    "collectionIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "barcode": {
+      "type": "string"
+    },
+    "costPerItem": {
+      "type": "number"
+    },
+    "trackInventory": {
+      "type": "boolean",
+      "default": true
+    },
+    "requiresShipping": {
+      "type": "boolean",
+      "default": true
+    },
+    "taxable": {
+      "type": "boolean",
+      "default": true
+    },
+    "weight": {
+      "type": "number"
+    },
+    "weightUnit": {
+      "type": "string",
+      "enum": [
+        "g",
+        "kg",
+        "oz",
+        "lb"
+      ],
+      "default": "g"
+    },
+    "price": {
+      "type": "number"
+    },
+    "compareAtPrice": {
+      "type": "number"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "colors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sizes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "podSku": {
+            "type": "string"
+          },
+          "stock": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "color": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fulfillmentMode": {
+      "type": "string",
+      "enum": [
+        "in_house",
+        "pod",
+        "dropship",
+        "hybrid",
+        "manual"
+      ],
+      "default": "in_house"
+    },
+    "podProvider": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "archived"
+      ],
+      "default": "draft"
+    },
+    "featured": {
+      "type": "boolean",
+      "default": false
+    },
+    "bestSeller": {
+      "type": "boolean",
+      "default": false
+    },
+    "newArrival": {
+      "type": "boolean",
+      "default": false
+    },
+    "customDesignable": {
+      "type": "boolean",
+      "default": false
+    },
+    "customization": {
+      "type": "object",
+      "properties": {
+        "minPhotos": {
+          "type": "number",
+          "default": 1
+        },
+        "maxPhotos": {
+          "type": "number",
+          "default": 10
+        },
+        "proofRequired": {
+          "type": "boolean",
+          "default": true
+        },
+        "includedRevisions": {
+          "type": "number",
+          "default": 2
+        },
+        "proofTurnaround": {
+          "type": "string",
+          "default": "1\u20132 business days"
+        },
+        "productionTurnaround": {
+          "type": "string",
+          "default": "3\u20135 business days after approval"
+        },
+        "rushDesignFee": {
+          "type": "number",
+          "default": 10
+        },
+        "rushProductionFee": {
+          "type": "number",
+          "default": 15
+        },
+        "frontBackFee": {
+          "type": "number",
+          "default": 10
+        },
+        "allowedStyles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "material": {
+      "type": "string"
+    },
+    "seo": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "name",
+    "slug",
+    "price"
+  ]
+}
