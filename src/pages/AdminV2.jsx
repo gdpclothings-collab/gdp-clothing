@@ -45,6 +45,7 @@ import {
   RotateCcw,
   ShoppingCart,
   ArrowRightLeft,
+  UsersRound,
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
@@ -54,6 +55,7 @@ import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
 import InventoryOperationsModule from "@/components/admin/InventoryOperationsModule";
 import CustomersModule from "@/components/admin/CustomersModule";
+import CustomerGroupsModule from "@/components/admin/CustomerGroupsModule";
 import CollectionsModule from "@/components/admin/CollectionsModule";
 import ReviewsModule from "@/components/admin/ReviewsModule";
 import DiscountsModule from "@/components/admin/DiscountsModule";
@@ -85,6 +87,7 @@ const NAV_GROUPS = [
       { id: "inventory", label: "Inventory", icon: Boxes },
       { id: "inventory-operations", label: "Locations & transfers", icon: ArrowRightLeft },
       { id: "customers", label: "Customers", icon: Users },
+      { id: "customer-groups", label: "Segments & tags", icon: UsersRound },
     ],
   },
   {
@@ -460,6 +463,15 @@ export default function AdminV2() {
                 description="Manage store identity, commerce defaults, social links and operational configuration."
               />
               <SettingsModule />
+            </div>
+          ) : section === "customer-groups" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Segments & tags"
+                description="Organize customers with reusable tags, manual segments and dynamic value rules."
+              />
+              <CustomerGroupsModule />
             </div>
           ) : section === "growth" ? (
             <div>
