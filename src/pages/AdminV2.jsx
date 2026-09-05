@@ -62,11 +62,11 @@ import ProductionModule from "@/components/admin/ProductionModule";
 import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import FinanceModule from "@/components/admin/FinanceModule";
 import SettingsModule from "@/components/admin/SettingsModule";
+import MarketsManagementModule from "@/components/admin/MarketsManagementModule";
 import {
   GrowthModule,
   MarketingModule,
   ContentModule,
-  MarketsModule,
   OnlineStoreModule,
   AppsModule,
 } from "@/components/admin/BusinessInsightsModules";
@@ -504,7 +504,7 @@ export default function AdminV2() {
                 title="Markets"
                 description="Prepare regional pricing, currencies, domains, languages and expansion controls."
               />
-              <MarketsModule onOpen={openSection} />
+              <MarketsManagementModule />
             </div>
           ) : section === "online-store" ? (
             <div>
