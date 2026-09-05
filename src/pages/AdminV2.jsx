@@ -49,6 +49,7 @@ import CustomersModule from "@/components/admin/CustomersModule";
 import DiscountsModule from "@/components/admin/DiscountsModule";
 import CustomStudioAdminModule from "@/components/admin/CustomStudioAdminModule";
 import ProductionModule from "@/components/admin/ProductionModule";
+import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -361,6 +362,15 @@ export default function AdminV2() {
                 description="Move approved work through print, quality control, packing and fulfillment."
               />
               <ProductionModule />
+            </div>
+          ) : section === "analytics" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Analytics"
+                description="Measure revenue, orders, customers, custom-order share and product performance."
+              />
+              <AnalyticsModule />
             </div>
           ) : (
             <ModuleLanding
