@@ -14,10 +14,8 @@ export default function Cart() {
     return total;
   };
 
-  const discount = subtotal - qtyDiscount(subtotal, itemCount);
-  const shipping = subtotal >= 150 ? 0 : 12.99;
-  const tax = (qtyDiscount(subtotal, itemCount) + shipping) * 0.11;
-  const total = qtyDiscount(subtotal, itemCount) + shipping + tax;
+  const discountedSubtotal = qtyDiscount(subtotal, itemCount);
+  const discount = subtotal - discountedSubtotal;
 
   if (items.length === 0) {
     return (
