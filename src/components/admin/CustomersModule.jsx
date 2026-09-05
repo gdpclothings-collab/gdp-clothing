@@ -124,10 +124,10 @@ export default function CustomersModule() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" className="py-14 text-center text-[#777]">Loading customers…</td></tr>
+                <tr><td colSpan={7} className="py-14 text-center text-[#777]">Loading customers…</td></tr>
               ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-14 text-center">
+                  <td colSpan={7} className="py-14 text-center">
                     <Users size={22} className="mx-auto text-[#aaa]" />
                     <div className="font-medium mt-3">No matching customers</div>
                   </td>
@@ -281,10 +281,10 @@ function Section({ title, children }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
