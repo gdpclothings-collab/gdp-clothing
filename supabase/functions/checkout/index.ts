@@ -55,6 +55,175 @@ async function getCoupon(service: any, code: string, purchase = 0) {
   return couponIsUsable(data, purchase) ? data : null;
 }
 
+const provinceCodes: Record<string, string> = {
+  AB: "AB",
+  ALBERTA: "AB",
+  BC: "BC",
+  "BRITISH COLUMBIA": "BC",
+  MB: "MB",
+  MANITOBA: "MB",
+  NB: "NB",
+  "NEW BRUNSWICK": "NB",
+  NL: "NL",
+  "NEWFOUNDLAND AND LABRADOR": "NL",
+  NT: "NT",
+  NWT: "NT",
+  "NORTHWEST TERRITORIES": "NT",
+  NS: "NS",
+  "NOVA SCOTIA": "NS",
+  NU: "NU",
+  NUNAVUT: "NU",
+  ON: "ON",
+  ONTARIO: "ON",
+  PE: "PE",
+  PEI: "PE",
+  "PRINCE EDWARD ISLAND": "PE",
+  QC: "QC",
+  QUEBEC: "QC",
+  SK: "SK",
+  SASKATCHEWAN: "SK",
+  YT: "YT",
+  YUKON: "YT",
+};
+
+const fallbackTaxRates: Record<string, number> = {
+  SK: 0.11,
+  ON: 0.13,
+  NS: 0.14,
+  NB: 0.15,
+  NL: 0.15,
+  PE: 0.15,
+};
+
+function normalizeProvinceCode(value: unknown) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+  return provinceCodes[normalized] || normalized.slice(0, 2);
+}
+
+async function getTaxRule(service: any, province: unknown) {
+  const regionCode = normalizeProvinceCode(province);
+  let row: any = null;
+
+  if (regionCode) {
+    const { data, error } = await service
+      .from("tax_rules")
+      .select("name,rate,tax_shipping,region_code,priority")
+      .eq("country_code", "CA")
+      .eq("region_code", regionCode)
+      .eq("active", true)
+      .order("priority", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    row = data;
+  }
+
+  if (!row) {
+    const { data, error } = await service
+      .from("tax_rules")
+      .select("name,rate,tax_shipping,region_code,priority")
+      .eq("country_code", "CA")
+      .is("region_code", null)
+      .eq("active", true)
+      .order("priority", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    row = data;
+  }
+
+  if (row) return row;
+
+  const fallbackRate = fallbackTaxRates[regionCode] ?? 0.05;
+  return {
+    name: regionCode === "SK" ? "Saskatchewan GST + PST" : "Canada GST/HST",
+    rate: fallbackRate,
+    tax_shipping: true,
+    region_code: regionCode || null,
+    priority: 999,
+  };
+}
+
+async function getShippingRule(service: any, amount: number) {
+  const safeAmount = Math.max(0, roundMoney(amount));
+  const { data, error } = await service
+    .from("shipping_rates")
+    .select("name,method_code,price,min_order,max_order,min_delivery_days,max_delivery_days")
+    .eq("active", true)
+    .eq("method_code", "standard")
+    .lte("min_order", safeAmount)
+    .or(`max_order.is.null,max_order.gte.${safeAmount}`)
+    .order("min_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (data) return data;
+
+  return safeAmount >= 150
+    ? {
+        name: "Free Standard Shipping",
+        method_code: "standard",
+        price: 0,
+        min_order: 150,
+        max_order: null,
+        min_delivery_days: 3,
+        max_delivery_days: 7,
+      }
+    : {
+        name: "Standard Shipping",
+        method_code: "standard",
+        price: 12.99,
+        min_order: 0,
+        max_order: 149.99,
+        min_delivery_days: 3,
+        max_delivery_days: 7,
+      };
+}
+
+async function getCheckoutRules(
+  service: any,
+  customer: any,
+  amountAfterDiscounts: number,
+  freeShipping = false,
+) {
+  const amount = Math.max(0, roundMoney(amountAfterDiscounts));
+  const shippingMethod = customer?.shippingMethod === "pickup" ? "pickup" : "standard";
+  const shippingRule = await getShippingRule(service, amount);
+  const shipping =
+    shippingMethod === "pickup" || freeShipping
+      ? 0
+      : roundMoney(Number(shippingRule?.price || 0));
+
+  const taxRule = await getTaxRule(service, customer?.province);
+  const taxRate = Math.max(0, Number(taxRule?.rate || 0));
+  const taxShipping = taxRule?.tax_shipping !== false;
+  const taxBase = amount + (taxShipping ? shipping : 0);
+  const tax = roundMoney(taxBase * taxRate);
+
+  return {
+    shippingMethod,
+    shipping,
+    shippingName: shippingMethod === "pickup" ? "Local Pickup" : shippingRule?.name || "Standard Shipping",
+    minDeliveryDays: shippingMethod === "pickup" ? 0 : shippingRule?.min_delivery_days ?? 3,
+    maxDeliveryDays: shippingMethod === "pickup" ? 0 : shippingRule?.max_delivery_days ?? 7,
+    freeShippingThreshold:
+      shippingRule?.price === 0 && shippingRule?.min_order != null
+        ? Number(shippingRule.min_order)
+        : 150,
+    tax,
+    taxRate,
+    taxName: taxRule?.name || "Canada GST/HST",
+    taxShipping,
+    regionCode: normalizeProvinceCode(customer?.province),
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return respond({ error: true, message: "Method not allowed." }, 405);
@@ -80,7 +249,8 @@ Deno.serve(async (req: Request) => {
         .eq("code", code)
         .maybeSingle();
 
-      const active = couponIsUsable(data, Number.MAX_SAFE_INTEGER);
+      const purchase = Math.max(0, Number(body?.purchase || 0));
+      const active = couponIsUsable(data, purchase);
       return respond(active ? {
         active: true,
         code: data.code,
@@ -88,6 +258,21 @@ Deno.serve(async (req: Request) => {
         value: Number(data.value || 0),
         minPurchase: data.min_purchase == null ? null : Number(data.min_purchase),
       } : { active: false });
+    }
+
+    if (action === "checkoutConfig") {
+      const amount = Math.max(0, Math.min(1000000, Number(body?.amount || 0)));
+      const customer = {
+        province: body?.province || "Saskatchewan",
+        shippingMethod: body?.shippingMethod || "standard",
+      };
+      const rules = await getCheckoutRules(
+        service,
+        customer,
+        amount,
+        Boolean(body?.freeShipping),
+      );
+      return respond({ configured: true, ...rules });
     }
 
     if (action === "getOrder") {
@@ -374,9 +559,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const afterCoupon = roundMoney(Math.max(0, discounted - couponAmount));
-    const shippingMethod = customer.shippingMethod === "pickup" ? "pickup" : "standard";
-    const shipping = shippingMethod === "pickup" || freeShipping || afterCoupon >= 150 ? 0 : 12.99;
-    const tax = roundMoney((afterCoupon + shipping) * 0.11);
+    const checkoutRules = await getCheckoutRules(service, customer, afterCoupon, freeShipping);
+    const shippingMethod = checkoutRules.shippingMethod;
+    const shipping = checkoutRules.shipping;
+    const tax = checkoutRules.tax;
     const total = roundMoney(afterCoupon + shipping + tax);
 
     const { data: settings } = await service
@@ -502,6 +688,15 @@ Deno.serve(async (req: Request) => {
         confirmationToken: order.confirmation_token,
         configured: false,
         missing: !stripeSecret ? "STRIPE_SECRET_KEY" : "STRIPE_PUBLISHABLE_KEY",
+        pricing: {
+          subtotal,
+          discount: roundMoney(quantityDiscount + couponAmount),
+          shipping,
+          tax,
+          total,
+          taxRate: checkoutRules.taxRate,
+          taxName: checkoutRules.taxName,
+        },
       });
     }
 
@@ -588,6 +783,15 @@ Deno.serve(async (req: Request) => {
       publishableKey: stripePublishableKey,
       configured: true,
       uiMode: "custom",
+      pricing: {
+        subtotal,
+        discount: roundMoney(quantityDiscount + couponAmount),
+        shipping,
+        tax,
+        total,
+        taxRate: checkoutRules.taxRate,
+        taxName: checkoutRules.taxName,
+      },
     });
   } catch (error) {
     console.error("checkout error", error);
