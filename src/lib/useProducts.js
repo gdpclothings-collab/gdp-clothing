@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
+import { normalizeProduct } from "@/lib/supabaseMappers";
+
+const FIELD_MAP = {
+  bestSeller: "best_seller",
+  newArrival: "new_arrival",
+  customDesignable: "custom_designable",
+  fulfillmentMode: "fulfillment_mode",
+};
 
 export function useProducts(filter = {}) {
   const [products, setProducts] = useState([]);
@@ -8,12 +16,38 @@ export function useProducts(filter = {}) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    base44.entities.Product.filter(filter, "-created_date", 100)
-      .then(res => { if (active) setProducts(Array.isArray(res) ? res : (res?.items || [])); })
-      .catch(e => { if (active) setError(e); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+
+      let query = supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      for (const [key, value] of Object.entries(filter)) {
+        if (value === undefined || value === null || value === "") continue;
+        query = query.eq(FIELD_MAP[key] || key, value);
+      }
+
+      const { data, error: queryError } = await query;
+
+      if (!active) return;
+      if (queryError) {
+        setError(queryError);
+        setProducts([]);
+      } else {
+        setProducts((data || []).map(normalizeProduct));
+      }
+      setLoading(false);
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
   }, [JSON.stringify(filter)]);
 
   return { products, loading, error };
