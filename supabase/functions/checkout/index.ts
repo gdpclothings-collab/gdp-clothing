@@ -343,7 +343,7 @@ Deno.serve(async (req: Request) => {
 
     const form = new URLSearchParams();
     form.set("mode", "payment");
-    form.set("ui_mode", "custom");
+    form.set("ui_mode", "elements");
     form.set(
       "return_url",
       `${origin}/order/${encodeURIComponent(order.order_number)}?status=success&token=${order.confirmation_token}&session_id={CHECKOUT_SESSION_ID}`
