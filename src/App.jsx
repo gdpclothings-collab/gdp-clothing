@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -11,21 +12,21 @@ import StoreLayout from '@/components/storefront/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
-import ProductDetail from '@/pages/ProductDetail';
-import CustomStudio from '@/pages/CustomStudio';
-import Cart from '@/pages/Cart';
-import Checkout from '@/pages/Checkout';
-import OrderConfirmation from '@/pages/OrderConfirmation';
-import Account from '@/pages/Account';
-import Admin from '@/pages/Admin';
-import AdminV2 from '@/pages/AdminV2';
-import FAQ from '@/pages/FAQ';
-import ContentPage from '@/pages/ContentPage';
+const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
+const CustomStudio = lazy(() => import('@/pages/CustomStudio'));
+const Cart = lazy(() => import('@/pages/Cart'));
+const Checkout = lazy(() => import('@/pages/Checkout'));
+const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
+const Account = lazy(() => import('@/pages/Account'));
+const Admin = lazy(() => import('@/pages/Admin'));
+const AdminV2 = lazy(() => import('@/pages/AdminV2'));
+const FAQ = lazy(() => import('@/pages/FAQ'));
+const ContentPage = lazy(() => import('@/pages/ContentPage'));
 // Auth pages
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
+const Login = lazy(() => import('@/pages/Login'));
+const Register = lazy(() => import('@/pages/Register'));
+const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('@/pages/ResetPassword'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -52,7 +53,14 @@ const AuthenticatedApp = () => {
 
   // Render the main app
   return (
-    <Routes>
+    <Suspense
+      fallback={
+        <div className="fixed inset-0 flex items-center justify-center bg-background">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -80,8 +88,9 @@ const AuthenticatedApp = () => {
         <Route path="/admin/*" element={<AdminV2 />} />
       </Route>
 
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </Suspense>
   );
 };
 
