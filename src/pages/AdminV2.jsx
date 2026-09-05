@@ -52,6 +52,14 @@ import ProductionModule from "@/components/admin/ProductionModule";
 import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import FinanceModule from "@/components/admin/FinanceModule";
 import SettingsModule from "@/components/admin/SettingsModule";
+import {
+  GrowthModule,
+  MarketingModule,
+  ContentModule,
+  MarketsModule,
+  OnlineStoreModule,
+  AppsModule,
+} from "@/components/admin/BusinessInsightsModules";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -391,6 +399,60 @@ export default function AdminV2() {
                 description="Manage store identity, commerce defaults, social links and operational configuration."
               />
               <SettingsModule />
+            </div>
+          ) : section === "growth" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Growth"
+                description="Turn store data into prioritized conversion, merchandising and retention actions."
+              />
+              <GrowthModule onOpen={openSection} />
+            </div>
+          ) : section === "marketing" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Marketing"
+                description="Coordinate promotions, merchandising and customer trust signals."
+              />
+              <MarketingModule onOpen={openSection} />
+            </div>
+          ) : section === "content" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Content"
+                description="Manage product media and the customer proof layer used across the storefront."
+              />
+              <ContentModule onOpen={openSection} />
+            </div>
+          ) : section === "markets" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Markets"
+                description="Prepare regional pricing, currencies, domains, languages and expansion controls."
+              />
+              <MarketsModule onOpen={openSection} />
+            </div>
+          ) : section === "online-store" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Online Store"
+                description="Control the customer-facing GDP storefront, catalog and Custom Studio entry points."
+              />
+              <OnlineStoreModule onOpen={openSection} />
+            </div>
+          ) : section === "apps" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Apps & integrations"
+                description="Review the services powering data, payments, deployment and future fulfillment."
+              />
+              <AppsModule />
             </div>
           ) : (
             <ModuleLanding
