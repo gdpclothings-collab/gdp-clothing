@@ -72,10 +72,10 @@ export default function AdvancedSettingsModule() {
 
           <div className="md:ml-auto inline-flex rounded-lg border border-[#d5d5d5] bg-[#fafafa] p-1">
             {[
-              ["staff", "Staff", UserRoundCog],
-              ["notifications", "Notifications", Bell],
-              ["integrations", "Integrations", Blocks],
-            ].map(([id, label, Icon]) => (
+              { id: "staff", label: "Staff", Icon: UserRoundCog },
+              { id: "notifications", label: "Notifications", Icon: Bell },
+              { id: "integrations", label: "Integrations", Icon: Blocks },
+            ].map(({ id, label, Icon }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -344,7 +344,7 @@ function NotificationsTab({ templates, loading, onCreate, onEdit, onChanged }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" className="py-12 text-center text-[#777]">Loading templates…</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-[#777]">Loading templates…</td></tr>
             ) : templates.length ? (
               templates.map((template) => (
                 <tr key={template.id} className="border-t border-[#eeeeee]">
@@ -369,7 +369,7 @@ function NotificationsTab({ templates, loading, onCreate, onEdit, onChanged }) {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="6" className="py-12 text-center text-[#777]">No notification templates.</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-[#777]">No notification templates.</td></tr>
             )}
           </tbody>
         </table>
@@ -507,7 +507,7 @@ function RoleEditor({ role, permissions, rolePermissions, onClose, onSaved }) {
         </Field>
       </div>
       <Field label="Description">
-        <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={textareaClass} rows="3" />
+        <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={textareaClass} rows={3} />
       </Field>
       <Toggle label="Role template active" checked={form.active} onChange={(active) => setForm({ ...form, active })} />
 
@@ -602,7 +602,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
         <input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} className={inputClass} />
       </Field>
       <Field label="Message body">
-        <textarea value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} className={textareaClass} rows="8" />
+        <textarea value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} className={textareaClass} rows={8} />
       </Field>
       <Toggle label="Template active" checked={form.active} onChange={(active) => setForm({ ...form, active })} />
     </Editor>
@@ -670,17 +670,17 @@ function IntegrationEditor({ integration, onClose, onSaved }) {
         </Field>
       </div>
       <Field label="Safe public configuration JSON">
-        <textarea value={form.publicConfig} onChange={(event) => setForm({ ...form, publicConfig: event.target.value })} className="w-full rounded-lg border border-[#d4d4d4] bg-[#111] text-[#eee] px-3 py-2 text-xs font-mono outline-none" rows="8" />
+        <textarea value={form.publicConfig} onChange={(event) => setForm({ ...form, publicConfig: event.target.value })} className="w-full rounded-lg border border-[#d4d4d4] bg-[#111] text-[#eee] px-3 py-2 text-xs font-mono outline-none" rows={8} />
       </Field>
       <Field label="Last error / note">
-        <textarea value={form.lastError} onChange={(event) => setForm({ ...form, lastError: event.target.value })} className={textareaClass} rows="3" />
+        <textarea value={form.lastError} onChange={(event) => setForm({ ...form, lastError: event.target.value })} className={textareaClass} rows={3} />
       </Field>
       <Toggle label="Integration enabled" checked={form.enabled} onChange={(enabled) => setForm({ ...form, enabled })} />
     </Editor>
   );
 }
 
-function Editor({ title, onClose, onSave, saving, children, wide }) {
+function Editor({ title, onClose, onSave, saving, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[85] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className={`w-full ${wide ? "max-w-4xl" : "max-w-2xl"} bg-white rounded-2xl shadow-2xl overflow-hidden my-6`}>
@@ -718,7 +718,7 @@ function Toggle({ label, checked, onChange }) {
   );
 }
 
-function Status({ active, text }) {
+function Status({ active, text = "" }) {
   return (
     <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ${
       active ? "bg-emerald-100 text-emerald-800" : "bg-[#eeeeee] text-[#555]"
@@ -728,11 +728,11 @@ function Status({ active, text }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
 
