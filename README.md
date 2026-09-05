@@ -25,3 +25,5 @@ The frontend structure, pages, components, styling, routes, cart UI, Custom Stud
 Backend-dependent actions such as persistent products, authentication, orders, file uploads, AI, payments, and admin writes are intentionally disabled until a new standalone backend is connected.
 
 The local adapter at `src/api/base44Client.js` performs no network calls.
+
+<!-- Cloudflare deployment trigger: standalone Supabase build -->
