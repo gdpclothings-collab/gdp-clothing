@@ -130,10 +130,10 @@ export default function InventoryOperationsModule() {
       <div className="mb-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="inline-flex rounded-lg border border-[#d5d5d5] bg-white p-1 w-fit">
           {[
-            ["locations", "Locations", MapPin],
-            ["transfers", "Transfers", ArrowRightLeft],
-            ["history", "Adjustment history", History],
-          ].map(([id, label, Icon]) => (
+            { id: "locations", label: "Locations", Icon: MapPin },
+            { id: "transfers", label: "Transfers", Icon: ArrowRightLeft },
+            { id: "history", label: "Adjustment history", Icon: History },
+          ].map(({ id, label, Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -356,9 +356,9 @@ function LocationsTab({
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="6" className="py-12 text-center text-[#777]">Loading inventory…</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-[#777]">Loading inventory…</td></tr>
               ) : !selected ? (
-                <tr><td colSpan="6" className="py-12 text-center text-[#777]">Choose a location.</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-[#777]">Choose a location.</td></tr>
               ) : rows.length ? (
                 rows.map((variant) => {
                   const level = levelMap.get(variant.id);
@@ -401,7 +401,7 @@ function LocationsTab({
                   );
                 })
               ) : (
-                <tr><td colSpan="6" className="py-12 text-center text-[#777]">No matching variants.</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-[#777]">No matching variants.</td></tr>
               )}
             </tbody>
           </table>
@@ -440,7 +440,7 @@ function TransfersTab({ transfers, loading, onCreate, onOpen }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" className="py-12 text-center text-[#777]">Loading transfers…</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-[#777]">Loading transfers…</td></tr>
             ) : transfers.length ? (
               transfers.map((transfer) => (
                 <tr
@@ -457,7 +457,7 @@ function TransfersTab({ transfers, loading, onCreate, onOpen }) {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="6" className="py-12 text-center text-[#777]">No transfers yet.</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-[#777]">No transfers yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -489,7 +489,7 @@ function HistoryTab({ adjustments, loading }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="8" className="py-12 text-center text-[#777]">Loading history…</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-[#777]">Loading history…</td></tr>
             ) : adjustments.length ? (
               adjustments.map((row) => (
                 <tr key={row.id} className="border-t border-[#eeeeee]">
@@ -511,7 +511,7 @@ function HistoryTab({ adjustments, loading }) {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="8" className="py-12 text-center text-[#777]">No adjustment history yet.</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-[#777]">No adjustment history yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -854,7 +854,7 @@ function TransferDrawer({ transfer, onClose, onChanged }) {
   );
 }
 
-function Modal({ title, subtitle, onClose, children, wide }) {
+function Modal({ title, subtitle, onClose, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className={`w-full ${wide ? "max-w-4xl" : "max-w-xl"} bg-white rounded-2xl shadow-2xl overflow-hidden my-6`}>
@@ -907,11 +907,11 @@ function Field({ label, children }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
 
