@@ -67,6 +67,8 @@ function SampleCard({ item }) {
             <img
               src={item.image}
               alt={item.title}
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
@@ -103,6 +105,8 @@ export default function Home() {
         <img
           src="/images/gdp-hero-approved.webp"
           alt="GDP Clothing custom streetwear"
+          fetchPriority="high"
+          decoding="async"
           className="absolute inset-0 h-full w-full object-cover object-[67%_center] md:object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-black/5" />
@@ -169,7 +173,7 @@ export default function Home() {
 
       <section className="grid md:grid-cols-3">
         <Link to="/custom-studio" className="group relative min-h-[280px] overflow-hidden bg-black text-white">
-          <img src="/images/gdp-sold-family.webp" alt="GDP custom tee example" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src="/images/gdp-sold-family.webp" alt="GDP custom tee example" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 bg-black/55" />
           <div className="absolute inset-x-0 bottom-0 p-6">
             <h3 className="font-display text-5xl leading-none">Custom Tees</h3>
@@ -193,7 +197,7 @@ export default function Home() {
         </Link>
 
         <Link to="/shop" className="group relative min-h-[280px] overflow-hidden bg-black text-white">
-          <img src="/images/gdp-sold-pets.webp" alt="GDP Clothing print quality sample" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src="/images/gdp-sold-pets.webp" alt="GDP Clothing print quality sample" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 bg-black/65" />
           <div className="absolute inset-x-0 bottom-0 p-6">
             <h3 className="font-display text-5xl leading-none">Quality. Bigger Moves.</h3>
