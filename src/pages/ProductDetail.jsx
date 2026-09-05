@@ -4,7 +4,7 @@ import { ArrowLeft, Minus, Plus, ShoppingBag, Heart, Star, Truck, RotateCcw, Shi
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
 import { useCart } from "@/lib/CartContext";
-import { Image } from "@/components/ui/image";
+import { Image } from "@/components/ui/image";\nimport Seo from "@/components/Seo";
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
 
@@ -131,7 +131,7 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-6">
+    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-6">\n      <Seo title={product.name} description={product.description || "Shop this GDP Clothing apparel design."} path={`/product/${product.id}`} image={product.images?.[0]} type="product" />
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-accent mb-4">
         <ArrowLeft size={16} /> Back
       </button>
