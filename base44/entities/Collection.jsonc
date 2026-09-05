@@ -1,0 +1,56 @@
+{
+  "name": "Collection",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "tagline": {
+      "type": "string"
+    },
+    "seasonal": {
+      "type": "boolean",
+      "default": false
+    },
+    "productIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sortOrder": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "best_selling",
+        "alpha_asc",
+        "alpha_desc",
+        "price_asc",
+        "price_desc",
+        "newest"
+      ],
+      "default": "manual"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "name",
+    "slug"
+  ]
+}
