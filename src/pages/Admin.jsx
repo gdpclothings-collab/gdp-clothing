@@ -6,7 +6,7 @@ import {
   Pencil, Archive, TrendingUp, Clock, BarChart3, ExternalLink, Star,
   Image as ImageIcon, ChevronRight, CheckCircle2, AlertTriangle, DollarSign, Sparkles, Upload
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { adminApi } from "@/lib/adminApi";
 
 const STATUS_FLOW = [
   "pending_payment","paid","artwork_needed","design_in_progress","proof_ready",
@@ -88,27 +88,22 @@ export default function Admin() {
 
   const load = async () => {
     setLoading(true);
-    const safe = promise => promise.catch(() => []);
-    const [o, p, pr, cd, c, d, r, s] = await Promise.all([
-      safe(base44.entities.Order.list("-created_date", 250)),
-      safe(base44.entities.Product.list("-created_date", 500)),
-      safe(base44.entities.DesignProof.list("-created_date", 250)),
-      safe(base44.entities.CustomDesign.list("-created_date", 500)),
-      safe(base44.entities.Collection.list("-created_date", 250)),
-      safe(base44.entities.Discount.list("-created_date", 250)),
-      safe(base44.entities.Review.list("-created_date", 250)),
-      safe(base44.entities.StoreSettings.list("-created_date", 10))
-    ]);
-
-    setOrders(normalize(o));
-    setProducts(normalize(p));
-    setProofs(normalize(pr));
-    setCustomDesigns(normalize(cd));
-    setCollections(normalize(c));
-    setDiscounts(normalize(d));
-    setReviews(normalize(r));
-    setStoreSettings(normalize(s)[0] || null);
-    setLoading(false);
+    try {
+      const data = await adminApi.loadDashboard();
+      setOrders(data.orders || []);
+      setProducts(data.products || []);
+      setProofs(data.proofs || []);
+      setCustomDesigns(data.customDesigns || []);
+      setCollections(data.collections || []);
+      setDiscounts(data.discounts || []);
+      setReviews(data.reviews || []);
+      setStoreSettings(data.storeSettings || null);
+    } catch (error) {
+      console.error("Admin dashboard load failed:", error);
+      showNotice(error.message || "Could not load admin data.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -173,15 +168,15 @@ export default function Admin() {
     const idx = STATUS_FLOW.indexOf(current);
     if (idx < 0 || idx >= STATUS_FLOW.length - 1) return;
     const next = STATUS_FLOW[idx + 1];
-    await base44.entities.Order.update(id, { status: next, fulfillmentStatus: next });
+    await adminApi.updateOrder(id, { status: next, fulfillmentStatus: next });
     showNotice(`Order advanced to ${next.replaceAll("_", " ")}.`);
     load();
   };
 
   const startArtwork = async order => {
-    await base44.entities.Order.update(order.id, { status: "design_in_progress", fulfillmentStatus: "design_in_progress" });
+    await adminApi.updateOrder(order.id, { status: "design_in_progress", fulfillmentStatus: "design_in_progress" });
     const proof = proofs.find(p => p.orderId === order.id);
-    if (proof) await base44.entities.DesignProof.update(proof.id, { status: "in_progress" });
+    if (proof) await adminApi.updateProof(proof.id, { status: "in_progress" });
     showNotice("Artwork moved to design in progress.");
     load();
   };
@@ -189,32 +184,18 @@ export default function Admin() {
   const uploadProof = async (proof, file) => {
     if (!file) return;
     try {
-      const uploaded = await base44.integrations.Core.UploadFile({ file });
-      const nextVersion = Number(proof.currentVersion || 0) + 1;
-      const versions = [...(proof.versions || []), {
-        version: nextVersion,
-        url: uploaded.file_url,
-        createdAt: new Date().toISOString(),
-        note: proof.status === "revision_requested" ? "Revised proof" : "Design proof"
-      }];
-      await base44.entities.DesignProof.update(proof.id, {
-        versions,
-        currentVersion: nextVersion,
-        status: "awaiting_approval"
-      });
-      if (proof.orderId) {
-        await base44.entities.Order.update(proof.orderId, { status: "awaiting_approval", fulfillmentStatus: "awaiting_approval" });
-      }
+      await adminApi.uploadProof(proof, file);
       showNotice("New proof version uploaded and sent for approval.");
       load();
-    } catch {
-      showNotice("Proof upload failed.");
+    } catch (error) {
+      console.error("Proof upload failed:", error);
+      showNotice(error.message || "Proof upload failed.");
     }
   };
 
   const updateChecklist = async (order, key, checked) => {
     const next = { ...(order.productionChecklist || {}), [key]: checked };
-    await base44.entities.Order.update(order.id, { productionChecklist: next });
+    await adminApi.updateOrder(order.id, { productionChecklist: next });
     load();
   };
 
@@ -225,20 +206,20 @@ export default function Admin() {
       showNotice("Complete every production check before release.");
       return;
     }
-    await base44.entities.Order.update(order.id, { status: "production_queue", fulfillmentStatus: "production_queue" });
+    await adminApi.updateOrder(order.id, { status: "production_queue", fulfillmentStatus: "production_queue" });
     showNotice("Order released to production.");
     load();
   };
 
   const archiveProduct = async product => {
     if (!window.confirm(`Archive "${product.name}"? It will no longer appear as an active product.`)) return;
-    await base44.entities.Product.update(product.id, { status: "archived" });
+    await adminApi.archiveProduct(product.id);
     showNotice("Product archived.");
     load();
   };
 
   const updateReviewStatus = async (review, status) => {
-    await base44.entities.Review.update(review.id, { status });
+    await adminApi.updateReview(review.id, status);
     showNotice(`Review ${status}.`);
     load();
   };
@@ -1000,8 +981,7 @@ function ProductEditor({ record, collections, onClose, onSaved }) {
         seo: { title: form.seoTitle, description: form.seoDescription }
       };
 
-      if (record?.id) await base44.entities.Product.update(record.id, data);
-      else await base44.entities.Product.create(data);
+      await adminApi.saveProduct(record?.id || null, data);
       onSaved(record?.id ? "Product updated." : "Product created.");
     } finally {
       setSaving(false);
@@ -1115,7 +1095,7 @@ function CollectionEditor({ record, onClose, onSaved }) {
     e.preventDefault(); setSaving(true);
     try {
       const data = { ...form, slug: slugify(form.slug || form.name) };
-      if (record?.id) await base44.entities.Collection.update(record.id, data); else await base44.entities.Collection.create(data);
+      await adminApi.saveCollection(record?.id || null, data);
       onSaved(record?.id ? "Collection updated." : "Collection created.");
     } finally { setSaving(false); }
   };
@@ -1169,7 +1149,7 @@ function DiscountEditor({ record, onClose, onSaved }) {
         endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
         usageLimit: form.usageLimit === "" ? null : Number(form.usageLimit)
       };
-      if (record?.id) await base44.entities.Discount.update(record.id, data); else await base44.entities.Discount.create(data);
+      await adminApi.saveDiscount(record?.id || null, data);
       onSaved(record?.id ? "Discount updated." : "Discount created.");
     } finally { setSaving(false); }
   };
@@ -1220,7 +1200,7 @@ function SettingsEditor({ record, onClose, onSaved }) {
     e.preventDefault(); setSaving(true);
     try {
       const data = { ...form, lowStockThreshold: Number(form.lowStockThreshold || 0) };
-      if (record?.id) await base44.entities.StoreSettings.update(record.id, data); else await base44.entities.StoreSettings.create(data);
+      await adminApi.saveStoreSettings(record?.id || null, data);
       onSaved("Store settings saved.");
     } finally { setSaving(false); }
   };
