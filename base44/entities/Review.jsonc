@@ -1,0 +1,51 @@
+{
+  "name": "Review",
+  "type": "object",
+  "properties": {
+    "productId": {
+      "type": "string"
+    },
+    "productName": {
+      "type": "string"
+    },
+    "customerName": {
+      "type": "string"
+    },
+    "customerEmail": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number"
+    },
+    "title": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "productId",
+    "customerName",
+    "rating"
+  ]
+}
