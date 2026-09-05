@@ -13,7 +13,6 @@ import {
   Save,
   Trash2,
   Image as ImageIcon,
-  Tags,
   Boxes,
   Sparkles,
   RefreshCw,
