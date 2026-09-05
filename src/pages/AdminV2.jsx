@@ -63,10 +63,10 @@ import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import FinanceModule from "@/components/admin/FinanceModule";
 import SettingsModule from "@/components/admin/SettingsModule";
 import MarketsManagementModule from "@/components/admin/MarketsManagementModule";
+import ContentManagementModule from "@/components/admin/ContentManagementModule";
 import {
   GrowthModule,
   MarketingModule,
-  ContentModule,
   OnlineStoreModule,
   AppsModule,
 } from "@/components/admin/BusinessInsightsModules";
@@ -486,7 +486,7 @@ export default function AdminV2() {
                 title="Content"
                 description="Manage product media and the customer proof layer used across the storefront."
               />
-              <ContentModule onOpen={openSection} />
+              <ContentManagementModule />
             </div>
           ) : section === "reviews" ? (
             <div>
