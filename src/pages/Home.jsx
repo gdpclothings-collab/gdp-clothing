@@ -151,7 +151,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1500px] px-4 py-12 sm:px-5 lg:px-8 lg:py-18">
+      <section className="mx-auto max-w-[1500px] px-4 py-12 sm:px-5 lg:px-8 lg:py-16">
         <div className="mb-7 flex items-end justify-between gap-5 border-b border-black/15 pb-5">
           <div>
             <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-black/45">Shop by direction</div>
