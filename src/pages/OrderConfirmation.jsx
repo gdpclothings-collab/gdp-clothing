@@ -33,7 +33,7 @@ export default function OrderConfirmation() {
 
       <p className="mt-4 text-muted-foreground max-w-md mx-auto">
         {paid
-          ? "Thank you! Your payment was successful. A confirmation email is on its way."
+          ? "Thank you! Your payment was successful. Your order is saved and ready for the next step."
           : paymentConfigured
             ? "Your order is saved. Complete payment to confirm production."
             : "Your order is saved. Our team will send a secure payment link to your email shortly to confirm production."}
