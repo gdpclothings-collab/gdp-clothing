@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Lock, CreditCard, Check, AlertTriangle, Truck, Store } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
@@ -20,6 +20,13 @@ export default function Checkout() {
   const [checkoutActions, setCheckoutActions] = useState(null);
   const [paymentSession, setPaymentSession] = useState(null);
   const [paymentCanConfirm, setPaymentCanConfirm] = useState(false);
+  const [checkoutSessionToken, setCheckoutSessionToken] = useState(() => {
+    try {
+      return window.localStorage.getItem("gdp_checkout_session") || "";
+    } catch {
+      return "";
+    }
+  });
   const paymentHostRef = useRef(null);
 
   const qtyDiscount = (total, count) => {
@@ -34,6 +41,51 @@ export default function Checkout() {
   const shipping = form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping" ? 0 : (afterCoupon >= 150 ? 0 : 12.99);
   const tax = (afterCoupon + shipping) * 0.11;
   const total = afterCoupon + shipping + tax;
+
+  useEffect(() => {
+    if (!items.length || checkoutActions) return undefined;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await customerApi.trackCheckout(
+          items,
+          form,
+          {
+            subtotal,
+            discount: discountAmt + couponAmt,
+            shipping,
+            tax,
+            total,
+          },
+          checkoutSessionToken
+        );
+
+        if (result?.sessionToken && result.sessionToken !== checkoutSessionToken) {
+          setCheckoutSessionToken(result.sessionToken);
+          try {
+            window.localStorage.setItem("gdp_checkout_session", result.sessionToken);
+          } catch {
+            // Checkout tracking still works for the current page without local storage.
+          }
+        }
+      } catch (trackingError) {
+        console.debug("Checkout session tracking skipped:", trackingError?.message || trackingError);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    items,
+    form,
+    subtotal,
+    discountAmt,
+    couponAmt,
+    shipping,
+    tax,
+    total,
+    checkoutSessionToken,
+    checkoutActions,
+  ]);
 
   if (items.length === 0) {
     return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center"><h1 className="font-display text-4xl">Cart is empty</h1><Link to="/shop" className="text-accent mt-4 inline-block">Browse products</Link></div>;
@@ -67,7 +119,8 @@ export default function Checkout() {
           items,
           form,
           form.discountCode,
-          window.location.origin
+          window.location.origin,
+          checkoutSessionToken
         );
 
         if (data?.error) {
@@ -110,6 +163,12 @@ export default function Checkout() {
           orderNumber: data.orderNumber,
           confirmationToken: data.confirmationToken,
         });
+
+        try {
+          window.localStorage.removeItem("gdp_checkout_session");
+        } catch {
+          // Local storage is optional.
+        }
 
         window.setTimeout(() => {
           paymentHostRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
