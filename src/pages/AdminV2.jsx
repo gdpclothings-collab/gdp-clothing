@@ -42,9 +42,13 @@ import {
   LifeBuoy,
   Tags,
   Star,
+  RotateCcw,
+  ShoppingCart,
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
+import ReturnsModule from "@/components/admin/ReturnsModule";
+import AbandonedCheckoutsModule from "@/components/admin/AbandonedCheckoutsModule";
 import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
 import CustomersModule from "@/components/admin/CustomersModule";
@@ -72,6 +76,8 @@ const NAV_GROUPS = [
     items: [
       { id: "home", label: "Home", icon: LayoutDashboard },
       { id: "orders", label: "Orders", icon: ShoppingBag },
+      { id: "returns", label: "Returns", icon: RotateCcw },
+      { id: "abandoned-checkouts", label: "Abandoned checkouts", icon: ShoppingCart },
       { id: "products", label: "Products", icon: Package },
       { id: "collections", label: "Collections", icon: Tags },
       { id: "inventory", label: "Inventory", icon: Boxes },
@@ -334,6 +340,24 @@ export default function AdminV2() {
                 description="Manage order lifecycle, payments, fulfillment, custom work and shipping."
               />
               <OrdersModule />
+            </div>
+          ) : section === "returns" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Returns"
+                description="Manage return requests, resolutions, restocking and controlled refund records."
+              />
+              <ReturnsModule />
+            </div>
+          ) : section === "abandoned-checkouts" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Abandoned checkouts"
+                description="Recover incomplete checkout sessions before they become lost sales."
+              />
+              <AbandonedCheckoutsModule />
             </div>
           ) : section === "products" ? (
             <div>
