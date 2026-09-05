@@ -327,7 +327,7 @@ export default function Checkout() {
           <Section n="03" title="Shipping Method">
             <div className="grid sm:grid-cols-2 gap-3">
               <Option selected={form.shippingMethod === "standard"} onClick={() => set("shippingMethod", "standard")}
-                icon={Truck} title="Standard Shipping" desc={shipping === 0 ? "FREE · 3-7 business days" : `${shipping.toFixed(2)} · 3-7 business days`} />
+                icon={Truck} title="Standard Shipping" desc={shipping === 0 ? "FREE · 3-7 business days" : `$${shipping.toFixed(2)} · 3-7 business days`} />
               <Option selected={form.shippingMethod === "pickup"} onClick={() => set("shippingMethod", "pickup")}
                 icon={Store} title="Local Pickup" desc="Free · Saskatoon studio" />
             </div>
