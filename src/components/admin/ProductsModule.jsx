@@ -581,7 +581,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
         },
         variants: safeVariants.map((variant, index) => ({
           id: variant.id || null,
-          name: variant.name || \`Variant \${index + 1}\`,
+          name: variant.name || `Variant ${index + 1}`,
           sku: variant.sku || null,
           barcode: variant.barcode || null,
           podSku: variant.podSku || null,
@@ -705,7 +705,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                   {form.images.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
                       {form.images.map((image, index) => (
-                        <div key={\`\${image}-\${index}\`} className="relative aspect-square rounded-xl overflow-hidden border border-[#dedede] bg-white group">
+                        <div key={`${image}-${index}`} className="relative aspect-square rounded-xl overflow-hidden border border-[#dedede] bg-white group">
                           <img src={image} alt="" className="w-full h-full object-cover" />
                           {index === 0 && (
                             <span className="absolute left-2 top-2 rounded-full bg-black/75 text-white text-[9px] font-semibold px-2 py-1">
@@ -783,7 +783,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                         step="0.01"
                         value={form.price}
                         onChange={(event) => set("price", event.target.value)}
-                        className={\`\${inputClass} pl-7\`}
+                        className={`${inputClass} pl-7`}
                         required
                       />
                     </div>
@@ -797,7 +797,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                         step="0.01"
                         value={form.compareAtPrice}
                         onChange={(event) => set("compareAtPrice", event.target.value)}
-                        className={\`\${inputClass} pl-7\`}
+                        className={`${inputClass} pl-7`}
                       />
                     </div>
                   </Field>
@@ -810,7 +810,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                         step="0.01"
                         value={form.costPerItem}
                         onChange={(event) => set("costPerItem", event.target.value)}
-                        className={\`\${inputClass} pl-7\`}
+                        className={`${inputClass} pl-7`}
                       />
                     </div>
                   </Field>
