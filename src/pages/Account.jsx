@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Package, Heart, User, LogOut, Clock, Eye, Sparkles, CheckCircle2, MessageSquare } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { customerApi } from "@/lib/customerApi";
+import { useAuth } from "@/lib/AuthContext";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 
@@ -17,7 +18,7 @@ const STATUS_LABELS = {
 export default function Account() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") || "orders";
-  const [user, setUser] = useState(null);
+  const { user, logout } = useAuth();
   const [orders, setOrders] = useState([]);
   const [savedDesigns, setSavedDesigns] = useState([]);
   const [trackInput, setTrackInput] = useState("");
@@ -33,7 +34,7 @@ export default function Account() {
     setCustomLoading(true);
     setCustomError("");
     try {
-      const { data } = await base44.functions.invoke("custom-proof-action", { action: "list" });
+      const data = await customerApi.proofAction("list");
       setCustomOrders(data?.orders || []);
     } catch {
       setCustomError("Could not load your custom-order proofs.");
@@ -43,19 +44,27 @@ export default function Account() {
   };
 
   useEffect(() => {
-    base44.auth.me().then(current => {
-      setUser(current);
-      if (current?.email) {
-        base44.entities.Order.filter({ customerEmail: current.email }, "-created_date", 50).then(r => setOrders(Array.isArray(r) ? r : r?.items || [])).catch(() => {});
-      }
+    let active = true;
+
+    Promise.all([
+      customerApi.listOrders(),
+      customerApi.listSavedDesigns(),
+    ]).then(([orderRows, designRows]) => {
+      if (!active) return;
+      setOrders(orderRows || []);
+      setSavedDesigns(designRows || []);
     }).catch(() => {});
-    base44.entities.SavedDesign.filter({}, "-created_date", 20).then(r => setSavedDesigns(Array.isArray(r) ? r : r?.items || [])).catch(() => {});
+
     loadCustomOrders();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
     if (!wishlist.length) { setWishProducts([]); return; }
-    base44.entities.Product.filter({ id: { $in: wishlist } }).then(r => setWishProducts(Array.isArray(r) ? r : r?.items || [])).catch(() => {});
+    customerApi.getProducts(wishlist).then(setWishProducts).catch(() => setWishProducts([]));
   }, [wishlist]);
 
   const setTab = (t) => { const n = new URLSearchParams(params); n.set("tab", t); setParams(n); };
@@ -63,9 +72,8 @@ export default function Account() {
   const approveProof = async (proofId) => {
     setCustomError("");
     try {
-      const { data } = await base44.functions.invoke("custom-proof-action", { action: "approve", proofId });
-      if (data?.error) setCustomError(data.message || "Could not approve proof.");
-      else await loadCustomOrders();
+      await customerApi.proofAction("approve", { proofId });
+      await loadCustomOrders();
     } catch (e) {
       setCustomError(e?.response?.data?.message || "Could not approve proof.");
     }
@@ -76,12 +84,9 @@ export default function Account() {
     if (!comment) return;
     setCustomError("");
     try {
-      const { data } = await base44.functions.invoke("custom-proof-action", { action: "request_revision", proofId, comment });
-      if (data?.error) setCustomError(data.message || "Could not request revision.");
-      else {
-        setRevisionText(prev => ({ ...prev, [proofId]: "" }));
-        await loadCustomOrders();
-      }
+      await customerApi.proofAction("request_revision", { proofId, comment });
+      setRevisionText(prev => ({ ...prev, [proofId]: "" }));
+      await loadCustomOrders();
     } catch (e) {
       setCustomError(e?.response?.data?.message || "Could not request revision.");
     }
@@ -91,9 +96,8 @@ export default function Account() {
     if (!trackInput.trim()) return;
     setTrackResult(null);
     try {
-      const r = await base44.entities.Order.filter({ orderNumber: trackInput.trim(), customerEmail: user?.email });
-      const o = Array.isArray(r) ? r[0] : r?.items?.[0];
-      setTrackResult(o || { notFound: true });
+      const order = await customerApi.trackOrder(trackInput.trim());
+      setTrackResult(order || { notFound: true });
     } catch { setTrackResult({ notFound: true }); }
   };
 
@@ -119,7 +123,7 @@ export default function Account() {
               <t.icon size={16} /> {t.label}
             </button>
           ))}
-          <button onClick={() => base44.auth.logout("/")} className="flex items-center gap-2 px-4 py-3 text-sm font-bold uppercase tracking-wide text-muted-foreground hover:text-destructive border-l-2 border-transparent">
+          <button onClick={() => logout(true)} className="flex items-center gap-2 px-4 py-3 text-sm font-bold uppercase tracking-wide text-muted-foreground hover:text-destructive border-l-2 border-transparent">
             <LogOut size={16} /> Sign Out
           </button>
         </nav>
@@ -221,7 +225,7 @@ export default function Account() {
             <div className="border border-border p-6 bg-card max-w-md">
               <h2 className="font-display text-3xl mb-4">PROFILE</h2>
               <div className="space-y-2 text-sm">
-                <div><span className="text-muted-foreground font-mono text-xs uppercase">Name</span><div>{user?.full_name || "—"}</div></div>
+                <div><span className="text-muted-foreground font-mono text-xs uppercase">Name</span><div>{user?.display_name || user?.full_name || "—"}</div></div>
                 <div><span className="text-muted-foreground font-mono text-xs uppercase">Email</span><div>{user?.email}</div></div>
                 <div><span className="text-muted-foreground font-mono text-xs uppercase">Role</span><div className="font-mono uppercase">{user?.role}</div></div>
               </div>
