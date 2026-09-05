@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - quality-audit-fix-20260905
   workflow_dispatch:
 
 jobs:
