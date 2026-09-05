@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Lock, CreditCard, Check, AlertTriangle, Truck, Store } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { customerApi } from "@/lib/customerApi";
 import { isIframe } from "@/lib/utils";
+import { loadStripe } from "@stripe/stripe-js";
 
 export default function Checkout() {
   const { items, subtotal, clearCart, itemCount } = useCart();
@@ -16,6 +17,10 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(null);
+  const [checkoutActions, setCheckoutActions] = useState(null);
+  const [paymentSession, setPaymentSession] = useState(null);
+  const [paymentCanConfirm, setPaymentCanConfirm] = useState(false);
+  const paymentHostRef = useRef(null);
 
   const qtyDiscount = (total, count) => {
     if (count >= 3) return total * 0.75;
@@ -45,39 +50,116 @@ export default function Checkout() {
 
   const placeOrder = async () => {
     setError("");
-    if (!form.email || !form.firstName || !form.address || !form.city || !form.postalCode) {
-      setError("Please fill in all required fields.");
+
+    if (!checkoutActions) {
+      if (!form.email || !form.firstName || !form.address || !form.city || !form.postalCode) {
+        setError("Please fill in all required fields before continuing to payment.");
+        return;
+      }
+      if (isIframe) {
+        setError("Checkout works only from the published app. Open the app in a new tab to complete payment.");
+        return;
+      }
+
+      setPlacing(true);
+      try {
+        const data = await customerApi.createOrder(
+          items,
+          form,
+          form.discountCode,
+          window.location.origin
+        );
+
+        if (data?.error) {
+          setError(data.message || "Order could not be prepared. Please try again.");
+          return;
+        }
+
+        if (!data?.configured || !data?.clientSecret || !data?.publishableKey) {
+          setError(
+            data?.missing
+              ? `Stripe payment setup is missing ${data.missing}.`
+              : "Stripe embedded payment is not fully configured yet."
+          );
+          return;
+        }
+
+        const stripe = await loadStripe(data.publishableKey);
+        if (!stripe) throw new Error("Stripe.js could not load.");
+
+        const checkout = stripe.initCheckout({
+          clientSecret: data.clientSecret,
+        });
+
+        const loaded = await checkout.loadActions();
+        if (loaded.type !== "success") {
+          throw new Error(loaded.error?.message || "Stripe payment form could not initialize.");
+        }
+
+        const paymentElement = checkout.createPaymentElement();
+        paymentElement.mount(paymentHostRef.current);
+
+        checkout.on("change", (session) => {
+          setPaymentCanConfirm(Boolean(session?.canConfirm));
+        });
+
+        const session = loaded.actions.getSession();
+        setPaymentCanConfirm(Boolean(session?.canConfirm));
+        setCheckoutActions(loaded.actions);
+        setPaymentSession({
+          orderNumber: data.orderNumber,
+          confirmationToken: data.confirmationToken,
+        });
+
+        window.setTimeout(() => {
+          paymentHostRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+      } catch (e) {
+        console.error("Stripe embedded checkout initialization failed:", e);
+        setError(e?.message || "Could not load secure payment fields. Please try again.");
+      } finally {
+        setPlacing(false);
+      }
       return;
     }
-    if (isIframe) {
-      setError("Checkout works only from the published app. Open the app in a new tab to complete payment.");
+
+    if (!paymentCanConfirm) {
+      setError("Please complete your payment information before placing the order.");
+      paymentHostRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+
     setPlacing(true);
     try {
-      const data = await customerApi.createOrder(
-        items,
-        form,
-        form.discountCode,
-        window.location.origin
-      );
-      if (data?.error) {
-        setError(data.message || "Order could not be placed. Please try again.");
-      } else if (data?.checkoutUrl) {
-        clearCart();
-        window.location.href = data.checkoutUrl;
-      } else {
-        clearCart();
-        const token = data.confirmationToken ? `&token=${encodeURIComponent(data.confirmationToken)}` : "";
-        navigate(`/order/${data.orderNumber}?status=pending_payment&configured=0${token}`);
+      const result = await checkoutActions.confirm();
+
+      if (result?.type === "error") {
+        setError(result.error?.message || "Payment could not be completed.");
+        return;
+      }
+
+      clearCart();
+      if (paymentSession?.orderNumber) {
+        const token = paymentSession.confirmationToken
+          ? `&token=${encodeURIComponent(paymentSession.confirmationToken)}`
+          : "";
+        navigate(`/order/${paymentSession.orderNumber}?status=success${token}`);
       }
     } catch (e) {
-      setError("Network error placing order. Please try again.");
+      console.error("Stripe payment confirmation failed:", e);
+      setError(e?.message || "Payment could not be completed. Please try again.");
+    } finally {
+      setPlacing(false);
     }
-    setPlacing(false);
   };
 
-  const set = (k, v) => setForm({ ...form, [k]: v });
+  const set = (k, v) => {
+    if (checkoutActions) {
+      setError("Payment is already prepared. Refresh checkout if you need to change order details.");
+      return;
+    }
+    setForm({ ...form, [k]: v });
+  };
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">
@@ -127,14 +209,34 @@ export default function Checkout() {
           </Section>
 
           <Section n="06" title="Payment">
-            <div className="border border-border p-4 bg-secondary flex items-center gap-3">
+            <div className="border border-border p-4 bg-secondary flex items-center gap-3 mb-4">
               <CreditCard size={22} />
               <div>
-                <div className="font-bold text-sm">Stripe Secure Checkout</div>
-                <div className="text-xs text-muted-foreground">Card, Apple Pay & Google Pay. Your card details are never stored by GDP.</div>
+                <div className="font-bold text-sm">Stripe Secure Payment</div>
+                <div className="text-xs text-muted-foreground">
+                  Card details stay encrypted with Stripe and are never stored by GDP Clothing.
+                </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1"><Lock size={12} /> Encrypted payment processed at order placement.</p>
+
+            {!checkoutActions && (
+              <div className="border border-dashed border-border p-5 bg-background text-sm text-muted-foreground">
+                Complete your contact and shipping information, then click
+                <span className="font-bold text-foreground"> Continue to Payment</span>.
+                Your secure card fields will appear here without leaving checkout.
+              </div>
+            )}
+
+            <div
+              ref={paymentHostRef}
+              className={`bg-background ${checkoutActions ? "border border-border p-4 min-h-[180px]" : "h-0 overflow-hidden"}`}
+            />
+
+            {checkoutActions && (
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                <Lock size={12} /> Payment information is securely handled by Stripe on this checkout page.
+              </p>
+            )}
           </Section>
         </div>
 
@@ -161,9 +263,16 @@ export default function Checkout() {
 
           {error && <div className="mt-3 flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2"><AlertTriangle size={16} />{error}</div>}
 
-          <button onClick={placeOrder} disabled={placing}
-            className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90 disabled:opacity-50">
-            {placing ? "Placing Order…" : `Place Order · $${total.toFixed(2)}`}
+          <button
+            onClick={placeOrder}
+            disabled={placing || (Boolean(checkoutActions) && !paymentCanConfirm)}
+            className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90 disabled:opacity-50"
+          >
+            {placing
+              ? (checkoutActions ? "Processing Payment…" : "Loading Payment…")
+              : checkoutActions
+                ? `Pay Now · ${total.toFixed(2)}`
+                : `Continue to Payment · ${total.toFixed(2)}`}
           </button>
           <p className="text-[11px] text-muted-foreground mt-2 text-center">By placing your order you agree to GDP Clothing's terms. Custom items require proof approval before printing.</p>
         </aside>
