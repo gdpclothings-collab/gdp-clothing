@@ -6,6 +6,18 @@ const throwIfError = ({ error, data }) => {
   return data;
 };
 
+async function signedStorageUrl(bucket, path, expiresIn = 3600) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresIn);
+
+  if (error) return "";
+  return data?.signedUrl || "";
+}
+
 const mapVariant = (row) => ({
   ...row,
   podSku: row.pod_sku,
@@ -179,6 +191,28 @@ export const adminApi = {
       supabase.from("store_settings").select("*").eq("id", 1).maybeSingle(),
     ]);
 
+    const designRows = throwIfError(designs) || [];
+    const proofRows = throwIfError(proofs) || [];
+
+    const signedDesigns = await Promise.all(
+      designRows.map(async (row) => mapCustomDesign({
+        ...row,
+        preview_url: await signedStorageUrl("customer-uploads", row.preview_url),
+      }))
+    );
+
+    const signedProofs = await Promise.all(
+      proofRows.map(async (row) => ({
+        ...row,
+        proof_versions: await Promise.all(
+          (row.proof_versions || []).map(async (version) => ({
+            ...version,
+            url: await signedStorageUrl("design-proofs", version.url),
+          }))
+        ),
+      }))
+    );
+
     return {
       orders: (throwIfError(orders) || []).map(mapOrder),
       products: (throwIfError(products) || []).map((row) => ({
@@ -186,8 +220,8 @@ export const adminApi = {
         variants: (row.product_variants || []).map(mapVariant),
         collectionIds: (row.collection_products || []).map((link) => link.collection_id),
       })),
-      proofs: (throwIfError(proofs) || []).map(mapProof),
-      customDesigns: (throwIfError(designs) || []).map(mapCustomDesign),
+      proofs: signedProofs.map(mapProof),
+      customDesigns: signedDesigns,
       collections: (throwIfError(collections) || []).map(mapCollection),
       discounts: (throwIfError(discounts) || []).map(mapDiscount),
       reviews: (throwIfError(reviews) || []).map(normalizeReview),
