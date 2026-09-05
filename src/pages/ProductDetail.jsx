@@ -24,15 +24,16 @@ export default function ProductDetail() {
     setLoading(true);
 
     Promise.all([
-      supabase.from("products").select("*").eq("id", id).maybeSingle(),
+      supabase.from("products").select("*, product_variants(*)").eq("id", id).maybeSingle(),
       supabase.from("reviews").select("*").eq("product_id", id).eq("status", "approved").order("created_at", { ascending: false }),
     ]).then(([productResult, reviewResult]) => {
       if (!active) return;
 
       const p = productResult.error ? null : normalizeProduct(productResult.data);
       setProduct(p);
-      setColor(p?.colors?.[0] || "");
-      setSize(p?.sizes?.[0] || "M");
+      const firstVariant = p?.variants?.[0];
+      setColor(firstVariant?.color || p?.colors?.[0] || "");
+      setSize(firstVariant?.size || p?.sizes?.[0] || "M");
 
       if (!reviewResult.error) {
         setReviews((reviewResult.data || []).map(normalizeReview));
@@ -49,16 +50,82 @@ export default function ProductDetail() {
   if (loading) return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center text-muted-foreground">Loading…</div>;
   if (!product) return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center">Product not found. <Link to="/shop" className="text-accent">Back to shop</Link></div>;
 
-  const colors = product.colors?.length ? product.colors : ["Black"];
-  const sizes = product.sizes?.length ? product.sizes : SIZES;
+  const variants = product.variants || [];
+  const variantColors = [...new Set(variants.map((variant) => variant.color).filter(Boolean))];
+  const variantSizes = [...new Set(variants.map((variant) => variant.size).filter(Boolean))];
+  const colors = variantColors.length
+    ? variantColors
+    : product.colors?.length
+      ? product.colors
+      : ["Black"];
+  const sizes = variantSizes.length
+    ? variantSizes
+    : product.sizes?.length
+      ? product.sizes
+      : SIZES;
+  const selectedVariant =
+    variants.find(
+      (variant) =>
+        (!variant.color || variant.color === color) &&
+        (!variant.size || variant.size === size)
+    ) || (variants.length === 1 ? variants[0] : null);
+  const displayPrice =
+    selectedVariant?.price == null ? Number(product.price || 0) : Number(selectedVariant.price);
+  const inStock =
+    !product.trackInventory ||
+    !variants.length ||
+    Boolean(selectedVariant && Number(selectedVariant.stock || 0) > 0);
+  const maxQty =
+    product.trackInventory && selectedVariant
+      ? Math.max(0, Number(selectedVariant.stock || 0))
+      : 99;
   const wished = wishlist.includes(product.id);
   const avgRating = reviews.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null;
 
+  const selectColor = (nextColor) => {
+    setColor(nextColor);
+    if (!variants.length) return;
+    const exact = variants.find(
+      (variant) =>
+        (!variant.color || variant.color === nextColor) &&
+        (!variant.size || variant.size === size)
+    );
+    if (exact) return;
+    const fallback = variants.find(
+      (variant) => !variant.color || variant.color === nextColor
+    );
+    if (fallback?.size) setSize(fallback.size);
+  };
+
+  const selectSize = (nextSize) => {
+    setSize(nextSize);
+    if (!variants.length) return;
+    const exact = variants.find(
+      (variant) =>
+        (!variant.size || variant.size === nextSize) &&
+        (!variant.color || variant.color === color)
+    );
+    if (exact) return;
+    const fallback = variants.find(
+      (variant) => !variant.size || variant.size === nextSize
+    );
+    if (fallback?.color) setColor(fallback.color);
+  };
+
   const addToCart = () => {
+    if (!inStock) return;
     addItem({
-      productId: product.id, name: product.name, image: product.images?.[0],
-      variant: product.type, size, color, quantity: qty, price: product.price,
-      fulfillmentMode: product.fulfillmentMode, isCustom: false
+      productId: product.id,
+      variantId: selectedVariant?.id || null,
+      name: product.name,
+      image: product.images?.[0],
+      variant: selectedVariant?.name || product.type,
+      size,
+      color,
+      quantity: Math.min(qty, maxQty || qty),
+      price: displayPrice,
+      fulfillmentMode: product.fulfillmentMode,
+      isCustom: false,
     });
     navigate("/cart");
   };
@@ -81,8 +148,8 @@ export default function ProductDetail() {
           </div>
           <h1 className="font-display text-4xl md:text-5xl leading-none mt-2">{product.name}</h1>
           <div className="flex items-center gap-3 mt-3">
-            <span className="font-mono text-2xl">${product.price?.toFixed(2)}</span>
-            {product.compareAtPrice > product.price && (
+            <span className="font-mono text-2xl">${displayPrice.toFixed(2)}</span>
+            {product.compareAtPrice > displayPrice && (
               <span className="text-muted-foreground line-through">${product.compareAtPrice?.toFixed(2)}</span>
             )}
             {avgRating && (
@@ -100,7 +167,7 @@ export default function ProductDetail() {
             <div className="font-mono text-xs uppercase tracking-wide mb-2">Color — {color}</div>
             <div className="flex gap-2">
               {colors.map(c => (
-                <button key={c} onClick={() => setColor(c)}
+                <button key={c} onClick={() => selectColor(c)}
                   className={`px-4 py-2 text-xs uppercase border transition-colors ${color === c ? "border-accent bg-accent text-accent-foreground" : "border-border hover:border-accent"}`}>
                   {c}
                 </button>
@@ -112,7 +179,7 @@ export default function ProductDetail() {
             <div className="font-mono text-xs uppercase tracking-wide mb-2">Size</div>
             <div className="flex flex-wrap gap-2">
               {sizes.map(s => (
-                <button key={s} onClick={() => setSize(s)}
+                <button key={s} onClick={() => selectSize(s)}
                   className={`min-w-12 px-3 py-2 text-xs font-bold uppercase border transition-colors ${size === s ? "border-accent bg-accent text-accent-foreground" : "border-border hover:border-accent"}`}>
                   {s}
                 </button>
@@ -124,21 +191,31 @@ export default function ProductDetail() {
             <div className="flex items-center border border-border">
               <button onClick={() => setQty(q => Math.max(1, q - 1))} className="px-3 py-3 hover:text-accent" aria-label="Decrease"><Minus size={16} /></button>
               <span className="px-4 font-mono">{qty}</span>
-              <button onClick={() => setQty(q => q + 1)} className="px-3 py-3 hover:text-accent" aria-label="Increase"><Plus size={16} /></button>
+              <button onClick={() => setQty(q => Math.min(maxQty || 99, q + 1))} className="px-3 py-3 hover:text-accent disabled:opacity-40" aria-label="Increase" disabled={maxQty > 0 && qty >= maxQty}><Plus size={16} /></button>
             </div>
             {product.customDesignable ? (
               <button onClick={() => navigate("/custom-studio?product=" + product.id)} className="flex-1 bg-accent text-accent-foreground py-3 font-bold uppercase tracking-wide hover:opacity-90 inline-flex items-center justify-center gap-2">
                 <Sparkles size={18} /> Customize This Product
               </button>
             ) : (
-              <button onClick={addToCart} className="flex-1 bg-primary text-primary-foreground py-3 font-bold uppercase tracking-wide hover:opacity-90 inline-flex items-center justify-center gap-2">
-                <ShoppingBag size={18} /> Add to Cart
+              <button
+                onClick={addToCart}
+                disabled={!inStock}
+                className="flex-1 bg-primary text-primary-foreground py-3 font-bold uppercase tracking-wide hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+              >
+                <ShoppingBag size={18} /> {inStock ? "Add to Cart" : "Sold Out"}
               </button>
             )}
             <button onClick={() => toggleWishlist(product.id)} className="p-3 border border-border hover:border-accent" aria-label="Wishlist">
               <Heart size={18} className={wished ? "fill-destructive text-destructive" : ""} />
             </button>
           </div>
+
+          {variants.length > 0 && product.trackInventory && (
+            <div className="mt-3 text-xs font-mono uppercase tracking-wide text-muted-foreground">
+              Selected variant stock: {selectedVariant ? selectedVariant.stock : 0}
+            </div>
+          )}
 
           {product.customDesignable && (
             <div className="mt-3 border border-accent/30 bg-accent/5 px-4 py-3 text-sm">
