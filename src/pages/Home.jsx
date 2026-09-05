@@ -77,7 +77,7 @@ function SampleCard({ item }) {
           )}
         </div>
         <span className="absolute left-2 top-2 bg-black px-2 py-1 text-[9px] font-black uppercase tracking-wide text-white sm:left-3 sm:top-3 sm:text-[10px]">
-          Best Seller
+          Sold Sample
         </span>
       </Link>
       <div className="pt-3">
@@ -90,7 +90,7 @@ function SampleCard({ item }) {
           <span className="h-4 w-4 rounded-full border border-neutral-400 bg-white sm:h-5 sm:w-5" />
           <span className="h-4 w-4 rounded-full border border-neutral-400 bg-neutral-300 sm:h-5 sm:w-5" />
         </div>
-        <div className="mt-2 text-[11px] tracking-[0.08em]">★★★★★</div>
+        <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500">Made by GDP</div>
       </div>
     </article>
   );
@@ -155,8 +155,8 @@ export default function Home() {
       <section className="mx-auto max-w-[1500px] px-5 py-10 lg:px-8 lg:py-14">
         <div className="mb-7 flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">Best Sellers</h2>
-            <p className="mt-1 text-xs text-neutral-500 sm:text-sm">Sold-sample favorites. Custom made. Real customer ideas.</p>
+            <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">Recently Made</h2>
+            <p className="mt-1 text-xs text-neutral-500 sm:text-sm">Real GDP sold samples. Custom made from customer ideas.</p>
           </div>
           <Link to="/shop" className="hidden items-center gap-2 text-sm font-semibold hover:underline sm:flex">
             View All Products <ArrowRight size={15} />
