@@ -84,10 +84,10 @@ export default function MarketsManagementModule() {
       <div className="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="inline-flex rounded-lg border border-[#d5d5d5] bg-white p-1 w-fit">
           {[
-            ["markets", "Markets", Globe2],
-            ["shipping", "Shipping", Truck],
-            ["taxes", "Taxes", ReceiptText],
-          ].map(([id, label, Icon]) => (
+            { id: "markets", label: "Markets", Icon: Globe2 },
+            { id: "shipping", label: "Shipping", Icon: Truck },
+            { id: "taxes", label: "Taxes", Icon: ReceiptText },
+          ].map(({ id, label, Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -251,7 +251,7 @@ function ShippingTab({ rates, profiles, loading, onCreate, onEdit, onToggle }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="8" className="py-12 text-center text-[#777]">Loading shipping rates…</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-[#777]">Loading shipping rates…</td></tr>
             ) : rates.length ? (
               rates.map((rate) => (
                 <tr key={rate.id} className="border-t border-[#eeeeee]">
@@ -282,7 +282,7 @@ function ShippingTab({ rates, profiles, loading, onCreate, onEdit, onToggle }) {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="8" className="py-12 text-center text-[#777]">No shipping rates configured.</td></tr>
+              <tr><td colSpan={8} className="py-12 text-center text-[#777]">No shipping rates configured.</td></tr>
             )}
           </tbody>
         </table>
@@ -325,7 +325,7 @@ function TaxesTab({ taxes, loading, onCreate, onEdit, onToggle }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="8" className="py-12 text-center text-[#777]">Loading tax rules…</td></tr>
+                <tr><td colSpan={8} className="py-12 text-center text-[#777]">Loading tax rules…</td></tr>
               ) : taxes.length ? (
                 taxes.map((rule) => (
                   <tr key={rule.id} className="border-t border-[#eeeeee]">
@@ -345,7 +345,7 @@ function TaxesTab({ taxes, loading, onCreate, onEdit, onToggle }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="py-12 text-center text-[#777]">No tax rules configured.</td></tr>
+                <tr><td colSpan={8} className="py-12 text-center text-[#777]">No tax rules configured.</td></tr>
               )}
             </tbody>
           </table>
@@ -364,7 +364,7 @@ function MarketEditor({ market, onClose, onSaved }) {
     currency: market?.currency || "CAD",
     language: market?.language || "en",
     domain: market?.domain || "",
-    pricingAdjustment: market?.pricing_adjustment || 0,
+    pricingAdjustment: String(market?.pricing_adjustment ?? 0),
     active: market?.active !== false,
     isPrimary: Boolean(market?.is_primary),
   });
@@ -409,11 +409,11 @@ function ShippingEditor({ rate, markets, profiles, onClose, onSaved }) {
     marketId: rate?.market_id || "",
     name: rate?.name || "",
     methodCode: rate?.method_code || "",
-    price: rate?.price || 0,
-    minOrder: rate?.min_order ?? "",
-    maxOrder: rate?.max_order ?? "",
-    minDeliveryDays: rate?.min_delivery_days ?? "",
-    maxDeliveryDays: rate?.max_delivery_days ?? "",
+    price: String(rate?.price ?? 0),
+    minOrder: rate?.min_order == null ? "" : String(rate.min_order),
+    maxOrder: rate?.max_order == null ? "" : String(rate.max_order),
+    minDeliveryDays: rate?.min_delivery_days == null ? "" : String(rate.min_delivery_days),
+    maxDeliveryDays: rate?.max_delivery_days == null ? "" : String(rate.max_delivery_days),
     active: rate?.active !== false,
   });
 
@@ -464,10 +464,10 @@ function TaxEditor({ rule, markets, onClose, onSaved }) {
     countryCode: rule?.country_code || "CA",
     regionCode: rule?.region_code || "",
     name: rule?.name || "",
-    ratePercent: rule ? Number(rule.rate || 0) * 100 : "",
+    ratePercent: rule ? String(Number(rule.rate || 0) * 100) : "",
     taxShipping: Boolean(rule?.tax_shipping),
     active: rule?.active !== false,
-    priority: rule?.priority || 100,
+    priority: String(rule?.priority ?? 100),
   });
 
   const save = async () => {
@@ -569,7 +569,7 @@ function Status({ active }) {
   );
 }
 
-function Field({ label, helper, children }) {
+function Field({ label, helper = null, children }) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-[#555]">{label}</span>
@@ -588,11 +588,11 @@ function Toggle({ label, checked, onChange }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
 
