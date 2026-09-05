@@ -40,7 +40,7 @@ npm run lint
 npm run build
 ```
 
-GitHub Actions runs build verification and static quality checks on pull requests targeting `main` and on pushes to `main`.
+GitHub Actions runs build verification and static quality checks on pull requests targeting `main` and on pushes to `main`. Do not merge customer-facing code until both checks pass.
 
 ## Supabase
 
