@@ -42,6 +42,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
+import OrdersModule from "@/components/admin/OrdersModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -292,6 +293,15 @@ export default function AdminV2() {
               onRetry={loadHome}
               onOpen={openSection}
             />
+          ) : section === "orders" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Orders"
+                description="Manage order lifecycle, payments, fulfillment, custom work and shipping."
+              />
+              <OrdersModule />
+            </div>
           ) : (
             <ModuleLanding
               module={module}
