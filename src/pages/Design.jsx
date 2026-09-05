@@ -6,10 +6,10 @@ import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 
 const GARMENTS = [
-  { type: "T-Shirt", price: 34.99, img: "https://media.base44.com/images/public/6a81578c129b25b9cd782538/0e9595dc4_generated_618e9d3e.png" },
-  { type: "Hoodie", price: 64.99, img: "https://media.base44.com/images/public/6a81578c129b25b9cd782538/ad6df8e3d_generated_3bedcd61.png" },
-  { type: "Crewneck", price: 54.99, img: "https://media.base44.com/images/public/6a81578c129b25b9cd782538/64d86a553_generated_70e709b5.png" },
-  { type: "Sweatshirt", price: 58.99, img: "https://media.base44.com/images/public/6a81578c129b25b9cd782538/64d86a553_generated_70e709b5.png" },
+  { type: "T-Shirt", price: 34.99, img: "/images/gdp-tshirt.svg" },
+  { type: "Hoodie", price: 64.99, img: "/images/gdp-hero.svg" },
+  { type: "Crewneck", price: 54.99, img: "/images/gdp-crewneck.svg" },
+  { type: "Sweatshirt", price: 58.99, img: "/images/gdp-crewneck.svg" },
 ];
 
 const STYLES = ["Vintage Bootleg", "Retro", "Minimal", "Memorial", "Pet", "Couple", "Family", "Birthday", "Wedding", "Sports", "Custom Request"];
