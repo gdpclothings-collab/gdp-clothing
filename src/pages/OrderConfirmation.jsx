@@ -71,7 +71,7 @@ export default function OrderConfirmation() {
         <Link to="/account?tab=orders" className="border border-border px-5 py-3 font-bold uppercase text-sm hover:border-accent">Track in Account</Link>
         <Link to="/shop" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Keep Shopping</Link>
       </div>
-      <p className="text-xs text-muted-foreground mt-6 flex items-center justify-center gap-1"><Mail size={12} /> Questions? hello@gdpclothing.ca</p>
+      <p className="text-xs text-muted-foreground mt-6 flex items-center justify-center gap-1"><Mail size={12} /> Questions? gdpclothings@gmail.com</p>
     </div>
   );
 }
