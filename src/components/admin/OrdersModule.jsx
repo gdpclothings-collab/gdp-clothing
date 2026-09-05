@@ -274,13 +274,13 @@ export default function OrdersModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="py-14 text-center text-[#777]">
+                  <td colSpan={8} className="py-14 text-center text-[#777]">
                     Loading orders…
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-14 text-center">
+                  <td colSpan={8} className="py-14 text-center">
                     <ShoppingBag size={22} className="mx-auto text-[#aaa]" />
                     <div className="font-medium mt-3">No matching orders</div>
                     <div className="text-xs text-[#777] mt-1">Try another status or search term.</div>
@@ -596,7 +596,7 @@ function AmountRow({ label, value }) {
   );
 }
 
-function StatusPill({ value, compact }) {
+function StatusPill({ value, compact = false }) {
   const normalized = String(value || "unknown");
   const label = prettify(normalized);
   const good = ["paid", "approved", "delivered", "completed"].includes(normalized);
@@ -617,7 +617,7 @@ function StatusPill({ value, compact }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return (
     <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>
       {children}
@@ -625,7 +625,7 @@ function Th({ children, right }) {
   );
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return (
     <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>
       {children}
