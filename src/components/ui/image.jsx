@@ -14,6 +14,8 @@ import {
 const FALLBACK_IMAGE_URL =
   "https://static.wixstatic.com/media/12d367_4f26ccd17f8f4e3a8958306ea08c2332~mv2.png"
 
+/** @typedef {React.HTMLAttributes<HTMLSpanElement> & { aspectRatio?: string | number }} ImageWrapperProps */
+/** @type {React.ForwardRefExoticComponent<ImageWrapperProps & React.RefAttributes<HTMLSpanElement>>} */
 const ImageWrapper = React.forwardRef(({ aspectRatio, className, style, children }, ref) => (
   <span
     ref={ref}
@@ -25,6 +27,14 @@ const ImageWrapper = React.forwardRef(({ aspectRatio, className, style, children
 ))
 ImageWrapper.displayName = "ImageWrapper"
 
+/** @typedef {React.ImgHTMLAttributes<HTMLImageElement> & {
+ * parsed: any,
+ * fittingType?: string,
+ * focalPoint?: { x: number, y: number },
+ * quality?: number,
+ * aspectRatio?: string | number
+ * }} ResponsiveImageProps */
+/** @type {React.ForwardRefExoticComponent<ResponsiveImageProps & React.RefAttributes<HTMLImageElement>>} */
 const ResponsiveImage = React.forwardRef(
   ({ parsed, fittingType, focalPoint, quality, className, style, aspectRatio, onLoad, ...props }, parentRef) => {
     const wrapperRef = React.useRef(null)
@@ -115,6 +125,15 @@ ResponsiveImage.displayName = "ResponsiveImage"
  * as a plain <img>. Failed transforms retry the original URL; only a broken
  * original swaps to the generic fallback image.
  */
+/** @typedef {React.ImgHTMLAttributes<HTMLImageElement> & {
+ * fittingType?: string,
+ * originWidth?: number,
+ * originHeight?: number,
+ * focalPointX?: number,
+ * focalPointY?: number,
+ * quality?: number
+ * }} ImageProps */
+/** @type {React.ForwardRefExoticComponent<ImageProps & React.RefAttributes<HTMLImageElement>>} */
 const Image = React.forwardRef(
   (
     {
