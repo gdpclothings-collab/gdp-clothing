@@ -45,6 +45,7 @@ import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
 import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
+import CustomersModule from "@/components/admin/CustomersModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -321,6 +322,15 @@ export default function AdminV2() {
                 description="Track stock by variant, identify low inventory and make controlled adjustments."
               />
               <InventoryModule />
+            </div>
+          ) : section === "customers" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Customers"
+                description="Understand customer value, order history, repeat business and account status."
+              />
+              <CustomersModule />
             </div>
           ) : (
             <ModuleLanding
