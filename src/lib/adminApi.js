@@ -320,12 +320,45 @@ export const adminApi = {
       productId = throwIfError(created).id;
     }
 
-    throwIfError(await supabase.from("product_variants").delete().eq("product_id", productId));
-    if ((data.variants || []).length) {
+    const existingVariantsResult = await supabase
+      .from("product_variants")
+      .select("id")
+      .eq("product_id", productId);
+    const existingVariants = throwIfError(existingVariantsResult) || [];
+    const submittedExistingIds = new Set(
+      (data.variants || []).map((variant) => variant.id).filter(Boolean)
+    );
+
+    for (const variant of data.variants || []) {
+      const payload = variantPayload(productId, variant);
+      if (variant.id) {
+        throwIfError(
+          await supabase
+            .from("product_variants")
+            .update({ ...payload, active: true })
+            .eq("id", variant.id)
+            .eq("product_id", productId)
+        );
+      } else {
+        throwIfError(
+          await supabase
+            .from("product_variants")
+            .insert({ ...payload, active: true })
+        );
+      }
+    }
+
+    const removedVariantIds = existingVariants
+      .map((variant) => variant.id)
+      .filter((id) => !submittedExistingIds.has(id));
+
+    if (removedVariantIds.length) {
+      // Preserve historical order-item foreign keys by retiring variants instead of deleting them.
       throwIfError(
         await supabase
           .from("product_variants")
-          .insert(data.variants.map((variant) => variantPayload(productId, variant)))
+          .update({ active: false, stock: 0 })
+          .in("id", removedVariantIds)
       );
     }
 
