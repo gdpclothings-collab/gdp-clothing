@@ -419,7 +419,7 @@ function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right, className = "" }) {
+function Td({ children, right = false, className = "" }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"} ${className}`}>{children}</td>;
 }
 
