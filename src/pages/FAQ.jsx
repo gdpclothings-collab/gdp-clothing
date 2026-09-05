@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, ChevronUp, Mail, MapPin, Phone, Send } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { customerApi } from "@/lib/customerApi";
 
 const FAQS = [
   { q: "How does the custom design process work?", a: "Upload 1–5 photos, choose a style, personalize with names/dates, pick placement, color & size, then preview and order. Our designer creates a digital proof you approve before anything is printed." },
@@ -28,9 +28,7 @@ export default function FAQ() {
     e.preventDefault();
     setError("");
     try {
-      await base44.entities.SupportTicket.create({
-        ...form, status: "open", priority: "normal"
-      });
+      await customerApi.createSupportTicket(form);
       setSent(true);
       setForm({ customerEmail: "", customerName: "", subject: "", message: "" });
     } catch { setError("Could not submit. Please email hello@gdpclothing.ca."); }
