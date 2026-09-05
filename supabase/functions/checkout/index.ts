@@ -224,6 +224,23 @@ Deno.serve(async (req: Request) => {
       return respond({ error: true, message: "One or more products are unavailable." }, 400);
     }
 
+    const { data: variantRows, error: variantError } = await service
+      .from("product_variants")
+      .select("*")
+      .in("product_id", productIds)
+      .eq("active", true);
+    if (variantError) throw variantError;
+
+    const variantsById = new Map<string, any>();
+    const variantsByProduct = new Map<string, any[]>();
+    for (const variant of variantRows || []) {
+      variantsById.set(variant.id, variant);
+      if (!variantsByProduct.has(variant.product_id)) {
+        variantsByProduct.set(variant.product_id, []);
+      }
+      variantsByProduct.get(variant.product_id)!.push(variant);
+    }
+
     const user = await optionalUser(req, supabaseUrl, anonKey);
     const customIds = [...new Set(cart.map((item: any) => String(item?.customDesignId || "")).filter((id: string) => uuidRe.test(id)))];
     const customDesigns = new Map<string, any>();
@@ -253,7 +270,65 @@ Deno.serve(async (req: Request) => {
       if (!product) continue;
 
       const quantity = Math.max(1, Math.min(99, Math.floor(Number(item.quantity || 1))));
-      let unitPrice = Number(product.price || 0);
+      const productVariants = variantsByProduct.get(product.id) || [];
+      const requestedVariantId = uuidRe.test(String(item.variantId || ""))
+        ? String(item.variantId)
+        : null;
+
+      let variantRow = requestedVariantId
+        ? variantsById.get(requestedVariantId)
+        : null;
+
+      if (requestedVariantId && (!variantRow || variantRow.product_id !== product.id)) {
+        return respond(
+          { error: true, message: `A selected variant for ${product.name} is unavailable.` },
+          400
+        );
+      }
+
+      if (!variantRow && productVariants.length) {
+        const requestedSize = String(item.size || "").trim().toLowerCase();
+        const requestedColor = String(item.color || "").trim().toLowerCase();
+
+        variantRow =
+          productVariants.find((variant: any) => {
+            const sizeMatches =
+              !requestedSize ||
+              !variant.size ||
+              String(variant.size).trim().toLowerCase() === requestedSize;
+            const colorMatches =
+              !requestedColor ||
+              !variant.color ||
+              String(variant.color).trim().toLowerCase() === requestedColor;
+            return sizeMatches && colorMatches;
+          }) || null;
+      }
+
+      if (product.track_inventory && productVariants.length && !variantRow) {
+        return respond(
+          { error: true, message: `Choose an available variant for ${product.name}.` },
+          400
+        );
+      }
+
+      if (
+        product.track_inventory &&
+        variantRow &&
+        Number(variantRow.stock || 0) < quantity
+      ) {
+        return respond(
+          {
+            error: true,
+            message: `${product.name} only has ${Number(variantRow.stock || 0)} unit(s) available for the selected variant.`,
+          },
+          409
+        );
+      }
+
+      let unitPrice =
+        variantRow?.price == null
+          ? Number(product.price || 0)
+          : Number(variantRow.price || 0);
 
       const designId = uuidRe.test(String(item.customDesignId || "")) ? String(item.customDesignId) : null;
       const design = designId ? customDesigns.get(designId) : null;
@@ -273,11 +348,12 @@ Deno.serve(async (req: Request) => {
       normalizedItems.push({
         product,
         design,
+        variantRow,
         quantity,
         unitPrice,
-        size: String(item.size || design?.size || ""),
-        color: String(item.color || design?.color || ""),
-        variant: String(item.variant || product.type || ""),
+        size: String(item.size || design?.size || variantRow?.size || ""),
+        color: String(item.color || design?.color || variantRow?.color || ""),
+        variant: String(variantRow?.name || item.variant || product.type || ""),
       });
     }
 
@@ -351,9 +427,10 @@ Deno.serve(async (req: Request) => {
 
     if (orderError) throw orderError;
 
-    const orderItems = normalizedItems.map(({ product, design, quantity, unitPrice, size, color, variant }) => ({
+    const orderItems = normalizedItems.map(({ product, design, variantRow, quantity, unitPrice, size, color, variant }) => ({
       order_id: order.id,
       product_id: product.id,
+      variant_id: variantRow?.id || null,
       custom_design_id: design?.id || null,
       name: product.name,
       image: product.images?.[0] || null,
