@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { CheckCircle2, Clock, AlertTriangle, Package, Mail } from "lucide-react";
-import { customerApi } from "@/lib/customerApi";
+import { customerApi } from "@/lib/customerApi";\nimport Seo from "@/components/Seo";
 
 export default function OrderConfirmation() {
   const { orderNumber } = useParams();
@@ -26,7 +26,7 @@ export default function OrderConfirmation() {
   const paid = status === "paid" || status === "success" || (order?.paymentStatus === "paid");
 
   return (
-    <div className="max-w-[800px] mx-auto px-4 py-16 text-center">
+    <div className="max-w-[800px] mx-auto px-4 py-16 text-center">\n      <Seo title="Order Confirmation" description="GDP Clothing order confirmation." path={`/order/${orderNumber}`} noIndex />
       {paid ? <CheckCircle2 size={64} className="mx-auto text-accent mb-4" /> : <Clock size={64} className="mx-auto text-accent mb-4" />}
       <h1 className="font-display text-5xl md:text-6xl leading-none">ORDER {paid ? "CONFIRMED" : "RECEIVED"}</h1>
       <p className="font-mono text-sm mt-3 text-muted-foreground">ORDER # {orderNumber}</p>
