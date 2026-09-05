@@ -205,7 +205,7 @@ export default function DraftOrdersModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="py-14 text-center text-[#777]">
+                  <td colSpan={7} className="py-14 text-center text-[#777]">
                     Loading draft orders…
                   </td>
                 </tr>
@@ -273,7 +273,7 @@ export default function DraftOrdersModule() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="py-14 text-center text-[#777]">
+                  <td colSpan={7} className="py-14 text-center text-[#777]">
                     No draft orders found.
                   </td>
                 </tr>
@@ -770,7 +770,7 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
                     setForm({ ...form, notes: event.target.value })
                   }
                   className={textareaClass}
-                  rows="6"
+                  rows={6}
                 />
               </Field>
             </Section>
@@ -824,7 +824,7 @@ function Metric({ label, value, icon: Icon }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return (
     <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>
       {children}
@@ -832,7 +832,7 @@ function Th({ children, right }) {
   );
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return (
     <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>
       {children}
