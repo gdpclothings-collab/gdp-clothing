@@ -280,7 +280,24 @@ export const customerApi = {
     return data;
   },
 
-  async createOrder(cart, customer, discountCode, origin) {
+
+  async trackCheckout(cart, customer, totals, sessionToken) {
+    const { data, error } = await supabase.functions.invoke("checkout", {
+      body: {
+        action: "trackCheckout",
+        cart,
+        customer,
+        totals,
+        sessionToken,
+      },
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.message || "Checkout tracking failed.");
+    return data;
+  },
+
+  async createOrder(cart, customer, discountCode, origin, checkoutSessionToken) {
     const { data, error } = await supabase.functions.invoke("checkout", {
       body: {
         action: "createOrder",
@@ -288,6 +305,7 @@ export const customerApi = {
         customer,
         discountCode,
         origin,
+        checkoutSessionToken,
       },
     });
 
