@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Minus, Plus, ShoppingBag, Heart, Star, Truck, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
+import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 
@@ -19,13 +20,30 @@ export default function ProductDetail() {
   const [reviews, setReviews] = useState([]);
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
-    base44.entities.Product.get(id).then(p => {
+
+    Promise.all([
+      supabase.from("products").select("*").eq("id", id).maybeSingle(),
+      supabase.from("reviews").select("*").eq("product_id", id).eq("status", "approved").order("created_at", { ascending: false }),
+    ]).then(([productResult, reviewResult]) => {
+      if (!active) return;
+
+      const p = productResult.error ? null : normalizeProduct(productResult.data);
       setProduct(p);
       setColor(p?.colors?.[0] || "");
-      setSize(p?.sizes?.[0] || p?.sizes?.[0] || "M");
-    }).finally(() => setLoading(false));
-    base44.entities.Review.filter({ productId: id, status: "approved" }).then(r => setReviews(Array.isArray(r) ? r : r?.items || [])).catch(() => {});
+      setSize(p?.sizes?.[0] || "M");
+
+      if (!reviewResult.error) {
+        setReviews((reviewResult.data || []).map(normalizeReview));
+      }
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   if (loading) return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center text-muted-foreground">Loading…</div>;
