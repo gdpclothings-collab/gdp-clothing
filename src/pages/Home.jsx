@@ -14,9 +14,9 @@ const STEPS = [
   { icon: Truck, label: "Delivery", desc: "Shipped to your door, worldwide." },
 ];
 
-const HERO_IMG = "https://media.base44.com/images/public/6a81578c129b25b9cd782538/ad6df8e3d_generated_3bedcd61.png";
-const PROCESS_IMG = "https://media.base44.com/images/public/6a81578c129b25b9cd782538/c20213bf-8b97-42ce-9c2b-8af45f5cae41.png";
-const COUPLES_IMG = "https://media.base44.com/images/public/6a81578c129b25b9cd782538/ce0bea156_generated_6cd6acb1.png";
+const HERO_IMG = "/images/gdp-hero.svg";
+const PROCESS_IMG = "/images/gdp-process.svg";
+const COUPLES_IMG = "/images/gdp-couples.svg";
 
 export default function Home() {
   const { products } = useProducts({ status: "active" });
