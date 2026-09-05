@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
+import Seo from "@/components/Seo";
 
 const OCCASIONS = [
   { id: "love", label: "Love & Relationships", icon: Heart, options: ["Anniversary","Boyfriend","Girlfriend","Husband","Wife","Valentine's","Couple"] },
@@ -338,6 +339,7 @@ export default function CustomStudio() {
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-6 md:py-10">
+      <Seo title="Custom Design Studio" description="Create personalized GDP Clothing apparel from your photos, people, pets, milestones and ideas with a guided proof-based design workflow." path="/custom-studio" />
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-7">
         <div>
           <span className="font-mono text-xs uppercase tracking-[0.25em] text-accent">GDP Custom Studio</span>

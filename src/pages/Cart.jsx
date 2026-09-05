@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Heart } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
+import Seo from "@/components/Seo";
 
 export default function Cart() {
   const { items, updateQty, removeItem, subtotal, saved, moveToCart, itemCount } = useCart();
@@ -14,14 +15,13 @@ export default function Cart() {
     return total;
   };
 
-  const discount = subtotal - qtyDiscount(subtotal, itemCount);
-  const shipping = subtotal >= 150 ? 0 : 12.99;
-  const tax = (qtyDiscount(subtotal, itemCount) + shipping) * 0.11;
-  const total = qtyDiscount(subtotal, itemCount) + shipping + tax;
+  const discountedSubtotal = qtyDiscount(subtotal, itemCount);
+  const discount = subtotal - discountedSubtotal;
 
   if (items.length === 0) {
     return (
       <div className="max-w-[1500px] mx-auto px-4 py-20 text-center">
+        <Seo title="Your Cart" description="GDP Clothing shopping cart." path="/cart" noIndex />
         <ShoppingBag size={48} className="mx-auto text-muted-foreground mb-4" />
         <h1 className="font-display text-4xl">YOUR CART IS EMPTY</h1>
         <p className="text-muted-foreground mt-2">Time to design something legendary.</p>
@@ -34,6 +34,7 @@ export default function Cart() {
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">
+      <Seo title="Your Cart" description="GDP Clothing shopping cart." path="/cart" noIndex />
       <h1 className="font-display text-5xl md:text-6xl leading-none mb-8">YOUR CART</h1>
       <div className="grid lg:grid-cols-[1fr_380px] gap-8">
         <div className="space-y-4">
@@ -92,8 +93,8 @@ export default function Cart() {
           <div className="space-y-2 text-sm">
             <Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} />
             {discount > 0 && <Row k="Qty discount" v={`-$${discount.toFixed(2)}`} accent />}
-            <Row k="Shipping" v={shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`} />
-            <Row k="Tax (11%)" v={`$${tax.toFixed(2)}`} />
+            <Row k="Shipping" v="Calculated at checkout" />
+            <Row k="Tax" v="Calculated at checkout" />
           </div>
           {discount > 0 && (
             <div className="mt-2 text-xs font-mono uppercase text-accent bg-accent/10 px-2 py-1">
@@ -101,9 +102,9 @@ export default function Cart() {
             </div>
           )}
           <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-border">
-            <span>Total</span><span className="font-mono">${total.toFixed(2)}</span>
+            <span>Subtotal after discounts</span><span className="font-mono">${discountedSubtotal.toFixed(2)} CAD</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 font-mono">CAD · Free shipping over $150</p>
+          <p className="text-xs text-muted-foreground mt-2 font-mono">Shipping, destination-based tax, and coupons are finalized at checkout.</p>
           <button onClick={() => navigate("/checkout")} className="w-full mt-5 bg-primary text-primary-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90">
             Checkout →
           </button>

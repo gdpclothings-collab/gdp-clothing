@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { CheckCircle2, Clock, AlertTriangle, Package, Mail } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
+import Seo from "@/components/Seo";
 
 export default function OrderConfirmation() {
   const { orderNumber } = useParams();
@@ -27,6 +28,7 @@ export default function OrderConfirmation() {
 
   return (
     <div className="max-w-[800px] mx-auto px-4 py-16 text-center">
+      <Seo title="Order Confirmation" description="GDP Clothing order confirmation." path={`/order/${orderNumber}`} noIndex />
       {paid ? <CheckCircle2 size={64} className="mx-auto text-accent mb-4" /> : <Clock size={64} className="mx-auto text-accent mb-4" />}
       <h1 className="font-display text-5xl md:text-6xl leading-none">ORDER {paid ? "CONFIRMED" : "RECEIVED"}</h1>
       <p className="font-mono text-sm mt-3 text-muted-foreground">ORDER # {orderNumber}</p>
@@ -71,7 +73,7 @@ export default function OrderConfirmation() {
         <Link to="/account?tab=orders" className="border border-border px-5 py-3 font-bold uppercase text-sm hover:border-accent">Track in Account</Link>
         <Link to="/shop" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Keep Shopping</Link>
       </div>
-      <p className="text-xs text-muted-foreground mt-6 flex items-center justify-center gap-1"><Mail size={12} /> Questions? hello@gdpclothing.ca</p>
+      <p className="text-xs text-muted-foreground mt-6 flex items-center justify-center gap-1"><Mail size={12} /> Questions? gdpclothings@gmail.com</p>
     </div>
   );
 }

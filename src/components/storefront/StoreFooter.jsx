@@ -23,7 +23,9 @@ export default function StoreFooter() {
             </p>
           </div>
           <form onSubmit={submit} className="flex w-full max-w-xl">
+            <label htmlFor="footer-newsletter-email" className="sr-only">Email address</label>
             <input
+              id="footer-newsletter-email"
               type="email"
               required
               value={email}
@@ -63,7 +65,7 @@ export default function StoreFooter() {
             <Link to="/custom-studio" className="hover:text-white">Custom</Link>
             <Link to="/pages/about" className="hover:text-white">About</Link>
             <Link to="/faq" className="hover:text-white">Contact</Link>
-            <Link to="/faq" className="hover:text-white">Shipping & Returns</Link>
+            <Link to="/pages/shipping-returns" className="hover:text-white">Shipping & Returns</Link>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -106,7 +108,11 @@ export default function StoreFooter() {
 
         <div className="flex flex-col justify-between gap-3 border-t border-white/10 pt-5 text-[11px] text-white/40 sm:flex-row">
           <span>© {new Date().getFullYear()} GDP Clothing. All rights reserved.</span>
-          <span>Design your dream. Wear your vision.</span>
+          <div className="flex flex-wrap gap-4">
+            <Link to="/pages/privacy" className="hover:text-white">Privacy</Link>
+            <Link to="/pages/terms" className="hover:text-white">Terms</Link>
+            <span>Design your dream. Wear your vision.</span>
+          </div>
         </div>
       </div>
     </footer>
