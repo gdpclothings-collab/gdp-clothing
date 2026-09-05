@@ -87,7 +87,7 @@ export default function Checkout() {
         const stripe = await loadStripe(data.publishableKey);
         if (!stripe) throw new Error("Stripe.js could not load.");
 
-        const checkout = stripe.initCheckout({
+        const checkout = stripe.initCheckoutElementsSdk({
           clientSecret: data.clientSecret,
         });
 
