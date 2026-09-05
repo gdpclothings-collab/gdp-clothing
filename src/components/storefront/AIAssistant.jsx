@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Sparkles, X, Send } from "lucide-react";
-import { base44 } from "@/api/base44Client";
 
 const SUGGESTIONS = [
   "How does custom design work?",
@@ -23,15 +22,17 @@ export default function AIAssistant() {
     setInput("");
     setLoading(true);
     try {
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are the GDP Clothing shopping assistant for a Saskatoon custom apparel & print-on-demand streetwear brand. Slogan: "Design Your Dream, Wear Your Vision!". Answer the customer question helpfully, concisely, and on-brand. If asked about a specific order or account info, tell them to sign in and check their account portal, since you can't access private data here. Question: ${userMsg}`,
-      });
-      const text = typeof res === "string" ? res : res?.output || JSON.stringify(res);
+      const q = userMsg.toLowerCase();
+      let text = "I can help with custom designs, sizing, production, shipping and returns. For private order details, sign in and open My Account.";
+      if (q.includes("custom") || q.includes("design")) text = "Choose a customizable product, open Custom Studio, upload your photos securely, choose your style and personalization, then approve the digital proof before printing.";
+      else if (q.includes("size")) text = "Use the size options shown on each product page. If you're between sizes or want an oversized fit, choose the larger size.";
+      else if (q.includes("production") || q.includes("turnaround")) text = "Custom production starts after proof approval. Standard turnaround is typically several business days, with timing shown on the product/customization flow.";
+      else if (q.includes("ship") || q.includes("delivery")) text = "GDP Clothing supports shipping and Saskatoon local pickup. Shipping cost and available options are calculated during checkout.";
+      else if (q.includes("return") || q.includes("refund")) text = "Stock items may be eligible for returns under the posted policy. Custom items are generally non-returnable unless defective because they are made specifically for you.";
       setMessages(m => [...m, { role: "assistant", text }]);
-    } catch {
-      setMessages(m => [...m, { role: "assistant", text: "I'm having trouble right now. Please reach out via our Contact page or open a support request." }]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
