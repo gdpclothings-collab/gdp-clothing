@@ -46,16 +46,6 @@ export default function Register() {
     }
   };
 
-  const handleGoogle = async () => {
-    setError("");
-    const returnTo = safeReturnTo();
-    const redirectTo = new URL(returnTo, window.location.origin).toString();
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-    if (oauthError) setError(oauthError.message);
-  };
 
   if (confirmationSent) {
     return (
@@ -95,12 +85,16 @@ export default function Register() {
     >
       <Button
         variant="outline"
-        className="w-full h-12 text-sm font-medium mb-6"
-        onClick={handleGoogle}
+        className="w-full h-12 text-sm font-medium mb-2 opacity-60 cursor-not-allowed"
+        disabled
+        type="button"
       >
         <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
+        Google sign-in unavailable
       </Button>
+      <p className="text-xs text-muted-foreground text-center mb-6">
+        Use email and password for now. Google sign-in will return after OAuth setup.
+      </p>
 
       <div className="relative mb-6">
         <div className="absolute inset-0 flex items-center">
