@@ -91,9 +91,9 @@ export default function CustomerGroupsModule() {
       <div className="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="inline-flex rounded-lg border border-[#d5d5d5] bg-white p-1 w-fit">
           {[
-            ["tags", "Tags", Tags],
-            ["segments", "Segments", UsersRound],
-          ].map(([id, label, Icon]) => (
+            { id: "tags", label: "Tags", Icon: Tags },
+            { id: "segments", label: "Segments", Icon: UsersRound },
+          ].map(({ id, label, Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -313,7 +313,7 @@ function TagsTab({ data, loading, onCreate, onEdit, onChanged }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="4" className="py-12 text-center text-[#777]">Loading customers…</td></tr>
+                <tr><td colSpan={4} className="py-12 text-center text-[#777]">Loading customers…</td></tr>
               ) : visibleCustomers.length ? (
                 visibleCustomers.map((customer) => (
                   <tr key={customer.email} className="border-t border-[#eeeeee]">
@@ -343,7 +343,7 @@ function TagsTab({ data, loading, onCreate, onEdit, onChanged }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="4" className="py-12 text-center text-[#777]">No matching customers.</td></tr>
+                <tr><td colSpan={4} className="py-12 text-center text-[#777]">No matching customers.</td></tr>
               )}
             </tbody>
           </table>
@@ -466,7 +466,7 @@ function TagEditor({ tag, onClose, onSaved }) {
         </div>
       </Field>
       <Field label="Description">
-        <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={textareaClass} rows="3" />
+        <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={textareaClass} rows={3} />
       </Field>
     </Editor>
   );
@@ -564,7 +564,7 @@ function SegmentEditor({ segment, customers, members, onClose, onSaved }) {
         </Field>
       </div>
       <Field label="Description">
-        <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={textareaClass} rows="3" />
+        <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={textareaClass} rows={3} />
       </Field>
       <label className="flex items-center gap-2 text-sm rounded-lg border border-[#e2e2e2] bg-[#fafafa] px-3 py-2">
         <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} />
@@ -636,7 +636,7 @@ function dynamicRuleText(rules) {
   return parts.length ? parts.join(" · ") : "All customers match.";
 }
 
-function Editor({ title, onClose, onSave, saving, children, wide }) {
+function Editor({ title, onClose, onSave, saving, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className={`w-full ${wide ? "max-w-4xl" : "max-w-xl"} bg-white rounded-2xl shadow-2xl overflow-hidden my-6`}>
@@ -694,11 +694,11 @@ function Field({ label, children }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
 
