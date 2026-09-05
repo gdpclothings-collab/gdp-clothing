@@ -99,12 +99,27 @@ export const adminInventoryApi = {
 
   async setStock(variantId, stock) {
     const nextStock = Math.max(0, Number(stock || 0));
-    const { data, error } = await supabase
-      .from("product_variants")
-      .update({ stock: nextStock })
-      .eq("id", variantId)
-      .select("id, stock, updated_at")
-      .single();
+
+    const { data: location, error: locationError } = await supabase
+      .from("inventory_locations")
+      .select("id")
+      .eq("is_default", true)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (locationError) throw locationError;
+
+    if (!location?.id) {
+      throw new Error("No active default inventory location is configured.");
+    }
+
+    const { data, error } = await supabase.rpc("admin_adjust_inventory", {
+      p_variant_id: variantId,
+      p_location_id: location.id,
+      p_new_available: nextStock,
+      p_reason: "manual",
+      p_note: "Adjusted from Inventory workspace",
+    });
 
     if (error) throw error;
     return data;
