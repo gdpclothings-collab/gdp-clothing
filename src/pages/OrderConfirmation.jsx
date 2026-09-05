@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { CheckCircle2, Clock, AlertTriangle, Package, Mail } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { customerApi } from "@/lib/customerApi";
 
 export default function OrderConfirmation() {
   const { orderNumber } = useParams();
@@ -11,14 +11,19 @@ export default function OrderConfirmation() {
   const [order, setOrder] = useState(null);
 
   useEffect(() => {
-    base44.asServiceRole?.entities?.Order?.filter ? null : null;
-    base44.entities.Order.filter({ orderNumber }).then(r => {
-      const o = Array.isArray(r) ? r[0] : r?.items?.[0];
-      setOrder(o);
-    }).catch(() => {});
+    let active = true;
+    const token = params.get("token");
+    customerApi.getOrderConfirmation(orderNumber, token)
+      .then((row) => {
+        if (active) setOrder(row);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [orderNumber]);
 
-  const paid = status === "paid" || (order?.paymentStatus === "paid");
+  const paid = status === "paid" || status === "success" || (order?.paymentStatus === "paid");
 
   return (
     <div className="max-w-[800px] mx-auto px-4 py-16 text-center">
