@@ -47,6 +47,7 @@ import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
 import CustomersModule from "@/components/admin/CustomersModule";
 import DiscountsModule from "@/components/admin/DiscountsModule";
+import CustomStudioAdminModule from "@/components/admin/CustomStudioAdminModule";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
@@ -341,6 +342,15 @@ export default function AdminV2() {
                 description="Create promotion codes, eligibility rules, usage limits and campaign schedules."
               />
               <DiscountsModule />
+            </div>
+          ) : section === "custom-studio" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="GDP Custom Studio"
+                description="Operate customer uploads, artwork, proof versions, revisions and approvals."
+              />
+              <CustomStudioAdminModule />
             </div>
           ) : (
             <ModuleLanding
