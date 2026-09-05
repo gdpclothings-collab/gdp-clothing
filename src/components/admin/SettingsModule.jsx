@@ -114,7 +114,7 @@ export default function SettingsModule() {
               </Field>
             </div>
             <Field label="Business address">
-              <textarea value={form.address || ""} onChange={(event) => set("address", event.target.value)} className={textareaClass} rows="3" />
+              <textarea value={form.address || ""} onChange={(event) => set("address", event.target.value)} className={textareaClass} rows={3} />
             </Field>
           </SettingsSection>
 
@@ -160,7 +160,7 @@ export default function SettingsModule() {
               </Field>
             </div>
             <Field label="Footer text">
-              <textarea value={form.footerText || ""} onChange={(event) => set("footerText", event.target.value)} className={textareaClass} rows="3" />
+              <textarea value={form.footerText || ""} onChange={(event) => set("footerText", event.target.value)} className={textareaClass} rows={3} />
             </Field>
           </SettingsSection>
         </div>

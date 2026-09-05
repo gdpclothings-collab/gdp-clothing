@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Search,
   Plus,
@@ -223,13 +223,13 @@ export default function ProductsModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="py-14 text-center text-[#777]">
+                  <td colSpan={8} className="py-14 text-center text-[#777]">
                     Loading products…
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-14 text-center">
+                  <td colSpan={8} className="py-14 text-center">
                     <Package size={22} className="mx-auto text-[#aaa]" />
                     <div className="font-medium mt-3">No matching products</div>
                     <div className="text-xs text-[#777] mt-1">Create a product or change your filters.</div>
@@ -535,7 +535,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                   value={form.description}
                   onChange={(event) => set("description", event.target.value)}
                   className={textareaClass}
-                  rows="5"
+                  rows={5}
                 />
               </Field>
               <div className="grid sm:grid-cols-3 gap-3">
@@ -564,7 +564,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                   value={form.images}
                   onChange={(event) => set("images", event.target.value)}
                   className={textareaClass}
-                  rows="4"
+                  rows={4}
                   placeholder="https://..."
                 />
               </Field>
@@ -709,7 +709,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                 <input value={form.seoTitle} onChange={(event) => set("seoTitle", event.target.value)} className={inputClass} />
               </Field>
               <Field label="Meta description">
-                <textarea value={form.seoDescription} onChange={(event) => set("seoDescription", event.target.value)} className={textareaClass} rows="3" />
+                <textarea value={form.seoDescription} onChange={(event) => set("seoDescription", event.target.value)} className={textareaClass} rows={3} />
               </Field>
             </EditorSection>
           </div>
@@ -731,7 +731,7 @@ function SummaryCard({ label, value, icon: Icon }) {
   );
 }
 
-function EditorSection({ title, icon: Icon, children }) {
+function EditorSection({ title, icon: Icon = null, children }) {
   return (
     <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
       <div className="px-4 py-3 border-b border-[#eaeaea] flex items-center gap-2">
@@ -743,7 +743,7 @@ function EditorSection({ title, icon: Icon, children }) {
   );
 }
 
-function Field({ label, helper, children }) {
+function Field({ label, helper = null, children }) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-[#555]">{label}</span>
@@ -787,7 +787,7 @@ function StatusPill({ value }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return (
     <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>
       {children}
@@ -795,7 +795,7 @@ function Th({ children, right }) {
   );
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return (
     <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>
       {children}

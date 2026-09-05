@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
 import { ChevronDown, ChevronUp, Mail, MapPin, Phone, Send } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
 

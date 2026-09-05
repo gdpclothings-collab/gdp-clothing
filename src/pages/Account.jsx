@@ -319,6 +319,6 @@ function CustomOrderCard({ entry, revisionText, setRevisionText, onApprove, onRe
   );
 }
 
-function Empty({ icon: Icon, text, cta }) {
+function Empty({ icon: Icon, text, cta = false }) {
   return <div className="text-center py-16"><Icon size={36} className="mx-auto text-muted-foreground mb-3" /><p className="text-muted-foreground">{text}</p>{cta && <Link to="/shop" className="text-accent text-sm mt-2 inline-block">Start shopping →</Link>}</div>;
 }

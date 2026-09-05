@@ -68,8 +68,10 @@ const normalizeCustomDesign = (row) => ({
 async function requireUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data?.user) {
-    const authError = new Error("Please sign in before uploading private artwork or saving a custom design.");
-    authError.code = "AUTH_REQUIRED";
+    const authError = Object.assign(
+      new Error("Please sign in before uploading private artwork or saving a custom design."),
+      { code: "AUTH_REQUIRED" }
+    );
     throw authError;
   }
   return data.user;

@@ -10,7 +10,6 @@ import {
   Star,
   Sparkles,
   Megaphone,
-  CheckCircle2,
   Globe2,
   Store,
   ExternalLink,

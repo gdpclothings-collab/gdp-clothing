@@ -157,10 +157,10 @@ export default function ReturnsModule() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="8" className="py-14 text-center text-[#777]">Loading returns…</td></tr>
+                <tr><td colSpan={8} className="py-14 text-center text-[#777]">Loading returns…</td></tr>
               ) : returns.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-14 text-center">
+                  <td colSpan={8} className="py-14 text-center">
                     <RotateCcw size={24} className="mx-auto text-[#aaa]" />
                     <div className="font-medium mt-3">No returns yet</div>
                     <div className="text-xs text-[#777] mt-1">Create a return from an eligible fulfilled order.</div>
@@ -315,7 +315,7 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
               />
             </Field>
             <Field label="Admin notes">
-              <textarea value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} className={textareaClass} rows="3" />
+              <textarea value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} className={textareaClass} rows={3} />
             </Field>
             <div className="flex flex-wrap gap-2">
               <button
@@ -600,7 +600,7 @@ function CreateReturnModal({ onClose, onCreated }) {
                   </Field>
                 </div>
                 <Field label="Customer notes">
-                  <textarea value={notes} onChange={(event) => setNotes(event.target.value)} className={textareaClass} rows="3" />
+                  <textarea value={notes} onChange={(event) => setNotes(event.target.value)} className={textareaClass} rows={3} />
                 </Field>
               </Section>
 
@@ -679,11 +679,11 @@ function StatusPill({ value }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right }) {
+function Td({ children, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
 

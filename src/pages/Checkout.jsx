@@ -354,4 +354,4 @@ function Option({ selected, onClick, icon: Icon, title, desc }) {
     <Icon size={20} /><div><div className="font-bold text-sm">{title}</div><div className="text-xs text-muted-foreground">{desc}</div></div>
   </button>;
 }
-function Row({ k, v, accent }) { return <div className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className={`font-mono ${accent ? "text-accent" : ""}`}>{v}</span></div>; }
+function Row({ k, v, accent = false }) { return <div className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className={`font-mono ${accent ? "text-accent" : ""}`}>{v}</span></div>; }

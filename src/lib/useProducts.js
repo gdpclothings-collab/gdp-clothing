@@ -21,6 +21,7 @@ export function useProducts(filter = {}) {
       setLoading(true);
       setError(null);
 
+      /** @type {any} */
       let query = supabase
         .from("products")
         .select("*")

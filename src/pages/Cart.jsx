@@ -114,6 +114,6 @@ export default function Cart() {
   );
 }
 
-function Row({ k, v, accent }) {
+function Row({ k, v, accent = false }) {
   return <div className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className={`font-mono ${accent ? "text-accent" : ""}`}>{v}</span></div>;
 }
