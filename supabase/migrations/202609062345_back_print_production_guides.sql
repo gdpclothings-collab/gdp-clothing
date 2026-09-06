@@ -71,7 +71,8 @@ with garment_guides as (
             '5XL', jsonb_build_object('widthIn', 12, 'heightIn', 13)
           )
         )
-      when lower(coalesce(p.name, '') || ' ' || coalesce(p.type, '')) ~ '(crewneck|crew neck|sweatshirt|sweater)' then
+      when lower(coalesce(p.name, '') || ' ' || coalesce(p.type, '')) ~ '(crewneck|crew neck|sweatshirt|sweater)'
+        and lower(coalesce(p.name, '') || ' ' || coalesce(p.type, '')) !~ '(t-shirt|t shirt|tee|long sleeve)' then
         jsonb_build_object(
           'collarIn', 3.25,
           'widthIn', 11,
