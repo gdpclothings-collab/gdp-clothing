@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 
@@ -205,24 +205,100 @@ function previewImageForGarment(garment, color, side) {
   return candidates[0] || "";
 }
 
-function defaultPrintAreaFor(type, side) {
+function formatMeasurementNumber(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return "0";
+  return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function cmFromInches(value) {
+  return Number((Number(value || 0) * 2.54).toFixed(1));
+}
+
+function measurementPair(widthIn, heightIn) {
+  return `${formatMeasurementNumber(widthIn)} × ${formatMeasurementNumber(heightIn)} in · ${formatMeasurementNumber(cmFromInches(widthIn))} × ${formatMeasurementNumber(cmFromInches(heightIn))} cm`;
+}
+
+function measurementSingle(value) {
+  return `${formatMeasurementNumber(value)}" / ${formatMeasurementNumber(cmFromInches(value))} cm`;
+}
+
+function recommendedPrintProfile(type, size, side = "front") {
   const key = normalizePreviewToken(type);
-  if (key.includes("hoodie")) {
-    return side === "back"
-      ? { top: 30, width: 34, height: 38 }
-      : { top: 32, width: 34, height: 36 };
-  }
+  const normalizedSize = String(size || "").toUpperCase().replace(/\s+/g, "");
+  const isBack = side === "back";
+  const pick = (map, fallback) => map[normalizedSize] || fallback;
+  let profile;
+
   if (key.includes("baby") || key.includes("bodysuit") || key.includes("onesie")) {
-    return side === "back"
-      ? { top: 31, width: 34, height: 31 }
-      : { top: 31, width: 33, height: 28 };
+    const fallback = { widthIn: 5.5, heightIn: 6.5, collarIn: 1.25, backCollarIn: 1.5, top: 31, width: 31, height: 28, collarAnchor: 22, placementLabel: "Centered torso" };
+    profile = pick({
+      "0-3M": { ...fallback, widthIn: 4.5, heightIn: 5.5, width: 27, height: 24 },
+      "3-6M": { ...fallback, widthIn: 5, heightIn: 6, width: 29, height: 26 },
+      "6-12M": fallback,
+      "12-18M": { ...fallback, widthIn: 6, heightIn: 7, width: 33, height: 30 }
+    }, fallback);
+  } else if (key.includes("toddler")) {
+    const fallback = { widthIn: 7, heightIn: 8, collarIn: 1.75, backCollarIn: 2, top: 30, width: 36, height: 34, collarAnchor: 21, placementLabel: "Centered chest" };
+    profile = pick({
+      "2T": { ...fallback, widthIn: 6, heightIn: 7, collarIn: 1.5, top: 31, width: 32, height: 31, collarAnchor: 22 },
+      "3T": { ...fallback, widthIn: 6.5, heightIn: 7.5, collarIn: 1.6, top: 30.5, width: 34, height: 32.5, collarAnchor: 21.5 },
+      "4T": fallback,
+      "5T": { ...fallback, widthIn: 7.5, heightIn: 8.5, collarIn: 2, backCollarIn: 2.25, top: 29.5, width: 38, height: 36, collarAnchor: 20.5 }
+    }, fallback);
+  } else if (key.includes("youth") || key === "kids") {
+    const fallback = { widthIn: 9, heightIn: 11, collarIn: 2.25, backCollarIn: 2.75, top: 29, width: 36, height: 38, collarAnchor: 20, placementLabel: "Centered chest" };
+    profile = pick({
+      "XS": { ...fallback, widthIn: 7.5, heightIn: 9.5, collarIn: 2, backCollarIn: 2.5, top: 30, width: 32, height: 35 },
+      "S": { ...fallback, widthIn: 8.5, heightIn: 10.5, collarIn: 2, backCollarIn: 2.5, top: 29.5, width: 34, height: 36.5 },
+      "M": fallback,
+      "L": { ...fallback, widthIn: 9.5, heightIn: 11.5, collarIn: 2.5, backCollarIn: 3, top: 28.75, width: 37.5, height: 39, collarAnchor: 19.5 },
+      "XL": { ...fallback, widthIn: 10, heightIn: 12, collarIn: 2.5, backCollarIn: 3, top: 28.5, width: 39, height: 40, collarAnchor: 19.5 }
+    }, fallback);
+  } else if (key.includes("hoodie")) {
+    const fallback = { widthIn: 11, heightIn: 12.5, collarIn: 3.5, backCollarIn: 5, top: 32, width: 34.5, height: 32.5, collarAnchor: 20, bottomClearanceIn: 1.75, placementLabel: "Centered above pocket" };
+    profile = pick({
+      "S": { ...fallback, widthIn: 10, heightIn: 11.5, collarIn: 3.25, top: 33, width: 31.5, height: 30.5, collarAnchor: 21, bottomClearanceIn: 1.5 },
+      "M": { ...fallback, widthIn: 10.5, heightIn: 12, collarIn: 3.25, top: 32.5, width: 33, height: 31.5, collarAnchor: 20.5, bottomClearanceIn: 1.5 },
+      "L": fallback,
+      "XL": { ...fallback, widthIn: 11.5, heightIn: 13, top: 31.5, width: 36, height: 33, collarAnchor: 19.5, bottomClearanceIn: 2 },
+      "2XL": { ...fallback, widthIn: 11.5, heightIn: 13, collarIn: 3.75, top: 31.25, width: 36.5, height: 33.5, collarAnchor: 19.25, bottomClearanceIn: 2 },
+      "3XL": { ...fallback, widthIn: 11.5, heightIn: 13, collarIn: 3.75, top: 31.25, width: 36.5, height: 33.5, collarAnchor: 19.25, bottomClearanceIn: 2 },
+      "4XL": { ...fallback, widthIn: 11.5, heightIn: 13, collarIn: 3.75, top: 31.25, width: 36.5, height: 33.5, collarAnchor: 19.25, bottomClearanceIn: 2 },
+      "5XL": { ...fallback, widthIn: 11.5, heightIn: 13, collarIn: 3.75, top: 31.25, width: 36.5, height: 33.5, collarAnchor: 19.25, bottomClearanceIn: 2 }
+    }, fallback);
+  } else if (key.includes("sweatshirt") || key.includes("sweater") || (key.includes("crew neck") && !key.includes("t shirt")) || key.includes("crewneck")) {
+    const fallback = { widthIn: 11.5, heightIn: 14, collarIn: 2.75, backCollarIn: 3.25, top: 30, width: 36, height: 38, collarAnchor: 20, placementLabel: "Centered chest" };
+    profile = pick({
+      "S": { ...fallback, widthIn: 10.5, heightIn: 13, collarIn: 2.5, width: 34, height: 36 },
+      "M": { ...fallback, widthIn: 11, heightIn: 13.5, width: 35, height: 37 },
+      "L": fallback,
+      "XL": { ...fallback, widthIn: 12, heightIn: 15, collarIn: 3, backCollarIn: 3.5, top: 29.5, width: 38, height: 40, collarAnchor: 19.5 }
+    }, fallback);
+  } else if (key.includes("t shirt") || key.includes("t-shirt") || key.includes("long sleeve") || key.includes("shirt")) {
+    const fallback = { widthIn: 11.5, heightIn: 14.5, collarIn: 2.75, backCollarIn: 3.25, top: 28.75, width: 37, height: 39, collarAnchor: 19.5, placementLabel: "Centered chest" };
+    profile = pick({
+      "S": { ...fallback, widthIn: 10.5, heightIn: 13.5, collarIn: 2.5, backCollarIn: 3, top: 29.5, width: 34, height: 37, collarAnchor: 20 },
+      "M": { ...fallback, widthIn: 11, heightIn: 14, collarIn: 2.5, backCollarIn: 3, top: 29, width: 35.5, height: 38, collarAnchor: 20 },
+      "L": fallback,
+      "XL": { ...fallback, widthIn: 12, heightIn: 15, collarIn: 3, backCollarIn: 3.5, top: 28.5, width: 38.5, height: 40, collarAnchor: 19 },
+      "2XL": { ...fallback, widthIn: 12, heightIn: 15, collarIn: 3, backCollarIn: 3.5, top: 28.25, width: 39, height: 40.5, collarAnchor: 18.75 },
+      "3XL": { ...fallback, widthIn: 12, heightIn: 15, collarIn: 3, backCollarIn: 3.5, top: 28.25, width: 39, height: 40.5, collarAnchor: 18.75 },
+      "4XL": { ...fallback, widthIn: 12, heightIn: 15, collarIn: 3, backCollarIn: 3.5, top: 28.25, width: 39, height: 40.5, collarAnchor: 18.75 },
+      "5XL": { ...fallback, widthIn: 12, heightIn: 15, collarIn: 3, backCollarIn: 3.5, top: 28.25, width: 39, height: 40.5, collarAnchor: 18.75 }
+    }, fallback);
+  } else {
+    profile = { widthIn: 11, heightIn: 14, collarIn: 2.5, backCollarIn: 3, top: 29, width: 36, height: 38, collarAnchor: 20, placementLabel: "Centered", generic: true };
   }
-  if (key.includes("toddler")) return { top: 30, width: 37, height: 36 };
-  if (key.includes("youth") || key === "kids") return { top: 29, width: 36, height: 38 };
-  if (key.includes("crewneck") || key.includes("crew neck") || key.includes("sweatshirt") || key.includes("sweater")) {
-    return { top: 30, width: 34, height: 37 };
-  }
-  return { top: 29, width: 36, height: 38 };
+
+  return {
+    ...profile,
+    top: profile.top + (isBack ? (key.includes("hoodie") ? 1.5 : 1) : 0),
+    height: profile.height + (isBack && key.includes("hoodie") ? 2 : 0),
+    collarIn: isBack ? (profile.backCollarIn || profile.collarIn) : profile.collarIn,
+    bottomClearanceIn: isBack ? null : profile.bottomClearanceIn,
+    placementLabel: isBack ? "Centered back" : profile.placementLabel
+  };
 }
 
 const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
@@ -352,6 +428,7 @@ export default function CustomStudio() {
   const [artworkRotation, setArtworkRotation] = useState(0);
   const [artworkOffset, setArtworkOffset] = useState({ x: 0, y: 0 });
   const [showGuides, setShowGuides] = useState(true);
+  const [showMeasurements, setShowMeasurements] = useState(true);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [showOrderGuide, setShowOrderGuide] = useState(true);
 
@@ -975,6 +1052,8 @@ export default function CustomStudio() {
                 artworkOffset={artworkOffset}
                 setArtworkOffset={setArtworkOffset}
                 showGuides={showGuides}
+                showMeasurements={showMeasurements}
+                size={size}
                 previewConfig={config.preview || {}}
               />
 
@@ -1002,11 +1081,15 @@ export default function CustomStudio() {
                   </div>
                 </div>}
 
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
+                    <button type="button" onClick={() => setShowMeasurements(v => !v)} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}</button>
+                  </div>
                   <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
                 </div>
-                <p className="mt-3 text-[10px] leading-relaxed text-[#8a837a]">Digital concept preview. Final composition and placement are reviewed by a GDP designer before production.</p>
+                <p className="mt-2 text-[9px] font-mono uppercase tracking-wide text-[#9a9389]">Recommended print zone updates automatically for {size} and the selected garment.</p>
+                <p className="mt-2 text-[10px] leading-relaxed text-[#8a837a]">Digital concept preview. Final composition and placement are reviewed by a GDP designer before production.</p>
               </div>
             </div>
 
@@ -1039,6 +1122,7 @@ export default function CustomStudio() {
             <div className="h-16 shrink-0 flex items-center justify-between gap-4 px-4 md:px-6 bg-[#171717] text-white">
               <div><div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">GDP Custom Studio</div><div className="font-semibold">Full-screen garment preview</div></div>
               <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setShowMeasurements(v => !v)} className={"h-9 w-9 grid place-items-center rounded-xl border " + (showMeasurements ? "border-accent bg-accent/15 text-white" : "border-white/15 text-white/75")} aria-label={showMeasurements ? "Hide measurements" : "Show measurements"}><Ruler size={15}/></button>
                 <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomOut size={15}/></button>
                 <span className="w-12 text-center font-mono text-[10px]">{Math.round(previewZoom * 100)}%</span>
                 <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomIn size={15}/></button>
@@ -1046,7 +1130,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} showGuides={showGuides} previewConfig={config.preview || {}} fullscreen />
+              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} fullscreen />
             </div>
           </div>
         </div>}
@@ -1059,7 +1143,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, showGuides, previewConfig = {}, fullscreen = false }) {
+function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, showGuides, showMeasurements, size, previewConfig = {}, fullscreen = false }) {
   const dragRef = useRef(null);
   const blankBack = side === "back" && placement === "front";
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
@@ -1070,13 +1154,25 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
     : (colorPreview.frontUrl || previewSettings.frontMockupUrl);
   const inferredMockupUrl = previewImageForGarment(garment, color, side);
   const mockupUrl = configuredMockupUrl || inferredMockupUrl;
-  const defaultArea = defaultPrintAreaFor(garment?.previewType || garment?.type, side);
+  const profile = recommendedPrintProfile(garment?.previewType || garment?.type, size, side);
   const configuredArea = previewSettings?.printArea?.[side] || {};
-  const printAreaStyle = {
-    top: (Number(configuredArea.top) || defaultArea.top) + "%",
-    width: (Number(configuredArea.width) || defaultArea.width) + "%",
-    height: (Number(configuredArea.height) || defaultArea.height) + "%"
+  const useCustomArea = previewSettings?.printAreaMode === "custom" || configuredArea?.mode === "custom" || profile.generic === true;
+  const configuredNumber = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
+  const printArea = {
+    top: useCustomArea ? configuredNumber(configuredArea.top, profile.top) : profile.top,
+    width: useCustomArea ? configuredNumber(configuredArea.width, profile.width) : profile.width,
+    height: useCustomArea ? configuredNumber(configuredArea.height, profile.height) : profile.height
+  };
+  const printAreaStyle = {
+    top: printArea.top + "%",
+    width: printArea.width + "%",
+    height: printArea.height + "%"
+  };
+  const collarAnchor = Math.min(printArea.top - 2, Number(profile.collarAnchor || 20));
+  const collarGuideHeight = Math.max(2, printArea.top - collarAnchor);
 
   const onPointerDown = (event) => {
     if (!canDrag) return;
@@ -1102,10 +1198,46 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
   };
 
   return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[390px] sm:h-[430px]")}>
-    <div className="absolute inset-x-0 top-3 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/75 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
+    <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
+
+    {showMeasurements && !blankBack && <div className="absolute left-3 top-11 z-30 max-w-[185px] rounded-xl border border-[#d8d2c8] bg-white/88 backdrop-blur px-2.5 py-2 shadow-sm pointer-events-none">
+      <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-accent">Recommended print zone · {size || "—"}</div>
+      <div className="mt-1 text-[9px] font-bold text-[#292621]">{measurementPair(profile.widthIn, profile.heightIn)}</div>
+      <div className="mt-1 text-[7px] leading-relaxed text-[#6f6960]">{profile.placementLabel} · ↓ {measurementSingle(profile.collarIn)} from {String(garment?.previewType || garment?.type || "").toLowerCase().includes("hoodie") ? "hood seam" : "collar"}</div>
+      {profile.bottomClearanceIn && <div className="mt-1 text-[7px] font-semibold text-[#8a514b]">Keep ≥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
+    </div>}
+
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
       <div className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}>
         {mockupUrl ? <img src={mockupUrl} alt={(garment?.label || "Custom garment") + " " + side + " mockup"} className="w-full h-auto object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]" /> : <GarmentShape type={garment?.previewType || garment?.type || "T-Shirt"} color={color} side={side} />}
+
+        {showMeasurements && !blankBack && <div className="absolute inset-0 z-20 pointer-events-none select-none">
+          <div className="absolute w-px bg-accent/65" style={{ left: "50%", top: collarAnchor + "%", height: collarGuideHeight + "%" }}>
+            <span className="absolute -left-1 top-0 h-px w-2 bg-accent/70" />
+            <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/90 px-1 py-0.5 font-mono text-[6px] text-accent">{formatMeasurementNumber(profile.collarIn)}"</span>
+          </div>
+
+          <div className="absolute left-1/2 -translate-x-1/2" style={printAreaStyle}>
+            <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-accent/55" />
+            <span className="absolute left-1/2 top-1 -translate-x-1/2 rounded-md bg-[#fffdfa]/90 px-1 py-0.5 font-mono text-[6px] uppercase tracking-wide text-[#8b565c]">center</span>
+
+            <div className="absolute -top-2 left-0 right-0 h-px bg-accent/70">
+              <span className="absolute left-0 -top-1 h-2 w-px bg-accent/70" />
+              <span className="absolute right-0 -top-1 h-2 w-px bg-accent/70" />
+              <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[6px] font-semibold text-accent">{formatMeasurementNumber(profile.widthIn)}" wide</span>
+            </div>
+
+            <div className="absolute -right-2 top-0 bottom-0 w-px bg-accent/70">
+              <span className="absolute -left-1 top-0 h-px w-2 bg-accent/70" />
+              <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1 py-0.5 font-mono text-[6px] font-semibold text-accent">{formatMeasurementNumber(profile.heightIn)}" high</span>
+            </div>
+
+            {profile.bottomClearanceIn && <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[6px] text-[#8a514b]">↑ {formatMeasurementNumber(profile.bottomClearanceIn)}" pocket clearance</span>}
+          </div>
+        </div>}
+
         <div
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -1123,7 +1255,8 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
         </div>
       </div>
     </div>
-    <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2 pointer-events-none">
+
+    <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
       <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[8px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
       {photo && !blankBack && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[8px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1"><Move size={10}/> Drag to position</span>}
     </div>
