@@ -188,6 +188,7 @@ export default function CustomStudio() {
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [step, setStep] = useState(1);
+  const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
   const [occasionGroup, setOccasionGroup] = useState("love");
   const [occasion, setOccasion] = useState("Anniversary");
@@ -195,7 +196,7 @@ export default function CustomStudio() {
   const [designStyle, setDesignStyle] = useState("GDP Classic 90s");
   const [designMood, setDesignMood] = useState("Cool");
   const [designIntensity, setDesignIntensity] = useState(4);
-  const [garment, setGarment] = useState(GARMENTS[0]);
+  const [garment, setGarment] = useState(FALLBACK_GARMENT);
   const [color, setColor] = useState("Black");
   const [size, setSize] = useState("M");
   const [qty, setQty] = useState(1);
@@ -227,27 +228,26 @@ export default function CustomStudio() {
     (async () => {
       try {
         const productId = params.get("product");
-        const p = productId
-          ? await customerApi.getProduct(productId)
-          : await customerApi.getDefaultCustomProduct();
+        const studioCatalog = await customerApi.getStudioCatalog();
+        let p = productId
+          ? studioCatalog.find((item) => item.id === productId) || await customerApi.getProduct(productId)
+          : studioCatalog[0] || await customerApi.getDefaultCustomProduct();
 
-        if (!active || !p) return;
+        if (!active) return;
+        setCatalog(studioCatalog);
+        if (!p) return;
+
+        const colors = productColors(p);
+        const initialColor = colors[0] || "Black";
+        const sizes = productSizes(p, initialColor);
         setProduct(p);
-        setColor(p?.colors?.[0] || "Black");
-        setSize(p?.sizes?.[0] || "M");
+        setGarment(garmentFromProduct(p));
+        setColor(initialColor);
+        setSize(sizes[0] || "M");
         setProofRequired(p?.customization?.proofRequired !== false);
         if (p?.customization?.allowedStyles?.length) setDesignStyle(p.customization.allowedStyles[0]);
-
-        const match = GARMENTS.find(g => g.type === p?.type);
-        if (match) {
-          setGarment({
-            ...match,
-            price: Number(p.price || match.price),
-            label: p.name || match.label
-          });
-        }
       } catch (error) {
-        if (active) setWarn(error?.message || "Could not load the custom product.");
+        if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
       }
     })();
 
@@ -256,6 +256,27 @@ export default function CustomStudio() {
     };
   }, []);
 
+  const chooseProduct = (nextProduct) => {
+    if (!nextProduct) return;
+    const colors = productColors(nextProduct);
+    const nextColor = colors[0] || "Black";
+    const sizes = productSizes(nextProduct, nextColor);
+    setProduct(nextProduct);
+    setGarment(garmentFromProduct(nextProduct));
+    setColor(nextColor);
+    setSize(sizes[0] || "M");
+    setGroupGarments([]);
+    setProofRequired(nextProduct?.customization?.proofRequired !== false);
+    if (nextProduct?.customization?.allowedStyles?.length) {
+      setDesignStyle(nextProduct.customization.allowedStyles[0]);
+    }
+    setPreviewSide("front");
+    setArtworkScale(92);
+    setArtworkRotation(0);
+    setArtworkOffset({ x: 0, y: 0 });
+    setPreviewZoom(1);
+  };
+
   const config = product?.customization || {};
   const styleOptions = config.allowedStyles?.length ? STYLES.filter(style => config.allowedStyles.includes(style[0])) : STYLES;
   const maxPhotos = Number(config.maxPhotos || 10);
@@ -263,16 +284,30 @@ export default function CustomStudio() {
   const revisions = Number(config.includedRevisions || 2);
   const rushFee = Number(config.rushDesignFee || 10) + Number(config.rushProductionFee || 15);
   const frontBackFee = Number(config.frontBackFee || 10);
+  const availableColors = productColors(product);
+  const availableSizes = productSizes(product, color);
+  const selectedVariant = variantFor(product, color, size);
+  const selectedAvailable = variantAvailable(product, selectedVariant);
 
-  const unitPrice = useMemo(() => {
-    let amount = Number(product?.price || garment.price || 0);
-    if (placement === "front_back") amount += frontBackFee;
-    if (priority === "rush") amount += rushFee;
-    return Math.round(amount * 100) / 100;
-  }, [product, garment, placement, priority, frontBackFee, rushFee]);
+  useEffect(() => {
+    if (availableSizes.length && !availableSizes.includes(size)) {
+      setSize(availableSizes[0]);
+    }
+  }, [color, product?.id]);
 
+  const extrasPerUnit = (placement === "front_back" ? frontBackFee : 0) + (priority === "rush" ? rushFee : 0);
+  const priceFor = (itemColor, itemSize) => {
+    const variant = variantFor(product, itemColor, itemSize);
+    const base = variant?.price == null ? Number(product?.price || garment.price || 0) : Number(variant.price || 0);
+    return Math.round((base + extrasPerUnit) * 100) / 100;
+  };
+
+  const unitPrice = priceFor(color, size);
   const totalUnits = qty + groupGarments.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const estimatedSubtotal = unitPrice * totalUnits;
+  const estimatedSubtotal = Math.round((
+    unitPrice * qty +
+    groupGarments.reduce((sum, item) => sum + priceFor(item.color, item.size) * Number(item.quantity || 0), 0)
+  ) * 100) / 100;
   const primaryPhoto = photos.find(photo => photo.isPrimary) || photos[0] || null;
 
   const resetPreviewPlacement = () => {
