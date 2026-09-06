@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Info } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 
@@ -13,6 +13,14 @@ const OCCASIONS = [
   { id: "memorial", label: "Memorial", icon: Heart, options: ["In Loving Memory","Celebration of Life","Memorial Event"] },
   { id: "other", label: "Just Because", icon: Sparkles, options: ["Best Friend","Inside Joke","Funny Shirt","For Myself","Designer's Choice"] }
 ];
+
+const DESIGN_INTENSITY_LEVELS = {
+  1: { label: "Clean", description: "Minimal layout with one clear focal point, restrained type and plenty of breathing room." },
+  2: { label: "Light", description: "A little more styling with supporting type, subtle texture and a few graphic accents." },
+  3: { label: "Balanced", description: "A balanced mix of portraits, typography, effects and negative space." },
+  4: { label: "Bold", description: "Stronger layering, larger type, more image crops and more dramatic effects." },
+  5: { label: "Maximum Chaos", description: "Full bootleg energy with dense collage, oversized type, textures, effects and multiple visual layers." },
+};
 
 const STYLES = [
   ["GDP Classic 90s","Layered portraits, chrome type, clouds and full retro energy."],
@@ -430,6 +438,7 @@ export default function CustomStudio() {
   const [showGuides, setShowGuides] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(true);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
+  const [showIntensityExamples, setShowIntensityExamples] = useState(false);
   const [showOrderGuide, setShowOrderGuide] = useState(true);
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
@@ -512,6 +521,9 @@ export default function CustomStudio() {
 
   const config = product?.customization || {};
   const mobileFloatingCtaEnabled = config?.ui?.mobileFloatingCtaEnabled === true;
+  const intensityExamplesEnabled = config?.ui?.intensityExamplesEnabled !== false;
+  const intensityExampleImageUrl = config?.ui?.intensityExampleImageUrl || "/images/design-intensity-bootleg.svg";
+  const intensityLevel = DESIGN_INTENSITY_LEVELS[designIntensity] || DESIGN_INTENSITY_LEVELS[3];
   const styleOptions = config.allowedStyles?.length ? STYLES.filter(style => config.allowedStyles.includes(style[0])) : STYLES;
   const maxPhotos = Number(config.maxPhotos || 10);
   const minPhotos = Number(config.minPhotos || 1);
@@ -856,7 +868,33 @@ export default function CustomStudio() {
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Mood</label><div className="flex flex-wrap gap-2 mt-2">
                 {MOODS.map(mood => <button key={mood} onClick={() => setDesignMood(mood)} className={"px-3 py-2 border text-sm " + (designMood === mood ? "bg-primary text-primary-foreground border-primary" : "border-border")}>{mood}</button>)}
               </div></div>
-              <div><label className="font-mono text-xs uppercase text-muted-foreground">Design intensity — {designIntensity}/5</label><input type="range" min="1" max="5" value={designIntensity} onChange={e => setDesignIntensity(Number(e.target.value))} className="w-full mt-4" /><div className="flex justify-between text-[10px] uppercase font-mono text-muted-foreground"><span>Clean</span><span>Balanced</span><span>Maximum Chaos</span></div></div>
+              <div>
+                <label className="font-mono text-xs uppercase text-muted-foreground">Design intensity — {designIntensity}/5</label>
+                <input type="range" min="1" max="5" value={designIntensity} onChange={e => setDesignIntensity(Number(e.target.value))} className="w-full mt-4" />
+                <div className="flex justify-between text-[10px] uppercase font-mono text-muted-foreground"><span>Clean</span><span>Balanced</span><span>Maximum Chaos</span></div>
+                <div className="mt-3 rounded-xl border border-[#e2dcd3] bg-white/70 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold text-[#27231f]">{designIntensity}/5 · {intensityLevel.label}</div>
+                      <p className="mt-1 text-[12px] leading-relaxed text-[#716a62]">{intensityLevel.description}</p>
+                    </div>
+                    {intensityExamplesEnabled && <button
+                      type="button"
+                      onClick={() => setShowIntensityExamples(true)}
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[#d7d0c7] bg-[#fffdfa] px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-[#37322d] hover:border-accent hover:text-accent"
+                    >
+                      <Info size={13} /> Examples
+                    </button>}
+                  </div>
+                  {intensityExamplesEnabled && <button
+                    type="button"
+                    onClick={() => setShowIntensityExamples(true)}
+                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-accent hover:underline"
+                  >
+                    See design intensity examples →
+                  </button>}
+                </div>
+              </div>
             </div>
           </div>}
 
@@ -1130,6 +1168,36 @@ export default function CustomStudio() {
         {mobileFloatingCtaEnabled && mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#171717]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
           <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{"$" + unitPrice.toFixed(2)}</div></div>
           {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#171717] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
+        </div>}
+
+        {showIntensityExamples && <div className="fixed inset-0 z-[96] flex items-end justify-center bg-black/70 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Design intensity examples">
+          <button type="button" className="absolute inset-0" onClick={() => setShowIntensityExamples(false)} aria-label="Close design intensity examples" />
+          <div className="relative z-10 w-full max-h-[92dvh] overflow-y-auto rounded-t-[28px] border border-white/10 bg-[#fbf8f2] shadow-2xl sm:max-w-5xl sm:rounded-[28px]">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-[#ded8cf] bg-[#fbf8f2]/95 px-4 py-3.5 backdrop-blur sm:px-5">
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-accent">Design intensity guide</div>
+                <div className="mt-0.5 font-bold text-[#24211e]">From clean to full bootleg energy</div>
+              </div>
+              <button type="button" onClick={() => setShowIntensityExamples(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#d8d1c7] bg-white text-[#39342f]" aria-label="Close"><X size={16}/></button>
+            </div>
+            <div className="p-3 sm:p-5">
+              <div className="overflow-hidden rounded-2xl border border-[#ddd6cd] bg-white">
+                <img src={intensityExampleImageUrl} alt="Five bootleg rap T-shirt examples showing design intensity from 1 out of 5 clean to 5 out of 5 maximum chaos" className="block h-auto w-full" loading="lazy" />
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-5">
+                {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => <button
+                  key={level}
+                  type="button"
+                  onClick={() => { setDesignIntensity(Number(level)); setShowIntensityExamples(false); }}
+                  className={"rounded-xl border p-3 text-left transition " + (Number(level) === designIntensity ? "border-accent bg-accent/[0.06]" : "border-[#ddd6cd] bg-white hover:border-accent")}
+                >
+                  <div className="text-xs font-bold">{level}/5 · {item.label}</div>
+                  <div className="mt-1 text-[10px] leading-relaxed text-[#746d64]">{item.description}</div>
+                </button>)}
+              </div>
+              <p className="mt-3 text-[10px] leading-relaxed text-[#817970]">Examples are visual direction only. Your final GDP artwork is customized to your photos, story and selected style.</p>
+            </div>
+          </div>
         </div>}
 
         {fullscreenPreview && <div className="fixed inset-0 z-[90] bg-[#111]/95 backdrop-blur-sm p-3 md:p-7">
