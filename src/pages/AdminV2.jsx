@@ -64,6 +64,7 @@ import ProductionModule from "@/components/admin/ProductionModule";
 import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import FinanceModule from "@/components/admin/FinanceModule";
 import SettingsModule from "@/components/admin/SettingsModule";
+import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
 import MarketsManagementModule from "@/components/admin/MarketsManagementModule";
 import ContentManagementModule from "@/components/admin/ContentManagementModule";
 import LandingPageModule from "@/components/admin/LandingPageModule";
@@ -195,8 +196,8 @@ const MODULE_COPY = {
   },
   "custom-studio": {
     title: "GDP Custom Studio",
-    description: "Operate the photo-to-shirt workflow from upload through proof approval.",
-    items: ["Custom orders", "Customer uploads", "Artwork queue", "Proofs", "Revisions & approvals"],
+    description: "Operate the photo-to-shirt workflow and control studio-wide customer experience settings.",
+    items: ["Custom orders", "Customer uploads", "Artwork queue", "Proofs", "Revisions & approvals", "Studio settings"],
   },
   production: {
     title: "Production",
@@ -219,9 +220,9 @@ const MODULE_COPY = {
     items: ["Stripe", "Supabase", "POD providers", "Email", "Analytics"],
   },
   settings: {
-    title: "Settings",
-    description: "Commerce defaults, payments, checkout, shipping, taxes, users, permissions and policies.",
-    items: ["Store details", "Payments", "Checkout", "Shipping", "Taxes", "Users & permissions"],
+    title: "Store settings",
+    description: "Store-wide identity, regional defaults, team access, notifications and policies.",
+    items: ["Store details", "Brand & social", "Regional defaults", "Payments", "Shipping", "Users & permissions"],
   },
 };
 
@@ -476,8 +477,8 @@ export default function AdminV2() {
             <div>
               <PageHeader
                 eyebrow="GDP Commerce Admin"
-                title="Settings"
-                description="Manage store identity, commerce defaults, social links and operational configuration."
+                title="Store settings"
+                description="Manage store-wide identity, regional defaults, social links, team access and policies."
               />
               <SettingsModule />
             </div>
@@ -561,6 +562,7 @@ export default function AdminV2() {
                 description="Review the services powering data, payments, deployment and future fulfillment."
               />
               <AppsModule />
+              <AdvancedSettingsModule visibleTabs={["integrations"]} initialTab="integrations" />
             </div>
           ) : (
             <ModuleLanding
@@ -696,7 +698,7 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
           onClick={() => onSelect("settings")}
           className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm ${active === "settings" ? "bg-white shadow-sm font-semibold" : "hover:bg-white/60"}`}
         >
-          <Settings size={17} /> Settings
+          <Settings size={17} /> Store settings
         </button>
         <Link to="/admin/legacy" className="mt-1 flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm hover:bg-white/60 text-[#555]">
           <Clock3 size={17} /> Current admin tools
@@ -846,8 +848,8 @@ function HomeModule({ data, loading, error, onRetry, onOpen }) {
           />
           <QuickAction
             icon={Settings}
-            title="Settings"
-            text="Commerce configuration and access"
+            title="Store settings"
+            text="Store-wide configuration and access"
             onClick={() => onOpen("settings")}
           />
         </div>
@@ -879,11 +881,11 @@ function ModuleLanding({ module, section, onOpen }) {
 
   const settingsCards = section === "settings"
     ? [
-        { icon: Store, title: "Store details", text: "Brand identity, contact details and defaults." },
-        { icon: CreditCard, title: "Payments", text: "Stripe, payment capture and payout configuration." },
-        { icon: ReceiptText, title: "Checkout & taxes", text: "Checkout rules, taxes, currency and order numbering." },
-        { icon: Truck, title: "Shipping", text: "Shipping methods, rates, pickup and fulfillment rules." },
-        { icon: UserRoundCog, title: "Users & permissions", text: "Admin and staff access controls." },
+        { icon: Store, title: "Store details", text: "Identity, contact information and regional defaults." },
+        { icon: Palette, title: "Brand & social", text: "Logo, brand color, social channels and footer." },
+        { icon: CreditCard, title: "Payments", text: "Stripe payment architecture and payout configuration." },
+        { icon: Truck, title: "Shipping", text: "Shipping methods, pickup and fulfillment rules." },
+        { icon: UserRoundCog, title: "Team & notifications", text: "Staff roles, permissions and notification templates." },
         { icon: ShieldCheck, title: "Privacy & policies", text: "Customer privacy, terms and commerce policies." },
       ]
     : null;
