@@ -12,7 +12,6 @@ import {
   Save,
   CheckCircle2,
   RefreshCw,
-  Database,
 } from "lucide-react";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
 import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
