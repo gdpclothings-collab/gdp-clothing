@@ -25,7 +25,7 @@ from public.store_settings
 where id = 1
 on conflict (id) do nothing;
 
-alter table public.landing_page_draft enable row level security;
+create index if not exists landing_page_draft_updated_by_idx\n  on public.landing_page_draft (updated_by);\n\nalter table public.landing_page_draft enable row level security;
 
 drop policy if exists "landing_page_draft_admin_select" on public.landing_page_draft;
 create policy "landing_page_draft_admin_select"
