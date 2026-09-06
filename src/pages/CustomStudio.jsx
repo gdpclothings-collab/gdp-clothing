@@ -385,6 +385,7 @@ export default function CustomStudio() {
   const removeGroup = index => setGroupGarments(prev => prev.filter((_, i) => i !== index));
 
   const canContinue = () => {
+    if (step === 3) return Boolean(product) && selectedAvailable;
     if (step === 4) return photos.length >= minPhotos;
     if (step === 6) return rightsConfirmed && approvalAcknowledged;
     return true;
@@ -871,7 +872,10 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
   const blankBack = side === "back" && placement === "front";
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
-  const mockupUrl = side === "back" ? previewSettings.backMockupUrl : previewSettings.frontMockupUrl;
+  const colorPreview = previewSettings?.colorMockups?.[color] || {};
+  const mockupUrl = side === "back"
+    ? (colorPreview.backUrl || previewSettings.backMockupUrl)
+    : (colorPreview.frontUrl || previewSettings.frontMockupUrl);
   const defaultArea = garment?.type === "Hoodie" ? { top: 32, width: 34, height: 36 } : { top: 29, width: 36, height: 38 };
   const configuredArea = previewSettings?.printArea?.[side] || {};
   const printAreaStyle = {
@@ -953,10 +957,14 @@ function GarmentShape({ type, color, side }) {
 function garmentPalette(color) {
   const key = String(color || "Black").toLowerCase();
   if (key.includes("white")) return { base: "#f4f1eb", stroke: "#c8c2b8", seam: "#aaa49a", highlight: "#ffffff" };
+  if (key.includes("sport grey") || key.includes("sport gray") || key === "grey" || key === "gray") return { base: "#b8b9b5", stroke: "#858682", seam: "#777874", highlight: "#ddddda" };
   if (key.includes("sand")) return { base: "#c8b79b", stroke: "#958166", seam: "#8f7a5f", highlight: "#f0e1c8" };
   if (key.includes("navy")) return { base: "#202b3b", stroke: "#0b1220", seam: "#667085", highlight: "#64748b" };
+  if (key.includes("royal")) return { base: "#2857a6", stroke: "#17376f", seam: "#6f91cd", highlight: "#7aa0df" };
+  if (key.includes("red")) return { base: "#ad2735", stroke: "#68151e", seam: "#ce6873", highlight: "#df7d87" };
+  if (key.includes("pink")) return { base: "#e9afc3", stroke: "#b6788d", seam: "#d38fa6", highlight: "#f8d6e1" };
   if (key.includes("forest")) return { base: "#29463b", stroke: "#10231c", seam: "#72877f", highlight: "#6f9385" };
-  if (key.includes("charcoal")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
+  if (key.includes("charcoal") || key.includes("heather")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
   if (key.includes("vintage")) return { base: "#272422", stroke: "#101010", seam: "#595553", highlight: "#68615e" };
   return { base: "#171717", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
 }
