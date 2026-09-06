@@ -22,13 +22,35 @@ const DESIGN_INTENSITY_LEVELS = {
   5: { label: "Maximum Chaos", description: "Full bootleg energy with dense collage, oversized type, textures, effects and multiple visual layers." },
 };
 
+const HIDDEN_INTENSITY_IMAGE = "__hidden__";
+
 const DEFAULT_STUDIO_SETTINGS = {
   mobileFloatingCtaEnabled: false,
   intensityExamplesEnabled: true,
   intensityExampleImageUrl: "/images/design-intensity-bootleg.svg",
+  intensityExamples: { "1": "", "2": "", "3": "", "4": "", "5": "" },
+  showCombinedIntensityGuide: true,
   defaultDesignIntensity: 3,
   orderGuideEnabled: true,
 };
+
+function normalizeIntensityExamples(examples = {}) {
+  return Object.fromEntries(
+    [1, 2, 3, 4, 5].map((level) => {
+      const raw = examples?.[level] ?? examples?.[String(level)] ?? "";
+      const value = typeof raw === "string" ? raw : String(raw?.imageUrl || "");
+      return [String(level), value];
+    })
+  );
+}
+
+function normalizeStudioSettings(settings = {}) {
+  return {
+    ...DEFAULT_STUDIO_SETTINGS,
+    ...(settings || {}),
+    intensityExamples: normalizeIntensityExamples(settings?.intensityExamples),
+  };
+}
 
 const STYLES = [
   ["GDP Classic 90s","Layered portraits, chrome type, clouds and full retro energy."],
@@ -474,7 +496,7 @@ export default function CustomStudio() {
           customerApi.getStudioCatalog(),
           customerApi.getCustomStudioSettings().catch(() => ({})),
         ]);
-        const nextStudioSettings = { ...DEFAULT_STUDIO_SETTINGS, ...(loadedStudioSettings || {}) };
+        const nextStudioSettings = normalizeStudioSettings(loadedStudioSettings);
         let p = studioCatalog[0] || await customerApi.getDefaultCustomProduct();
         if (productId) {
           const requestedBlank = studioCatalog.find((item) => item.id === productId);
@@ -539,6 +561,10 @@ export default function CustomStudio() {
   const mobileFloatingCtaEnabled = studioSettings.mobileFloatingCtaEnabled === true;
   const intensityExamplesEnabled = studioSettings.intensityExamplesEnabled !== false;
   const intensityExampleImageUrl = studioSettings.intensityExampleImageUrl || DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
+  const intensityImages = normalizeIntensityExamples(studioSettings.intensityExamples);
+  const selectedIntensityImage = intensityImages[String(designIntensity)] || "";
+  const hasIntensityOverrides = Object.values(intensityImages).some((value) => Boolean(value));
+  const showCombinedIntensityGuide = studioSettings.showCombinedIntensityGuide !== false;
   const intensityLevel = DESIGN_INTENSITY_LEVELS[designIntensity] || DESIGN_INTENSITY_LEVELS[3];
   const styleOptions = config.allowedStyles?.length ? STYLES.filter(style => config.allowedStyles.includes(style[0])) : STYLES;
   const maxPhotos = Number(config.maxPhotos || 10);
@@ -909,6 +935,14 @@ export default function CustomStudio() {
                   >
                     See design intensity examples →
                   </button>}
+                  {selectedIntensityImage && selectedIntensityImage !== HIDDEN_INTENSITY_IMAGE && <button
+                    type="button"
+                    onClick={() => setShowIntensityExamples(true)}
+                    className="mt-3 block w-full overflow-hidden rounded-xl border border-[#ddd6cd] bg-[#151515]"
+                    aria-label={`Open ${designIntensity} out of 5 intensity example`}
+                  >
+                    <IntensityExampleVisual src={selectedIntensityImage} label={`${designIntensity}/5 ${intensityLevel.label}`} className="aspect-[16/9]" />
+                  </button>}
                 </div>
               </div>
             </div>
@@ -1197,30 +1231,71 @@ export default function CustomStudio() {
               <button type="button" onClick={() => setShowIntensityExamples(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#d8d1c7] bg-white text-[#39342f]" aria-label="Close"><X size={16}/></button>
             </div>
             <div className="p-3 sm:p-5">
-              <div className="overflow-hidden rounded-2xl border border-[#ddd6cd] bg-white">
-                <img
-                  src={intensityExampleImageUrl}
-                  alt="Five bootleg rap T-shirt examples showing design intensity from 1 out of 5 clean to 5 out of 5 maximum chaos"
-                  className="block h-auto w-full"
-                  loading="lazy"
-                  decoding="async"
-                  onError={(event) => {
-                    const fallback = DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
-                    if (event.currentTarget.getAttribute("src") !== fallback) {
-                      event.currentTarget.src = fallback;
-                    }
-                  }}
-                />
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-5">
+              {showCombinedIntensityGuide ? (
+                !hasIntensityOverrides ? (
+                  <div className="overflow-hidden rounded-2xl border border-[#ddd6cd] bg-white">
+                    <img
+                      src={intensityExampleImageUrl}
+                      alt="Five bootleg rap T-shirt examples showing design intensity from 1 out of 5 clean to 5 out of 5 maximum chaos"
+                      className="block h-auto w-full"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(event) => {
+                        const fallback = DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
+                        if (event.currentTarget.getAttribute("src") !== fallback) {
+                          event.currentTarget.src = fallback;
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => { setDesignIntensity(Number(level)); setShowIntensityExamples(false); }}
+                        className={"grid w-full grid-cols-[68px_1fr] gap-3 overflow-hidden rounded-2xl border text-left transition sm:grid-cols-[78px_1fr_210px] " + (Number(level) === designIntensity ? "border-accent bg-accent/[0.045]" : "border-[#ddd6cd] bg-white hover:border-accent")}
+                      >
+                        <div className="grid place-items-center bg-[#1c1b19] px-2 py-4 text-white">
+                          <div className="text-center">
+                            <div className="text-xl font-black">{level}/5</div>
+                            <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-white/60">{item.label}</div>
+                          </div>
+                        </div>
+                        <div className="self-center py-3 pr-3 sm:pr-0">
+                          <div className="text-sm font-bold text-[#292622]">{item.label}</div>
+                          <div className="mt-1 text-[11px] leading-relaxed text-[#746d64]">{item.description}</div>
+                        </div>
+                        <div className="col-span-2 aspect-[16/9] bg-[#181818] sm:col-span-1 sm:aspect-auto sm:min-h-[118px]">
+                          <IntensityExampleVisual src={intensityImages[level]} label={`${level}/5 ${item.label}`} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-[#ddd6cd] bg-[#181818]">
+                  <div className="aspect-[4/5] sm:aspect-[16/9]">
+                    <IntensityExampleVisual src={selectedIntensityImage} label={`${designIntensity}/5 ${intensityLevel.label}`} large />
+                  </div>
+                  <div className="bg-white p-4">
+                    <div className="text-sm font-bold">{designIntensity}/5 · {intensityLevel.label}</div>
+                    <div className="mt-1 text-xs leading-relaxed text-[#746d64]">{intensityLevel.description}</div>
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 grid grid-cols-5 gap-1.5 sm:gap-2">
                 {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => <button
                   key={level}
                   type="button"
-                  onClick={() => { setDesignIntensity(Number(level)); setShowIntensityExamples(false); }}
-                  className={"rounded-xl border p-3 text-left transition " + (Number(level) === designIntensity ? "border-accent bg-accent/[0.06]" : "border-[#ddd6cd] bg-white hover:border-accent")}
+                  onClick={() => {
+                    setDesignIntensity(Number(level));
+                    if (showCombinedIntensityGuide) setShowIntensityExamples(false);
+                  }}
+                  className={"rounded-xl border px-1 py-2 text-center transition sm:p-3 sm:text-left " + (Number(level) === designIntensity ? "border-accent bg-accent/[0.06]" : "border-[#ddd6cd] bg-white hover:border-accent")}
                 >
-                  <div className="text-xs font-bold">{level}/5 · {item.label}</div>
-                  <div className="mt-1 text-[10px] leading-relaxed text-[#746d64]">{item.description}</div>
+                  <div className="text-[10px] font-bold sm:text-xs">{level}/5<span className="hidden sm:inline"> · {item.label}</span></div>
                 </button>)}
               </div>
               <p className="mt-3 text-[10px] leading-relaxed text-[#817970]">Examples are visual direction only. Your final GDP artwork is customized to your photos, story and selected style.</p>
@@ -1245,6 +1320,33 @@ export default function CustomStudio() {
             </div>
           </div>
         </div>}
+      </div>
+    </div>
+  );
+}
+
+function IntensityExampleVisual({ src, label, className = "", large = false }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+
+  if (src === HIDDEN_INTENSITY_IMAGE) {
+    return (
+      <div className={"h-full w-full grid place-items-center bg-[#222] text-center text-white/55 " + className}>
+        <div><X size={large ? 26 : 18} className="mx-auto"/><div className="mt-1 text-[9px] uppercase tracking-wide">Example removed</div></div>
+      </div>
+    );
+  }
+
+  if (src && !failed) {
+    return <img src={src} alt={label} className={"h-full w-full object-cover " + className} loading="lazy" decoding="async" onError={() => setFailed(true)} />;
+  }
+
+  return (
+    <div className={"h-full w-full grid place-items-center bg-[radial-gradient(circle_at_50%_32%,#393939_0%,#191919_55%,#101010_100%)] text-white text-center " + className}>
+      <div className="px-4">
+        <Shirt size={large ? 34 : 24} className="mx-auto text-white/45"/>
+        <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em]">GDP default</div>
+        <div className="mt-1 text-[9px] text-white/45">{label}</div>
       </div>
     </div>
   );
