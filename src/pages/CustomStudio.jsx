@@ -26,16 +26,83 @@ const STYLES = [
   ["GDP Designer's Choice","Tell us the story and let a GDP designer choose the direction."]
 ];
 
-const GARMENTS = [
-  { type: "T-Shirt", label: "Classic Tee", tier: "classic", price: 34.99, desc: "Traditional everyday fit." },
-  { type: "T-Shirt", label: "Premium Vintage Tee", tier: "premium_vintage", price: 42.99, desc: "Heavier, relaxed, washed streetwear feel." },
-  { type: "T-Shirt", label: "Oversized Streetwear Tee", tier: "oversized", price: 46.99, desc: "Roomier silhouette built for bold graphics." },
-  { type: "Hoodie", label: "Custom Hoodie", tier: "classic", price: 64.99, desc: "Warm heavyweight custom hoodie." },
-  { type: "Crewneck", label: "Custom Crewneck", tier: "classic", price: 54.99, desc: "Classic crewneck for custom artwork." }
-];
+const FALLBACK_GARMENT = {
+  type: "T-Shirt",
+  label: "Classic Tee",
+  tier: "classic",
+  price: 34.99,
+  desc: "Traditional everyday fit."
+};
 
-const COLORS = ["Black","Vintage Black","White","Charcoal","Navy","Sand","Forest"];
-const SIZES = ["S","M","L","XL","2XL","3XL","4XL","5XL"];
+const DEFAULT_COLOR_SWATCHES = {
+  "Black": "#171717",
+  "Vintage Black": "#292929",
+  "White": "#f7f6f1",
+  "Sport Grey": "#b7b8b3",
+  "Charcoal": "#4b4c4e",
+  "Dark Heather": "#414347",
+  "Navy": "#17243b",
+  "Red": "#b52332",
+  "Royal": "#2857a6",
+  "Sand": "#d5c1a0",
+  "Forest": "#294a39",
+  "Pink": "#eeb1c8",
+  "Full Color": "#dadada"
+};
+
+function uniqueValues(values = []) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function productColors(product) {
+  if (!product) return [];
+  const variantColors = uniqueValues((product.variants || []).map((variant) => variant.color));
+  return variantColors.length ? variantColors : uniqueValues(product.colors || []);
+}
+
+function productSizes(product, color = "") {
+  if (!product) return [];
+  const variants = product.variants || [];
+  const matching = color
+    ? variants.filter((variant) => String(variant.color || "").toLowerCase() === String(color).toLowerCase())
+    : variants;
+  const variantSizes = uniqueValues(matching.map((variant) => variant.size));
+  return variantSizes.length ? variantSizes : uniqueValues(product.sizes || []);
+}
+
+function variantFor(product, color, size) {
+  if (!product?.variants?.length) return null;
+  return product.variants.find((variant) =>
+    String(variant.color || "").toLowerCase() === String(color || "").toLowerCase() &&
+    String(variant.size || "").toLowerCase() === String(size || "").toLowerCase()
+  ) || null;
+}
+
+function variantAvailable(product, variant) {
+  if (!product?.variants?.length) return true;
+  if (!variant) return false;
+  if (product.trackInventory === false) return true;
+  return Number(variant.stock || 0) > 0;
+}
+
+function garmentFromProduct(product) {
+  if (!product) return FALLBACK_GARMENT;
+  return {
+    id: product.id,
+    type: product.type || "T-Shirt",
+    label: product.name || "Custom garment",
+    tier: product.customization?.garmentTier || "classic",
+    price: Number(product.price || 0),
+    desc: product.description || "Choose your blank, color and size.",
+    image: product.images?.[0] || ""
+  };
+}
+
+function swatchFor(product, color) {
+  return product?.customization?.preview?.colorSwatches?.[color] ||
+    DEFAULT_COLOR_SWATCHES[color] ||
+    "#8b8b8b";
+}
 const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
 const STEPS = ["Occasion","Style","Garment","Photos","Personalize","Timing","Review"];
 const MAX_MB = 12;
