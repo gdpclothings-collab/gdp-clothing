@@ -11,7 +11,7 @@ export const storefrontContentApi = {
 
     if (error) {
       // Backward-compatible fallback while the landing-page migration is being deployed.
-      if (error.code === "42703") return DEFAULT_LANDING_PAGE;
+      if (error.code === "42703" || /homepage.*column|column.*homepage/i.test(error.message || "")) return DEFAULT_LANDING_PAGE;
       throw error;
     }
 
