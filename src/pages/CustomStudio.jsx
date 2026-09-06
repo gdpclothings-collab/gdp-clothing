@@ -1024,9 +1024,9 @@ export default function CustomStudio() {
                 <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
-                  <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back (+{"$" + frontBackFee})</Choice>
+                  <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>
                 </div>
-                <p className="mt-2 text-[10px] text-[#817b73]">Front is the default. Back is optional; additional print locations can be added later from the backend architecture.</p>
+                <p className="mt-2 text-[10px] text-[#817b73]">Front is the default. Back is optional and uses this garment's configured additional-print surcharge.</p>
               </div>
 
               <div className="mt-7 border-t border-border pt-5">
