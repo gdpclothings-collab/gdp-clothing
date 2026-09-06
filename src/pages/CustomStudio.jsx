@@ -335,13 +335,128 @@ function recommendedPrintProfile(type, size, side = "front") {
     profile = { widthIn: 11, heightIn: 14, collarIn: 2.5, backCollarIn: 3, top: 29, width: 36, height: 38, collarAnchor: 20, placementLabel: "Centered", generic: true };
   }
 
+  if (!isBack) {
+    return {
+      ...profile,
+      maxWidthIn: profile.maxWidthIn || profile.widthIn,
+      maxHeightIn: profile.maxHeightIn || profile.heightIn,
+    };
+  }
+
+  return recommendedBackPrintProfile(key, normalizedSize, profile);
+}
+
+function recommendedBackPrintProfile(key, normalizedSize, frontProfile) {
+  const pick = (map, fallback) => map[normalizedSize] || fallback;
+  let guide;
+
+  if (key.includes("baby") || key.includes("bodysuit") || key.includes("onesie")) {
+    guide = {
+      ...pick({
+        "0-3M": { widthIn: 3.5, heightIn: 4.5 },
+        "3-6M": { widthIn: 4, heightIn: 5 },
+        "6-12M": { widthIn: 4.5, heightIn: 5.5 },
+        "12-18M": { widthIn: 5, heightIn: 6 },
+      }, { widthIn: 4, heightIn: 5 }),
+      collarIn: 1.25,
+      maxWidthIn: 5,
+      maxHeightIn: 6,
+      topShift: 0.5,
+    };
+  } else if (key.includes("toddler")) {
+    guide = {
+      ...pick({
+        "2T": { widthIn: 5.5, heightIn: 7 },
+        "3T": { widthIn: 6, heightIn: 7.5 },
+        "4T": { widthIn: 6, heightIn: 8 },
+        "5T": { widthIn: 6.5, heightIn: 8.5 },
+      }, { widthIn: 6, heightIn: 8 }),
+      collarIn: normalizedSize === "5T" ? 2 : 1.75,
+      maxWidthIn: 7.5,
+      maxHeightIn: 9,
+      topShift: 1,
+    };
+  } else if (key.includes("youth") || key === "kids") {
+    guide = {
+      ...pick({
+        "XS": { widthIn: 7.5, heightIn: 9 },
+        "S": { widthIn: 8, heightIn: 10 },
+        "M": { widthIn: 8.5, heightIn: 10.5 },
+        "L": { widthIn: 9, heightIn: 11 },
+        "XL": { widthIn: 9.5, heightIn: 11.5 },
+      }, { widthIn: 8.5, heightIn: 10.5 }),
+      collarIn: 2.5,
+      maxWidthIn: 10,
+      maxHeightIn: 12,
+      topShift: 1,
+    };
+  } else if (key.includes("hoodie")) {
+    guide = {
+      ...pick({
+        "S": { widthIn: 10, heightIn: 11 },
+        "M": { widthIn: 10.5, heightIn: 11.5 },
+        "L": { widthIn: 11, heightIn: 12 },
+        "XL": { widthIn: 11.5, heightIn: 12.5 },
+        "2XL": { widthIn: 11.5, heightIn: 12.5 },
+        "3XL": { widthIn: 12, heightIn: 13 },
+        "4XL": { widthIn: 12, heightIn: 13 },
+        "5XL": { widthIn: 12, heightIn: 13 },
+      }, { widthIn: 11, heightIn: 12 }),
+      collarIn: 6,
+      maxWidthIn: 12,
+      maxHeightIn: 14,
+      topShift: 4,
+    };
+  } else if (key.includes("sweatshirt") || key.includes("sweater") || key.includes("crewneck") || (key.includes("crew neck") && !key.includes("t shirt"))) {
+    guide = {
+      ...pick({
+        "S": { widthIn: 10, heightIn: 12 },
+        "M": { widthIn: 10.5, heightIn: 12.5 },
+        "L": { widthIn: 11, heightIn: 13 },
+        "XL": { widthIn: 11.5, heightIn: 14 },
+        "2XL": { widthIn: 12, heightIn: 14.5 },
+        "3XL": { widthIn: 12, heightIn: 14.5 },
+      }, { widthIn: 11, heightIn: 13 }),
+      collarIn: 3.25,
+      maxWidthIn: 12,
+      maxHeightIn: 15,
+      topShift: 1,
+    };
+  } else {
+    guide = {
+      ...pick({
+        "XS": { widthIn: 10, heightIn: 12.5 },
+        "S": { widthIn: 10.5, heightIn: 13 },
+        "M": { widthIn: 11, heightIn: 14 },
+        "L": { widthIn: 11.5, heightIn: 14.5 },
+        "XL": { widthIn: 12, heightIn: 15 },
+        "2XL": { widthIn: 12, heightIn: 15 },
+        "3XL": { widthIn: 12, heightIn: 15 },
+        "4XL": { widthIn: 12, heightIn: 15 },
+        "5XL": { widthIn: 12, heightIn: 15 },
+      }, { widthIn: 11, heightIn: 14 }),
+      collarIn: 3.25,
+      maxWidthIn: 12,
+      maxHeightIn: 16,
+      topShift: 1,
+    };
+  }
+
+  const widthRatio = guide.widthIn / Math.max(1, Number(frontProfile.widthIn || guide.widthIn));
+  const heightRatio = guide.heightIn / Math.max(1, Number(frontProfile.heightIn || guide.heightIn));
+
   return {
-    ...profile,
-    top: profile.top + (isBack ? (key.includes("hoodie") ? 1.5 : 1) : 0),
-    height: profile.height + (isBack && key.includes("hoodie") ? 2 : 0),
-    collarIn: isBack ? (profile.backCollarIn || profile.collarIn) : profile.collarIn,
-    bottomClearanceIn: isBack ? null : profile.bottomClearanceIn,
-    placementLabel: isBack ? "Centered back" : profile.placementLabel
+    ...frontProfile,
+    widthIn: guide.widthIn,
+    heightIn: guide.heightIn,
+    maxWidthIn: guide.maxWidthIn,
+    maxHeightIn: guide.maxHeightIn,
+    collarIn: guide.collarIn,
+    top: frontProfile.top + guide.topShift,
+    width: Math.min(65, Math.max(22, frontProfile.width * widthRatio)),
+    height: Math.min(62, Math.max(20, frontProfile.height * heightRatio)),
+    bottomClearanceIn: null,
+    placementLabel: key.includes("hoodie") ? "Centered below hood" : "Centered back",
   };
 }
 
@@ -1394,13 +1509,26 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     : (colorPreview.frontUrl || previewSettings.frontMockupUrl);
   const inferredMockupUrl = previewImageForGarment(garment, color, side);
   const mockupUrl = configuredMockupUrl || inferredMockupUrl;
-  const profile = recommendedPrintProfile(garment?.previewType || garment?.type, size, side);
-  const configuredArea = previewSettings?.printArea?.[side] || {};
-  const useCustomArea = previewSettings?.printAreaMode === "custom" || configuredArea?.mode === "custom" || profile.generic === true;
   const configuredNumber = (value, fallback) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
+  const defaultProfile = recommendedPrintProfile(garment?.previewType || garment?.type, size, side);
+  const configuredGuide = previewSettings?.printGuide?.[side] || {};
+  const sizeKey = String(size || "").toUpperCase().replace(/\s+/g, "");
+  const configuredSizeGuide = configuredGuide?.sizeScalingEnabled === false
+    ? {}
+    : (configuredGuide?.sizeOverrides?.[sizeKey] || configuredGuide?.sizeOverrides?.[size] || {});
+  const profile = {
+    ...defaultProfile,
+    collarIn: configuredNumber(configuredSizeGuide.collarIn ?? configuredGuide.collarIn, defaultProfile.collarIn),
+    widthIn: configuredNumber(configuredSizeGuide.widthIn ?? configuredGuide.widthIn, defaultProfile.widthIn),
+    heightIn: configuredNumber(configuredSizeGuide.heightIn ?? configuredGuide.heightIn, defaultProfile.heightIn),
+    maxWidthIn: configuredNumber(configuredGuide.maxWidthIn, defaultProfile.maxWidthIn || defaultProfile.widthIn),
+    maxHeightIn: configuredNumber(configuredGuide.maxHeightIn, defaultProfile.maxHeightIn || defaultProfile.heightIn),
+  };
+  const configuredArea = previewSettings?.printArea?.[side] || {};
+  const useCustomArea = previewSettings?.printAreaMode === "custom" || configuredArea?.mode === "custom" || profile.generic === true;
   const printArea = {
     top: useCustomArea ? configuredNumber(configuredArea.top, profile.top) : profile.top,
     width: useCustomArea ? configuredNumber(configuredArea.width, profile.width) : profile.width,
@@ -1410,6 +1538,13 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     top: printArea.top + "%",
     width: printArea.width + "%",
     height: printArea.height + "%"
+  };
+  const maxAreaWidth = Math.min(78, printArea.width * (configuredNumber(profile.maxWidthIn, profile.widthIn) / Math.max(0.1, profile.widthIn)));
+  const maxAreaHeight = Math.min(70, printArea.height * (configuredNumber(profile.maxHeightIn, profile.heightIn) / Math.max(0.1, profile.heightIn)));
+  const maxPrintAreaStyle = {
+    top: printArea.top + "%",
+    width: maxAreaWidth + "%",
+    height: maxAreaHeight + "%"
   };
   const artworkLayerStyle = {
     left: (50 + Number(artworkOffset?.x || 0)) + "%",
@@ -1446,10 +1581,12 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
   return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
-    {showMeasurements && !blankBack && <div className="absolute left-3 top-11 z-30 max-w-[220px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
-      <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">Recommended print zone · {size || "—"}</div>
-      <div className="mt-1 text-[10px] font-bold text-[#292621]">{measurementPair(profile.widthIn, profile.heightIn)}</div>
+    {showMeasurements && !blankBack && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
+      <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">{side === "back" ? "Back print guide" : "Recommended print zone"} · {size || "—"}</div>
+      <div className="mt-1 text-[10px] font-bold text-[#292621]">Recommended · {measurementPair(profile.widthIn, profile.heightIn)}</div>
+      {side === "back" && <div className="mt-1 text-[8px] font-semibold text-[#6f6a63]">Maximum safe area · {measurementPair(profile.maxWidthIn, profile.maxHeightIn)}</div>}
       <div className="mt-1 text-[8px] leading-relaxed text-[#625c54]">{profile.placementLabel} · ↓ {measurementSingle(profile.collarIn)} from {String(garment?.previewType || garment?.type || "").toLowerCase().includes("hoodie") ? "hood seam" : "collar"}</div>
+      {side === "back" && configuredGuide?.sizeScalingEnabled !== false && <div className="mt-1 text-[8px] text-[#7a746c]">Size-aware preset is active for {size || "this size"}.</div>}
       {profile.bottomClearanceIn && <div className="mt-1 text-[8px] font-semibold text-[#8a514b]">Keep ≥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
     </div>}
 
@@ -1463,6 +1600,10 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
             <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
             <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/90 px-1 py-0.5 font-mono text-[7px] text-accent">{formatMeasurementNumber(profile.collarIn)}"</span>
           </div>
+
+          {side === "back" && <div className="absolute left-1/2 -translate-x-1/2 rounded-sm border border-dotted border-[#7b8794]/75 bg-[#17324D]/[0.015]" style={maxPrintAreaStyle}>
+            <span className="absolute bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-white/90 px-1.5 py-0.5 font-mono text-[6px] uppercase tracking-wide text-[#65717d]">maximum safe area</span>
+          </div>}
 
           <div className="absolute left-1/2 -translate-x-1/2" style={printAreaStyle}>
             <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-accent/55" />
