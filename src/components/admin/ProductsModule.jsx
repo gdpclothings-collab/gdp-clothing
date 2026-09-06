@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Search,
   Plus,
@@ -564,6 +564,48 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const [variantBulkPrice, setVariantBulkPrice] = useState("");
   const [variantBulkCost, setVariantBulkCost] = useState("");
   const [variantBulkAdjustment, setVariantBulkAdjustment] = useState("");
+  const [mediaEditLayout, setMediaEditLayout] = useState(null);
+  const [variantEditLayout, setVariantEditLayout] = useState(null);
+  const editorScrollRef = useRef(null);
+  const pendingEditorScrollTopRef = useRef(null);
+
+  const mediaFilterSignature = JSON.stringify(mediaFilters);
+  const variantFilterSignature = JSON.stringify(variantFilters);
+
+  const captureEditorViewport = () => {
+    const node = editorScrollRef.current;
+    if (node) pendingEditorScrollTopRef.current = node.scrollTop;
+  };
+
+  useLayoutEffect(() => {
+    if (pendingEditorScrollTopRef.current === null) return;
+    const node = editorScrollRef.current;
+    const scrollTop = pendingEditorScrollTopRef.current;
+    pendingEditorScrollTopRef.current = null;
+    if (node && Math.abs(node.scrollTop - scrollTop) > 1) {
+      node.scrollTop = scrollTop;
+    }
+  });
+
+  const lockMediaEditingLayout = () => {
+    setMediaEditLayout((current) => {
+      if (current?.signature === mediaFilterSignature) return current;
+      return {
+        signature: mediaFilterSignature,
+        rows: Object.fromEntries(mediaRows.map((row) => [row.image, { ...row }])),
+      };
+    });
+  };
+
+  const lockVariantEditingLayout = () => {
+    setVariantEditLayout((current) => {
+      if (current?.signature === variantFilterSignature) return current;
+      return {
+        signature: variantFilterSignature,
+        rows: Object.fromEntries(variantRows.map((row) => [row.key, { ...row, variant: { ...row.variant } }])),
+      };
+    });
+  };
 
   useEffect(() => {
     const snapshot = JSON.stringify({ form, variants, metafields });
@@ -594,6 +636,9 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const updateMediaAssignments = (urls, patchOrFactory, { clear = false } = {}) => {
     const selectedUrls = Array.from(new Set((urls || []).filter(Boolean)));
     if (!selectedUrls.length) return;
+
+    captureEditorViewport();
+    lockMediaEditingLayout();
 
     setForm((current) => {
       const selectedSet = new Set(selectedUrls);
@@ -756,6 +801,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   };
 
   const updateVariant = (index, key, value) => {
+    captureEditorViewport();
+    lockVariantEditingLayout();
     setVariants((current) =>
       current.map((variant, variantIndex) =>
         variantIndex === index ? { ...variant, [key]: value } : variant
@@ -764,6 +811,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   };
 
   const updatePrimaryVariant = (key, value) => {
+    captureEditorViewport();
+    lockVariantEditingLayout();
     setVariants((current) => {
       const next = current.length
         ? current.map((variant, index) => (index === 0 ? { ...variant, [key]: value } : variant))
@@ -772,7 +821,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     });
   };
 
-  const variantKey = (variant, index) => variant?.id ? `id:${variant.id}` : `new:${index}`;
+  const variantKey = (variant, index) =>
+    variant?._uiKey || (variant?.id ? `id:${variant.id}` : `new:${index}`);
 
   const toggleVariantSelection = (variant, index) => {
     const key = variantKey(variant, index);
@@ -783,6 +833,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
 
   const updateSelectedVariants = (updater) => {
     if (!selectedVariantKeys.length) return;
+    captureEditorViewport();
+    lockVariantEditingLayout();
     const selected = new Set(selectedVariantKeys);
     setVariants((current) =>
       current.map((variant, index) =>
@@ -830,6 +882,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   };
 
   const autoFillSkus = (selectedOnly = false) => {
+    captureEditorViewport();
+    lockVariantEditingLayout();
     const selected = new Set(selectedVariantKeys);
     setVariants((current) => current.map((variant, index) => {
       if (selectedOnly && !selected.has(variantKey(variant, index))) return variant;
@@ -1054,12 +1108,16 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       return;
     }
 
+    captureEditorViewport();
     setSaving(true);
     setSaveState("saving");
     try {
       const safeVariants = variants.length
-        ? variants
-        : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, costPerItem: null, color: "", size: "" }];
+        ? variants.map((variant, index) => ({
+            ...variant,
+            _uiKey: variant._uiKey || variantKey(variant, index),
+          }))
+        : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, costPerItem: null, color: "", size: "", _uiKey: "new:0" }];
 
       const metafieldObject = {};
       for (const row of metafields) {
@@ -1156,7 +1214,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
 
       const wasExistingProduct = Boolean(savedProductId);
       const savedProduct = await adminProductsApi.save(savedProductId, payload);
-      const persistedVariants = (savedProduct?.variants || []).map((variant) => ({ ...variant }));
+      const persistedVariants = (savedProduct?.variants || []).map((variant, index) => ({
+        ...variant,
+        _uiKey: safeVariants[index]?._uiKey || (variant?.id ? `id:${variant.id}` : `new:${index}`),
+      }));
 
       setSavedProductId(savedProduct.id);
       setSavedVariants(persistedVariants);
@@ -1170,6 +1231,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       setBaselineSnapshot(persistedSnapshot);
       setSaveState("saved");
 
+      captureEditorViewport();
       await onSaved(wasExistingProduct ? "Product updated." : "Product created. You can keep editing.");
     } catch (err) {
       console.error("Product save failed:", err);
@@ -1222,35 +1284,44 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     missingAlt: mediaRows.filter((row) => row.missingAlt).length,
   };
   const mediaSearch = mediaFilters.search.trim().toLowerCase();
-  const visibleMediaRows = mediaRows
+  const lockedMediaRows =
+    mediaEditLayout?.signature === mediaFilterSignature ? mediaEditLayout.rows : null;
+  const mediaRowsForDisplay = mediaRows.map((row) => ({
+    ...row,
+    display: lockedMediaRows?.[row.image] || row,
+  }));
+  const visibleMediaRows = mediaRowsForDisplay
     .filter((row) => {
+      const display = row.display || row;
       if (
         mediaSearch &&
-        ![row.color, row.view, row.alt, row.image].some((value) =>
+        ![display.color, display.view, display.alt, row.image].some((value) =>
           String(value || "").toLowerCase().includes(mediaSearch)
         )
       ) return false;
       if (mediaFilters.view !== "all") {
-        if (mediaFilters.view === "unassigned" ? row.view : row.view !== mediaFilters.view) return false;
+        if (mediaFilters.view === "unassigned" ? display.view : display.view !== mediaFilters.view) return false;
       }
       if (mediaFilters.color !== "all") {
-        if (mediaFilters.color === "unassigned" ? row.color : row.color !== mediaFilters.color) return false;
+        if (mediaFilters.color === "unassigned" ? display.color : display.color !== mediaFilters.color) return false;
       }
       if (mediaFilters.assignment !== "all") {
         const matches = {
-          fully_assigned: row.fullyAssigned,
-          needs_attention: !row.fullyAssigned,
-          missing_color: row.missingColor,
-          missing_view: row.missingView,
-          missing_alt: row.missingAlt,
-          unassigned: row.unassigned,
-          studio_mapped: row.studioMapped,
+          fully_assigned: display.fullyAssigned,
+          needs_attention: !display.fullyAssigned,
+          missing_color: display.missingColor,
+          missing_view: display.missingView,
+          missing_alt: display.missingAlt,
+          unassigned: display.unassigned,
+          studio_mapped: display.studioMapped,
         }[mediaFilters.assignment];
         if (!matches) return false;
       }
       return true;
     })
     .sort((a, b) => {
+      const displayA = a.display || a;
+      const displayB = b.display || b;
       const groupValue = (row) =>
         mediaFilters.groupBy === "color"
           ? row.color || "zzzz-unassigned"
@@ -1258,13 +1329,13 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
             ? row.view || "zzzz-unassigned"
             : "";
       if (mediaFilters.groupBy !== "none") {
-        const groupCompare = groupValue(a).localeCompare(groupValue(b));
+        const groupCompare = groupValue(displayA).localeCompare(groupValue(displayB));
         if (groupCompare !== 0) return groupCompare;
       }
-      if (mediaFilters.sortBy === "color") return (a.color || "zzzz").localeCompare(b.color || "zzzz") || a.index - b.index;
-      if (mediaFilters.sortBy === "view") return (a.view || "zzzz").localeCompare(b.view || "zzzz") || a.index - b.index;
-      if (mediaFilters.sortBy === "recent") return b.index - a.index;
-      return a.index - b.index;
+      if (mediaFilters.sortBy === "color") return (displayA.color || "zzzz").localeCompare(displayB.color || "zzzz") || displayA.index - displayB.index;
+      if (mediaFilters.sortBy === "view") return (displayA.view || "zzzz").localeCompare(displayB.view || "zzzz") || displayA.index - displayB.index;
+      if (mediaFilters.sortBy === "recent") return displayB.index - displayA.index;
+      return displayA.index - displayB.index;
     });
 
   const lowStockThreshold = Number(settings?.low_stock_threshold ?? 5);
@@ -1311,27 +1382,36 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     out: variantRows.filter((row) => row.stockStatus === "out").length,
   };
   const variantSearch = variantFilters.search.trim().toLowerCase();
-  const visibleVariantRows = variantRows
+  const lockedVariantRows =
+    variantEditLayout?.signature === variantFilterSignature ? variantEditLayout.rows : null;
+  const variantRowsForDisplay = variantRows.map((row) => ({
+    ...row,
+    display: lockedVariantRows?.[row.key] || row,
+  }));
+  const visibleVariantRows = variantRowsForDisplay
     .filter((row) => {
-      const variant = row.variant;
+      const display = row.display || row;
+      const displayVariant = display.variant || row.variant;
       if (
         variantSearch &&
-        ![variant.name, variant.sku, variant.barcode, row.color, row.size].some((value) =>
+        ![displayVariant.name, displayVariant.sku, displayVariant.barcode, display.color, display.size].some((value) =>
           String(value || "").toLowerCase().includes(variantSearch)
         )
       ) return false;
-      if (variantFilters.color !== "all" && row.color !== variantFilters.color) return false;
-      if (variantFilters.size !== "all" && row.size !== variantFilters.size) return false;
-      if (variantFilters.stock !== "all" && row.stockStatus !== variantFilters.stock) return false;
-      if (variantFilters.pricing === "base" && row.priceOverride) return false;
-      if (variantFilters.pricing === "override" && !row.priceOverride) return false;
-      if (variantFilters.pricing === "missing" && row.effectivePrice > 0) return false;
-      if (variantFilters.costing === "base" && row.costOverride) return false;
-      if (variantFilters.costing === "override" && !row.costOverride) return false;
-      if (variantFilters.costing === "missing" && row.effectiveCost > 0) return false;
+      if (variantFilters.color !== "all" && display.color !== variantFilters.color) return false;
+      if (variantFilters.size !== "all" && display.size !== variantFilters.size) return false;
+      if (variantFilters.stock !== "all" && display.stockStatus !== variantFilters.stock) return false;
+      if (variantFilters.pricing === "base" && display.priceOverride) return false;
+      if (variantFilters.pricing === "override" && !display.priceOverride) return false;
+      if (variantFilters.pricing === "missing" && display.effectivePrice > 0) return false;
+      if (variantFilters.costing === "base" && display.costOverride) return false;
+      if (variantFilters.costing === "override" && !display.costOverride) return false;
+      if (variantFilters.costing === "missing" && display.effectiveCost > 0) return false;
       return true;
     })
     .sort((a, b) => {
+      const displayA = a.display || a;
+      const displayB = b.display || b;
       const groupValue = (row) =>
         variantFilters.groupBy === "color"
           ? row.color || "zzzz-unassigned"
@@ -1339,20 +1419,20 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
             ? String(sizeRank(row.size)).padStart(3, "0") + "-" + (row.size || "zzzz")
             : "";
       if (variantFilters.groupBy !== "none") {
-        const groupCompare = groupValue(a).localeCompare(groupValue(b));
+        const groupCompare = groupValue(displayA).localeCompare(groupValue(displayB));
         if (groupCompare !== 0) return groupCompare;
       }
-      if (variantFilters.sortBy === "size_color") return sizeRank(a.size) - sizeRank(b.size) || (a.color || "zzzz").localeCompare(b.color || "zzzz");
-      if (variantFilters.sortBy === "sku") return String(a.variant.sku || "zzzz").localeCompare(String(b.variant.sku || "zzzz"));
-      if (variantFilters.sortBy === "stock_asc") return a.stock - b.stock;
-      if (variantFilters.sortBy === "stock_desc") return b.stock - a.stock;
-      if (variantFilters.sortBy === "price_asc") return a.effectivePrice - b.effectivePrice;
-      if (variantFilters.sortBy === "price_desc") return b.effectivePrice - a.effectivePrice;
-      if (variantFilters.sortBy === "cost_asc") return a.effectiveCost - b.effectiveCost;
-      if (variantFilters.sortBy === "cost_desc") return b.effectiveCost - a.effectiveCost;
-      if (variantFilters.sortBy === "profit_asc") return a.effectiveProfit - b.effectiveProfit;
-      if (variantFilters.sortBy === "profit_desc") return b.effectiveProfit - a.effectiveProfit;
-      return (a.color || "zzzz").localeCompare(b.color || "zzzz") || sizeRank(a.size) - sizeRank(b.size) || a.index - b.index;
+      if (variantFilters.sortBy === "size_color") return sizeRank(displayA.size) - sizeRank(displayB.size) || (displayA.color || "zzzz").localeCompare(displayB.color || "zzzz");
+      if (variantFilters.sortBy === "sku") return String(displayA.variant?.sku || "zzzz").localeCompare(String(displayB.variant?.sku || "zzzz"));
+      if (variantFilters.sortBy === "stock_asc") return displayA.stock - displayB.stock;
+      if (variantFilters.sortBy === "stock_desc") return displayB.stock - displayA.stock;
+      if (variantFilters.sortBy === "price_asc") return displayA.effectivePrice - displayB.effectivePrice;
+      if (variantFilters.sortBy === "price_desc") return displayB.effectivePrice - displayA.effectivePrice;
+      if (variantFilters.sortBy === "cost_asc") return displayA.effectiveCost - displayB.effectiveCost;
+      if (variantFilters.sortBy === "cost_desc") return displayB.effectiveCost - displayA.effectiveCost;
+      if (variantFilters.sortBy === "profit_asc") return displayA.effectiveProfit - displayB.effectiveProfit;
+      if (variantFilters.sortBy === "profit_desc") return displayB.effectiveProfit - displayA.effectiveProfit;
+      return (displayA.color || "zzzz").localeCompare(displayB.color || "zzzz") || sizeRank(displayA.size) - sizeRank(displayB.size) || displayA.index - displayB.index;
     });
 
   const allVisibleMediaSelected =
@@ -1380,7 +1460,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   });
 
   return (
-    <div className="fixed inset-0 z-[70] bg-[#f4f4f4] overflow-y-auto">
+    <div ref={editorScrollRef} data-editor-scroll-root className="fixed inset-0 z-[70] bg-[#f4f4f4] overflow-y-auto">
       <form onSubmit={submit} className="min-h-full">
         <div className="sticky top-0 z-30 border-b border-[#dcdcdc] bg-[#111] text-white shadow-sm">
           <div className="max-w-[1240px] mx-auto min-h-16 px-4 md:px-6 flex items-center justify-between gap-4">
@@ -1700,29 +1780,32 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                           <div className="p-6 text-center text-xs text-[#777]">No media matches the current filters.</div>
                         ) : visibleMediaRows.map((row, visibleIndex) => {
                           const meta = form.customization?.media?.[row.image] || {};
+                          const display = row.display || row;
                           const groupLabel = mediaFilters.groupBy === "color"
-                            ? row.color || "Unassigned color"
+                            ? display.color || "Unassigned color"
                             : mediaFilters.groupBy === "view"
-                              ? row.view ? row.view.charAt(0).toUpperCase() + row.view.slice(1) : "Unassigned view"
+                              ? display.view ? display.view.charAt(0).toUpperCase() + display.view.slice(1) : "Unassigned view"
                               : "";
                           const previous = visibleMediaRows[visibleIndex - 1];
+                          const previousDisplay = previous?.display || previous;
                           const previousGroup = previous
                             ? mediaFilters.groupBy === "color"
-                              ? previous.color || "Unassigned color"
+                              ? previousDisplay.color || "Unassigned color"
                               : mediaFilters.groupBy === "view"
-                                ? previous.view ? previous.view.charAt(0).toUpperCase() + previous.view.slice(1) : "Unassigned view"
+                                ? previousDisplay.view ? previousDisplay.view.charAt(0).toUpperCase() + previousDisplay.view.slice(1) : "Unassigned view"
                                 : ""
                             : null;
                           const showGroup = mediaFilters.groupBy !== "none" && groupLabel !== previousGroup;
                           return (
-                            <React.Fragment key={`media-meta-${row.image}-${row.index}`}>
+                            <React.Fragment key={`media-meta-${row.image}`}>
                               {showGroup && (
                                 <div className="border-t border-[#e9e9e9] bg-[#f7f7f7] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-[#666]">
-                                  {groupLabel} · {visibleMediaRows.filter((item) => (
-                                    mediaFilters.groupBy === "color"
-                                      ? (item.color || "Unassigned color") === groupLabel
-                                      : (item.view ? item.view.charAt(0).toUpperCase() + item.view.slice(1) : "Unassigned view") === groupLabel
-                                  )).length} media
+                                  {groupLabel} · {visibleMediaRows.filter((item) => {
+                                    const itemDisplay = item.display || item;
+                                    return mediaFilters.groupBy === "color"
+                                      ? (itemDisplay.color || "Unassigned color") === groupLabel
+                                      : (itemDisplay.view ? itemDisplay.view.charAt(0).toUpperCase() + itemDisplay.view.slice(1) : "Unassigned view") === groupLabel;
+                                  }).length} media
                                 </div>
                               )}
                               <div className="border-t border-[#eeeeee] p-3 grid md:grid-cols-[28px_54px_.75fr_.9fr_1.3fr_auto] gap-2 items-end">
@@ -2318,17 +2401,19 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       <div className="p-6 text-center text-xs text-[#777]">No variants match the current filters.</div>
                     ) : visibleVariantRows.map((row, visibleIndex) => {
                       const variant = row.variant;
+                      const display = row.display || row;
                       const groupLabel = variantFilters.groupBy === "color"
-                        ? row.color || "Unassigned color"
+                        ? display.color || "Unassigned color"
                         : variantFilters.groupBy === "size"
-                          ? row.size || "Unassigned size"
+                          ? display.size || "Unassigned size"
                           : "";
                       const previous = visibleVariantRows[visibleIndex - 1];
+                      const previousDisplay = previous?.display || previous;
                       const previousGroup = previous
                         ? variantFilters.groupBy === "color"
-                          ? previous.color || "Unassigned color"
+                          ? previousDisplay.color || "Unassigned color"
                           : variantFilters.groupBy === "size"
-                            ? previous.size || "Unassigned size"
+                            ? previousDisplay.size || "Unassigned size"
                             : ""
                         : null;
                       const showGroup = variantFilters.groupBy !== "none" && groupLabel !== previousGroup;
@@ -2337,11 +2422,12 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                           {showGroup && (
                             <div className="border-t border-[#e9e9e9] bg-[#f7f7f7] px-3 py-2 flex items-center justify-between gap-2">
                               <div className="text-[10px] font-bold uppercase tracking-wide text-[#666]">
-                                {groupLabel} · {visibleVariantRows.filter((item) => (
-                                  variantFilters.groupBy === "color"
-                                    ? (item.color || "Unassigned color") === groupLabel
-                                    : (item.size || "Unassigned size") === groupLabel
-                                )).length} variants
+                                {groupLabel} · {visibleVariantRows.filter((item) => {
+                                  const itemDisplay = item.display || item;
+                                  return variantFilters.groupBy === "color"
+                                    ? (itemDisplay.color || "Unassigned color") === groupLabel
+                                    : (itemDisplay.size || "Unassigned size") === groupLabel;
+                                }).length} variants
                               </div>
                               {variantFilters.groupBy === "color" && row.color && (
                                 <div className="text-[9px] text-[#888]">Grouped for faster color-by-color editing</div>
