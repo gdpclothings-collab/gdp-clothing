@@ -422,6 +422,16 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
+  const setCustomizationValue = (key, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        [key]: value,
+      },
+    }));
+  };
+
   const setPreviewConfig = (key, value) => {
     setForm((current) => ({
       ...current,
@@ -1514,13 +1524,34 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
               </SideCard>
 
               {form.customDesignable && (
+                <SideCard title="Custom Studio pricing">
+                  <Field label="Front + back surcharge" helper="Added per garment when both print sides are selected">
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#777]">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.customization?.frontBackFee ?? 10}
+                        onChange={(event) => setCustomizationValue("frontBackFee", Math.max(0, Number(event.target.value || 0)))}
+                        className={inputClass + " pl-7"}
+                      />
+                    </div>
+                  </Field>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-5 text-blue-800">
+                    This fee is garment-specific. Set it to <strong>$0</strong> for no additional charge. Whether customers see the amount in Custom Studio is controlled by <strong>Admin → Custom Studio → Settings → Studio price visibility</strong>.
+                  </div>
+                </SideCard>
+              )}
+
+              {form.customDesignable && (
                 <SideCard title="Custom Studio preview">
                   <div className="text-[11px] leading-5 text-[#777]">
                     Use the generated garment silhouette, or select an uploaded product image as the front/back mockup. Print-area values are percentages of the mockup canvas.
                   </div>
 
                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-5 text-blue-800">
-                    Global Custom Studio behavior is managed from <strong>Admin → Custom Studio → Settings</strong>. This product section only controls garment-specific preview media and print-area mapping.
+                    Global Custom Studio behavior is managed from <strong>Admin → Custom Studio → Settings</strong>. This product section controls garment-specific pricing, preview media and print-area mapping.
                   </div>
 
                   <Field label="Front mockup" helper="Optional">
