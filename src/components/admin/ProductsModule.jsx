@@ -145,7 +145,6 @@ export default function ProductsModule() {
   };
 
   const afterSave = async (message) => {
-    setEditor(null);
     showNotice(message);
     await Promise.all([loadProducts(), loadReference()]);
   };
@@ -384,7 +383,11 @@ export default function ProductsModule() {
 }
 
 function ProductEditor({ product, collections, settings, onClose, onSaved }) {
-  const isEdit = Boolean(product?.id);
+  const [savedProductId, setSavedProductId] = useState(product?.id || null);
+  const [savedVariants, setSavedVariants] = useState(() =>
+    product?.variants?.length ? product.variants.map((variant) => ({ ...variant })) : []
+  );
+  const isEdit = Boolean(savedProductId);
   const shipping = product?.shippingPackage || {};
   const unitPrice = product?.unitPrice || {};
   const productMetafields = product?.metafields || {};
@@ -964,7 +967,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     event.preventDefault();
 
     const submittedExistingIds = new Set(variants.map((variant) => variant.id).filter(Boolean));
-    const retiringWithStock = (product?.variants || []).filter(
+    const retiringWithStock = savedVariants.filter(
       (variant) => variant.id && !submittedExistingIds.has(variant.id) && Number(variant.stock || 0) > 0
     );
     if (
@@ -1072,8 +1075,23 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
         })),
       };
 
-      await adminProductsApi.save(product?.id || null, payload);
-      await onSaved(isEdit ? "Product updated." : "Product created.");
+      const wasExistingProduct = Boolean(savedProductId);
+      const savedProduct = await adminProductsApi.save(savedProductId, payload);
+      const persistedVariants = (savedProduct?.variants || []).map((variant) => ({ ...variant }));
+
+      setSavedProductId(savedProduct.id);
+      setSavedVariants(persistedVariants);
+      setVariants(persistedVariants);
+
+      const persistedSnapshot = JSON.stringify({
+        form,
+        variants: persistedVariants,
+        metafields,
+      });
+      setBaselineSnapshot(persistedSnapshot);
+      setSaveState("saved");
+
+      await onSaved(wasExistingProduct ? "Product updated." : "Product created. You can keep editing.");
     } catch (err) {
       console.error("Product save failed:", err);
       setSaveState("unsaved");
@@ -1281,7 +1299,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
               {isEdit && form.status === "active" && (
                 <button
                   type="button"
-                  onClick={() => window.open(`/product/${product.id}`, "_blank", "noopener,noreferrer")}
+                  onClick={() => window.open(`/product/${savedProductId}`, "_blank", "noopener,noreferrer")}
                   className="hidden sm:inline-flex h-9 px-3 rounded-lg border border-white/20 text-sm hover:bg-white/10 items-center"
                 >
                   Preview
