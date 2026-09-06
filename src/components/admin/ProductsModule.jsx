@@ -401,6 +401,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
     bestSeller: Boolean(product?.bestSeller),
     newArrival: Boolean(product?.newArrival),
     customDesignable: Boolean(product?.customDesignable),
+    customization: product?.customization || {},
     collectionIds: product?.collectionIds || [],
     salesChannels: product?.salesChannels?.length ? product.salesChannels : ["online_store"],
     themeTemplate: product?.themeTemplate || "default",
@@ -420,6 +421,38 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
   });
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const setPreviewConfig = (key, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        preview: {
+          ...(current.customization?.preview || {}),
+          [key]: value,
+        },
+      },
+    }));
+  };
+
+  const setPrintAreaValue = (side, key, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        preview: {
+          ...(current.customization?.preview || {}),
+          printArea: {
+            ...(current.customization?.preview?.printArea || {}),
+            [side]: {
+              ...(current.customization?.preview?.printArea?.[side] || {}),
+              [key]: value === "" ? "" : Number(value),
+            },
+          },
+        },
+      },
+    }));
+  };
 
   const toggleCollection = (collectionId) => {
     setForm((current) => ({
@@ -631,7 +664,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
         bestSeller: form.bestSeller,
         newArrival: form.newArrival,
         customDesignable: form.customDesignable,
-        customization: product?.customization || {},
+        customization: form.customization || {},
         collectionIds: form.collectionIds,
         salesChannels: form.salesChannels,
         themeTemplate: form.themeTemplate || "default",
@@ -1401,10 +1434,78 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                 {form.customDesignable && (
                   <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-800 flex gap-2">
                     <Sparkles size={15} className="shrink-0 mt-0.5" />
-                    Existing customization rules remain preserved.
+                    Live preview settings are editable below.
                   </div>
                 )}
               </SideCard>
+
+              {form.customDesignable && (
+                <SideCard title="Custom Studio preview">
+                  <div className="text-[11px] leading-5 text-[#777]">
+                    Use the generated garment silhouette, or select an uploaded product image as the front/back mockup. Print-area values are percentages of the mockup canvas.
+                  </div>
+
+                  <Field label="Front mockup" helper="Optional">
+                    <select
+                      value={form.customization?.preview?.frontMockupUrl || ""}
+                      onChange={(event) => setPreviewConfig("frontMockupUrl", event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Generated garment silhouette</option>
+                      {(form.images || []).map((url, index) => (
+                        <option key={"front-" + url} value={url}>Product media {index + 1}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Back mockup" helper="Optional">
+                    <select
+                      value={form.customization?.preview?.backMockupUrl || ""}
+                      onChange={(event) => setPreviewConfig("backMockupUrl", event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Generated garment silhouette</option>
+                      {(form.images || []).map((url, index) => (
+                        <option key={"back-" + url} value={url}>Product media {index + 1}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+                    <div className="text-xs font-semibold">Front printable area</div>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <Field label="Top %">
+                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.front?.top ?? 29} onChange={(event) => setPrintAreaValue("front", "top", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Width %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.width ?? 36} onChange={(event) => setPrintAreaValue("front", "width", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Height %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.height ?? 38} onChange={(event) => setPrintAreaValue("front", "height", event.target.value)} className={inputClass} />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+                    <div className="text-xs font-semibold">Back printable area</div>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <Field label="Top %">
+                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.back?.top ?? 29} onChange={(event) => setPrintAreaValue("back", "top", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Width %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.width ?? 36} onChange={(event) => setPrintAreaValue("back", "width", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Height %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.height ?? 38} onChange={(event) => setPrintAreaValue("back", "height", event.target.value)} className={inputClass} />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] leading-4 text-[#888]">
+                    Tip: keep the guide inside the real printable chest/back area. Customers can move and scale artwork within this zone, while the original uploaded files remain preserved for production.
+                  </div>
+                </SideCard>
+              )}
 
               <SideCard title="Theme template">
                 <select
