@@ -15,6 +15,8 @@ import {
   Smartphone,
   SlidersHorizontal,
   BookOpen,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { adminCustomStudioApi } from "@/lib/adminCustomStudioApi";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
@@ -32,13 +34,44 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+const HIDDEN_INTENSITY_IMAGE = "__hidden__";
+
+const INTENSITY_LEVELS = {
+  1: { label: "Clean", description: "Minimal layout with one clear focal point and lots of breathing room." },
+  2: { label: "Light", description: "A few extra details and accents while staying clean and easy to read." },
+  3: { label: "Balanced", description: "A solid mix of subject, text and decorative elements." },
+  4: { label: "Bold", description: "More layering, stronger effects and a fuller composition." },
+  5: { label: "Maximum Chaos", description: "Fully loaded bootleg look with dense collage energy." },
+};
+
 const DEFAULT_STUDIO_SETTINGS = {
   mobileFloatingCtaEnabled: false,
   intensityExamplesEnabled: true,
   intensityExampleImageUrl: "/images/design-intensity-bootleg.svg",
+  intensityExamples: { "1": "", "2": "", "3": "", "4": "", "5": "" },
+  showCombinedIntensityGuide: true,
   defaultDesignIntensity: 3,
   orderGuideEnabled: true,
 };
+
+function normalizeIntensityExamples(examples = {}) {
+  return Object.fromEntries(
+    [1, 2, 3, 4, 5].map((level) => {
+      const raw = examples?.[level] ?? examples?.[String(level)] ?? "";
+      const value = typeof raw === "string" ? raw : String(raw?.imageUrl || "");
+      return [String(level), value];
+    })
+  );
+}
+
+function normalizeStudioSettings(settings = {}) {
+  return {
+    ...DEFAULT_STUDIO_SETTINGS,
+    ...(settings || {}),
+    intensityExamples: normalizeIntensityExamples(settings?.intensityExamples),
+    defaultDesignIntensity: Math.min(5, Math.max(1, Number(settings?.defaultDesignIntensity || 3))),
+  };
+}
 
 export default function CustomStudioAdminModule() {
   const [tab, setTab] = useState("pipeline");
@@ -68,7 +101,7 @@ export default function CustomStudioAdminModule() {
     setSettingsLoading(true);
     try {
       const settings = await adminSettingsApi.loadCustomStudioSettings();
-      setStudioSettings({ ...DEFAULT_STUDIO_SETTINGS, ...(settings || {}) });
+      setStudioSettings(normalizeStudioSettings(settings));
     } catch (err) {
       console.error("Custom Studio settings load failed:", err);
       setError(err?.message || "Could not load Custom Studio settings.");
@@ -85,11 +118,7 @@ export default function CustomStudioAdminModule() {
   const saveStudioSettings = async () => {
     setSettingsSaving(true);
     try {
-      const normalized = {
-        ...DEFAULT_STUDIO_SETTINGS,
-        ...studioSettings,
-        defaultDesignIntensity: Math.min(5, Math.max(1, Number(studioSettings.defaultDesignIntensity || 3))),
-      };
+      const normalized = normalizeStudioSettings(studioSettings);
       await adminSettingsApi.saveCustomStudioSettings(normalized);
       setStudioSettings(normalized);
       showNotice("Custom Studio settings saved.");
@@ -103,6 +132,26 @@ export default function CustomStudioAdminModule() {
 
   const setStudioSetting = (key, value) =>
     setStudioSettings((current) => ({ ...current, [key]: value }));
+
+  const updateIntensityExample = async (level, value) => {
+    const previous = studioSettings;
+    const next = normalizeStudioSettings({
+      ...studioSettings,
+      intensityExamples: {
+        ...normalizeIntensityExamples(studioSettings.intensityExamples),
+        [String(level)]: value,
+      },
+    });
+    setStudioSettings(next);
+    try {
+      await adminSettingsApi.saveCustomStudioSettings(next);
+      showNotice(`${level}/5 intensity example updated.`);
+    } catch (err) {
+      console.error("Intensity example save failed:", err);
+      setStudioSettings(previous);
+      window.alert(err?.message || "Could not save the intensity example.");
+    }
+  };
 
   const showNotice = (message) => {
     setNotice(message);
@@ -195,6 +244,7 @@ export default function CustomStudioAdminModule() {
           saving={settingsSaving}
           onChange={setStudioSetting}
           onSave={saveStudioSettings}
+          onIntensityImageChange={updateIntensityExample}
         />
       ) : <>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
@@ -347,121 +397,227 @@ export default function CustomStudioAdminModule() {
   );
 }
 
-function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave }) {
+function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave, onIntensityImageChange }) {
+  const [uploadingLevel, setUploadingLevel] = useState(null);
+
   if (loading) {
     return <div className="rounded-xl border border-[#dedede] bg-white py-16 text-center text-sm text-[#777]">Loading Custom Studio settings…</div>;
   }
 
-  return (
-    <div className="grid xl:grid-cols-[1fr_.9fr] gap-5">
-      <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#e8e8e8] flex items-center gap-2">
-          <SlidersHorizontal size={16} />
-          <div>
-            <div className="text-sm font-semibold">Customer experience</div>
-            <div className="text-xs text-[#777] mt-0.5">Global behavior for every Custom Studio garment</div>
-          </div>
-        </div>
-        <div className="p-4 space-y-4">
-          <SettingToggle
-            icon={Smartphone}
-            title="Mobile floating CTA"
-            description="Show the floating price + Continue / Add to Cart bar on mobile. Keep this off while the standard in-page controls are preferred."
-            checked={settings.mobileFloatingCtaEnabled === true}
-            onChange={(value) => onChange("mobileFloatingCtaEnabled", value)}
-          />
-          <SettingToggle
-            icon={BookOpen}
-            title="Design intensity examples"
-            description="Show the bootleg-rap visual guide beside the Design Intensity slider."
-            checked={settings.intensityExamplesEnabled !== false}
-            onChange={(value) => onChange("intensityExamplesEnabled", value)}
-          />
-          <SettingToggle
-            icon={BookOpen}
-            title="How Custom Orders Work guide"
-            description="Show the expandable workflow guide at the top of Custom Studio."
-            checked={settings.orderGuideEnabled !== false}
-            onChange={(value) => onChange("orderGuideEnabled", value)}
-          />
+  const examples = normalizeIntensityExamples(settings.intensityExamples);
 
-          <label className="block">
-            <span className="text-xs font-medium text-[#555]">Default design intensity</span>
-            <div className="mt-2 grid grid-cols-5 gap-2">
-              {[1,2,3,4,5].map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => onChange("defaultDesignIntensity", level)}
-                  className={"h-10 rounded-lg border text-sm font-semibold " + (Number(settings.defaultDesignIntensity) === level ? "border-[#222] bg-[#222] text-white" : "border-[#d5d5d5] bg-white")}
-                >
-                  {level}/5
-                </button>
+  const uploadExample = async (level, file) => {
+    if (!file) return;
+    setUploadingLevel(level);
+    try {
+      const url = await adminSettingsApi.uploadIntensityExample(file, level);
+      await onIntensityImageChange(level, url);
+    } catch (err) {
+      console.error("Intensity image upload failed:", err);
+      window.alert(err?.message || "Could not upload the intensity image.");
+    } finally {
+      setUploadingLevel(null);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="grid xl:grid-cols-[1fr_.9fr] gap-5">
+        <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e8e8e8] flex items-center gap-2">
+            <SlidersHorizontal size={16} />
+            <div>
+              <div className="text-sm font-semibold">Customer experience</div>
+              <div className="text-xs text-[#777] mt-0.5">Global behavior for every Custom Studio garment</div>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+            <SettingToggle
+              icon={Smartphone}
+              title="Mobile floating CTA"
+              description="Show the floating price + Continue / Add to Cart bar on mobile. Keep this off while the standard in-page controls are preferred."
+              checked={settings.mobileFloatingCtaEnabled === true}
+              onChange={(value) => onChange("mobileFloatingCtaEnabled", value)}
+            />
+            <SettingToggle
+              icon={BookOpen}
+              title="Design intensity examples"
+              description="Show the intensity example experience beside the Design Intensity slider."
+              checked={settings.intensityExamplesEnabled !== false}
+              onChange={(value) => onChange("intensityExamplesEnabled", value)}
+            />
+            <SettingToggle
+              icon={ImageIcon}
+              title="Combined intensity guide"
+              description="Build the customer guide automatically from the same five intensity photos below. Turn this off to show only the currently selected level."
+              checked={settings.showCombinedIntensityGuide !== false}
+              onChange={(value) => onChange("showCombinedIntensityGuide", value)}
+            />
+            <SettingToggle
+              icon={BookOpen}
+              title="How Custom Orders Work guide"
+              description="Show the expandable workflow guide at the top of Custom Studio."
+              checked={settings.orderGuideEnabled !== false}
+              onChange={(value) => onChange("orderGuideEnabled", value)}
+            />
+
+            <label className="block">
+              <span className="text-xs font-medium text-[#555]">Default design intensity</span>
+              <div className="mt-2 grid grid-cols-5 gap-2">
+                {[1,2,3,4,5].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => onChange("defaultDesignIntensity", level)}
+                    className={"h-10 rounded-lg border text-sm font-semibold " + (Number(settings.defaultDesignIntensity) === level ? "border-[#222] bg-[#222] text-white" : "border-[#d5d5d5] bg-white")}
+                  >
+                    {level}/5
+                  </button>
+                ))}
+              </div>
+              <div className="mt-1.5 text-[10px] text-[#777]">Recommended default: 3/5 Balanced.</div>
+            </label>
+
+            <details className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+              <summary className="cursor-pointer text-xs font-semibold text-[#555]">Advanced fallback guide</summary>
+              <label className="mt-3 block">
+                <span className="text-[11px] font-medium text-[#666]">Legacy/default combined guide URL</span>
+                <input
+                  value={settings.intensityExampleImageUrl || ""}
+                  onChange={(event) => onChange("intensityExampleImageUrl", event.target.value)}
+                  className="mt-1 w-full h-10 rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                  placeholder="/images/design-intensity-bootleg.svg"
+                />
+                <div className="mt-1.5 text-[10px] text-[#777]">Used only as a fallback when all five individual photos are set to GDP defaults.</div>
+              </label>
+            </details>
+
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="h-10 px-4 rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
+            >
+              <Save size={14} /> {saving ? "Saving…" : "Save Studio settings"}
+            </button>
+          </div>
+        </section>
+
+        <div className="space-y-4">
+          <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#e8e8e8]">
+              <div className="text-sm font-semibold">Combined guide preview</div>
+              <div className="text-xs text-[#777] mt-0.5">Automatically uses the same five photos managed below.</div>
+            </div>
+            <div className="p-3 space-y-2">
+              {Object.entries(INTENSITY_LEVELS).map(([level, item]) => (
+                <div key={level} className="grid grid-cols-[66px_1fr_104px] items-center gap-3 rounded-lg border border-[#e4e4e4] bg-[#fafafa] p-2.5">
+                  <div className="rounded-md bg-[#222] px-2 py-2 text-center text-white">
+                    <div className="text-base font-bold">{level}/5</div>
+                    <div className="text-[8px] uppercase tracking-wide text-white/70">{item.label}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold">{item.label}</div>
+                    <div className="mt-0.5 text-[9px] leading-4 text-[#777]">{item.description}</div>
+                  </div>
+                  <IntensityAdminPreview value={examples[level]} label={item.label} />
+                </div>
               ))}
             </div>
-            <div className="mt-1.5 text-[10px] text-[#777]">Recommended default: 3/5 Balanced.</div>
-          </label>
+          </section>
 
-          <label className="block">
-            <span className="text-xs font-medium text-[#555]">Intensity example image URL</span>
-            <input
-              value={settings.intensityExampleImageUrl || ""}
-              onChange={(event) => onChange("intensityExampleImageUrl", event.target.value)}
-              className="mt-1 w-full h-10 rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="/images/design-intensity-bootleg.svg"
-            />
-            <div className="mt-1.5 text-[10px] text-[#777]">Leave the built-in GDP path unless you want to replace the guide later.</div>
-          </label>
+          <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <div className="text-sm font-semibold text-blue-900">One source of truth</div>
+            <div className="mt-2 text-xs leading-5 text-blue-800">
+              Upload each intensity photo once. The selected-level preview and the combined customer guide both use these same five backend images automatically.
+            </div>
+          </section>
+        </div>
+      </div>
 
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving}
-            className="h-10 px-4 rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
-          >
-            <Save size={14} /> {saving ? "Saving…" : "Save Studio settings"}
-          </button>
+      <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#e8e8e8]">
+          <div className="text-sm font-semibold">Design intensity photos</div>
+          <div className="text-xs text-[#777] mt-0.5">Upload, replace, remove or reset each intensity level independently.</div>
+        </div>
+        <div className="p-4 grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          {Object.entries(INTENSITY_LEVELS).map(([level, item]) => {
+            const value = examples[level];
+            const hasCustom = Boolean(value && value !== HIDDEN_INTENSITY_IMAGE);
+            const removed = value === HIDDEN_INTENSITY_IMAGE;
+            return (
+              <div key={level} className="rounded-xl border border-[#e2e2e2] bg-[#fafafa] overflow-hidden">
+                <div className="aspect-[4/5] bg-[#efefef]">
+                  <IntensityAdminPreview value={value} label={item.label} large />
+                </div>
+                <div className="p-3">
+                  <div className="text-xs font-bold">{level}/5 · {item.label}</div>
+                  <div className="mt-1 min-h-[42px] text-[10px] leading-4 text-[#777]">{item.description}</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="col-span-2 h-9 rounded-lg bg-[#222] text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer">
+                      <Upload size={13} />
+                      {uploadingLevel === level ? "Uploading…" : hasCustom ? "Replace photo" : "Upload photo"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={uploadingLevel !== null}
+                        onChange={(event) => uploadExample(level, event.target.files?.[0])}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!hasCustom}
+                      onClick={() => onIntensityImageChange(level, HIDDEN_INTENSITY_IMAGE)}
+                      className="h-8 rounded-lg border border-[#d8d8d8] bg-white text-[10px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-35"
+                    >
+                      <Trash2 size={12} /> Remove
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!hasCustom && !removed}
+                      onClick={() => onIntensityImageChange(level, "")}
+                      className="h-8 rounded-lg border border-[#d8d8d8] bg-white text-[10px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-35"
+                    >
+                      <RotateCcw size={12} /> GDP default
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
-
-      <div className="space-y-4">
-        <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#e8e8e8]">
-            <div className="text-sm font-semibold">Intensity guide preview</div>
-            <div className="text-xs text-[#777] mt-0.5">Customer-facing reference image</div>
-          </div>
-          <div className="p-3">
-            <div className="overflow-hidden rounded-lg border border-[#e2e2e2] bg-[#fafafa]">
-              <img
-                src={settings.intensityExampleImageUrl || DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl}
-                alt="Design intensity guide preview"
-                className="w-full h-auto"
-                loading="lazy"
-                decoding="async"
-                onError={(event) => {
-                  const fallback = DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
-                  if (event.currentTarget.getAttribute("src") !== fallback) {
-                    event.currentTarget.src = fallback;
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-900">Settings ownership</div>
-          <div className="mt-2 text-xs leading-5 text-blue-800">
-            <strong>Custom Studio Settings:</strong> global customer experience and guide behavior.<br/>
-            <strong>Products:</strong> garment mockups, color-specific media, print areas, variants, price and inventory.<br/>
-            <strong>Production:</strong> order workflow after approval.
-          </div>
-        </section>
-      </div>
     </div>
   );
 }
 
+function IntensityAdminPreview({ value, label, large = false }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [value]);
+
+  if (value === HIDDEN_INTENSITY_IMAGE) {
+    return (
+      <div className={"h-full w-full grid place-items-center bg-[#f3f3f3] text-center text-[#999] " + (large ? "p-4" : "p-2")}>
+        <div><X size={large ? 22 : 14} className="mx-auto"/><div className="mt-1 text-[9px] uppercase tracking-wide">Removed</div></div>
+      </div>
+    );
+  }
+
+  if (value && !failed) {
+    return <img src={value} alt={`${label} intensity example`} className="h-full w-full object-cover" loading="lazy" onError={() => setFailed(true)} />;
+  }
+
+  return (
+    <div className={"h-full w-full grid place-items-center bg-[linear-gradient(135deg,#252525,#111)] text-white text-center " + (large ? "p-4" : "p-2")}>
+      <div>
+        <ImageIcon size={large ? 24 : 14} className="mx-auto text-white/55"/>
+        <div className="mt-1 text-[9px] font-semibold uppercase tracking-wide">GDP default</div>
+        {large && <div className="mt-1 text-[9px] text-white/45">Upload a custom photo anytime</div>}
+      </div>
+    </div>
+  );
+}
 function SettingToggle({ icon: Icon, title, description, checked, onChange }) {
   return (
     <label className="flex items-start gap-3 rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3 cursor-pointer">
