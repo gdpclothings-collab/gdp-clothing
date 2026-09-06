@@ -22,6 +22,14 @@ const DESIGN_INTENSITY_LEVELS = {
   5: { label: "Maximum Chaos", description: "Full bootleg energy with dense collage, oversized type, textures, effects and multiple visual layers." },
 };
 
+const DEFAULT_STUDIO_SETTINGS = {
+  mobileFloatingCtaEnabled: false,
+  intensityExamplesEnabled: true,
+  intensityExampleImageUrl: "/images/design-intensity-bootleg.svg",
+  defaultDesignIntensity: 3,
+  orderGuideEnabled: true,
+};
+
 const STYLES = [
   ["GDP Classic 90s","Layered portraits, chrome type, clouds and full retro energy."],
   ["GDP Y2K","Metallic type, stars, glow effects and early-2000s attitude."],
@@ -411,7 +419,7 @@ export default function CustomStudio() {
   const [recipientType, setRecipientType] = useState("");
   const [designStyle, setDesignStyle] = useState("GDP Classic 90s");
   const [designMood, setDesignMood] = useState("Cool");
-  const [designIntensity, setDesignIntensity] = useState(4);
+  const [designIntensity, setDesignIntensity] = useState(DEFAULT_STUDIO_SETTINGS.defaultDesignIntensity);
   const [garment, setGarment] = useState(FALLBACK_GARMENT);
   const [color, setColor] = useState("Black");
   const [size, setSize] = useState("M");
@@ -439,7 +447,8 @@ export default function CustomStudio() {
   const [showMeasurements, setShowMeasurements] = useState(true);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [showIntensityExamples, setShowIntensityExamples] = useState(false);
-  const [showOrderGuide, setShowOrderGuide] = useState(true);
+  const [studioSettings, setStudioSettings] = useState(DEFAULT_STUDIO_SETTINGS);
+  const [showOrderGuide, setShowOrderGuide] = useState(DEFAULT_STUDIO_SETTINGS.orderGuideEnabled);
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
 
@@ -461,7 +470,11 @@ export default function CustomStudio() {
     (async () => {
       try {
         const productId = params.get("product");
-        const studioCatalog = await customerApi.getStudioCatalog();
+        const [studioCatalog, loadedStudioSettings] = await Promise.all([
+          customerApi.getStudioCatalog(),
+          customerApi.getCustomStudioSettings().catch(() => ({})),
+        ]);
+        const nextStudioSettings = { ...DEFAULT_STUDIO_SETTINGS, ...(loadedStudioSettings || {}) };
         let p = studioCatalog[0] || await customerApi.getDefaultCustomProduct();
         if (productId) {
           const requestedBlank = studioCatalog.find((item) => item.id === productId);
@@ -476,6 +489,9 @@ export default function CustomStudio() {
         }
 
         if (!active) return;
+        setStudioSettings(nextStudioSettings);
+        setDesignIntensity(Math.min(5, Math.max(1, Number(nextStudioSettings.defaultDesignIntensity || 3))));
+        setShowOrderGuide(nextStudioSettings.orderGuideEnabled !== false);
         setCatalog(studioCatalog);
         if (!p) return;
 
@@ -520,9 +536,9 @@ export default function CustomStudio() {
   };
 
   const config = product?.customization || {};
-  const mobileFloatingCtaEnabled = config?.ui?.mobileFloatingCtaEnabled === true;
-  const intensityExamplesEnabled = config?.ui?.intensityExamplesEnabled !== false;
-  const intensityExampleImageUrl = config?.ui?.intensityExampleImageUrl || "/images/design-intensity-bootleg.svg";
+  const mobileFloatingCtaEnabled = studioSettings.mobileFloatingCtaEnabled === true;
+  const intensityExamplesEnabled = studioSettings.intensityExamplesEnabled !== false;
+  const intensityExampleImageUrl = studioSettings.intensityExampleImageUrl || DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
   const intensityLevel = DESIGN_INTENSITY_LEVELS[designIntensity] || DESIGN_INTENSITY_LEVELS[3];
   const styleOptions = config.allowedStyles?.length ? STYLES.filter(style => config.allowedStyles.includes(style[0])) : STYLES;
   const maxPhotos = Number(config.maxPhotos || 10);
