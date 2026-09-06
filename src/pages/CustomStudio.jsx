@@ -392,11 +392,30 @@ export default function CustomStudio() {
 
   async function createAndAdd() {
     if (!rightsConfirmed || !approvalAcknowledged || photos.length < minPhotos) return;
+    if (!product?.id) {
+      setWarn("Choose a garment before adding your custom design to cart.");
+      return;
+    }
+    if (product?.variants?.length && !selectedAvailable) {
+      setWarn("The selected color and size is currently unavailable. Choose another variant.");
+      return;
+    }
+
     setSaving(true);
     try {
       let primaryIndex = photos.findIndex(p => p.isPrimary);
       if (primaryIndex < 0) primaryIndex = 0;
-      const productId = product?.id || null;
+      const productId = product.id;
+      const normalizedGroups = groupGarments.map((item) => {
+        const variant = variantFor(product, item.color, item.size);
+        return {
+          ...item,
+          variantId: variant?.id || null,
+          variantName: variant?.name || "",
+          unitPrice: priceFor(item.color, item.size)
+        };
+      });
+
       const design = await customerApi.createCustomDesign({
         productId,
         productName: product?.name || garment.label,
@@ -407,13 +426,15 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 1,
+            version: 2,
             side: previewSide,
             artworkScale,
             artworkRotation,
             artworkOffset,
             viewZoom: previewZoom,
             sourcePhotoIndex: Math.max(0, photos.findIndex(p => p.isPrimary)),
+            garmentId: productId,
+            variantId: selectedVariant?.id || null,
             conceptOnly: true
           }
         },
@@ -434,7 +455,7 @@ export default function CustomStudio() {
         primaryPhotoIndex: primaryIndex,
         customerConfirmedRights: rightsConfirmed,
         approvalPolicyAcknowledged: approvalAcknowledged,
-        additionalGarments: groupGarments,
+        additionalGarments: normalizedGroups,
         status: "in_cart"
       });
 
@@ -442,8 +463,6 @@ export default function CustomStudio() {
         productId,
         name: product?.name || garment.label,
         image: product?.images?.[0] || photos[primaryIndex]?.url || "",
-        variant: garment.label,
-        price: unitPrice,
         isCustom: true,
         customDesignId: design.id,
         fulfillmentMode: product?.fulfillmentMode || "in_house",
@@ -454,8 +473,28 @@ export default function CustomStudio() {
         proofRequired
       };
 
-      addItem({ ...common, size, color, quantity: qty });
-      groupGarments.forEach(item => addItem({ ...common, size: item.size, color: item.color, quantity: Number(item.quantity || 1) }));
+      addItem({
+        ...common,
+        variantId: selectedVariant?.id || null,
+        variant: selectedVariant?.name || garment.label,
+        price: unitPrice,
+        size,
+        color,
+        quantity: qty
+      });
+
+      normalizedGroups.forEach((item) => {
+        addItem({
+          ...common,
+          variantId: item.variantId,
+          variant: item.variantName || garment.label,
+          price: item.unitPrice,
+          size: item.size,
+          color: item.color,
+          quantity: Number(item.quantity || 1)
+        });
+      });
+
       navigate("/cart");
     } catch (error) {
       setWarn(error?.message || "Could not save your custom design.");
