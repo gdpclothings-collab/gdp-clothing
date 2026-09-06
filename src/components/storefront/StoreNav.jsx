@@ -77,8 +77,8 @@ export default function StoreNav() {
   const NavLink = ({ item, mobile = false }) => {
     const external = /^https?:\/\//i.test(item.path || "");
     const className = mobile
-      ? "flex items-center justify-between border-b border-white/12 py-5 text-3xl font-black uppercase tracking-tight"
-      : "relative py-2 text-[12px] font-medium transition " + (active(item.path) ? "text-white" : "text-white/72 hover:text-white");
+      ? "flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight"
+      : "relative py-2 text-[12px] font-medium transition " + (active(item.path) ? "text-white" : "text-white/70 hover:text-white");
 
     if (external) {
       return <a href={item.path} className={className}>{item.label}</a>;
@@ -118,15 +118,15 @@ export default function StoreNav() {
             <button
               type="button"
               onClick={() => setSearchOpen((value) => !value)}
-              className="p-2.5 text-white/82 transition hover:text-white"
+              className="p-2.5 text-white/80 transition hover:text-white"
               aria-label="Search"
             >
               <Search size={21} strokeWidth={1.7} />
             </button>
-            <Link to="/account" className="hidden p-2.5 text-white/82 transition hover:text-white sm:block" aria-label="Account">
+            <Link to="/account" className="hidden p-2.5 text-white/80 transition hover:text-white sm:block" aria-label="Account">
               <User size={21} strokeWidth={1.7} />
             </Link>
-            <Link to="/cart" className="relative p-2.5 text-white/82 transition hover:text-white" aria-label={"Cart with " + itemCount + " items"}>
+            <Link to="/cart" className="relative p-2.5 text-white/80 transition hover:text-white" aria-label={"Cart with " + itemCount + " items"}>
               <ShoppingBag size={22} strokeWidth={1.7} />
               {itemCount > 0 && (
                 <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] font-black text-black">
@@ -160,7 +160,7 @@ export default function StoreNav() {
         <div className="fixed inset-x-0 bottom-0 top-[70px] overflow-y-auto bg-[#080909] lg:hidden">
           <nav className="px-5 py-5" aria-label="Mobile navigation">
             {navItems.map((item) => <NavLink key={item.label + item.path} item={item} mobile />)}
-            <Link to="/account" className="flex items-center justify-between border-b border-white/12 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">
+            <Link to="/account" className="flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">
               Account <User size={20} className="text-white/50" />
             </Link>
           </nav>
