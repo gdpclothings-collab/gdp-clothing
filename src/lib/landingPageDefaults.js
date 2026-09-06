@@ -18,7 +18,7 @@ export const DEFAULT_LANDING_PAGE = {
     { title: "Tees", subtitle: "Everyday Essentials", imageUrl: "https://mcmancxsqlhxnjhlnfkz.supabase.co/storage/v1/object/public/product-images/products/1788654170383-8404147c-89f0-4e11-81df-d6f2e6d88757-Signature-GDP-Heavyweight-Tee.png", url: "/shop?category=T-Shirt" },
     { title: "Hoodies", subtitle: "Stay Warm, Stay Real", imageUrl: "https://mcmancxsqlhxnjhlnfkz.supabase.co/storage/v1/object/public/product-images/products/1788654034184-2a8649a5-74a3-4ea2-a6a7-ad82954a6ac9-Vintage-Bootleg-Hoodie.png", url: "/shop?category=Hoodie" },
     { title: "Custom Tees", subtitle: "Your Design, Our Print", imageUrl: "https://mcmancxsqlhxnjhlnfkz.supabase.co/storage/v1/object/public/product-images/products/1788654153667-c7277015-4e8c-43af-b5a1-5acca1027658-DTF-Gang-Sheet.png", url: "/custom-studio" },
-    { title: "Collections", subtitle: "Explore All", imageUrl: "https://mcmancxsqlhxnjhlnfkz.supabase.co/storage/v1/object/public/product-images/products/1788654214518-e8f25549-f292-4bd7-80d9-e9a45d00e1b6-Custom-Couples-Hoodie-Set.png", url: "/shop" },
+    { title: "Collections", subtitle: "Explore All", imageUrl: "https://mcmancxsqlhxnjhlnfkz.supabase.co/storage/v1/object/public/product-images/products/1788654214518-e8f25549-f292-4bd7-80d9-e9a45d00e1b6-Custom-Couples-Hoodie-Set.png", url: "/shop?view=collections" },
   ],
   bestSellers: {
     eyebrow: "",
