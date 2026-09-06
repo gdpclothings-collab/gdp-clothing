@@ -68,6 +68,9 @@ create table if not exists public.landing_page_versions (
 create index if not exists landing_page_versions_published_at_idx
   on public.landing_page_versions (published_at desc);
 
+create index if not exists landing_page_versions_published_by_idx
+  on public.landing_page_versions (published_by);
+
 alter table public.landing_page_versions enable row level security;
 
 drop policy if exists "landing_page_versions_admin_select" on public.landing_page_versions;
