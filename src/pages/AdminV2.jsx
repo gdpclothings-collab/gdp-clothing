@@ -66,6 +66,7 @@ import FinanceModule from "@/components/admin/FinanceModule";
 import SettingsModule from "@/components/admin/SettingsModule";
 import MarketsManagementModule from "@/components/admin/MarketsManagementModule";
 import ContentManagementModule from "@/components/admin/ContentManagementModule";
+import LandingPageModule from "@/components/admin/LandingPageModule";
 import {
   GrowthModule,
   MarketingModule,
@@ -119,6 +120,7 @@ const NAV_GROUPS = [
   {
     label: "Channels",
     items: [
+      { id: "landing-page", label: "Landing page", icon: Palette },
       { id: "online-store", label: "Online Store", icon: Store },
       { id: "apps", label: "Apps & integrations", icon: Blocks },
     ],
@@ -200,6 +202,11 @@ const MODULE_COPY = {
     title: "Production",
     description: "Move approved designs through printing, quality control, packing and shipping.",
     items: ["Production queue", "Printing", "Quality control", "Packing", "Shipping handoff"],
+  },
+  "landing-page": {
+    title: "Landing page",
+    description: "Control the hero, category cards, best sellers and promotional panels shown on the GDP homepage.",
+    items: ["Hero banner", "Category cards", "Best sellers", "Promo panels", "Media uploads"],
   },
   "online-store": {
     title: "Online Store",
@@ -527,6 +534,15 @@ export default function AdminV2() {
                 description="Prepare regional pricing, currencies, domains, languages and expansion controls."
               />
               <MarketsManagementModule />
+            </div>
+          ) : section === "landing-page" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Landing page"
+                description="Manage the customer-facing homepage layout and media without editing source code."
+              />
+              <LandingPageModule />
             </div>
           ) : section === "online-store" ? (
             <div>
