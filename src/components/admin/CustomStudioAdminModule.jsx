@@ -53,6 +53,8 @@ const DEFAULT_STUDIO_SETTINGS = {
   defaultDesignIntensity: 3,
   orderGuideEnabled: true,
   priceVisibility: "hidden",
+  frontBackEnabled: true,
+  frontBackFee: 10,
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -72,6 +74,8 @@ function normalizeStudioSettings(settings = {}) {
     intensityExamples: normalizeIntensityExamples(settings?.intensityExamples),
     defaultDesignIntensity: Math.min(5, Math.max(1, Number(settings?.defaultDesignIntensity || 3))),
     priceVisibility: ["hidden", "total", "all"].includes(settings?.priceVisibility) ? settings.priceVisibility : "hidden",
+    frontBackEnabled: settings?.frontBackEnabled !== false,
+    frontBackFee: Math.max(0, Number(settings?.frontBackFee ?? 10) || 0),
   };
 }
 
@@ -443,6 +447,33 @@ function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave
                 <option value="all">Show all garment pricing</option>
               </select>
             </label>
+
+            <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3 space-y-3">
+              <SettingToggle
+                icon={SlidersHorizontal}
+                title="Enable Front + Back option"
+                description="Show the Front + Back print-side choice in Custom Studio. Turn this off to make every Custom Studio order front-only."
+                checked={settings.frontBackEnabled !== false}
+                onChange={(value) => onChange("frontBackEnabled", value)}
+              />
+              <label className="block">
+                <span className="text-xs font-medium text-[#555]">Front + back surcharge</span>
+                <span className="mt-1 block text-[10px] leading-4 text-[#777]">Global additional charge per garment when Front + Back is selected.</span>
+                <div className="relative mt-2">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#777]">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    disabled={settings.frontBackEnabled === false}
+                    value={settings.frontBackFee ?? 10}
+                    onChange={(event) => onChange("frontBackFee", Math.max(0, Number(event.target.value || 0)))}
+                    className="h-10 w-full rounded-lg border border-[#d4d4d4] bg-white pl-7 pr-3 text-sm outline-none focus:ring-2 focus:ring-black/10 disabled:cursor-not-allowed disabled:bg-[#f1f1f1] disabled:text-[#aaa]"
+                  />
+                </div>
+              </label>
+            </div>
+
             <SettingToggle
               icon={Smartphone}
               title="Mobile floating CTA"
