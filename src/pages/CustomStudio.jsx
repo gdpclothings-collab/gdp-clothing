@@ -104,7 +104,7 @@ function swatchFor(product, color) {
     "#8b8b8b";
 }
 const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
-const STEPS = ["Occasion","Style","Garment","Photos","Personalize","Timing","Review"];
+const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
 const MAX_MB = 12;
 const OPTIMIZE_ABOVE_MB = 2.5;
 const MAX_UPLOAD_DIMENSION = 3600;
@@ -229,9 +229,18 @@ export default function CustomStudio() {
       try {
         const productId = params.get("product");
         const studioCatalog = await customerApi.getStudioCatalog();
-        let p = productId
-          ? studioCatalog.find((item) => item.id === productId) || await customerApi.getProduct(productId)
-          : studioCatalog[0] || await customerApi.getDefaultCustomProduct();
+        let p = studioCatalog[0] || await customerApi.getDefaultCustomProduct();
+        if (productId) {
+          const requestedBlank = studioCatalog.find((item) => item.id === productId);
+          if (requestedBlank) {
+            p = requestedBlank;
+          } else if (studioCatalog.length) {
+            const legacyProduct = await customerApi.getProduct(productId);
+            p = studioCatalog.find((item) => item.type === legacyProduct?.type) || studioCatalog[0];
+          } else {
+            p = await customerApi.getProduct(productId);
+          }
+        }
 
         if (!active) return;
         setCatalog(studioCatalog);
@@ -385,7 +394,7 @@ export default function CustomStudio() {
   const removeGroup = index => setGroupGarments(prev => prev.filter((_, i) => i !== index));
 
   const canContinue = () => {
-    if (step === 3) return Boolean(product) && selectedAvailable;
+    if (step === 1) return Boolean(product) && selectedAvailable;
     if (step === 4) return photos.length >= minPhotos;
     if (step === 6) return rightsConfirmed && approvalAcknowledged;
     return true;
@@ -545,7 +554,7 @@ export default function CustomStudio() {
 
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
           <section className="bg-[#fffdfa] border border-[#e2dcd3] rounded-[24px] p-5 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
-          {step === 1 && <div>
+          {step === 2 && <div>
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choosing the occasion helps our designer understand the emotion and visual direction." />
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {OCCASIONS.map(group => {
@@ -561,7 +570,7 @@ export default function CustomStudio() {
             <Field label="Who is this for? (optional)" value={recipientType} onChange={setRecipientType} placeholder="Dad, Sarah, Coach Mike, Milo the dog…" />
           </div>}
 
-          {step === 2 && <div>
+          {step === 3 && <div>
             <StepTitle eyebrow="Choose the visual direction" title="PICK A GDP STYLE" text="You choose the vibe. Our designer handles the actual composition." />
             <div className="grid md:grid-cols-2 gap-3">
               {styleOptions.map(style => <button key={style[0]} onClick={() => setDesignStyle(style[0])} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (designStyle === style[0] ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
@@ -576,7 +585,7 @@ export default function CustomStudio() {
             </div>
           </div>}
 
-          {step === 3 && <div>
+          {step === 1 && <div>
             <StepTitle eyebrow="Choose your blank" title="CLOTHING, COLOR & SIZE" text="Pick the exact garment first. Colors, sizes, pricing and availability update automatically for that clothing type." />
 
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
