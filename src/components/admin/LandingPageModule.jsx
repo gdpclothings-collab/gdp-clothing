@@ -14,10 +14,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { adminLandingPageApi } from "@/lib/adminLandingPageApi";
-import {
-  DEFAULT_LANDING_PAGE,
-  LANDING_SECTION_KEYS,
-} from "@/lib/landingPageDefaults";
+import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
 
 const inputClass = "w-full h-10 rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-black/10";
 const textAreaClass = "w-full rounded-lg border border-[#d4d4d4] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10";
@@ -711,5 +708,3 @@ export default function LandingPageModule() {
     </div>
   );
 }
-
-export { LANDING_SECTION_KEYS };
