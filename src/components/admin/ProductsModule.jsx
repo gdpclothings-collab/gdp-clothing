@@ -2609,13 +2609,48 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
 
               <EditorSection title="Search engine listing">
                 <div className="rounded-lg border border-[#e4e4e4] bg-[#fafafa] p-3">
-                  <div className="text-xs text-[#777]">Search preview</div>
-                  <div className="text-sm font-semibold mt-1 text-[#1f4d8f]">
-                    {form.seoTitle || form.name || "Product page title"}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs text-[#777]">Search preview</div>
+                    {savedProductId ? (
+                      <a
+                        href={`/products/${slugify(form.slug || form.name) || savedProductId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-semibold text-[#1f4d8f] hover:underline"
+                      >
+                        Open product ↗
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-[#999]">Save product to open preview</span>
+                    )}
                   </div>
-                  <div className="text-[11px] text-[#2e7d32] mt-0.5">
-                    /products/{slugify(form.slug || form.name) || "product-handle"}
-                  </div>
+
+                  {savedProductId ? (
+                    <a
+                      href={`/products/${slugify(form.slug || form.name) || savedProductId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block rounded-md focus:outline-none focus:ring-2 focus:ring-[#1f4d8f]/25"
+                      title="Open this product page in a new tab"
+                    >
+                      <div className="text-sm font-semibold text-[#1f4d8f] hover:underline">
+                        {form.seoTitle || form.name || "Product page title"}
+                      </div>
+                      <div className="text-[11px] text-[#2e7d32] mt-0.5 hover:underline">
+                        /products/{slugify(form.slug || form.name) || "product-handle"} ↗
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="mt-1">
+                      <div className="text-sm font-semibold text-[#1f4d8f]">
+                        {form.seoTitle || form.name || "Product page title"}
+                      </div>
+                      <div className="text-[11px] text-[#2e7d32] mt-0.5">
+                        /products/{slugify(form.slug || form.name) || "product-handle"}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="text-xs text-[#555] mt-1 line-clamp-2">
                     {form.seoDescription || form.description || "Add a description to control how this product appears in search."}
                   </div>

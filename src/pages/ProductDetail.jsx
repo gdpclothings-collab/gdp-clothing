@@ -9,7 +9,7 @@ import { Image } from "@/components/ui/image";
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
 
 export default function ProductDetail() {
-  const { id } = useParams();
+  const { id, slug } = useParams();
   const navigate = useNavigate();
   const { addItem, toggleWishlist, wishlist } = useCart();
   const [product, setProduct] = useState(null);
@@ -22,22 +22,47 @@ export default function ProductDetail() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([
-      supabase.from("products").select("*, product_variants(*)").eq("id", id).maybeSingle(),
-      supabase.from("reviews").select("*").eq("product_id", id).eq("status", "approved").order("created_at", { ascending: false }),
-    ]).then(([productResult, reviewResult]) => {
+
+    const load = async () => {
+      let productQuery = supabase.from("products").select("*, product_variants(*)");
+      productQuery = slug
+        ? productQuery.eq("slug", slug)
+        : productQuery.eq("id", id);
+
+      const productResult = await productQuery.maybeSingle();
       if (!active) return;
+
       const nextProduct = productResult.error ? null : normalizeProduct(productResult.data);
       setProduct(nextProduct);
+
       const firstVariant = nextProduct?.variants?.[0];
       setColor(firstVariant?.color || nextProduct?.colors?.[0] || "");
       setSize(firstVariant?.size || nextProduct?.sizes?.[0] || "M");
-      if (!reviewResult.error) setReviews((reviewResult.data || []).map(normalizeReview));
-    }).finally(() => {
+
+      if (nextProduct?.id) {
+        const reviewResult = await supabase
+          .from("reviews")
+          .select("*")
+          .eq("product_id", nextProduct.id)
+          .eq("status", "approved")
+          .order("created_at", { ascending: false });
+
+        if (active && !reviewResult.error) {
+          setReviews((reviewResult.data || []).map(normalizeReview));
+        }
+      } else {
+        setReviews([]);
+      }
+    };
+
+    load().finally(() => {
       if (active) setLoading(false);
     });
-    return () => { active = false; };
-  }, [id]);
+
+    return () => {
+      active = false;
+    };
+  }, [id, slug]);
 
   if (loading) {
     return (
