@@ -463,6 +463,30 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   });
   const [baselineSnapshot, setBaselineSnapshot] = useState(null);
   const [saveState, setSaveState] = useState(isEdit ? "saved" : "unsaved");
+  const [mediaFilters, setMediaFilters] = useState({
+    search: "",
+    view: "all",
+    color: "all",
+    assignment: "all",
+    groupBy: "color",
+    sortBy: "display_order",
+  });
+  const [selectedMedia, setSelectedMedia] = useState([]);
+  const [mediaBulkView, setMediaBulkView] = useState("");
+  const [mediaBulkColor, setMediaBulkColor] = useState("");
+  const [variantFilters, setVariantFilters] = useState({
+    search: "",
+    color: "all",
+    size: "all",
+    stock: "all",
+    pricing: "all",
+    groupBy: "color",
+    sortBy: "color_size",
+  });
+  const [selectedVariantKeys, setSelectedVariantKeys] = useState([]);
+  const [variantBulkStock, setVariantBulkStock] = useState("");
+  const [variantBulkPrice, setVariantBulkPrice] = useState("");
+  const [variantBulkAdjustment, setVariantBulkAdjustment] = useState("");
 
   useEffect(() => {
     const snapshot = JSON.stringify({ form, variants, metafields });
@@ -490,28 +514,58 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     }));
   };
 
-  const setMediaMeta = (url, key, value) => {
-    setForm((current) => {
-      const previousMeta = current.customization?.media?.[url] || {};
-      const nextMeta = { ...previousMeta, [key]: value };
-      const previousPreview = current.customization?.preview || {};
-      let nextPreview = { ...previousPreview };
+  const updateMediaAssignments = (urls, patchOrFactory, { clear = false } = {}) => {
+    const selectedUrls = Array.from(new Set((urls || []).filter(Boolean)));
+    if (!selectedUrls.length) return;
 
-      if (["front", "back"].includes(nextMeta.view)) {
-        const previewKey = nextMeta.view === "front" ? "frontMockupUrl" : "backMockupUrl";
-        if (nextMeta.color) {
-          nextPreview = {
-            ...nextPreview,
-            colorMockups: {
-              ...(nextPreview.colorMockups || {}),
-              [nextMeta.color]: {
-                ...(nextPreview.colorMockups?.[nextMeta.color] || {}),
-                [nextMeta.view === "front" ? "frontUrl" : "backUrl"]: url,
-              },
-            },
-          };
-        } else {
-          nextPreview[previewKey] = url;
+    setForm((current) => {
+      const selectedSet = new Set(selectedUrls);
+      const media = { ...(current.customization?.media || {}) };
+      const existingPreview = current.customization?.preview || {};
+      const colorMockups = Object.fromEntries(
+        Object.entries(existingPreview.colorMockups || {}).map(([color, value]) => [
+          color,
+          { ...(value || {}) },
+        ])
+      );
+
+      let frontMockupUrl = existingPreview.frontMockupUrl || "";
+      let backMockupUrl = existingPreview.backMockupUrl || "";
+
+      if (selectedSet.has(frontMockupUrl)) frontMockupUrl = "";
+      if (selectedSet.has(backMockupUrl)) backMockupUrl = "";
+
+      for (const [color, mockups] of Object.entries(colorMockups)) {
+        if (selectedSet.has(mockups.frontUrl)) delete mockups.frontUrl;
+        if (selectedSet.has(mockups.backUrl)) delete mockups.backUrl;
+        if (!mockups.frontUrl && !mockups.backUrl) delete colorMockups[color];
+      }
+
+      for (const url of selectedUrls) {
+        const previousMeta = media[url] || {};
+        if (clear) {
+          delete media[url];
+          continue;
+        }
+
+        const patch =
+          typeof patchOrFactory === "function"
+            ? patchOrFactory(previousMeta, url)
+            : patchOrFactory || {};
+        const nextMeta = { ...previousMeta, ...patch };
+        media[url] = nextMeta;
+
+        if (["front", "back"].includes(nextMeta.view)) {
+          if (nextMeta.color) {
+            colorMockups[nextMeta.color] = {
+              ...(colorMockups[nextMeta.color] || {}),
+              [nextMeta.view === "front" ? "frontUrl" : "backUrl"]: url,
+            };
+          } else if (nextMeta.view === "front") {
+            frontMockupUrl = url;
+          } else {
+            backMockupUrl = url;
+          }
         }
       }
 
@@ -519,14 +573,20 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
         ...current,
         customization: {
           ...(current.customization || {}),
-          media: {
-            ...(current.customization?.media || {}),
-            [url]: nextMeta,
+          media,
+          preview: {
+            ...existingPreview,
+            frontMockupUrl,
+            backMockupUrl,
+            colorMockups,
           },
-          preview: nextPreview,
         },
       };
     });
+  };
+
+  const setMediaMeta = (url, key, value) => {
+    updateMediaAssignments([url], { [key]: value });
   };
 
   const setColorPreviewValue = (color, key, value) => {
@@ -592,6 +652,32 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     }));
   };
 
+  const toggleMediaSelection = (url) => {
+    setSelectedMedia((current) =>
+      current.includes(url) ? current.filter((item) => item !== url) : [...current, url]
+    );
+  };
+
+  const generateMediaAltText = (urls) => {
+    updateMediaAssignments(urls, (meta) => ({
+      alt: [form.name || "Product", meta.color, meta.view]
+        .filter(Boolean)
+        .map((part) => {
+          const value = String(part);
+          return value.charAt(0).toUpperCase() + value.slice(1);
+        })
+        .join(" - "),
+    }));
+  };
+
+  const clearSelectedMediaAssignments = () => {
+    if (!selectedMedia.length) return;
+    if (!window.confirm(`Clear view, color and alt-text assignments for ${selectedMedia.length} selected media item${selectedMedia.length === 1 ? "" : "s"}?`)) {
+      return;
+    }
+    updateMediaAssignments(selectedMedia, {}, { clear: true });
+  };
+
   const updateVariant = (index, key, value) => {
     setVariants((current) =>
       current.map((variant, variantIndex) =>
@@ -609,13 +695,51 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     });
   };
 
+  const variantKey = (variant, index) => variant?.id ? `id:${variant.id}` : `new:${index}`;
+
+  const toggleVariantSelection = (variant, index) => {
+    const key = variantKey(variant, index);
+    setSelectedVariantKeys((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+    );
+  };
+
+  const updateSelectedVariants = (updater) => {
+    if (!selectedVariantKeys.length) return;
+    const selected = new Set(selectedVariantKeys);
+    setVariants((current) =>
+      current.map((variant, index) =>
+        selected.has(variantKey(variant, index)) ? updater(variant, index) : variant
+      )
+    );
+  };
+
+  const retireSelectedVariants = () => {
+    if (!selectedVariantKeys.length) return;
+    if (selectedVariantKeys.length >= variants.length) {
+      window.alert("Keep at least one variant. Create a replacement variant before retiring the entire set.");
+      return;
+    }
+    const selected = new Set(selectedVariantKeys);
+    const selectedRows = variants.filter((variant, index) => selected.has(variantKey(variant, index)));
+    const stock = selectedRows.reduce((sum, variant) => sum + Number(variant.stock || 0), 0);
+    const message = stock > 0
+      ? `Retire ${selectedRows.length} selected variants? They currently contain ${stock} unit(s) of inventory, which will be set to 0 after save.`
+      : `Retire ${selectedRows.length} selected variant${selectedRows.length === 1 ? "" : "s"}?`;
+    if (!window.confirm(message)) return;
+    setVariants((current) =>
+      current.filter((variant, index) => !selected.has(variantKey(variant, index)))
+    );
+    setSelectedVariantKeys([]);
+  };
+
   const toggleSizePreset = (size) => {
     const current = splitComma(form.sizes);
     const exists = current.some((item) => item.toLowerCase() === size.toLowerCase());
     set("sizes", (exists ? current.filter((item) => item.toLowerCase() !== size.toLowerCase()) : [...current, size]).join(", "));
   };
 
-  const autoFillSkus = () => {
+  const createVariantSku = (variant, index) => {
     const productCode = (slugify(form.name) || "product")
       .split("-")
       .filter(Boolean)
@@ -623,12 +747,17 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       .join("")
       .toUpperCase()
       .slice(0, 12) || "PRODUCT";
+    const colorCode = slugify(variant.color || "default").replace(/-/g, "").toUpperCase().slice(0, 5) || "DEF";
+    const sizeCode = slugify(variant.size || String(index + 1)).replace(/-/g, "").toUpperCase().slice(0, 5) || String(index + 1);
+    return `GDP-${productCode}-${colorCode}-${sizeCode}`;
+  };
 
+  const autoFillSkus = (selectedOnly = false) => {
+    const selected = new Set(selectedVariantKeys);
     setVariants((current) => current.map((variant, index) => {
+      if (selectedOnly && !selected.has(variantKey(variant, index))) return variant;
       if (String(variant.sku || "").trim()) return variant;
-      const colorCode = slugify(variant.color || "default").replace(/-/g, "").toUpperCase().slice(0, 5) || "DEF";
-      const sizeCode = slugify(variant.size || String(index + 1)).replace(/-/g, "").toUpperCase().slice(0, 5) || String(index + 1);
-      return { ...variant, sku: `GDP-${productCode}-${colorCode}-${sizeCode}` };
+      return { ...variant, sku: createVariantSku(variant, index) };
     }));
   };
 
@@ -666,6 +795,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       return;
     }
 
+    setSelectedVariantKeys([]);
     setVariants((current) => colors.flatMap((variantColor) =>
       sizes.map((variantSize) => {
         const existing = current.find((variant) =>
@@ -698,7 +828,9 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     ) {
       return;
     }
+    const removedKey = variantKey(target, index);
     setVariants((current) => current.filter((_, variantIndex) => variantIndex !== index));
+    setSelectedVariantKeys((current) => current.filter((key) => key !== removedKey));
   };
 
   const addImageUrl = () => {
@@ -725,6 +857,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
         },
       };
     });
+    const removedUrl = form.images[index];
+    if (removedUrl) {
+      setSelectedMedia((current) => current.filter((url) => url !== removedUrl));
+    }
     setDraggedImageIndex(null);
     setDragOverImageIndex(null);
   };
@@ -957,6 +1093,174 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     ...variants.map((variant) => String(variant.color || "").trim()).filter(Boolean),
   ]));
 
+  const mediaRows = form.images.map((image, index) => {
+    const meta = form.customization?.media?.[image] || {};
+    const view = String(meta.view || "").trim();
+    const color = String(meta.color || "").trim();
+    const alt = String(meta.alt || "").trim();
+    const fullyAssigned = Boolean(view && color && alt);
+    return {
+      image,
+      index,
+      view,
+      color,
+      alt,
+      fullyAssigned,
+      missingView: !view,
+      missingColor: !color,
+      missingAlt: !alt,
+      unassigned: !view && !color && !alt,
+      studioMapped: ["front", "back"].includes(view),
+    };
+  });
+  const mediaColors = Array.from(new Set([
+    ...splitComma(form.colors),
+    ...mediaRows.map((row) => row.color).filter(Boolean),
+  ])).sort((a, b) => a.localeCompare(b));
+  const mediaSummary = {
+    total: mediaRows.length,
+    complete: mediaRows.filter((row) => row.fullyAssigned).length,
+    missingColor: mediaRows.filter((row) => row.missingColor).length,
+    missingView: mediaRows.filter((row) => row.missingView).length,
+    missingAlt: mediaRows.filter((row) => row.missingAlt).length,
+  };
+  const mediaSearch = mediaFilters.search.trim().toLowerCase();
+  const visibleMediaRows = mediaRows
+    .filter((row) => {
+      if (
+        mediaSearch &&
+        ![row.color, row.view, row.alt, row.image].some((value) =>
+          String(value || "").toLowerCase().includes(mediaSearch)
+        )
+      ) return false;
+      if (mediaFilters.view !== "all") {
+        if (mediaFilters.view === "unassigned" ? row.view : row.view !== mediaFilters.view) return false;
+      }
+      if (mediaFilters.color !== "all") {
+        if (mediaFilters.color === "unassigned" ? row.color : row.color !== mediaFilters.color) return false;
+      }
+      if (mediaFilters.assignment !== "all") {
+        const matches = {
+          fully_assigned: row.fullyAssigned,
+          needs_attention: !row.fullyAssigned,
+          missing_color: row.missingColor,
+          missing_view: row.missingView,
+          missing_alt: row.missingAlt,
+          unassigned: row.unassigned,
+          studio_mapped: row.studioMapped,
+        }[mediaFilters.assignment];
+        if (!matches) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const groupValue = (row) =>
+        mediaFilters.groupBy === "color"
+          ? row.color || "zzzz-unassigned"
+          : mediaFilters.groupBy === "view"
+            ? row.view || "zzzz-unassigned"
+            : "";
+      if (mediaFilters.groupBy !== "none") {
+        const groupCompare = groupValue(a).localeCompare(groupValue(b));
+        if (groupCompare !== 0) return groupCompare;
+      }
+      if (mediaFilters.sortBy === "color") return (a.color || "zzzz").localeCompare(b.color || "zzzz") || a.index - b.index;
+      if (mediaFilters.sortBy === "view") return (a.view || "zzzz").localeCompare(b.view || "zzzz") || a.index - b.index;
+      if (mediaFilters.sortBy === "recent") return b.index - a.index;
+      return a.index - b.index;
+    });
+
+  const lowStockThreshold = Number(settings?.low_stock_threshold ?? 5);
+  const sizeRank = (size) => {
+    const index = APPAREL_SIZE_PRESETS.findIndex((item) => item.toLowerCase() === String(size || "").toLowerCase());
+    return index === -1 ? APPAREL_SIZE_PRESETS.length + 1 : index;
+  };
+  const variantRows = variants.map((variant, index) => {
+    const stock = Number(variant.stock || 0);
+    const priceOverride = variant.price !== null && variant.price !== undefined && variant.price !== "";
+    const effectivePrice = priceOverride ? Number(variant.price || 0) : Number(form.price || 0);
+    const stockStatus = stock <= 0 ? "out" : stock <= lowStockThreshold ? "low" : "in";
+    return {
+      variant,
+      index,
+      key: variantKey(variant, index),
+      stock,
+      stockStatus,
+      priceOverride,
+      effectivePrice,
+      color: String(variant.color || "").trim(),
+      size: String(variant.size || "").trim(),
+    };
+  });
+  const variantColors = Array.from(new Set(variantRows.map((row) => row.color).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const variantSizes = Array.from(new Set(variantRows.map((row) => row.size).filter(Boolean))).sort((a, b) => sizeRank(a) - sizeRank(b) || a.localeCompare(b));
+  const variantSummary = {
+    total: variantRows.length,
+    inStock: variantRows.filter((row) => row.stockStatus === "in").length,
+    low: variantRows.filter((row) => row.stockStatus === "low").length,
+    out: variantRows.filter((row) => row.stockStatus === "out").length,
+  };
+  const variantSearch = variantFilters.search.trim().toLowerCase();
+  const visibleVariantRows = variantRows
+    .filter((row) => {
+      const variant = row.variant;
+      if (
+        variantSearch &&
+        ![variant.name, variant.sku, variant.barcode, row.color, row.size].some((value) =>
+          String(value || "").toLowerCase().includes(variantSearch)
+        )
+      ) return false;
+      if (variantFilters.color !== "all" && row.color !== variantFilters.color) return false;
+      if (variantFilters.size !== "all" && row.size !== variantFilters.size) return false;
+      if (variantFilters.stock !== "all" && row.stockStatus !== variantFilters.stock) return false;
+      if (variantFilters.pricing === "base" && row.priceOverride) return false;
+      if (variantFilters.pricing === "override" && !row.priceOverride) return false;
+      if (variantFilters.pricing === "missing" && row.effectivePrice > 0) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const groupValue = (row) =>
+        variantFilters.groupBy === "color"
+          ? row.color || "zzzz-unassigned"
+          : variantFilters.groupBy === "size"
+            ? String(sizeRank(row.size)).padStart(3, "0") + "-" + (row.size || "zzzz")
+            : "";
+      if (variantFilters.groupBy !== "none") {
+        const groupCompare = groupValue(a).localeCompare(groupValue(b));
+        if (groupCompare !== 0) return groupCompare;
+      }
+      if (variantFilters.sortBy === "size_color") return sizeRank(a.size) - sizeRank(b.size) || (a.color || "zzzz").localeCompare(b.color || "zzzz");
+      if (variantFilters.sortBy === "sku") return String(a.variant.sku || "zzzz").localeCompare(String(b.variant.sku || "zzzz"));
+      if (variantFilters.sortBy === "stock_asc") return a.stock - b.stock;
+      if (variantFilters.sortBy === "stock_desc") return b.stock - a.stock;
+      if (variantFilters.sortBy === "price_asc") return a.effectivePrice - b.effectivePrice;
+      if (variantFilters.sortBy === "price_desc") return b.effectivePrice - a.effectivePrice;
+      return (a.color || "zzzz").localeCompare(b.color || "zzzz") || sizeRank(a.size) - sizeRank(b.size) || a.index - b.index;
+    });
+
+  const allVisibleMediaSelected =
+    visibleMediaRows.length > 0 && visibleMediaRows.every((row) => selectedMedia.includes(row.image));
+  const allVisibleVariantsSelected =
+    visibleVariantRows.length > 0 && visibleVariantRows.every((row) => selectedVariantKeys.includes(row.key));
+
+  const clearMediaFilters = () => setMediaFilters({
+    search: "",
+    view: "all",
+    color: "all",
+    assignment: "all",
+    groupBy: "color",
+    sortBy: "display_order",
+  });
+  const clearVariantFilters = () => setVariantFilters({
+    search: "",
+    color: "all",
+    size: "all",
+    stock: "all",
+    pricing: "all",
+    groupBy: "color",
+    sortBy: "color_size",
+  });
+
   return (
     <div className="fixed inset-0 z-[70] bg-[#f4f4f4] overflow-y-auto">
       <form onSubmit={submit} className="min-h-full">
@@ -1139,56 +1443,198 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
 
                   {form.images.length > 0 && (
                     <div className="mt-4 rounded-xl border border-[#dedede] bg-white overflow-hidden">
-                      <div className="px-3 py-2.5 border-b border-[#e8e8e8] bg-[#fafafa]">
-                        <div className="text-xs font-semibold">Media assignments</div>
-                        <div className="text-[10px] text-[#777] mt-0.5">
-                          Label each image once. Front/back + color assignments automatically wire the matching Custom Studio garment preview.
+                      <div className="px-3 py-3 border-b border-[#e8e8e8] bg-[#fafafa]">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-semibold">Media assignments</div>
+                            <div className="text-[10px] text-[#777] mt-0.5">
+                              Filter, group and bulk-edit garment media. Front/back + color assignments automatically wire the matching Custom Studio preview.
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 text-[10px]">
+                            <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, assignment: "all" }))} className="rounded-full border border-[#ddd] bg-white px-2.5 py-1">
+                              {mediaSummary.total} media
+                            </button>
+                            <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, assignment: "fully_assigned" }))} className="rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 px-2.5 py-1">
+                              {mediaSummary.complete} complete
+                            </button>
+                            {mediaSummary.missingColor > 0 && (
+                              <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, assignment: "missing_color" }))} className="rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2.5 py-1">
+                                {mediaSummary.missingColor} missing color
+                              </button>
+                            )}
+                            {mediaSummary.missingView > 0 && (
+                              <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, assignment: "missing_view" }))} className="rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2.5 py-1">
+                                {mediaSummary.missingView} missing view
+                              </button>
+                            )}
+                            {mediaSummary.missingAlt > 0 && (
+                              <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, assignment: "missing_alt" }))} className="rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2.5 py-1">
+                                {mediaSummary.missingAlt} missing alt
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="divide-y divide-[#eeeeee]">
-                        {form.images.map((image, index) => {
-                          const meta = form.customization?.media?.[image] || {};
-                          return (
-                            <div key={`media-meta-${image}-${index}`} className="p-3 grid md:grid-cols-[54px_.75fr_.9fr_1.3fr_auto] gap-2 items-end">
-                              <div className="h-12 w-12 rounded-lg border border-[#e1e1e1] bg-[#fafafa] overflow-hidden grid place-items-center">
-                                <img src={image} alt="" className="h-full w-full object-contain" />
-                              </div>
-                              <TinyField label="View">
-                                <select value={meta.view || ""} onChange={(event) => setMediaMeta(image, "view", event.target.value)} className={tinyInputClass}>
-                                  <option value="">Unassigned</option>
-                                  <option value="front">Front</option>
-                                  <option value="back">Back</option>
-                                  <option value="side">Side</option>
-                                  <option value="lifestyle">Lifestyle</option>
-                                  <option value="detail">Detail</option>
-                                </select>
-                              </TinyField>
-                              <TinyField label="Color">
-                                <input
-                                  value={meta.color || ""}
-                                  onChange={(event) => setMediaMeta(image, "color", event.target.value)}
-                                  className={tinyInputClass}
-                                  placeholder="Black"
-                                  list="gdp-product-colors"
-                                />
-                              </TinyField>
-                              <TinyField label="Alt text">
-                                <input
-                                  value={meta.alt || ""}
-                                  onChange={(event) => setMediaMeta(image, "alt", event.target.value)}
-                                  className={tinyInputClass}
-                                  placeholder={`${form.name || "Product"} ${meta.view || "image"}`}
-                                />
-                              </TinyField>
-                              <button
-                                type="button"
-                                disabled={index === 0}
-                                onClick={() => reorderImage(index, 0)}
-                                className="h-9 px-2.5 rounded-lg border border-[#d5d5d5] text-[10px] font-semibold disabled:opacity-40"
-                              >
-                                {index === 0 ? "Cover" : "Set cover"}
+
+                        <div className="mt-3 grid sm:grid-cols-2 xl:grid-cols-[1.5fr_.75fr_.85fr_1fr_.8fr_.8fr_auto] gap-2">
+                          <div className="relative">
+                            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999]" />
+                            <input
+                              value={mediaFilters.search}
+                              onChange={(event) => setMediaFilters((current) => ({ ...current, search: event.target.value }))}
+                              className={`${tinyInputClass} pl-8`}
+                              placeholder="Search media, color or alt text"
+                            />
+                          </div>
+                          <select value={mediaFilters.view} onChange={(event) => setMediaFilters((current) => ({ ...current, view: event.target.value }))} className={tinyInputClass}>
+                            <option value="all">All views</option>
+                            <option value="front">Front</option>
+                            <option value="back">Back</option>
+                            <option value="side">Side</option>
+                            <option value="lifestyle">Lifestyle</option>
+                            <option value="detail">Detail</option>
+                            <option value="unassigned">Unassigned view</option>
+                          </select>
+                          <select value={mediaFilters.color} onChange={(event) => setMediaFilters((current) => ({ ...current, color: event.target.value }))} className={tinyInputClass}>
+                            <option value="all">All colors</option>
+                            {mediaColors.map((color) => <option key={color} value={color}>{color}</option>)}
+                            <option value="unassigned">Unassigned color</option>
+                          </select>
+                          <select value={mediaFilters.assignment} onChange={(event) => setMediaFilters((current) => ({ ...current, assignment: event.target.value }))} className={tinyInputClass}>
+                            <option value="all">All assignments</option>
+                            <option value="fully_assigned">Fully assigned</option>
+                            <option value="needs_attention">Needs attention</option>
+                            <option value="missing_color">Missing color</option>
+                            <option value="missing_view">Missing view</option>
+                            <option value="missing_alt">Missing alt text</option>
+                            <option value="unassigned">Unassigned</option>
+                            <option value="studio_mapped">Custom Studio mapped</option>
+                          </select>
+                          <select value={mediaFilters.groupBy} onChange={(event) => setMediaFilters((current) => ({ ...current, groupBy: event.target.value }))} className={tinyInputClass}>
+                            <option value="color">Group: Color</option>
+                            <option value="view">Group: View</option>
+                            <option value="none">No grouping</option>
+                          </select>
+                          <select value={mediaFilters.sortBy} onChange={(event) => setMediaFilters((current) => ({ ...current, sortBy: event.target.value }))} className={tinyInputClass}>
+                            <option value="display_order">Display order</option>
+                            <option value="color">Color A-Z</option>
+                            <option value="view">View</option>
+                            <option value="recent">Recently added</option>
+                          </select>
+                          <button type="button" onClick={clearMediaFilters} className="h-9 rounded-lg border border-[#d5d5d5] bg-white px-3 text-[10px] font-semibold">
+                            Clear
+                          </button>
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {mediaFilters.search && <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, search: "" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Search: {mediaFilters.search} ×</button>}
+                          {mediaFilters.view !== "all" && <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, view: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">View: {mediaFilters.view} ×</button>}
+                          {mediaFilters.color !== "all" && <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, color: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Color: {mediaFilters.color} ×</button>}
+                          {mediaFilters.assignment !== "all" && <button type="button" onClick={() => setMediaFilters((current) => ({ ...current, assignment: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Assignment: {mediaFilters.assignment.replaceAll("_", " ")} ×</button>}
+                        </div>
+
+                        <div className="mt-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-lg border border-[#e3e3e3] bg-white p-2.5">
+                          <label className="flex items-center gap-2 text-[10px] font-semibold">
+                            <input
+                              type="checkbox"
+                              checked={allVisibleMediaSelected}
+                              onChange={(event) => {
+                                const visibleUrls = visibleMediaRows.map((row) => row.image);
+                                setSelectedMedia((current) => event.target.checked
+                                  ? Array.from(new Set([...current, ...visibleUrls]))
+                                  : current.filter((url) => !visibleUrls.includes(url))
+                                );
+                              }}
+                            />
+                            Select visible ({visibleMediaRows.length})
+                          </label>
+                          <div className="text-[10px] text-[#777]">{selectedMedia.length} selected</div>
+                          {selectedMedia.length > 0 && (
+                            <div className="flex flex-wrap gap-2 xl:justify-end">
+                              <select value={mediaBulkView} onChange={(event) => setMediaBulkView(event.target.value)} className="h-8 rounded-lg border border-[#d5d5d5] bg-white px-2 text-[10px]">
+                                <option value="">Set view…</option>
+                                <option value="front">Front</option>
+                                <option value="back">Back</option>
+                                <option value="side">Side</option>
+                                <option value="lifestyle">Lifestyle</option>
+                                <option value="detail">Detail</option>
+                              </select>
+                              <button type="button" disabled={!mediaBulkView} onClick={() => updateMediaAssignments(selectedMedia, { view: mediaBulkView })} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">
+                                Apply view
+                              </button>
+                              <input value={mediaBulkColor} onChange={(event) => setMediaBulkColor(event.target.value)} list="gdp-product-colors" placeholder="Set color…" className="h-8 w-28 rounded-lg border border-[#d5d5d5] px-2 text-[10px]" />
+                              <button type="button" disabled={!mediaBulkColor.trim()} onClick={() => updateMediaAssignments(selectedMedia, { color: mediaBulkColor.trim() })} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">
+                                Apply color
+                              </button>
+                              <button type="button" onClick={() => generateMediaAltText(selectedMedia)} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold">
+                                Generate alt text
+                              </button>
+                              <button type="button" onClick={clearSelectedMediaAssignments} className="h-8 rounded-lg border border-red-200 text-red-700 px-2.5 text-[10px] font-semibold">
+                                Clear assignments
                               </button>
                             </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        {visibleMediaRows.length === 0 ? (
+                          <div className="p-6 text-center text-xs text-[#777]">No media matches the current filters.</div>
+                        ) : visibleMediaRows.map((row, visibleIndex) => {
+                          const meta = form.customization?.media?.[row.image] || {};
+                          const groupLabel = mediaFilters.groupBy === "color"
+                            ? row.color || "Unassigned color"
+                            : mediaFilters.groupBy === "view"
+                              ? row.view ? row.view.charAt(0).toUpperCase() + row.view.slice(1) : "Unassigned view"
+                              : "";
+                          const previous = visibleMediaRows[visibleIndex - 1];
+                          const previousGroup = previous
+                            ? mediaFilters.groupBy === "color"
+                              ? previous.color || "Unassigned color"
+                              : mediaFilters.groupBy === "view"
+                                ? previous.view ? previous.view.charAt(0).toUpperCase() + previous.view.slice(1) : "Unassigned view"
+                                : ""
+                            : null;
+                          const showGroup = mediaFilters.groupBy !== "none" && groupLabel !== previousGroup;
+                          return (
+                            <React.Fragment key={`media-meta-${row.image}-${row.index}`}>
+                              {showGroup && (
+                                <div className="border-t border-[#e9e9e9] bg-[#f7f7f7] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-[#666]">
+                                  {groupLabel} · {visibleMediaRows.filter((item) => (
+                                    mediaFilters.groupBy === "color"
+                                      ? (item.color || "Unassigned color") === groupLabel
+                                      : (item.view ? item.view.charAt(0).toUpperCase() + item.view.slice(1) : "Unassigned view") === groupLabel
+                                  )).length} media
+                                </div>
+                              )}
+                              <div className="border-t border-[#eeeeee] p-3 grid md:grid-cols-[28px_54px_.75fr_.9fr_1.3fr_auto] gap-2 items-end">
+                                <div className="h-9 flex items-center">
+                                  <input type="checkbox" checked={selectedMedia.includes(row.image)} onChange={() => toggleMediaSelection(row.image)} aria-label={`Select media ${row.index + 1}`} />
+                                </div>
+                                <div className="h-12 w-12 rounded-lg border border-[#e1e1e1] bg-[#fafafa] overflow-hidden grid place-items-center">
+                                  <img src={row.image} alt="" className="h-full w-full object-contain" />
+                                </div>
+                                <TinyField label="View">
+                                  <select value={meta.view || ""} onChange={(event) => setMediaMeta(row.image, "view", event.target.value)} className={tinyInputClass}>
+                                    <option value="">Unassigned</option>
+                                    <option value="front">Front</option>
+                                    <option value="back">Back</option>
+                                    <option value="side">Side</option>
+                                    <option value="lifestyle">Lifestyle</option>
+                                    <option value="detail">Detail</option>
+                                  </select>
+                                </TinyField>
+                                <TinyField label="Color">
+                                  <input value={meta.color || ""} onChange={(event) => setMediaMeta(row.image, "color", event.target.value)} className={tinyInputClass} placeholder="Black" list="gdp-product-colors" />
+                                </TinyField>
+                                <TinyField label="Alt text">
+                                  <input value={meta.alt || ""} onChange={(event) => setMediaMeta(row.image, "alt", event.target.value)} className={tinyInputClass} placeholder={`${form.name || "Product"} ${meta.view || "image"}`} />
+                                </TinyField>
+                                <button type="button" disabled={row.index === 0} onClick={() => reorderImage(row.index, 0)} className="h-9 px-2.5 rounded-lg border border-[#d5d5d5] text-[10px] font-semibold disabled:opacity-40">
+                                  {row.index === 0 ? "Cover" : "Set cover"}
+                                </button>
+                              </div>
+                            </React.Fragment>
                           );
                         })}
                       </div>
@@ -1617,60 +2063,196 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                 </div>
 
                 <div className="border border-[#dedede] rounded-xl overflow-hidden">
-                  <div className="px-3 py-2.5 bg-[#fafafa] border-b border-[#e8e8e8] flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">Variant inventory</div>
-                      <div className="text-[10px] text-[#777]">Keep SKU, barcode, stock and optional price per variation.</div>
+                  <div className="px-3 py-3 bg-[#fafafa] border-b border-[#e8e8e8]">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">Variant inventory</div>
+                        <div className="text-[10px] text-[#777]">Filter, group and bulk-edit SKU, barcode, stock and optional price overrides without losing unsaved changes.</div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 text-[10px]">
+                        <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "all" }))} className="rounded-full border border-[#ddd] bg-white px-2.5 py-1">
+                          {variantSummary.total} variants
+                        </button>
+                        <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "in" }))} className="rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 px-2.5 py-1">
+                          {variantSummary.inStock} in stock
+                        </button>
+                        <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "low" }))} className="rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2.5 py-1">
+                          {variantSummary.low} low
+                        </button>
+                        <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "out" }))} className="rounded-full border border-red-200 bg-red-50 text-red-700 px-2.5 py-1">
+                          {variantSummary.out} out
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={generateVariantMatrix} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-xs font-medium">
-                        Generate matrix
-                      </button>
-                      <button type="button" onClick={autoFillSkus} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-xs font-medium">
-                        Auto-fill SKUs
-                      </button>
-                      <button type="button" onClick={addVariant} className="text-xs font-medium inline-flex items-center gap-1">
-                        <Plus size={13} /> Add variant
-                      </button>
+
+                    <div className="mt-3 grid sm:grid-cols-2 xl:grid-cols-[1.45fr_.8fr_.7fr_.8fr_.85fr_.85fr_.95fr_auto] gap-2">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999]" />
+                        <input value={variantFilters.search} onChange={(event) => setVariantFilters((current) => ({ ...current, search: event.target.value }))} className={`${tinyInputClass} pl-8`} placeholder="Search SKU, barcode, color or size" />
+                      </div>
+                      <select value={variantFilters.color} onChange={(event) => setVariantFilters((current) => ({ ...current, color: event.target.value }))} className={tinyInputClass}>
+                        <option value="all">All colors</option>
+                        {variantColors.map((color) => <option key={color} value={color}>{color}</option>)}
+                      </select>
+                      <select value={variantFilters.size} onChange={(event) => setVariantFilters((current) => ({ ...current, size: event.target.value }))} className={tinyInputClass}>
+                        <option value="all">All sizes</option>
+                        {variantSizes.map((size) => <option key={size} value={size}>{size}</option>)}
+                      </select>
+                      <select value={variantFilters.stock} onChange={(event) => setVariantFilters((current) => ({ ...current, stock: event.target.value }))} className={tinyInputClass}>
+                        <option value="all">All stock</option>
+                        <option value="in">In stock</option>
+                        <option value="low">Low stock</option>
+                        <option value="out">Out of stock</option>
+                      </select>
+                      <select value={variantFilters.pricing} onChange={(event) => setVariantFilters((current) => ({ ...current, pricing: event.target.value }))} className={tinyInputClass}>
+                        <option value="all">All pricing</option>
+                        <option value="base">Base price</option>
+                        <option value="override">Price override</option>
+                        <option value="missing">Missing price</option>
+                      </select>
+                      <select value={variantFilters.groupBy} onChange={(event) => setVariantFilters((current) => ({ ...current, groupBy: event.target.value }))} className={tinyInputClass}>
+                        <option value="color">Group: Color</option>
+                        <option value="size">Group: Size</option>
+                        <option value="none">No grouping</option>
+                      </select>
+                      <select value={variantFilters.sortBy} onChange={(event) => setVariantFilters((current) => ({ ...current, sortBy: event.target.value }))} className={tinyInputClass}>
+                        <option value="color_size">Color → Size</option>
+                        <option value="size_color">Size → Color</option>
+                        <option value="sku">SKU</option>
+                        <option value="stock_asc">Stock low → high</option>
+                        <option value="stock_desc">Stock high → low</option>
+                        <option value="price_asc">Price low → high</option>
+                        <option value="price_desc">Price high → low</option>
+                      </select>
+                      <button type="button" onClick={clearVariantFilters} className="h-9 rounded-lg border border-[#d5d5d5] bg-white px-3 text-[10px] font-semibold">Clear</button>
                     </div>
-                  </div>
-                  <div className="divide-y divide-[#eeeeee]">
-                    {variants.map((variant, index) => (
-                      <div key={variant.id || index} className="p-3 bg-white">
-                        <div className="grid md:grid-cols-2 xl:grid-cols-[1.1fr_.9fr_.9fr_.75fr_.75fr_.65fr_.75fr_auto] gap-2 items-end">
-                          <TinyField label="Name">
-                            <input value={variant.name || ""} onChange={(event) => updateVariant(index, "name", event.target.value)} className={tinyInputClass} />
-                          </TinyField>
-                          <TinyField label="SKU">
-                            <input value={variant.sku || ""} onChange={(event) => updateVariant(index, "sku", event.target.value)} className={tinyInputClass} />
-                          </TinyField>
-                          <TinyField label="Barcode">
-                            <input value={variant.barcode || ""} onChange={(event) => updateVariant(index, "barcode", event.target.value)} className={tinyInputClass} />
-                          </TinyField>
-                          <TinyField label="Color">
-                            <input value={variant.color || ""} onChange={(event) => updateVariant(index, "color", event.target.value)} className={tinyInputClass} />
-                          </TinyField>
-                          <TinyField label="Size">
-                            <input value={variant.size || ""} onChange={(event) => updateVariant(index, "size", event.target.value)} className={tinyInputClass} />
-                          </TinyField>
-                          <TinyField label="Stock">
-                            <input type="number" min="0" value={variant.stock ?? 0} onChange={(event) => updateVariant(index, "stock", event.target.value)} className={tinyInputClass} />
-                          </TinyField>
-                          <TinyField label="Price">
-                            <input type="number" min="0" step="0.01" value={variant.price ?? ""} onChange={(event) => updateVariant(index, "price", event.target.value)} className={tinyInputClass} />
-                          </TinyField>
-                          <button
-                            type="button"
-                            onClick={() => removeVariant(index)}
-                            disabled={variants.length === 1}
-                            className="h-9 w-9 rounded-lg border border-[#ddd] grid place-items-center hover:bg-red-50 hover:text-red-600 disabled:opacity-35"
-                            aria-label="Remove variant"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {variantFilters.search && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, search: "" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Search: {variantFilters.search} ×</button>}
+                      {variantFilters.color !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, color: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Color: {variantFilters.color} ×</button>}
+                      {variantFilters.size !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, size: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Size: {variantFilters.size} ×</button>}
+                      {variantFilters.stock !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Stock: {variantFilters.stock} ×</button>}
+                      {variantFilters.pricing !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, pricing: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Pricing: {variantFilters.pricing} ×</button>}
+                    </div>
+
+                    <div className="mt-3 flex flex-col gap-2 rounded-lg border border-[#e2e2e2] bg-white p-2.5">
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                        <label className="flex items-center gap-2 text-[10px] font-semibold">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleVariantsSelected}
+                            onChange={(event) => {
+                              const visibleKeys = visibleVariantRows.map((row) => row.key);
+                              setSelectedVariantKeys((current) => event.target.checked
+                                ? Array.from(new Set([...current, ...visibleKeys]))
+                                : current.filter((key) => !visibleKeys.includes(key))
+                              );
+                            }}
+                          />
+                          Select visible ({visibleVariantRows.length})
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] text-[#777]">{selectedVariantKeys.length} selected</span>
+                          <button type="button" onClick={generateVariantMatrix} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-[10px] font-semibold">Generate matrix</button>
+                          <button type="button" onClick={() => autoFillSkus(false)} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-[10px] font-semibold">Auto-fill all SKUs</button>
+                          <button type="button" onClick={addVariant} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-[10px] font-semibold inline-flex items-center gap-1"><Plus size={12} /> Add variant</button>
                         </div>
                       </div>
-                    ))}
+
+                      {selectedVariantKeys.length > 0 && (
+                        <div className="border-t border-[#eeeeee] pt-2 flex flex-wrap items-center gap-2">
+                          <input type="number" min="0" value={variantBulkStock} onChange={(event) => setVariantBulkStock(event.target.value)} placeholder="Stock" className="h-8 w-20 rounded-lg border border-[#d5d5d5] px-2 text-[10px]" />
+                          <button type="button" disabled={variantBulkStock === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, stock: Math.max(0, Number(variantBulkStock || 0)) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Set stock</button>
+                          <input type="number" value={variantBulkAdjustment} onChange={(event) => setVariantBulkAdjustment(event.target.value)} placeholder="+/- stock" className="h-8 w-24 rounded-lg border border-[#d5d5d5] px-2 text-[10px]" />
+                          <button type="button" disabled={variantBulkAdjustment === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, stock: Math.max(0, Number(variant.stock || 0) + Number(variantBulkAdjustment || 0)) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Adjust stock</button>
+                          <input type="number" min="0" step="0.01" value={variantBulkPrice} onChange={(event) => setVariantBulkPrice(event.target.value)} placeholder="Price" className="h-8 w-20 rounded-lg border border-[#d5d5d5] px-2 text-[10px]" />
+                          <button type="button" disabled={variantBulkPrice === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, price: Number(variantBulkPrice || 0) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Set price</button>
+                          <button type="button" onClick={() => updateSelectedVariants((variant) => ({ ...variant, price: null }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold">Use base price</button>
+                          <button type="button" disabled={variantBulkPrice === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, price: Math.max(0, Number(form.price || 0) + Number(variantBulkPrice || 0)) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Base + adjustment</button>
+                          <button type="button" onClick={() => autoFillSkus(true)} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold">Fill selected SKUs</button>
+                          <button type="button" onClick={retireSelectedVariants} className="h-8 rounded-lg border border-red-200 text-red-700 px-2.5 text-[10px] font-semibold">Retire selected</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    {visibleVariantRows.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-[#777]">No variants match the current filters.</div>
+                    ) : visibleVariantRows.map((row, visibleIndex) => {
+                      const variant = row.variant;
+                      const groupLabel = variantFilters.groupBy === "color"
+                        ? row.color || "Unassigned color"
+                        : variantFilters.groupBy === "size"
+                          ? row.size || "Unassigned size"
+                          : "";
+                      const previous = visibleVariantRows[visibleIndex - 1];
+                      const previousGroup = previous
+                        ? variantFilters.groupBy === "color"
+                          ? previous.color || "Unassigned color"
+                          : variantFilters.groupBy === "size"
+                            ? previous.size || "Unassigned size"
+                            : ""
+                        : null;
+                      const showGroup = variantFilters.groupBy !== "none" && groupLabel !== previousGroup;
+                      return (
+                        <React.Fragment key={row.key}>
+                          {showGroup && (
+                            <div className="border-t border-[#e9e9e9] bg-[#f7f7f7] px-3 py-2 flex items-center justify-between gap-2">
+                              <div className="text-[10px] font-bold uppercase tracking-wide text-[#666]">
+                                {groupLabel} · {visibleVariantRows.filter((item) => (
+                                  variantFilters.groupBy === "color"
+                                    ? (item.color || "Unassigned color") === groupLabel
+                                    : (item.size || "Unassigned size") === groupLabel
+                                )).length} variants
+                              </div>
+                              {variantFilters.groupBy === "color" && row.color && (
+                                <div className="text-[9px] text-[#888]">Grouped for faster color-by-color editing</div>
+                              )}
+                            </div>
+                          )}
+                          <div className="border-t border-[#eeeeee] p-3 bg-white">
+                            <div className="grid md:grid-cols-2 xl:grid-cols-[28px_1.1fr_.9fr_.9fr_.75fr_.75fr_.65fr_.75fr_auto] gap-2 items-end">
+                              <div className="h-9 flex items-center">
+                                <input type="checkbox" checked={selectedVariantKeys.includes(row.key)} onChange={() => toggleVariantSelection(variant, row.index)} aria-label={`Select ${variant.name || "variant"}`} />
+                              </div>
+                              <TinyField label="Name">
+                                <input value={variant.name || ""} onChange={(event) => updateVariant(row.index, "name", event.target.value)} className={tinyInputClass} />
+                              </TinyField>
+                              <TinyField label="SKU">
+                                <input value={variant.sku || ""} onChange={(event) => updateVariant(row.index, "sku", event.target.value)} className={tinyInputClass} />
+                              </TinyField>
+                              <TinyField label="Barcode">
+                                <input value={variant.barcode || ""} onChange={(event) => updateVariant(row.index, "barcode", event.target.value)} className={tinyInputClass} />
+                              </TinyField>
+                              <TinyField label="Color">
+                                <input value={variant.color || ""} onChange={(event) => updateVariant(row.index, "color", event.target.value)} className={tinyInputClass} />
+                              </TinyField>
+                              <TinyField label="Size">
+                                <input value={variant.size || ""} onChange={(event) => updateVariant(row.index, "size", event.target.value)} className={tinyInputClass} />
+                              </TinyField>
+                              <TinyField label="Stock">
+                                <div>
+                                  <input type="number" min="0" value={variant.stock ?? 0} onChange={(event) => updateVariant(row.index, "stock", event.target.value)} className={tinyInputClass} />
+                                  <div className={`mt-1 text-[8px] font-semibold uppercase ${row.stockStatus === "out" ? "text-red-600" : row.stockStatus === "low" ? "text-amber-700" : "text-emerald-700"}`}>
+                                    {row.stockStatus === "out" ? "Out" : row.stockStatus === "low" ? "Low" : "In stock"}
+                                  </div>
+                                </div>
+                              </TinyField>
+                              <TinyField label="Price">
+                                <div>
+                                  <input type="number" min="0" step="0.01" value={variant.price ?? ""} onChange={(event) => updateVariant(row.index, "price", event.target.value)} className={tinyInputClass} placeholder={`Base ${money(form.price, settings?.currency || "CAD")}`} />
+                                  <div className="mt-1 text-[8px] uppercase text-[#888]">{row.priceOverride ? "Override" : "Base price"}</div>
+                                </div>
+                              </TinyField>
+                              <button type="button" onClick={() => removeVariant(row.index)} disabled={variants.length === 1} className="h-9 w-9 rounded-lg border border-[#ddd] grid place-items-center hover:bg-red-50 hover:text-red-600 disabled:opacity-35" aria-label="Remove variant">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
                   </div>
                 </div>
               </EditorSection>
