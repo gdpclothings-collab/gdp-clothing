@@ -435,19 +435,6 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
     }));
   };
 
-  const setCustomizationUiValue = (key, value) => {
-    setForm((current) => ({
-      ...current,
-      customization: {
-        ...(current.customization || {}),
-        ui: {
-          ...(current.customization?.ui || {}),
-          [key]: value,
-        },
-      },
-    }));
-  };
-
   const setColorPreviewValue = (color, key, value) => {
     setForm((current) => ({
       ...current,
@@ -1532,35 +1519,8 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                     Use the generated garment silhouette, or select an uploaded product image as the front/back mockup. Print-area values are percentages of the mockup canvas.
                   </div>
 
-                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3 space-y-3">
-                    <div>
-                      <Toggle
-                        checked={form.customization?.ui?.mobileFloatingCtaEnabled === true}
-                        onChange={(value) => setCustomizationUiValue("mobileFloatingCtaEnabled", value)}
-                        label="Enable mobile floating CTA"
-                      />
-                      <div className="mt-2 text-[10px] leading-4 text-[#777]">
-                        Off by default. When enabled, mobile customers see the floating price + Continue / Add to Cart bar while configuring this garment.
-                      </div>
-                    </div>
-                    <div className="border-t border-[#e5e5e5] pt-3">
-                      <Toggle
-                        checked={form.customization?.ui?.intensityExamplesEnabled !== false}
-                        onChange={(value) => setCustomizationUiValue("intensityExamplesEnabled", value)}
-                        label="Show design intensity examples"
-                      />
-                      <div className="mt-2 text-[10px] leading-4 text-[#777]">
-                        Shows the customer a clean-to-maximum bootleg visual guide beside the Design Intensity slider.
-                      </div>
-                    </div>
-                    <Field label="Intensity example image URL" helper="Optional · leave blank for built-in GDP bootleg guide">
-                      <input
-                        value={form.customization?.ui?.intensityExampleImageUrl || ""}
-                        onChange={(event) => setCustomizationUiValue("intensityExampleImageUrl", event.target.value)}
-                        className={inputClass}
-                        placeholder="/images/design-intensity-bootleg.svg"
-                      />
-                    </Field>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-5 text-blue-800">
+                    Global Custom Studio behavior is managed from <strong>Admin → Custom Studio → Settings</strong>. This product section only controls garment-specific preview media and print-area mapping.
                   </div>
 
                   <Field label="Front mockup" helper="Optional">
