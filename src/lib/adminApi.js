@@ -133,6 +133,7 @@ const mapSettings = (row) => row ? ({
   lowStockThreshold: row.low_stock_threshold,
   contactEmail: row.contact_email,
   footerText: row.footer_text,
+  customStudioSettings: row.custom_studio_settings || {},
   updated_date: row.updated_at,
 }) : null;
 
@@ -452,6 +453,7 @@ export const adminApi = {
       tiktok: data.tiktok || null,
       youtube: data.youtube || null,
       footer_text: data.footerText || null,
+      custom_studio_settings: data.customStudioSettings || {},
     };
 
     throwIfError(await supabase.from("store_settings").upsert(payload));
