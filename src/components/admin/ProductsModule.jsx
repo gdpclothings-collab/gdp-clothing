@@ -65,6 +65,32 @@ const splitComma = (value) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const normalizeVariantOption = (value) => String(value || "").trim().toLowerCase();
+
+const buildVariantMatrix = (colors, sizes, currentVariants = []) =>
+  colors.flatMap((variantColor) =>
+    sizes.map((variantSize) => {
+      const existing = currentVariants.find(
+        (variant) =>
+          normalizeVariantOption(variant.color) === normalizeVariantOption(variantColor) &&
+          normalizeVariantOption(variant.size) === normalizeVariantOption(variantSize)
+      );
+
+      return {
+        ...(existing || {}),
+        name: `${variantColor} / ${variantSize}`,
+        sku: existing?.sku || "",
+        barcode: existing?.barcode || "",
+        podSku: existing?.podSku || "",
+        stock: Number(existing?.stock || 0),
+        price: existing?.price ?? null,
+        costPerItem: existing?.costPerItem ?? null,
+        color: variantColor,
+        size: variantSize,
+      };
+    })
+  );
+
 function money(value, currency = "CAD") {
   return Number(value || 0).toLocaleString("en-CA", {
     style: "currency",
@@ -927,27 +953,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     }
 
     setSelectedVariantKeys([]);
-    setVariants((current) => colors.flatMap((variantColor) =>
-      sizes.map((variantSize) => {
-        const existing = current.find((variant) =>
-          String(variant.color || "").trim().toLowerCase() === variantColor.toLowerCase() &&
-          String(variant.size || "").trim().toLowerCase() === variantSize.toLowerCase()
-        );
-
-        return {
-          ...(existing || {}),
-          name: `${variantColor} / ${variantSize}`,
-          sku: existing?.sku || "",
-          barcode: existing?.barcode || "",
-          podSku: existing?.podSku || "",
-          stock: Number(existing?.stock || 0),
-          price: existing?.price ?? null,
-          costPerItem: existing?.costPerItem ?? null,
-          color: variantColor,
-          size: variantSize,
-        };
-      })
-    ));
+    setVariants((current) => buildVariantMatrix(colors, sizes, current));
   };
 
   const removeVariant = (index) => {
@@ -1095,10 +1101,22 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const submit = async (event) => {
     event.preventDefault();
 
-    const submittedExistingIds = new Set(variants.map((variant) => variant.id).filter(Boolean));
-    const retiringWithStock = savedVariants.filter(
-      (variant) => variant.id && !submittedExistingIds.has(variant.id) && Number(variant.stock || 0) > 0
-    );
+    const optionColors = splitComma(form.colors);
+    const optionSizes = splitComma(form.sizes);
+    const submittedVariants =
+      optionColors.length && optionSizes.length
+        ? buildVariantMatrix(optionColors, optionSizes, variants)
+        : variants;
+    const submittedExistingIds = new Set(submittedVariants.map((variant) => variant.id).filter(Boolean));
+    const retiringWithStock =
+      form.trackInventory === false
+        ? []
+        : savedVariants.filter(
+            (variant) =>
+              variant.id &&
+              !submittedExistingIds.has(variant.id) &&
+              Number(variant.stock || 0) > 0
+          );
     if (
       retiringWithStock.length > 0 &&
       !window.confirm(
@@ -1112,8 +1130,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     setSaving(true);
     setSaveState("saving");
     try {
-      const safeVariants = variants.length
-        ? variants.map((variant, index) => ({
+      const safeVariants = submittedVariants.length
+        ? submittedVariants.map((variant, index) => ({
             ...variant,
             _uiKey: variant._uiKey || variantKey(variant, index),
           }))
@@ -1159,8 +1177,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
               measure: form.unitPriceMeasure === "" ? null : Number(form.unitPriceMeasure),
               unit: form.unitPriceUnit || "each",
             },
-        sizes: splitComma(form.sizes),
-        colors: splitComma(form.colors),
+        sizes: optionSizes,
+        colors: optionColors,
         tags: splitComma(form.tags),
         barcode: form.barcode || safeVariants[0]?.barcode || null,
         material: form.material || null,

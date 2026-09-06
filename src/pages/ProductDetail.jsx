@@ -8,6 +8,9 @@ import { Image } from "@/components/ui/image";
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
 
+const uniqueValues = (values = []) =>
+  [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+
 export default function ProductDetail() {
   const { id, slug } = useParams();
   const navigate = useNavigate();
@@ -36,8 +39,8 @@ export default function ProductDetail() {
       setProduct(nextProduct);
 
       const firstVariant = nextProduct?.variants?.[0];
-      setColor(firstVariant?.color || nextProduct?.colors?.[0] || "");
-      setSize(firstVariant?.size || nextProduct?.sizes?.[0] || "M");
+      setColor(nextProduct?.colors?.[0] || firstVariant?.color || "");
+      setSize(nextProduct?.sizes?.[0] || firstVariant?.size || "M");
 
       if (nextProduct?.id) {
         const reviewResult = await supabase
@@ -96,10 +99,12 @@ export default function ProductDetail() {
   }
 
   const variants = product.variants || [];
-  const variantColors = [...new Set(variants.map((variant) => variant.color).filter(Boolean))];
-  const variantSizes = [...new Set(variants.map((variant) => variant.size).filter(Boolean))];
-  const colors = variantColors.length ? variantColors : product.colors?.length ? product.colors : ["Black"];
-  const sizes = variantSizes.length ? variantSizes : product.sizes?.length ? product.sizes : SIZES;
+  const productColors = uniqueValues(product.colors || []);
+  const productSizes = uniqueValues(product.sizes || []);
+  const variantColors = uniqueValues(variants.map((variant) => variant.color));
+  const variantSizes = uniqueValues(variants.map((variant) => variant.size));
+  const colors = productColors.length ? productColors : variantColors.length ? variantColors : ["Black"];
+  const sizes = productSizes.length ? productSizes : variantSizes.length ? variantSizes : SIZES;
   const selectedVariant =
     variants.find((variant) => (!variant.color || variant.color === color) && (!variant.size || variant.size === size)) ||
     (variants.length === 1 ? variants[0] : null);

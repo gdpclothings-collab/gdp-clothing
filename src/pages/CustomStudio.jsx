@@ -97,18 +97,21 @@ function uniqueValues(values = []) {
 
 function productColors(product) {
   if (!product) return [];
-  const variantColors = uniqueValues((product.variants || []).map((variant) => variant.color));
-  return variantColors.length ? variantColors : uniqueValues(product.colors || []);
+  const configuredColors = uniqueValues(product.colors || []);
+  if (configuredColors.length) return configuredColors;
+  return uniqueValues((product.variants || []).map((variant) => variant.color));
 }
 
 function productSizes(product, color = "") {
   if (!product) return [];
+  const configuredSizes = uniqueValues(product.sizes || []);
+  if (configuredSizes.length) return configuredSizes;
+
   const variants = product.variants || [];
   const matching = color
     ? variants.filter((variant) => String(variant.color || "").toLowerCase() === String(color).toLowerCase())
     : variants;
-  const variantSizes = uniqueValues(matching.map((variant) => variant.size));
-  return variantSizes.length ? variantSizes : uniqueValues(product.sizes || []);
+  return uniqueValues(matching.map((variant) => variant.size));
 }
 
 function variantFor(product, color, size) {
@@ -120,9 +123,9 @@ function variantFor(product, color, size) {
 }
 
 function variantAvailable(product, variant) {
+  if (product?.trackInventory === false) return true;
   if (!product?.variants?.length) return true;
   if (!variant) return false;
-  if (product.trackInventory === false) return true;
   return Number(variant.stock || 0) > 0;
 }
 
