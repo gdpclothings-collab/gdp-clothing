@@ -164,7 +164,20 @@ export default function ProductDetail() {
               )}
             </div>
 
-            {product.description && <p className="mt-5 text-sm leading-6 text-black/60">{product.description}</p>}
+            {product.metafields?.short_description && (
+              <p className="mt-5 text-sm font-semibold leading-6 text-black/72">{product.metafields.short_description}</p>
+            )}
+            {product.description && (
+              <p className={`${product.metafields?.short_description ? "mt-3" : "mt-5"} text-sm leading-6 text-black/60`}>{product.description}</p>
+            )}
+            {(product.metafields?.garment_brand || product.metafields?.garment_model || product.metafields?.fit || product.metafields?.fabric_weight) && (
+              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-y border-black/10 py-3">
+                {product.metafields?.garment_brand && <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/45">Brand / {product.metafields.garment_brand}</div>}
+                {product.metafields?.garment_model && <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/45">Model / {product.metafields.garment_model}</div>}
+                {product.metafields?.fit && <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/45">Fit / {product.metafields.fit}</div>}
+                {product.metafields?.fabric_weight && <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/45">Weight / {product.metafields.fabric_weight}</div>}
+              </div>
+            )}
             {product.material && <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.14em] text-black/42">Material / {product.material}</p>}
 
             <div className="mt-7 border-t border-black/15 pt-5">
