@@ -52,6 +52,7 @@ const DEFAULT_STUDIO_SETTINGS = {
   showCombinedIntensityGuide: true,
   defaultDesignIntensity: 3,
   orderGuideEnabled: true,
+  priceVisibility: "hidden",
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -70,6 +71,7 @@ function normalizeStudioSettings(settings = {}) {
     ...(settings || {}),
     intensityExamples: normalizeIntensityExamples(settings?.intensityExamples),
     defaultDesignIntensity: Math.min(5, Math.max(1, Number(settings?.defaultDesignIntensity || 3))),
+    priceVisibility: ["hidden", "total", "all"].includes(settings?.priceVisibility) ? settings.priceVisibility : "hidden",
   };
 }
 
@@ -432,10 +434,19 @@ function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave
             </div>
           </div>
           <div className="p-4 space-y-4">
+            <label className="block rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+              <span className="text-xs font-semibold text-[#333]">Studio price visibility</span>
+              <span className="mt-1 block text-[11px] leading-relaxed text-[#777]">Controls pricing shown while customers build a custom order. Checkout pricing is never affected.</span>
+              <select value={settings.priceVisibility || "hidden"} onChange={(event) => onChange("priceVisibility", event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm">
+                <option value="hidden">Hidden in Studio · recommended</option>
+                <option value="total">Show estimated total only</option>
+                <option value="all">Show all garment pricing</option>
+              </select>
+            </label>
             <SettingToggle
               icon={Smartphone}
               title="Mobile floating CTA"
-              description="Show the floating price + Continue / Add to Cart bar on mobile. Keep this off while the standard in-page controls are preferred."
+              description="Show the floating Continue / Add to Cart bar on mobile. Price follows the Studio price visibility setting."
               checked={settings.mobileFloatingCtaEnabled === true}
               onChange={(value) => onChange("mobileFloatingCtaEnabled", value)}
             />
