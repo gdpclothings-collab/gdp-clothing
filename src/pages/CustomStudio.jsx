@@ -732,11 +732,12 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 2,
+            version: 3,
             side: previewSide,
             artworkScale,
             artworkRotation,
             artworkOffset,
+            artworkFitMode,
             viewZoom: previewZoom,
             sourcePhotoIndex: Math.max(0, photos.findIndex(p => p.isPrimary)),
             garmentId: productId,
@@ -1163,6 +1164,7 @@ export default function CustomStudio() {
                 side={previewSide}
                 placement={placement}
                 photo={primaryPhoto}
+                uploading={uploading}
                 personalization={personalization}
                 zoom={previewZoom}
                 setZoom={setPreviewZoom}
@@ -1196,8 +1198,9 @@ export default function CustomStudio() {
                     <input type="range" min="55" max="145" value={artworkScale} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
                     <div className="mt-2 inline-flex rounded-lg border border-[#DCE3EA] bg-[#F4F7FA] p-1">
                       <button type="button" onClick={() => setArtworkFitMode("fit")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fit" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
-                      <button type="button" onClick={() => setArtworkFitMode("fill")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fill" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fill</button>
+                      <button type="button" onClick={() => setArtworkFitMode("crop")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop to fill</button>
                     </div>
+                    {artworkFitMode === "crop" && <p className="mt-2 text-[10px] leading-relaxed text-[#8A5A48]">Crop to Fill intentionally trims image edges to fill the artwork box. Use Fit · No Crop to keep the complete image visible.</p>}
                   </div>
                   <div>
                     <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Rotation</span><span>{artworkRotation}°</span></div>
@@ -1337,7 +1340,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} fullscreen />
+              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} fullscreen />
             </div>
           </div>
         </div>}
@@ -1377,7 +1380,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "fit", showGuides, showMeasurements, size, previewConfig = {}, fullscreen = false }) {
+function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "fit", showGuides, showMeasurements, size, previewConfig = {}, fullscreen = false }) {
   const dragRef = useRef(null);
   const blankBack = side === "back" && placement === "front";
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
@@ -1404,6 +1407,12 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
     top: printArea.top + "%",
     width: printArea.width + "%",
     height: printArea.height + "%"
+  };
+  const artworkLayerStyle = {
+    left: (50 + Number(artworkOffset?.x || 0)) + "%",
+    top: (50 + Number(artworkOffset?.y || 0)) + "%",
+    transform: `translate(-50%, -50%) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)`,
+    transformOrigin: "center center"
   };
   const collarAnchor = Math.min(printArea.top - 2, Number(profile.collarAnchor || 20));
   const collarGuideHeight = Math.max(2, printArea.top - collarAnchor);
@@ -1480,7 +1489,28 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
           style={printAreaStyle}
           className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
-          {blankBack ? <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div> : photo ? <img src={photo.url} alt="Primary artwork preview" draggable="false" className={"absolute left-1/2 top-1/2 h-[88%] w-[88%] rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none " + (artworkFitMode === "fill" ? "object-cover" : "object-contain")} style={{ transform: `translate(calc(-50% + ${artworkOffset.x}%), calc(-50% + ${artworkOffset.y}%)) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)` }} /> : <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>}
+          {blankBack ? (
+            <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
+          ) : photo ? (
+            artworkFitMode === "crop" ? (
+              <div
+                className="absolute h-[88%] w-[88%] overflow-hidden rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none"
+                style={artworkLayerStyle}
+              >
+                <img src={photo.url} alt="Primary artwork preview" draggable="false" className="h-full w-full object-cover pointer-events-none" />
+              </div>
+            ) : (
+              <img
+                src={photo.url}
+                alt="Primary artwork preview"
+                draggable="false"
+                className="absolute h-auto w-auto max-h-[88%] max-w-[88%] object-contain rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none"
+                style={artworkLayerStyle}
+              />
+            )
+          ) : (
+            <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>
+          )}
           {!blankBack && (personalization?.name || personalization?.dates || personalization?.quote) && <div className="absolute inset-x-1 bottom-1.5 text-center text-white pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.85)]">
             {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
             {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
@@ -1489,6 +1519,12 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
         </div>
       </div>
     </div>
+
+    {uploading && photo && !blankBack && <div className="absolute left-1/2 top-12 z-40 -translate-x-1/2 pointer-events-none">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[#C9D4DE] bg-white/90 px-3 py-1.5 text-[9px] font-semibold text-[#17324D] shadow-sm backdrop-blur">
+        <Upload size={11} /> Uploading new artwork… current preview stays visible
+      </span>
+    </div>}
 
     <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
       <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
