@@ -534,6 +534,7 @@ export default function CustomStudio() {
                 artworkOffset={artworkOffset}
                 setArtworkOffset={setArtworkOffset}
                 showGuides={showGuides}
+                previewConfig={config.preview || {}}
               />
 
               <div className="p-4 border-t border-[#ebe5dc] bg-[#fffdfa]">
@@ -604,7 +605,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} showGuides={showGuides} fullscreen />
+              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} showGuides={showGuides} previewConfig={config.preview || {}} fullscreen />
             </div>
           </div>
         </div>}
@@ -617,10 +618,18 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, showGuides, fullscreen = false }) {
+function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, showGuides, previewConfig = {}, fullscreen = false }) {
   const dragRef = useRef(null);
   const blankBack = side === "back" && placement === "front";
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
+  const mockupUrl = side === "back" ? previewConfig.backMockupUrl : previewConfig.frontMockupUrl;
+  const defaultArea = garment?.type === "Hoodie" ? { top: 32, width: 34, height: 36 } : { top: 29, width: 36, height: 38 };
+  const configuredArea = previewConfig?.printArea?.[side] || {};
+  const printAreaStyle = {
+    top: (Number(configuredArea.top) || defaultArea.top) + "%",
+    width: (Number(configuredArea.width) || defaultArea.width) + "%",
+    height: (Number(configuredArea.height) || defaultArea.height) + "%"
+  };
 
   const onPointerDown = (event) => {
     if (!canDrag) return;
@@ -649,13 +658,14 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
     <div className="absolute inset-x-0 top-3 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/75 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
       <div className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}>
-        <GarmentShape type={garment?.type || "T-Shirt"} color={color} side={side} />
+        {mockupUrl ? <img src={mockupUrl} alt={(garment?.label || "Custom garment") + " " + side + " mockup"} className="w-full h-auto object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]" /> : <GarmentShape type={garment?.type || "T-Shirt"} color={color} side={side} />}
         <div
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={stopDrag}
           onPointerCancel={stopDrag}
-          className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (garment?.type === "Hoodie" ? "top-[32%] h-[36%] w-[34%]" : "top-[29%] h-[38%] w-[36%]") + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
+          style={printAreaStyle}
+          className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
           {blankBack ? <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div> : photo ? <img src={photo.url} alt="Primary artwork preview" draggable="false" className="absolute left-1/2 top-1/2 h-[88%] w-[88%] object-cover rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none" style={{ transform: `translate(calc(-50% + ${artworkOffset.x}%), calc(-50% + ${artworkOffset.y}%)) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)` }} /> : <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>}
           {!blankBack && (personalization?.name || personalization?.dates || personalization?.quote) && <div className="absolute inset-x-1 bottom-1.5 text-center text-white pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.85)]">
