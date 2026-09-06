@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, Search, ShoppingBag, User, X } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
-import { storefrontContentApi } from "@/lib/storefrontContentApi";
+import { isLandingDraftPreview, storefrontContentApi } from "@/lib/storefrontContentApi";
+import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
 
 const FALLBACK_NAV = [
   { label: "Home", path: "/" },
@@ -13,6 +14,40 @@ const FALLBACK_NAV = [
   { label: "Contact", path: "/pages/contact" },
 ];
 
+function ManagedLogo({ src, fallbackSrc, alt, className }) {
+  const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
+
+  useEffect(() => {
+    setCurrentSrc(src || fallbackSrc);
+  }, [src, fallbackSrc]);
+
+  return (
+    <img
+      src={currentSrc}
+      alt={alt}
+      className={className}
+      onError={() => {
+        if (currentSrc !== fallbackSrc) setCurrentSrc(fallbackSrc);
+      }}
+    />
+  );
+}
+
+function AnnouncementLink({ announcement }) {
+  const content = (
+    <>
+      <span>{announcement.text}</span>
+      {announcement.linkLabel && <span className="ml-2 underline underline-offset-2">{announcement.linkLabel}</span>}
+    </>
+  );
+
+  if (!announcement.url) return <div>{content}</div>;
+  if (/^https?:\/\//i.test(announcement.url)) {
+    return <a href={announcement.url}>{content}</a>;
+  }
+  return <Link to={announcement.url}>{content}</Link>;
+}
+
 export default function StoreNav() {
   const { itemCount } = useCart();
   const location = useLocation();
@@ -21,24 +56,32 @@ export default function StoreNav() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [navItems, setNavItems] = useState(FALLBACK_NAV);
+  const [landing, setLanding] = useState(DEFAULT_LANDING_PAGE);
+  const previewDraft = isLandingDraftPreview();
 
   useEffect(() => {
     let active = true;
-    storefrontContentApi
-      .getMenu("main-menu")
-      .then((menu) => {
+
+    Promise.all([
+      storefrontContentApi.getMenu("main-menu"),
+      storefrontContentApi.getHomepage({ previewDraft }),
+    ])
+      .then(([menu, homepage]) => {
         const items = (menu?.navigation_items || [])
           .filter((item) => item.url)
           .map((item) => ({ label: item.label, path: item.url }));
-        if (active && items.length) setNavItems(items);
+        if (!active) return;
+        if (items.length) setNavItems(items);
+        if (homepage) setLanding(homepage);
       })
       .catch((error) => {
-        console.error("Store navigation load failed:", error);
+        console.error("Store navigation content load failed:", error);
       });
+
     return () => {
       active = false;
     };
-  }, []);
+  }, [previewDraft]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -92,8 +135,18 @@ export default function StoreNav() {
     );
   };
 
+  const announcementEnabled = landing.announcement?.enabled && landing.announcement?.text;
+  const mobileMenuTop = announcementEnabled ? 104 : 70;
+  const branding = landing.branding || DEFAULT_LANDING_PAGE.branding;
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#080909] text-white">
+      {announcementEnabled && (
+        <div className="flex min-h-[34px] items-center justify-center bg-white px-4 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-black sm:text-xs">
+          <AnnouncementLink announcement={landing.announcement} />
+        </div>
+      )}
+
       <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-10">
         <div className="flex h-[70px] items-center justify-between">
           <button
@@ -107,7 +160,18 @@ export default function StoreNav() {
           </button>
 
           <Link to="/" className="flex shrink-0 items-center" aria-label="GDP Clothing home">
-            <img src="/images/gdp-logo.webp" alt="GDP Clothing" className="h-12 w-[92px] object-contain object-left" />
+            <ManagedLogo
+              src={branding.mobileLogoUrl || branding.logoUrl}
+              fallbackSrc="/images/gdp-logo.webp"
+              alt={branding.logoAlt || "GDP Clothing"}
+              className="h-12 w-[92px] object-contain object-left lg:hidden"
+            />
+            <ManagedLogo
+              src={branding.logoUrl}
+              fallbackSrc="/images/gdp-logo.webp"
+              alt={branding.logoAlt || "GDP Clothing"}
+              className="hidden h-12 w-[92px] object-contain object-left lg:block"
+            />
           </Link>
 
           <nav className="hidden flex-1 items-center justify-center gap-8 lg:flex" aria-label="Primary navigation">
@@ -157,7 +221,10 @@ export default function StoreNav() {
       )}
 
       {menuOpen && (
-        <div className="fixed inset-x-0 bottom-0 top-[70px] overflow-y-auto bg-[#080909] lg:hidden">
+        <div
+          className="fixed inset-x-0 bottom-0 overflow-y-auto bg-[#080909] lg:hidden"
+          style={{ top: mobileMenuTop }}
+        >
           <nav className="px-5 py-5" aria-label="Mobile navigation">
             {navItems.map((item) => <NavLink key={item.label + item.path} item={item} mobile />)}
             <Link to="/account" className="flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">
