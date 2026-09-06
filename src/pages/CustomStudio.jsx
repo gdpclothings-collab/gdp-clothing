@@ -511,6 +511,7 @@ export default function CustomStudio() {
   };
 
   const config = product?.customization || {};
+  const mobileFloatingCtaEnabled = config?.ui?.mobileFloatingCtaEnabled === true;
   const styleOptions = config.allowedStyles?.length ? STYLES.filter(style => config.allowedStyles.includes(style[0])) : STYLES;
   const maxPhotos = Number(config.maxPhotos || 10);
   const minPhotos = Number(config.minPhotos || 1);
@@ -1126,7 +1127,7 @@ export default function CustomStudio() {
           {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 rounded-xl bg-[#171717] text-white px-6 py-3 font-bold uppercase text-xs shadow-lg disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
         </div>
 
-        {mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#171717]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
+        {mobileFloatingCtaEnabled && mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#171717]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
           <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{"$" + unitPrice.toFixed(2)}</div></div>
           {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#171717] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
         </div>}
