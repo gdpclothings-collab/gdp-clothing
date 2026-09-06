@@ -10,8 +10,14 @@ import {
   Factory,
   PencilRuler,
   AlertTriangle,
+  Settings,
+  Save,
+  Smartphone,
+  SlidersHorizontal,
+  BookOpen,
 } from "lucide-react";
 import { adminCustomStudioApi } from "@/lib/adminCustomStudioApi";
+import { adminSettingsApi } from "@/lib/adminSettingsApi";
 
 function prettify(value) {
   return String(value || "—").replaceAll("_", " ");
@@ -26,9 +32,21 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+const DEFAULT_STUDIO_SETTINGS = {
+  mobileFloatingCtaEnabled: false,
+  intensityExamplesEnabled: true,
+  intensityExampleImageUrl: "/images/design-intensity-bootleg.svg",
+  defaultDesignIntensity: 3,
+  orderGuideEnabled: true,
+};
+
 export default function CustomStudioAdminModule() {
+  const [tab, setTab] = useState("pipeline");
   const [data, setData] = useState({ orders: [], designs: [], proofs: [] });
   const [selectedProof, setSelectedProof] = useState(null);
+  const [studioSettings, setStudioSettings] = useState(DEFAULT_STUDIO_SETTINGS);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -46,9 +64,45 @@ export default function CustomStudioAdminModule() {
     }
   };
 
+  const loadStudioSettings = async () => {
+    setSettingsLoading(true);
+    try {
+      const settings = await adminSettingsApi.loadCustomStudioSettings();
+      setStudioSettings({ ...DEFAULT_STUDIO_SETTINGS, ...(settings || {}) });
+    } catch (err) {
+      console.error("Custom Studio settings load failed:", err);
+      setError(err?.message || "Could not load Custom Studio settings.");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadStudioSettings();
   }, []);
+
+  const saveStudioSettings = async () => {
+    setSettingsSaving(true);
+    try {
+      const normalized = {
+        ...DEFAULT_STUDIO_SETTINGS,
+        ...studioSettings,
+        defaultDesignIntensity: Math.min(5, Math.max(1, Number(studioSettings.defaultDesignIntensity || 3))),
+      };
+      await adminSettingsApi.saveCustomStudioSettings(normalized);
+      setStudioSettings(normalized);
+      showNotice("Custom Studio settings saved.");
+    } catch (err) {
+      console.error("Custom Studio settings save failed:", err);
+      window.alert(err?.message || "Could not save Custom Studio settings.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const setStudioSetting = (key, value) =>
+    setStudioSettings((current) => ({ ...current, [key]: value }));
 
   const showNotice = (message) => {
     setNotice(message);
@@ -112,6 +166,37 @@ export default function CustomStudioAdminModule() {
         </div>
       )}
 
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex w-fit rounded-lg border border-[#d5d5d5] bg-white p-1">
+          <button
+            type="button"
+            onClick={() => setTab("pipeline")}
+            className={"h-9 rounded-md px-3 text-xs font-semibold " + (tab === "pipeline" ? "bg-[#222] text-white" : "text-[#555] hover:bg-[#f5f5f5]")}
+          >
+            Orders & proofs
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("settings")}
+            className={"h-9 rounded-md px-3 text-xs font-semibold inline-flex items-center gap-1.5 " + (tab === "settings" ? "bg-[#222] text-white" : "text-[#555] hover:bg-[#f5f5f5]")}
+          >
+            <Settings size={13} /> Settings
+          </button>
+        </div>
+        <div className="text-xs text-[#777]">
+          Studio-wide behavior lives here. Garment-specific preview mapping stays in Products.
+        </div>
+      </div>
+
+      {tab === "settings" ? (
+        <CustomStudioSettingsPanel
+          settings={studioSettings}
+          loading={settingsLoading}
+          saving={settingsSaving}
+          onChange={setStudioSetting}
+          onSave={saveStudioSettings}
+        />
+      ) : <>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <SummaryCard label="Custom orders" value={loading ? "—" : summary.orders} icon={Sparkles} />
         <SummaryCard label="Artwork" value={loading ? "—" : summary.artwork} icon={PencilRuler} />
@@ -257,7 +342,128 @@ export default function CustomStudioAdminModule() {
           }}
         />
       )}
+      </>}
     </div>
+  );
+}
+
+function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave }) {
+  if (loading) {
+    return <div className="rounded-xl border border-[#dedede] bg-white py-16 text-center text-sm text-[#777]">Loading Custom Studio settings…</div>;
+  }
+
+  return (
+    <div className="grid xl:grid-cols-[1fr_.9fr] gap-5">
+      <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#e8e8e8] flex items-center gap-2">
+          <SlidersHorizontal size={16} />
+          <div>
+            <div className="text-sm font-semibold">Customer experience</div>
+            <div className="text-xs text-[#777] mt-0.5">Global behavior for every Custom Studio garment</div>
+          </div>
+        </div>
+        <div className="p-4 space-y-4">
+          <SettingToggle
+            icon={Smartphone}
+            title="Mobile floating CTA"
+            description="Show the floating price + Continue / Add to Cart bar on mobile. Keep this off while the standard in-page controls are preferred."
+            checked={settings.mobileFloatingCtaEnabled === true}
+            onChange={(value) => onChange("mobileFloatingCtaEnabled", value)}
+          />
+          <SettingToggle
+            icon={BookOpen}
+            title="Design intensity examples"
+            description="Show the bootleg-rap visual guide beside the Design Intensity slider."
+            checked={settings.intensityExamplesEnabled !== false}
+            onChange={(value) => onChange("intensityExamplesEnabled", value)}
+          />
+          <SettingToggle
+            icon={BookOpen}
+            title="How Custom Orders Work guide"
+            description="Show the expandable workflow guide at the top of Custom Studio."
+            checked={settings.orderGuideEnabled !== false}
+            onChange={(value) => onChange("orderGuideEnabled", value)}
+          />
+
+          <label className="block">
+            <span className="text-xs font-medium text-[#555]">Default design intensity</span>
+            <div className="mt-2 grid grid-cols-5 gap-2">
+              {[1,2,3,4,5].map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => onChange("defaultDesignIntensity", level)}
+                  className={"h-10 rounded-lg border text-sm font-semibold " + (Number(settings.defaultDesignIntensity) === level ? "border-[#222] bg-[#222] text-white" : "border-[#d5d5d5] bg-white")}
+                >
+                  {level}/5
+                </button>
+              ))}
+            </div>
+            <div className="mt-1.5 text-[10px] text-[#777]">Recommended default: 3/5 Balanced.</div>
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-medium text-[#555]">Intensity example image URL</span>
+            <input
+              value={settings.intensityExampleImageUrl || ""}
+              onChange={(event) => onChange("intensityExampleImageUrl", event.target.value)}
+              className="mt-1 w-full h-10 rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
+              placeholder="/images/design-intensity-bootleg.svg"
+            />
+            <div className="mt-1.5 text-[10px] text-[#777]">Leave the built-in GDP path unless you want to replace the guide later.</div>
+          </label>
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="h-10 px-4 rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
+          >
+            <Save size={14} /> {saving ? "Saving…" : "Save Studio settings"}
+          </button>
+        </div>
+      </section>
+
+      <div className="space-y-4">
+        <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e8e8e8]">
+            <div className="text-sm font-semibold">Intensity guide preview</div>
+            <div className="text-xs text-[#777] mt-0.5">Customer-facing reference image</div>
+          </div>
+          <div className="p-3">
+            <div className="overflow-hidden rounded-lg border border-[#e2e2e2] bg-[#fafafa]">
+              <img
+                src={settings.intensityExampleImageUrl || "/images/design-intensity-bootleg.svg"}
+                alt="Design intensity guide preview"
+                className="w-full h-auto"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <div className="text-sm font-semibold text-blue-900">Settings ownership</div>
+          <div className="mt-2 text-xs leading-5 text-blue-800">
+            <strong>Custom Studio Settings:</strong> global customer experience and guide behavior.<br/>
+            <strong>Products:</strong> garment mockups, color-specific media, print areas, variants, price and inventory.<br/>
+            <strong>Production:</strong> order workflow after approval.
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function SettingToggle({ icon: Icon, title, description, checked, onChange }) {
+  return (
+    <label className="flex items-start gap-3 rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3 cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-1" />
+      <div className="w-8 h-8 rounded-lg bg-white border border-[#e3e3e3] grid place-items-center shrink-0"><Icon size={14}/></div>
+      <div>
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-xs text-[#777] mt-1 leading-5">{description}</div>
+      </div>
+    </label>
   );
 }
 
