@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
@@ -26,18 +26,85 @@ const STYLES = [
   ["GDP Designer's Choice","Tell us the story and let a GDP designer choose the direction."]
 ];
 
-const GARMENTS = [
-  { type: "T-Shirt", label: "Classic Tee", tier: "classic", price: 34.99, desc: "Traditional everyday fit." },
-  { type: "T-Shirt", label: "Premium Vintage Tee", tier: "premium_vintage", price: 42.99, desc: "Heavier, relaxed, washed streetwear feel." },
-  { type: "T-Shirt", label: "Oversized Streetwear Tee", tier: "oversized", price: 46.99, desc: "Roomier silhouette built for bold graphics." },
-  { type: "Hoodie", label: "Custom Hoodie", tier: "classic", price: 64.99, desc: "Warm heavyweight custom hoodie." },
-  { type: "Crewneck", label: "Custom Crewneck", tier: "classic", price: 54.99, desc: "Classic crewneck for custom artwork." }
-];
+const FALLBACK_GARMENT = {
+  type: "T-Shirt",
+  label: "Classic Tee",
+  tier: "classic",
+  price: 34.99,
+  desc: "Traditional everyday fit."
+};
 
-const COLORS = ["Black","Vintage Black","White","Charcoal","Navy","Sand","Forest"];
-const SIZES = ["S","M","L","XL","2XL","3XL","4XL","5XL"];
+const DEFAULT_COLOR_SWATCHES = {
+  "Black": "#171717",
+  "Vintage Black": "#292929",
+  "White": "#f7f6f1",
+  "Sport Grey": "#b7b8b3",
+  "Charcoal": "#4b4c4e",
+  "Dark Heather": "#414347",
+  "Navy": "#17243b",
+  "Red": "#b52332",
+  "Royal": "#2857a6",
+  "Sand": "#d5c1a0",
+  "Forest": "#294a39",
+  "Pink": "#eeb1c8",
+  "Full Color": "#dadada"
+};
+
+function uniqueValues(values = []) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function productColors(product) {
+  if (!product) return [];
+  const variantColors = uniqueValues((product.variants || []).map((variant) => variant.color));
+  return variantColors.length ? variantColors : uniqueValues(product.colors || []);
+}
+
+function productSizes(product, color = "") {
+  if (!product) return [];
+  const variants = product.variants || [];
+  const matching = color
+    ? variants.filter((variant) => String(variant.color || "").toLowerCase() === String(color).toLowerCase())
+    : variants;
+  const variantSizes = uniqueValues(matching.map((variant) => variant.size));
+  return variantSizes.length ? variantSizes : uniqueValues(product.sizes || []);
+}
+
+function variantFor(product, color, size) {
+  if (!product?.variants?.length) return null;
+  return product.variants.find((variant) =>
+    String(variant.color || "").toLowerCase() === String(color || "").toLowerCase() &&
+    String(variant.size || "").toLowerCase() === String(size || "").toLowerCase()
+  ) || null;
+}
+
+function variantAvailable(product, variant) {
+  if (!product?.variants?.length) return true;
+  if (!variant) return false;
+  if (product.trackInventory === false) return true;
+  return Number(variant.stock || 0) > 0;
+}
+
+function garmentFromProduct(product) {
+  if (!product) return FALLBACK_GARMENT;
+  return {
+    id: product.id,
+    type: product.type || "T-Shirt",
+    label: product.name || "Custom garment",
+    tier: product.customization?.garmentTier || "classic",
+    price: Number(product.price || 0),
+    desc: product.description || "Choose your blank, color and size.",
+    image: product.images?.[0] || ""
+  };
+}
+
+function swatchFor(product, color) {
+  return product?.customization?.preview?.colorSwatches?.[color] ||
+    DEFAULT_COLOR_SWATCHES[color] ||
+    "#8b8b8b";
+}
 const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
-const STEPS = ["Occasion","Style","Garment","Photos","Personalize","Timing","Review"];
+const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
 const MAX_MB = 12;
 const OPTIMIZE_ABOVE_MB = 2.5;
 const MAX_UPLOAD_DIMENSION = 3600;
@@ -121,6 +188,7 @@ export default function CustomStudio() {
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [step, setStep] = useState(1);
+  const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
   const [occasionGroup, setOccasionGroup] = useState("love");
   const [occasion, setOccasion] = useState("Anniversary");
@@ -128,7 +196,7 @@ export default function CustomStudio() {
   const [designStyle, setDesignStyle] = useState("GDP Classic 90s");
   const [designMood, setDesignMood] = useState("Cool");
   const [designIntensity, setDesignIntensity] = useState(4);
-  const [garment, setGarment] = useState(GARMENTS[0]);
+  const [garment, setGarment] = useState(FALLBACK_GARMENT);
   const [color, setColor] = useState("Black");
   const [size, setSize] = useState("M");
   const [qty, setQty] = useState(1);
@@ -160,27 +228,35 @@ export default function CustomStudio() {
     (async () => {
       try {
         const productId = params.get("product");
-        const p = productId
-          ? await customerApi.getProduct(productId)
-          : await customerApi.getDefaultCustomProduct();
+        const studioCatalog = await customerApi.getStudioCatalog();
+        let p = studioCatalog[0] || await customerApi.getDefaultCustomProduct();
+        if (productId) {
+          const requestedBlank = studioCatalog.find((item) => item.id === productId);
+          if (requestedBlank) {
+            p = requestedBlank;
+          } else if (studioCatalog.length) {
+            const legacyProduct = await customerApi.getProduct(productId);
+            p = studioCatalog.find((item) => item.type === legacyProduct?.type) || studioCatalog[0];
+          } else {
+            p = await customerApi.getProduct(productId);
+          }
+        }
 
-        if (!active || !p) return;
+        if (!active) return;
+        setCatalog(studioCatalog);
+        if (!p) return;
+
+        const colors = productColors(p);
+        const initialColor = colors[0] || "Black";
+        const sizes = productSizes(p, initialColor);
         setProduct(p);
-        setColor(p?.colors?.[0] || "Black");
-        setSize(p?.sizes?.[0] || "M");
+        setGarment(garmentFromProduct(p));
+        setColor(initialColor);
+        setSize(sizes[0] || "M");
         setProofRequired(p?.customization?.proofRequired !== false);
         if (p?.customization?.allowedStyles?.length) setDesignStyle(p.customization.allowedStyles[0]);
-
-        const match = GARMENTS.find(g => g.type === p?.type);
-        if (match) {
-          setGarment({
-            ...match,
-            price: Number(p.price || match.price),
-            label: p.name || match.label
-          });
-        }
       } catch (error) {
-        if (active) setWarn(error?.message || "Could not load the custom product.");
+        if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
       }
     })();
 
@@ -189,6 +265,27 @@ export default function CustomStudio() {
     };
   }, []);
 
+  const chooseProduct = (nextProduct) => {
+    if (!nextProduct) return;
+    const colors = productColors(nextProduct);
+    const nextColor = colors[0] || "Black";
+    const sizes = productSizes(nextProduct, nextColor);
+    setProduct(nextProduct);
+    setGarment(garmentFromProduct(nextProduct));
+    setColor(nextColor);
+    setSize(sizes[0] || "M");
+    setGroupGarments([]);
+    setProofRequired(nextProduct?.customization?.proofRequired !== false);
+    if (nextProduct?.customization?.allowedStyles?.length) {
+      setDesignStyle(nextProduct.customization.allowedStyles[0]);
+    }
+    setPreviewSide("front");
+    setArtworkScale(92);
+    setArtworkRotation(0);
+    setArtworkOffset({ x: 0, y: 0 });
+    setPreviewZoom(1);
+  };
+
   const config = product?.customization || {};
   const styleOptions = config.allowedStyles?.length ? STYLES.filter(style => config.allowedStyles.includes(style[0])) : STYLES;
   const maxPhotos = Number(config.maxPhotos || 10);
@@ -196,16 +293,30 @@ export default function CustomStudio() {
   const revisions = Number(config.includedRevisions || 2);
   const rushFee = Number(config.rushDesignFee || 10) + Number(config.rushProductionFee || 15);
   const frontBackFee = Number(config.frontBackFee || 10);
+  const availableColors = productColors(product);
+  const availableSizes = productSizes(product, color);
+  const selectedVariant = variantFor(product, color, size);
+  const selectedAvailable = variantAvailable(product, selectedVariant);
 
-  const unitPrice = useMemo(() => {
-    let amount = Number(product?.price || garment.price || 0);
-    if (placement === "front_back") amount += frontBackFee;
-    if (priority === "rush") amount += rushFee;
-    return Math.round(amount * 100) / 100;
-  }, [product, garment, placement, priority, frontBackFee, rushFee]);
+  useEffect(() => {
+    if (availableSizes.length && !availableSizes.includes(size)) {
+      setSize(availableSizes[0]);
+    }
+  }, [color, product?.id]);
 
+  const extrasPerUnit = (placement === "front_back" ? frontBackFee : 0) + (priority === "rush" ? rushFee : 0);
+  const priceFor = (itemColor, itemSize) => {
+    const variant = variantFor(product, itemColor, itemSize);
+    const base = variant?.price == null ? Number(product?.price || garment.price || 0) : Number(variant.price || 0);
+    return Math.round((base + extrasPerUnit) * 100) / 100;
+  };
+
+  const unitPrice = priceFor(color, size);
   const totalUnits = qty + groupGarments.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const estimatedSubtotal = unitPrice * totalUnits;
+  const estimatedSubtotal = Math.round((
+    unitPrice * qty +
+    groupGarments.reduce((sum, item) => sum + priceFor(item.color, item.size) * Number(item.quantity || 0), 0)
+  ) * 100) / 100;
   const primaryPhoto = photos.find(photo => photo.isPrimary) || photos[0] || null;
 
   const resetPreviewPlacement = () => {
@@ -283,6 +394,7 @@ export default function CustomStudio() {
   const removeGroup = index => setGroupGarments(prev => prev.filter((_, i) => i !== index));
 
   const canContinue = () => {
+    if (step === 1) return Boolean(product) && selectedAvailable;
     if (step === 4) return photos.length >= minPhotos;
     if (step === 6) return rightsConfirmed && approvalAcknowledged;
     return true;
@@ -290,11 +402,30 @@ export default function CustomStudio() {
 
   async function createAndAdd() {
     if (!rightsConfirmed || !approvalAcknowledged || photos.length < minPhotos) return;
+    if (!product?.id) {
+      setWarn("Choose a garment before adding your custom design to cart.");
+      return;
+    }
+    if (product?.variants?.length && !selectedAvailable) {
+      setWarn("The selected color and size is currently unavailable. Choose another variant.");
+      return;
+    }
+
     setSaving(true);
     try {
       let primaryIndex = photos.findIndex(p => p.isPrimary);
       if (primaryIndex < 0) primaryIndex = 0;
-      const productId = product?.id || null;
+      const productId = product.id;
+      const normalizedGroups = groupGarments.map((item) => {
+        const variant = variantFor(product, item.color, item.size);
+        return {
+          ...item,
+          variantId: variant?.id || null,
+          variantName: variant?.name || "",
+          unitPrice: priceFor(item.color, item.size)
+        };
+      });
+
       const design = await customerApi.createCustomDesign({
         productId,
         productName: product?.name || garment.label,
@@ -305,13 +436,15 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 1,
+            version: 2,
             side: previewSide,
             artworkScale,
             artworkRotation,
             artworkOffset,
             viewZoom: previewZoom,
             sourcePhotoIndex: Math.max(0, photos.findIndex(p => p.isPrimary)),
+            garmentId: productId,
+            variantId: selectedVariant?.id || null,
             conceptOnly: true
           }
         },
@@ -332,7 +465,7 @@ export default function CustomStudio() {
         primaryPhotoIndex: primaryIndex,
         customerConfirmedRights: rightsConfirmed,
         approvalPolicyAcknowledged: approvalAcknowledged,
-        additionalGarments: groupGarments,
+        additionalGarments: normalizedGroups,
         status: "in_cart"
       });
 
@@ -340,8 +473,6 @@ export default function CustomStudio() {
         productId,
         name: product?.name || garment.label,
         image: product?.images?.[0] || photos[primaryIndex]?.url || "",
-        variant: garment.label,
-        price: unitPrice,
         isCustom: true,
         customDesignId: design.id,
         fulfillmentMode: product?.fulfillmentMode || "in_house",
@@ -352,8 +483,28 @@ export default function CustomStudio() {
         proofRequired
       };
 
-      addItem({ ...common, size, color, quantity: qty });
-      groupGarments.forEach(item => addItem({ ...common, size: item.size, color: item.color, quantity: Number(item.quantity || 1) }));
+      addItem({
+        ...common,
+        variantId: selectedVariant?.id || null,
+        variant: selectedVariant?.name || garment.label,
+        price: unitPrice,
+        size,
+        color,
+        quantity: qty
+      });
+
+      normalizedGroups.forEach((item) => {
+        addItem({
+          ...common,
+          variantId: item.variantId,
+          variant: item.variantName || garment.label,
+          price: item.unitPrice,
+          size: item.size,
+          color: item.color,
+          quantity: Number(item.quantity || 1)
+        });
+      });
+
       navigate("/cart");
     } catch (error) {
       setWarn(error?.message || "Could not save your custom design.");
@@ -403,7 +554,7 @@ export default function CustomStudio() {
 
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
           <section className="bg-[#fffdfa] border border-[#e2dcd3] rounded-[24px] p-5 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
-          {step === 1 && <div>
+          {step === 2 && <div>
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choosing the occasion helps our designer understand the emotion and visual direction." />
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {OCCASIONS.map(group => {
@@ -419,7 +570,7 @@ export default function CustomStudio() {
             <Field label="Who is this for? (optional)" value={recipientType} onChange={setRecipientType} placeholder="Dad, Sarah, Coach Mike, Milo the dog…" />
           </div>}
 
-          {step === 2 && <div>
+          {step === 3 && <div>
             <StepTitle eyebrow="Choose the visual direction" title="PICK A GDP STYLE" text="You choose the vibe. Our designer handles the actual composition." />
             <div className="grid md:grid-cols-2 gap-3">
               {styleOptions.map(style => <button key={style[0]} onClick={() => setDesignStyle(style[0])} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (designStyle === style[0] ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
@@ -434,23 +585,130 @@ export default function CustomStudio() {
             </div>
           </div>}
 
-          {step === 3 && <div>
-            <StepTitle eyebrow="Choose the canvas" title="GARMENT, FIT & GROUP ORDER" text="Create one design and use it across multiple shirt sizes or colors." />
+          {step === 1 && <div>
+            <StepTitle eyebrow="Choose your blank" title="CLOTHING, COLOR & SIZE" text="Pick the exact garment first. Colors, sizes, pricing and availability update automatically for that clothing type." />
+
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {(product ? [{ ...garment, label: product.name, price: Number(product.price || garment.price) }] : GARMENTS).map(option => <button key={option.label} onClick={() => setGarment(option)} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (garment.label === option.label ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-border")}>
-                <Shirt size={22} className="mb-3" /><div className="font-bold">{option.label}</div><div className="font-mono text-sm mt-1">{"$" + Number(option.price).toFixed(2)}</div><p className="text-xs text-muted-foreground mt-2">{option.desc}</p>
-              </button>)}
+              {(catalog.length ? catalog : (product ? [product] : [])).map((option) => {
+                const optionGarment = garmentFromProduct(option);
+                const active = product?.id === option.id;
+                return <button
+                  type="button"
+                  key={option.id}
+                  onClick={() => chooseProduct(option)}
+                  className={"group overflow-hidden rounded-2xl border text-left transition-all duration-200 " + (active ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.08)]" : "border-[#ddd7ce] bg-white/70 hover:border-accent hover:-translate-y-0.5")}
+                >
+                  <div className="aspect-[16/10] bg-[#f1ede6] overflow-hidden grid place-items-center">
+                    {option.images?.[0]
+                      ? <img src={option.images[0]} alt="" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]" />
+                      : <Shirt size={48} className="text-[#aaa39a]" />}
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold leading-tight">{option.name}</div>
+                        <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">{option.type || option.category || "Custom garment"}</div>
+                      </div>
+                      {active && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-white"><Check size={13}/></span>}
+                    </div>
+                    <div className="font-mono text-sm mt-3">From {"$" + Number(optionGarment.price).toFixed(2)}</div>
+                  </div>
+                </button>;
+              })}
             </div>
-            <div className="grid md:grid-cols-3 gap-4 mt-6">
-              <SelectField label="Color" value={color} onChange={setColor} options={product?.colors?.length ? product.colors : COLORS} />
-              <SelectField label="Size" value={size} onChange={setSize} options={product?.sizes?.length ? product.sizes : SIZES} />
-              <div><label className="font-mono text-xs uppercase text-muted-foreground">Quantity</label><div className="mt-1 flex items-center border border-border w-fit"><button onClick={() => setQty(v => Math.max(1,v-1))} className="p-2"><Minus size={15}/></button><span className="px-4 font-mono">{qty}</span><button onClick={() => setQty(v => v+1)} className="p-2"><Plus size={15}/></button></div></div>
-            </div>
-            <div className="mt-5"><label className="font-mono text-xs uppercase text-muted-foreground">Print placement</label><div className="flex gap-2 mt-2"><Choice active={placement === "front"} onClick={() => setPlacement("front")}>Front only</Choice><Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back (+{"$" + frontBackFee})</Choice></div></div>
-            <div className="mt-7 border-t border-border pt-5">
-              <div className="flex items-center justify-between gap-4"><div><div className="font-bold">One design, many shirts</div><p className="text-sm text-muted-foreground">Perfect for families, teams, senior nights and memorial groups.</p></div><button onClick={addGroupGarment} className="text-accent text-sm font-bold inline-flex items-center gap-1 whitespace-nowrap"><Plus size={15}/> Add shirt</button></div>
-              {groupGarments.map((item,index) => <GroupRow key={index} item={item} colors={product?.colors?.length ? product.colors : COLORS} sizes={product?.sizes?.length ? product.sizes : SIZES} onChange={patch => updateGroup(index,patch)} onRemove={() => removeGroup(index)} />)}
-            </div>
+
+            {!product && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No Custom Studio garments are currently published.</div>}
+
+            {product && <>
+              <div className="mt-7">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="font-mono text-xs uppercase text-muted-foreground">Color</label>
+                  <span className="text-xs font-semibold">{color}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {availableColors.map((optionColor) => (
+                    <button
+                      type="button"
+                      key={optionColor}
+                      onClick={() => setColor(optionColor)}
+                      className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#171717] bg-[#171717] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
+                    >
+                      <span
+                        className="h-5 w-5 rounded-full border border-black/15 shadow-inner"
+                        style={{ backgroundColor: swatchFor(product, optionColor) }}
+                      />
+                      {optionColor}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-[1fr_auto] gap-5 mt-6 items-start">
+                <div>
+                  <label className="font-mono text-xs uppercase text-muted-foreground">Size</label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {availableSizes.map((optionSize) => {
+                      const optionVariant = variantFor(product, color, optionSize);
+                      const enabled = variantAvailable(product, optionVariant);
+                      const optionPrice = optionVariant?.price == null ? Number(product.price || 0) : Number(optionVariant.price || 0);
+                      return <button
+                        type="button"
+                        key={optionSize}
+                        disabled={!enabled}
+                        onClick={() => enabled && setSize(optionSize)}
+                        title={!enabled ? "Unavailable" : ""}
+                        className={"min-w-14 rounded-xl border px-3 py-2.5 text-sm font-semibold transition " + (size === optionSize ? "border-accent bg-accent/[0.07] text-accent" : enabled ? "border-[#ddd7ce] bg-white hover:border-accent" : "border-[#e5e0d9] bg-[#f4f1ec] text-[#aaa39a] line-through cursor-not-allowed")}
+                      >
+                        <span>{optionSize}</span>
+                        {optionVariant?.price != null && optionPrice !== Number(product.price || 0) && <span className="block text-[8px] font-mono mt-0.5">{"$" + optionPrice.toFixed(2)}</span>}
+                      </button>;
+                    })}
+                  </div>
+                  {product.trackInventory === false && <div className="mt-2 text-[10px] text-[#817b73]">Made to order · inventory tracking is currently off for this blank.</div>}
+                </div>
+
+                <div>
+                  <label className="font-mono text-xs uppercase text-muted-foreground">Quantity</label>
+                  <div className="mt-2 flex items-center rounded-xl border border-[#ddd7ce] bg-white overflow-hidden w-fit">
+                    <button type="button" onClick={() => setQty(v => Math.max(1,v-1))} className="p-2.5 hover:bg-[#f5f1eb]"><Minus size={15}/></button>
+                    <span className="px-5 font-mono min-w-14 text-center">{qty}</span>
+                    <button type="button" onClick={() => setQty(v => Math.min(99,v+1))} className="p-2.5 hover:bg-[#f5f1eb]"><Plus size={15}/></button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
+                  <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back (+{"$" + frontBackFee})</Choice>
+                </div>
+                <p className="mt-2 text-[10px] text-[#817b73]">Front is the default. Back is optional; additional print locations can be added later from the backend architecture.</p>
+              </div>
+
+              <div className="mt-7 border-t border-border pt-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-bold">Same design, different sizes or colors</div>
+                    <p className="text-sm text-muted-foreground">Build a family, team or event order without recreating the design.</p>
+                  </div>
+                  <button type="button" onClick={addGroupGarment} className="text-accent text-sm font-bold inline-flex items-center gap-1 whitespace-nowrap"><Plus size={15}/> Add garment</button>
+                </div>
+                {groupGarments.map((item,index) => (
+                  <GroupRow
+                    key={index}
+                    item={item}
+                    product={product}
+                    onChange={patch => updateGroup(index,patch)}
+                    onRemove={() => removeGroup(index)}
+                  />
+                ))}
+              </div>
+
+              {!selectedAvailable && product?.variants?.length > 0 && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose an available size before continuing.</div>
+              )}
+            </>}
           </div>}
 
           {step === 4 && <div>
@@ -623,7 +881,10 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
   const blankBack = side === "back" && placement === "front";
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
-  const mockupUrl = side === "back" ? previewSettings.backMockupUrl : previewSettings.frontMockupUrl;
+  const colorPreview = previewSettings?.colorMockups?.[color] || {};
+  const mockupUrl = side === "back"
+    ? (colorPreview.backUrl || previewSettings.backMockupUrl)
+    : (colorPreview.frontUrl || previewSettings.frontMockupUrl);
   const defaultArea = garment?.type === "Hoodie" ? { top: 32, width: 34, height: 36 } : { top: 29, width: 36, height: 38 };
   const configuredArea = previewSettings?.printArea?.[side] || {};
   const printAreaStyle = {
@@ -705,10 +966,14 @@ function GarmentShape({ type, color, side }) {
 function garmentPalette(color) {
   const key = String(color || "Black").toLowerCase();
   if (key.includes("white")) return { base: "#f4f1eb", stroke: "#c8c2b8", seam: "#aaa49a", highlight: "#ffffff" };
+  if (key.includes("sport grey") || key.includes("sport gray") || key === "grey" || key === "gray") return { base: "#b8b9b5", stroke: "#858682", seam: "#777874", highlight: "#ddddda" };
   if (key.includes("sand")) return { base: "#c8b79b", stroke: "#958166", seam: "#8f7a5f", highlight: "#f0e1c8" };
   if (key.includes("navy")) return { base: "#202b3b", stroke: "#0b1220", seam: "#667085", highlight: "#64748b" };
+  if (key.includes("royal")) return { base: "#2857a6", stroke: "#17376f", seam: "#6f91cd", highlight: "#7aa0df" };
+  if (key.includes("red")) return { base: "#ad2735", stroke: "#68151e", seam: "#ce6873", highlight: "#df7d87" };
+  if (key.includes("pink")) return { base: "#e9afc3", stroke: "#b6788d", seam: "#d38fa6", highlight: "#f8d6e1" };
   if (key.includes("forest")) return { base: "#29463b", stroke: "#10231c", seam: "#72877f", highlight: "#6f9385" };
-  if (key.includes("charcoal")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
+  if (key.includes("charcoal") || key.includes("heather")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
   if (key.includes("vintage")) return { base: "#272422", stroke: "#101010", seam: "#595553", highlight: "#68615e" };
   return { base: "#171717", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
 }
@@ -734,8 +999,28 @@ function ReviewCard({ label, value, sub }) {
 function SummaryRow({ label, value }) {
   return <div className="flex justify-between gap-3 mt-3 text-sm"><span className="opacity-55">{label}</span><span className="text-right">{value}</span></div>;
 }
-function GroupRow({ item, colors, sizes, onChange, onRemove }) {
-  return <div className="grid grid-cols-[1fr_1fr_80px_36px] gap-2 mt-3"><select value={item.color} onChange={e => onChange({color:e.target.value})} className="border border-border bg-background px-2 py-2 text-sm">{colors.map(v => <option key={v}>{v}</option>)}</select><select value={item.size} onChange={e => onChange({size:e.target.value})} className="border border-border bg-background px-2 py-2 text-sm">{sizes.map(v => <option key={v}>{v}</option>)}</select><input type="number" min="1" value={item.quantity} onChange={e => onChange({quantity:Number(e.target.value)})} className="border border-border bg-background px-2 py-2 text-sm"/><button onClick={onRemove} className="border border-border"><X size={14} className="mx-auto"/></button></div>;
+function GroupRow({ item, product, onChange, onRemove }) {
+  const colors = productColors(product);
+  const sizes = productSizes(product, item.color);
+  const changeColor = (nextColor) => {
+    const nextSizes = productSizes(product, nextColor);
+    const nextSize = nextSizes.includes(item.size) ? item.size : (nextSizes[0] || item.size);
+    onChange({ color: nextColor, size: nextSize });
+  };
+
+  return <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_36px] gap-2 mt-3">
+    <select value={item.color} onChange={e => changeColor(e.target.value)} className="rounded-lg border border-border bg-background px-2 py-2 text-sm">
+      {colors.map(v => <option key={v}>{v}</option>)}
+    </select>
+    <select value={item.size} onChange={e => onChange({size:e.target.value})} className="rounded-lg border border-border bg-background px-2 py-2 text-sm">
+      {sizes.map(v => {
+        const variant = variantFor(product, item.color, v);
+        return <option key={v} value={v} disabled={!variantAvailable(product, variant)}>{v}{!variantAvailable(product, variant) ? " — unavailable" : ""}</option>;
+      })}
+    </select>
+    <input type="number" min="1" max="99" value={item.quantity} onChange={e => onChange({quantity:Math.max(1, Math.min(99, Number(e.target.value) || 1))})} className="rounded-lg border border-border bg-background px-2 py-2 text-sm"/>
+    <button type="button" onClick={onRemove} className="rounded-lg border border-border hover:bg-[#f4f1ec]" aria-label="Remove garment"><X size={14} className="mx-auto"/></button>
+  </div>;
 }
 function PhotoCard({ photo, onPrimary, onRemove }) {
   const qClass = photo.quality === "excellent" ? "text-green-600" : photo.quality === "usable" ? "text-amber-600" : "text-destructive";

@@ -40,7 +40,15 @@ export function useProducts(filter = {}) {
         setError(queryError);
         setProducts([]);
       } else {
-        setProducts((data || []).map(normalizeProduct));
+        setProducts(
+          (data || [])
+            .map(normalizeProduct)
+            .filter((product) =>
+              !(product.tags || []).some(
+                (tag) => String(tag).toLowerCase() === "custom-studio-only"
+              )
+            )
+        );
       }
       setLoading(false);
     };
