@@ -12,7 +12,7 @@ export const adminLandingPageApi = {
       .maybeSingle();
 
     if (error) {
-      if (error.code === "42703") return DEFAULT_LANDING_PAGE;
+      if (error.code === "42703" || /homepage.*column|column.*homepage/i.test(error.message || "")) return DEFAULT_LANDING_PAGE;
       throw error;
     }
 
