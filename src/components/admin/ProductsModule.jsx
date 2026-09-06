@@ -435,6 +435,19 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
     }));
   };
 
+  const setCustomizationUiValue = (key, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        ui: {
+          ...(current.customization?.ui || {}),
+          [key]: value,
+        },
+      },
+    }));
+  };
+
   const setColorPreviewValue = (color, key, value) => {
     setForm((current) => ({
       ...current,
@@ -1517,6 +1530,17 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                 <SideCard title="Custom Studio preview">
                   <div className="text-[11px] leading-5 text-[#777]">
                     Use the generated garment silhouette, or select an uploaded product image as the front/back mockup. Print-area values are percentages of the mockup canvas.
+                  </div>
+
+                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+                    <Toggle
+                      checked={form.customization?.ui?.mobileFloatingCtaEnabled === true}
+                      onChange={(value) => setCustomizationUiValue("mobileFloatingCtaEnabled", value)}
+                      label="Enable mobile floating CTA"
+                    />
+                    <div className="mt-2 text-[10px] leading-4 text-[#777]">
+                      Off by default. When enabled, mobile customers see the floating price + Continue / Add to Cart bar while configuring this garment.
+                    </div>
                   </div>
 
                   <Field label="Front mockup" helper="Optional">
