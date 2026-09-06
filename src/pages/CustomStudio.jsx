@@ -1198,7 +1198,19 @@ export default function CustomStudio() {
             </div>
             <div className="p-3 sm:p-5">
               <div className="overflow-hidden rounded-2xl border border-[#ddd6cd] bg-white">
-                <img src={intensityExampleImageUrl} alt="Five bootleg rap T-shirt examples showing design intensity from 1 out of 5 clean to 5 out of 5 maximum chaos" className="block h-auto w-full" loading="lazy" />
+                <img
+                  src={intensityExampleImageUrl}
+                  alt="Five bootleg rap T-shirt examples showing design intensity from 1 out of 5 clean to 5 out of 5 maximum chaos"
+                  className="block h-auto w-full"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(event) => {
+                    const fallback = DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
+                    if (event.currentTarget.getAttribute("src") !== fallback) {
+                      event.currentTarget.src = fallback;
+                    }
+                  }}
+                />
               </div>
               <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-5">
                 {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => <button

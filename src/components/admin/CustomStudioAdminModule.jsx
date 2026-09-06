@@ -433,9 +433,17 @@ function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave
           <div className="p-3">
             <div className="overflow-hidden rounded-lg border border-[#e2e2e2] bg-[#fafafa]">
               <img
-                src={settings.intensityExampleImageUrl || "/images/design-intensity-bootleg.svg"}
+                src={settings.intensityExampleImageUrl || DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl}
                 alt="Design intensity guide preview"
                 className="w-full h-auto"
+                loading="lazy"
+                decoding="async"
+                onError={(event) => {
+                  const fallback = DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
+                  if (event.currentTarget.getAttribute("src") !== fallback) {
+                    event.currentTarget.src = fallback;
+                  }
+                }}
               />
             </div>
           </div>
