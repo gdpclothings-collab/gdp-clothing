@@ -474,7 +474,7 @@ export default function CustomStudio() {
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [showIntensityExamples, setShowIntensityExamples] = useState(false);
   const [studioSettings, setStudioSettings] = useState(() => normalizeStudioSettings(DEFAULT_STUDIO_SETTINGS));
-  const [showOrderGuide, setShowOrderGuide] = useState(false);
+  const [showOrderGuide, setShowOrderGuide] = useState(DEFAULT_STUDIO_SETTINGS.orderGuideEnabled);
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
 
@@ -517,7 +517,7 @@ export default function CustomStudio() {
         if (!active) return;
         setStudioSettings(nextStudioSettings);
         setDesignIntensity(Math.min(5, Math.max(1, Number(nextStudioSettings.defaultDesignIntensity || 3))));
-        setShowOrderGuide(false);
+        setShowOrderGuide(nextStudioSettings.orderGuideEnabled !== false);
         setCatalog(studioCatalog);
         if (!p) return;
 
