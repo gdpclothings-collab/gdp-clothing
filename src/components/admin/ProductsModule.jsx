@@ -17,6 +17,7 @@ import {
   Sparkles,
   RefreshCw,
   Upload,
+  GripVertical,
 } from "lucide-react";
 import { adminProductsApi } from "@/lib/adminProductsApi";
 
@@ -359,6 +360,8 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imageUrlDraft, setImageUrlDraft] = useState("");
+  const [draggedImageIndex, setDraggedImageIndex] = useState(null);
+  const [dragOverImageIndex, setDragOverImageIndex] = useState(null);
   const [form, setForm] = useState(() => ({
     name: product?.name || "",
     slug: product?.slug || "",
@@ -470,6 +473,66 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
       ...current,
       images: current.images.filter((_, imageIndex) => imageIndex !== index),
     }));
+    setDraggedImageIndex(null);
+    setDragOverImageIndex(null);
+  };
+
+  const reorderImage = (fromIndex, toIndex) => {
+    if (
+      fromIndex === null ||
+      toIndex === null ||
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0
+    ) {
+      return;
+    }
+
+    setForm((current) => {
+      if (fromIndex >= current.images.length || toIndex >= current.images.length) {
+        return current;
+      }
+
+      const images = [...current.images];
+      const [movedImage] = images.splice(fromIndex, 1);
+      images.splice(toIndex, 0, movedImage);
+      return { ...current, images };
+    });
+  };
+
+  const moveImage = (index, direction) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= form.images.length) return;
+    reorderImage(index, nextIndex);
+  };
+
+  const handleImageDragStart = (event, index) => {
+    setDraggedImageIndex(index);
+    setDragOverImageIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+  };
+
+  const handleImageDragOver = (event, index) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverImageIndex !== index) {
+      setDragOverImageIndex(index);
+    }
+  };
+
+  const handleImageDrop = (event, index) => {
+    event.preventDefault();
+    const transferredIndex = Number(event.dataTransfer.getData("text/plain"));
+    const fromIndex = draggedImageIndex ?? (Number.isNaN(transferredIndex) ? null : transferredIndex);
+    reorderImage(fromIndex, index);
+    setDraggedImageIndex(null);
+    setDragOverImageIndex(null);
+  };
+
+  const handleImageDragEnd = () => {
+    setDraggedImageIndex(null);
+    setDragOverImageIndex(null);
   };
 
   const uploadMedia = async (event) => {
@@ -684,7 +747,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                     <div>
                       <div className="text-sm font-semibold">Product images</div>
                       <div className="text-xs text-[#777] mt-0.5">
-                        Upload JPG, PNG, WEBP or other browser-supported image files.
+                        Upload images, then drag them into display order. The first image is always the primary product photo.
                       </div>
                     </div>
                     <label className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center justify-center gap-2 cursor-pointer">
@@ -704,21 +767,61 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                   {form.images.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
                       {form.images.map((image, index) => (
-                        <div key={`${image}-${index}`} className="relative aspect-square rounded-xl overflow-hidden border border-[#dedede] bg-white group">
-                          <img src={image} alt="" className="w-full h-full object-cover" />
+                        <div
+                          key={`${image}-${index}`}
+                          draggable
+                          onDragStart={(event) => handleImageDragStart(event, index)}
+                          onDragOver={(event) => handleImageDragOver(event, index)}
+                          onDrop={(event) => handleImageDrop(event, index)}
+                          onDragEnd={handleImageDragEnd}
+                          className={`relative aspect-square rounded-xl overflow-hidden border bg-white group select-none transition-all cursor-grab active:cursor-grabbing ${
+                            draggedImageIndex === index
+                              ? "opacity-55 scale-[0.98] border-[#9b9b9b]"
+                              : dragOverImageIndex === index
+                                ? "border-black ring-2 ring-black/10"
+                                : "border-[#dedede]"
+                          }`}
+                          aria-label={`Product image ${index + 1}. Drag to reorder.`}
+                        >
+                          <img src={image} alt="" draggable="false" className="w-full h-full object-cover pointer-events-none" />
+                          <div className="absolute left-2 bottom-2 h-7 px-2 rounded-full bg-black/70 text-white text-[10px] font-medium inline-flex items-center gap-1 pointer-events-none">
+                            <GripVertical size={12} />
+                            <span>{index + 1}</span>
+                          </div>
                           {index === 0 && (
-                            <span className="absolute left-2 top-2 rounded-full bg-black/75 text-white text-[9px] font-semibold px-2 py-1">
+                            <span className="absolute left-2 top-2 rounded-full bg-black/80 text-white text-[9px] font-semibold px-2 py-1">
                               PRIMARY
                             </span>
                           )}
                           <button
                             type="button"
                             onClick={() => removeImage(index)}
+                            onMouseDown={(event) => event.stopPropagation()}
                             className="absolute right-2 top-2 h-7 w-7 rounded-full bg-white/95 shadow grid place-items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                             aria-label="Remove image"
                           >
                             <X size={13} />
                           </button>
+                          <div className="absolute right-2 bottom-2 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => moveImage(index, -1)}
+                              disabled={index === 0}
+                              className="h-7 w-7 rounded-full bg-white/95 shadow grid place-items-center disabled:opacity-35"
+                              aria-label={`Move image ${index + 1} left`}
+                            >
+                              <ChevronLeft size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveImage(index, 1)}
+                              disabled={index === form.images.length - 1}
+                              className="h-7 w-7 rounded-full bg-white/95 shadow grid place-items-center disabled:opacity-35"
+                              aria-label={`Move image ${index + 1} right`}
+                            >
+                              <ChevronRight size={13} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
