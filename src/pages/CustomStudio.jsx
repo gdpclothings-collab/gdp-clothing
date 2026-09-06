@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 
@@ -146,6 +146,13 @@ export default function CustomStudio() {
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [previewSide, setPreviewSide] = useState("front");
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [artworkScale, setArtworkScale] = useState(92);
+  const [artworkRotation, setArtworkRotation] = useState(0);
+  const [artworkOffset, setArtworkOffset] = useState({ x: 0, y: 0 });
+  const [showGuides, setShowGuides] = useState(true);
+  const [fullscreenPreview, setFullscreenPreview] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -199,6 +206,14 @@ export default function CustomStudio() {
 
   const totalUnits = qty + groupGarments.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const estimatedSubtotal = unitPrice * totalUnits;
+  const primaryPhoto = photos.find(photo => photo.isPrimary) || photos[0] || null;
+
+  const resetPreviewPlacement = () => {
+    setArtworkScale(92);
+    setArtworkRotation(0);
+    setArtworkOffset({ x: 0, y: 0 });
+    setPreviewZoom(1);
+  };
 
   async function uploadFiles(files) {
     setWarn("");
@@ -287,7 +302,19 @@ export default function CustomStudio() {
         designStyle,
         photos: photos.map(p => p.url),
         photoAssets: photos,
-        personalization,
+        personalization: {
+          ...personalization,
+          previewState: {
+            version: 1,
+            side: previewSide,
+            artworkScale,
+            artworkRotation,
+            artworkOffset,
+            viewZoom: previewZoom,
+            sourcePhotoIndex: Math.max(0, photos.findIndex(p => p.isPrimary)),
+            conceptOnly: true
+          }
+        },
         placement,
         color,
         size,
@@ -337,33 +364,51 @@ export default function CustomStudio() {
   const activeOccasion = OCCASIONS.find(group => group.id === occasionGroup) || OCCASIONS[0];
 
   return (
-    <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-6 md:py-10">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-7">
-        <div>
-          <span className="font-mono text-xs uppercase tracking-[0.25em] text-accent">GDP Custom Studio</span>
-          <h1 className="font-display text-5xl md:text-7xl leading-none mt-1">MAKE IT PERSONAL</h1>
-          <p className="text-muted-foreground max-w-2xl mt-2">Turn your favorite people, pets and memories into wearable art. A real GDP designer reviews every custom order before production.</p>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#fbf8f2_0%,#f7f3ec_38%,#fbfaf7_100%)]">
+      <div className="max-w-[1540px] mx-auto px-4 lg:px-8 py-6 md:py-10">
+        <div className="relative overflow-hidden rounded-[28px] border border-[#e4ded4] bg-[linear-gradient(135deg,#fffdfa_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
+          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-accent/[0.06] blur-3xl pointer-events-none" />
+          <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+            <div>
+              <span className="font-mono text-[10px] md:text-xs uppercase tracking-[0.28em] text-accent">GDP Custom Studio</span>
+              <h1 className="font-display text-5xl md:text-7xl leading-[.92] mt-2 text-[#171717]">MAKE IT PERSONAL</h1>
+              <p className="text-[#69645d] max-w-2xl mt-3 leading-relaxed">Turn your favorite people, pets and memories into wearable art. Build the concept here, then a real GDP designer reviews it before production.</p>
+            </div>
+            <div className="inline-flex items-center gap-2 self-start lg:self-auto rounded-full border border-[#ded7cd] bg-white/75 px-3.5 py-2 text-[11px] font-semibold text-[#4f4b46] shadow-sm">
+              <ShieldCheck size={15} className="text-accent" /> Designer review included
+            </div>
+          </div>
         </div>
-        <div className="text-xs font-mono uppercase text-muted-foreground">Step {step} of {STEPS.length}</div>
-      </div>
 
-      <div className="mb-7 overflow-x-auto pb-2"><div className="flex min-w-max gap-1">
-        {STEPS.map((label, index) => {
-          const number = index + 1;
-          return <button key={label} onClick={() => number < step && setStep(number)} className={"px-3 py-2 border text-xs font-bold uppercase tracking-wide " + (step === number ? "bg-primary text-primary-foreground border-primary" : step > number ? "border-accent text-accent" : "border-border text-muted-foreground")}>
-            {step > number ? <Check size={13} className="inline mr-1" /> : null}{number}. {label}
-          </button>;
-        })}
-      </div></div>
+        <div className="mb-7">
+          <div className="md:hidden mb-3">
+            <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wide text-[#736d65]"><span>Step {step} of {STEPS.length}</span><span>{STEPS[step - 1]}</span></div>
+            <div className="h-1.5 rounded-full bg-[#e8e1d7] mt-2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${(step / STEPS.length) * 100}%` }} /></div>
+          </div>
+          <div className="hidden md:flex items-center gap-0 rounded-2xl border border-[#e3ddd4] bg-white/70 p-2 shadow-sm overflow-x-auto">
+            {STEPS.map((label, index) => {
+              const number = index + 1;
+              const complete = step > number;
+              const active = step === number;
+              return <React.Fragment key={label}>
+                <button onClick={() => number < step && setStep(number)} className={"group flex items-center gap-2 px-3 py-2 rounded-xl whitespace-nowrap transition " + (active ? "bg-[#171717] text-white shadow-sm" : complete ? "text-accent" : "text-[#8b857d]")}>
+                  <span className={"grid h-6 w-6 place-items-center rounded-full border text-[10px] font-bold " + (active ? "border-white/30" : complete ? "border-accent/30 bg-accent/[0.06]" : "border-[#d8d2c9]")}>{complete ? <Check size={12} /> : number}</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wide">{label}</span>
+                </button>
+                {number < STEPS.length && <div className={"h-px min-w-5 flex-1 " + (complete ? "bg-accent/35" : "bg-[#ddd7cf]")} />}
+              </React.Fragment>;
+            })}
+          </div>
+        </div>
 
-      <div className="grid lg:grid-cols-[1fr_340px] gap-6">
-        <section className="bg-card border border-border p-5 md:p-7 min-h-[520px]">
+        <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
+          <section className="bg-[#fffdfa] border border-[#e2dcd3] rounded-[24px] p-5 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
           {step === 1 && <div>
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choosing the occasion helps our designer understand the emotion and visual direction." />
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {OCCASIONS.map(group => {
                 const Icon = group.icon;
-                return <button key={group.id} onClick={() => { setOccasionGroup(group.id); setOccasion(group.options[0]); }} className={"border p-4 text-left " + (occasionGroup === group.id ? "border-accent bg-accent/5" : "border-border hover:border-accent")}>
+                return <button key={group.id} onClick={() => { setOccasionGroup(group.id); setOccasion(group.options[0]); }} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (occasionGroup === group.id ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
                   <Icon size={20} className="mb-3" /><div className="font-bold">{group.label}</div>
                 </button>;
               })}
@@ -377,7 +422,7 @@ export default function CustomStudio() {
           {step === 2 && <div>
             <StepTitle eyebrow="Choose the visual direction" title="PICK A GDP STYLE" text="You choose the vibe. Our designer handles the actual composition." />
             <div className="grid md:grid-cols-2 gap-3">
-              {styleOptions.map(style => <button key={style[0]} onClick={() => setDesignStyle(style[0])} className={"border p-4 text-left " + (designStyle === style[0] ? "border-accent bg-accent/5" : "border-border hover:border-accent")}>
+              {styleOptions.map(style => <button key={style[0]} onClick={() => setDesignStyle(style[0])} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (designStyle === style[0] ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
                 <div className="font-bold">{style[0]}</div><p className="text-sm text-muted-foreground mt-1">{style[1]}</p>
               </button>)}
             </div>
@@ -392,7 +437,7 @@ export default function CustomStudio() {
           {step === 3 && <div>
             <StepTitle eyebrow="Choose the canvas" title="GARMENT, FIT & GROUP ORDER" text="Create one design and use it across multiple shirt sizes or colors." />
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {(product ? [{ ...garment, label: product.name, price: Number(product.price || garment.price) }] : GARMENTS).map(option => <button key={option.label} onClick={() => setGarment(option)} className={"border p-4 text-left " + (garment.label === option.label ? "border-accent bg-accent/5" : "border-border")}>
+              {(product ? [{ ...garment, label: product.name, price: Number(product.price || garment.price) }] : GARMENTS).map(option => <button key={option.label} onClick={() => setGarment(option)} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (garment.label === option.label ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-border")}>
                 <Shirt size={22} className="mb-3" /><div className="font-bold">{option.label}</div><div className="font-mono text-sm mt-1">{"$" + Number(option.price).toFixed(2)}</div><p className="text-xs text-muted-foreground mt-2">{option.desc}</p>
               </button>)}
             </div>
@@ -465,46 +510,215 @@ export default function CustomStudio() {
           </div>}
         </section>
 
-        <aside className="bg-primary text-primary-foreground p-5 h-fit lg:sticky lg:top-24">
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] opacity-60">Live order summary</div>
-          <div className="font-display text-3xl mt-2">{occasion}</div>
-          <SummaryRow label="Style" value={designStyle.replace("GDP ","")} />
-          <SummaryRow label="Mood" value={designMood} />
-          <SummaryRow label="Garment" value={product?.name || garment.label} />
-          <SummaryRow label="Size / Color" value={size + " / " + color} />
-          <SummaryRow label="Photos" value={photos.length + "/" + maxPhotos} />
-          <SummaryRow label="Total shirts" value={totalUnits} />
-          <SummaryRow label="Proof" value={proofRequired ? "Before print" : "Skipped"} />
-          <div className="border-t border-primary-foreground/20 mt-5 pt-4 flex justify-between items-end"><span className="text-xs uppercase font-mono opacity-60">Unit price</span><span className="font-display text-3xl">{"$" + unitPrice.toFixed(2)}</span></div>
-          <div className="mt-5 text-xs opacity-70 leading-relaxed">A real GDP designer reviews every custom order before production. Photo quality warnings are recommendations, not automatic rejection.</div>
-        </aside>
+          <aside className="h-fit lg:sticky lg:top-24 space-y-4">
+            <div className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
+              <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#fffdfa]">
+                <div>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-accent">Live garment preview</div>
+                  <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || garment.label}</div>
+                </div>
+                <button type="button" onClick={() => setFullscreenPreview(true)} className="h-9 w-9 grid place-items-center rounded-xl border border-[#ddd6cc] bg-white text-[#5d5851] hover:border-accent hover:text-accent" aria-label="Open full screen preview"><Maximize2 size={15} /></button>
+              </div>
+
+              <StudioPreview
+                garment={garment}
+                color={color}
+                side={previewSide}
+                placement={placement}
+                photo={primaryPhoto}
+                personalization={personalization}
+                zoom={previewZoom}
+                setZoom={setPreviewZoom}
+                artworkScale={artworkScale}
+                artworkRotation={artworkRotation}
+                artworkOffset={artworkOffset}
+                setArtworkOffset={setArtworkOffset}
+                showGuides={showGuides}
+              />
+
+              <div className="p-4 border-t border-[#ebe5dc] bg-[#fffdfa]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="inline-flex rounded-xl border border-[#ddd6cc] bg-[#f5f0e9] p-1">
+                    <button type="button" onClick={() => setPreviewSide("front")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "front" ? "bg-[#171717] text-white" : "text-[#756f67]")}>Front</button>
+                    <button type="button" onClick={() => setPreviewSide("back")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "back" ? "bg-[#171717] text-white" : "text-[#756f67]")}>Back</button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom out"><ZoomOut size={14} /></button>
+                    <span className="w-10 text-center font-mono text-[10px] text-[#746e66]">{Math.round(previewZoom * 100)}%</span>
+                    <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom in"><ZoomIn size={14} /></button>
+                  </div>
+                </div>
+
+                {primaryPhoto && previewSide === "front" && <div className="mt-4 space-y-3">
+                  <div>
+                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Artwork size</span><span>{artworkScale}%</span></div>
+                    <input type="range" min="55" max="145" value={artworkScale} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#d9273e]" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Rotation</span><span>{artworkRotation}°</span></div>
+                    <input type="range" min="-12" max="12" value={artworkRotation} onChange={e => setArtworkRotation(Number(e.target.value))} className="w-full accent-[#d9273e]" />
+                  </div>
+                </div>}
+
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
+                  <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
+                </div>
+                <p className="mt-3 text-[10px] leading-relaxed text-[#8a837a]">Digital concept preview. Final composition and placement are reviewed by a GDP designer before production.</p>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-[#ddd6cc] bg-[#1a1917] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
+              <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">Your order</div>
+              <div className="font-display text-3xl mt-2">{occasion}</div>
+              <SummaryRow label="Style" value={designStyle.replace("GDP ","")} />
+              <SummaryRow label="Garment" value={product?.name || garment.label} />
+              <SummaryRow label="Size / Color" value={size + " / " + color} />
+              <SummaryRow label="Photos" value={photos.length + "/" + maxPhotos} />
+              <SummaryRow label="Total shirts" value={totalUnits} />
+              <SummaryRow label="Proof" value={proofRequired ? "Before print" : "Skipped"} />
+              <div className="border-t border-white/15 mt-5 pt-4 flex justify-between items-end"><span className="text-[10px] uppercase font-mono text-white/45">Unit price</span><span className="font-display text-3xl">{"$" + unitPrice.toFixed(2)}</span></div>
+            </div>
+          </aside>
       </div>
 
-      <div className="mt-6 flex justify-between gap-3">
-        <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex items-center gap-2 border border-border px-5 py-3 font-bold uppercase text-sm"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
-        {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold uppercase text-sm disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
+        <div className="mt-6 flex justify-between gap-3 pb-24 md:pb-0">
+          <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex items-center gap-2 rounded-xl border border-[#d9d2c8] bg-white px-5 py-3 font-bold uppercase text-xs text-[#332f2a] shadow-sm hover:border-[#aaa198]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
+          {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 rounded-xl bg-[#171717] text-white px-6 py-3 font-bold uppercase text-xs shadow-lg disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
+        </div>
+
+        <div className="md:hidden fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-white/10 bg-[#171717]/95 backdrop-blur-xl text-white p-2.5 pl-4 shadow-2xl flex items-center justify-between gap-3">
+          <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-2xl leading-none mt-1">{"$" + unitPrice.toFixed(2)}</div></div>
+          {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#171717] px-4 py-3 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-3 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
+        </div>
+
+        {fullscreenPreview && <div className="fixed inset-0 z-[90] bg-[#111]/95 backdrop-blur-sm p-3 md:p-7">
+          <div className="h-full max-w-5xl mx-auto rounded-[28px] overflow-hidden bg-[#f4efe7] border border-white/10 flex flex-col">
+            <div className="h-16 shrink-0 flex items-center justify-between gap-4 px-4 md:px-6 bg-[#171717] text-white">
+              <div><div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">GDP Custom Studio</div><div className="font-semibold">Full-screen garment preview</div></div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomOut size={15}/></button>
+                <span className="w-12 text-center font-mono text-[10px]">{Math.round(previewZoom * 100)}%</span>
+                <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomIn size={15}/></button>
+                <button type="button" onClick={() => setFullscreenPreview(false)} className="h-9 w-9 grid place-items-center rounded-xl bg-white text-[#171717]" aria-label="Close full screen preview"><X size={16}/></button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0">
+              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} showGuides={showGuides} fullscreen />
+            </div>
+          </div>
+        </div>}
       </div>
     </div>
   );
 }
 
+function clampPreview(value) {
+  return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
+}
+
+function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, showGuides, fullscreen = false }) {
+  const dragRef = useRef(null);
+  const blankBack = side === "back" && placement === "front";
+  const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
+
+  const onPointerDown = (event) => {
+    if (!canDrag) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = { x: event.clientX, y: event.clientY, startX: artworkOffset.x, startY: artworkOffset.y, width: rect.width, height: rect.height };
+  };
+  const onPointerMove = (event) => {
+    if (!dragRef.current || !canDrag) return;
+    const start = dragRef.current;
+    const clamp = (v) => Math.min(42, Math.max(-42, v));
+    setArtworkOffset({
+      x: clamp(start.startX + ((event.clientX - start.x) / Math.max(1, start.width)) * 100),
+      y: clamp(start.startY + ((event.clientY - start.y) / Math.max(1, start.height)) * 100)
+    });
+  };
+  const stopDrag = () => { dragRef.current = null; };
+  const onWheel = (event) => {
+    if (!setZoom) return;
+    event.preventDefault();
+    setZoom(value => clampPreview(value + (event.deltaY < 0 ? .08 : -.08)));
+  };
+
+  return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[390px] sm:h-[430px]")}>
+    <div className="absolute inset-x-0 top-3 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/75 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
+    <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
+      <div className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}>
+        <GarmentShape type={garment?.type || "T-Shirt"} color={color} side={side} />
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={stopDrag}
+          onPointerCancel={stopDrag}
+          className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (garment?.type === "Hoodie" ? "top-[32%] h-[36%] w-[34%]" : "top-[29%] h-[38%] w-[36%]") + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
+        >
+          {blankBack ? <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div> : photo ? <img src={photo.url} alt="Primary artwork preview" draggable="false" className="absolute left-1/2 top-1/2 h-[88%] w-[88%] object-cover rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none" style={{ transform: `translate(calc(-50% + ${artworkOffset.x}%), calc(-50% + ${artworkOffset.y}%)) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)` }} /> : <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>}
+          {!blankBack && (personalization?.name || personalization?.dates || personalization?.quote) && <div className="absolute inset-x-1 bottom-1.5 text-center text-white pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.85)]">
+            {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
+            {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
+            {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
+          </div>}
+        </div>
+      </div>
+    </div>
+    <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2 pointer-events-none">
+      <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[8px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
+      {photo && !blankBack && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[8px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1"><Move size={10}/> Drag to position</span>}
+    </div>
+  </div>;
+}
+
+function GarmentShape({ type, color, side }) {
+  const palette = garmentPalette(color);
+  const isHoodie = type === "Hoodie";
+  const isCrew = type === "Crewneck";
+  return <svg viewBox="0 0 360 430" role="img" aria-label={color + " " + type + " " + side + " mockup"} className="w-full h-auto drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]">
+    {isHoodie ? <>
+      <path d="M125 86 C133 45 153 25 180 25 C207 25 228 45 236 86 L215 105 C208 82 197 67 180 67 C163 67 152 82 145 105 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M119 82 L76 108 L29 176 L68 198 L93 166 L93 390 L267 390 L267 166 L292 198 L331 176 L284 108 L241 82 C226 102 207 112 180 112 C153 112 134 102 119 82 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      {side === "front" && <path d="M137 291 Q180 270 223 291 L215 342 H145 Z" fill="none" stroke={palette.seam} strokeWidth="2" opacity=".55" />}
+    </> : <>
+      <path d="M123 70 L78 88 L27 154 L70 184 L96 151 L96 392 L264 392 L264 151 L290 184 L333 154 L282 88 L237 70 C224 91 204 101 180 101 C156 101 136 91 123 70 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M149 69 C154 85 164 92 180 92 C196 92 206 85 211 69" fill="none" stroke={palette.seam} strokeWidth={isCrew ? "5" : "3"} opacity=".6" />
+      {isCrew && <path d="M97 365 L263 365" stroke={palette.seam} strokeWidth="5" opacity=".42" />}
+    </>}
+    <path d="M115 92 C138 105 156 112 180 112 C204 112 222 105 245 92" fill="none" stroke={palette.highlight} strokeWidth="14" opacity=".22" />
+  </svg>;
+}
+
+function garmentPalette(color) {
+  const key = String(color || "Black").toLowerCase();
+  if (key.includes("white")) return { base: "#f4f1eb", stroke: "#c8c2b8", seam: "#aaa49a", highlight: "#ffffff" };
+  if (key.includes("sand")) return { base: "#c8b79b", stroke: "#958166", seam: "#8f7a5f", highlight: "#f0e1c8" };
+  if (key.includes("navy")) return { base: "#202b3b", stroke: "#0b1220", seam: "#667085", highlight: "#64748b" };
+  if (key.includes("forest")) return { base: "#29463b", stroke: "#10231c", seam: "#72877f", highlight: "#6f9385" };
+  if (key.includes("charcoal")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
+  if (key.includes("vintage")) return { base: "#272422", stroke: "#101010", seam: "#595553", highlight: "#68615e" };
+  return { base: "#171717", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
+}
+
 function StepTitle({ eyebrow, title, text }) {
-  return <div className="mb-6"><div className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">{eyebrow}</div><h2 className="font-display text-4xl md:text-5xl leading-none mt-1">{title}</h2><p className="text-sm text-muted-foreground mt-2 max-w-2xl">{text}</p></div>;
+  return <div className="mb-7"><div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent">{eyebrow}</div><h2 className="font-display text-4xl md:text-5xl leading-none mt-1.5 text-[#1d1b18]">{title}</h2><p className="text-sm text-[#716b63] mt-2.5 max-w-2xl leading-relaxed">{text}</p></div>;
 }
 function Field({ label, value, onChange, placeholder }) {
-  return <div className="mt-4"><label className="font-mono text-xs uppercase text-muted-foreground">{label}</label><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-border bg-background px-3 py-2.5 mt-1 outline-none focus:border-accent"/></div>;
+  return <div className="mt-4"><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10"/></div>;
 }
 function TextArea({ label, value, onChange, placeholder }) {
-  return <div className="mt-5"><label className="font-mono text-xs uppercase text-muted-foreground">{label}</label><textarea rows={4} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-border bg-background px-3 py-2.5 mt-1 outline-none focus:border-accent"/></div>;
+  return <div className="mt-5"><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><textarea rows={4} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10"/></div>;
 }
 function SelectField({ label, value, onChange, options }) {
-  return <div><label className="font-mono text-xs uppercase text-muted-foreground">{label}</label><select value={value} onChange={e => onChange(e.target.value)} className="w-full border border-border bg-background px-3 py-2.5 mt-1">{options.map(option => <option key={option}>{option}</option>)}</select></div>;
+  return <div><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><select value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none focus:border-accent">{options.map(option => <option key={option}>{option}</option>)}</select></div>;
 }
 function Choice({ active, onClick, children }) {
-  return <button type="button" onClick={onClick} className={"border px-3 py-2 text-sm " + (active ? "border-accent bg-accent/5 text-accent" : "border-border")}>{children}</button>;
+  return <button type="button" onClick={onClick} className={"rounded-xl border px-3.5 py-2.5 text-sm transition " + (active ? "border-accent bg-accent/[0.06] text-accent shadow-sm" : "border-[#ddd6cc] bg-white/60 text-[#5f5a53] hover:border-[#aaa198]")}>{children}</button>;
 }
 function ReviewCard({ label, value, sub }) {
-  return <div className="border border-border p-4"><div className="font-mono text-[10px] uppercase text-muted-foreground">{label}</div><div className="font-bold mt-1">{value}</div>{sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}</div>;
+  return <div className="rounded-2xl border border-[#dfd8cf] bg-white/65 p-4"><div className="font-mono text-[9px] uppercase tracking-wide text-[#867f76]">{label}</div><div className="font-bold mt-1 text-[#292621]">{value}</div>{sub && <div className="text-xs text-[#7a746c] mt-1">{sub}</div>}</div>;
 }
 function SummaryRow({ label, value }) {
   return <div className="flex justify-between gap-3 mt-3 text-sm"><span className="opacity-55">{label}</span><span className="text-right">{value}</span></div>;
@@ -514,6 +728,6 @@ function GroupRow({ item, colors, sizes, onChange, onRemove }) {
 }
 function PhotoCard({ photo, onPrimary, onRemove }) {
   const qClass = photo.quality === "excellent" ? "text-green-600" : photo.quality === "usable" ? "text-amber-600" : "text-destructive";
-  const qLabel = photo.quality === "excellent" ? "Excellent for print" : photo.quality === "usable" ? "Usable resolution" : "Replace recommended";
-  return <div className="border border-border bg-secondary relative"><div className="aspect-square overflow-hidden"><img src={photo.url} alt={photo.name} className="w-full h-full object-cover"/></div><button onClick={onRemove} className="absolute top-1 right-1 bg-background/90 p-1"><X size={13}/></button><div className="p-2"><button onClick={onPrimary} className={"text-[10px] uppercase font-mono flex items-center gap-1 " + (photo.isPrimary ? "text-accent" : "text-muted-foreground")}><Star size={12} className={photo.isPrimary ? "fill-accent" : ""}/>{photo.isPrimary ? "Primary photo" : "Make primary"}</button><div className={"mt-1 text-[10px] uppercase font-mono " + qClass}>{qLabel}</div><div className="text-[10px] text-muted-foreground">{photo.width}×{photo.height}</div></div></div>;
+  const qLabel = photo.quality === "excellent" ? "Great quality" : photo.quality === "usable" ? "May look slightly soft" : "Low resolution";
+  return <div className="rounded-2xl border border-[#ddd6cc] bg-white relative overflow-hidden shadow-sm"><div className="aspect-square overflow-hidden bg-[#f3efe8]"><img src={photo.url} alt={photo.name} className="w-full h-full object-cover"/></div><button onClick={onRemove} className="absolute top-2 right-2 rounded-lg bg-white/90 p-1.5 shadow-sm"><X size={13}/></button><div className="p-3"><button onClick={onPrimary} className={"text-[9px] uppercase font-mono flex items-center gap-1 " + (photo.isPrimary ? "text-accent" : "text-[#7c766e]")}><Star size={12} className={photo.isPrimary ? "fill-accent" : ""}/>{photo.isPrimary ? "Primary photo" : "Make primary"}</button><div className={"mt-1.5 text-[9px] uppercase font-mono " + qClass}>{qLabel}</div><div className="text-[9px] text-[#8a847c]">{photo.width}×{photo.height}</div></div></div>;
 }
