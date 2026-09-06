@@ -48,6 +48,7 @@ const mapProduct = (row) => ({
     podSku: variant.pod_sku || "",
     stock: Number(variant.stock || 0),
     price: variant.price === null ? null : Number(variant.price),
+    costPerItem: variant.cost_per_item == null ? null : Number(variant.cost_per_item),
     color: variant.color || "",
     size: variant.size || "",
     active: variant.active !== false,

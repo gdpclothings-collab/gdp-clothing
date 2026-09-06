@@ -21,6 +21,7 @@ async function signedStorageUrl(bucket, path, expiresIn = 3600) {
 const mapVariant = (row) => ({
   ...row,
   podSku: row.pod_sku,
+  costPerItem: row.cost_per_item == null ? null : Number(row.cost_per_item),
 });
 
 const mapOrderItem = (row) => ({
@@ -189,6 +190,10 @@ const variantPayload = (productId, variant) => ({
   pod_sku: variant.podSku || null,
   stock: Number(variant.stock || 0),
   price: variant.price === null || variant.price === undefined ? null : Number(variant.price),
+  cost_per_item:
+    variant.costPerItem === null || variant.costPerItem === undefined || variant.costPerItem === ""
+      ? null
+      : Number(variant.costPerItem),
   color: variant.color || null,
   size: variant.size || null,
   active: true,
