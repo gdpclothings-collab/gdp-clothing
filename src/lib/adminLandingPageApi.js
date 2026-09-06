@@ -117,7 +117,7 @@ export const adminLandingPageApi = {
       .single();
 
     if (error) throw error;
-    return this.saveDraft(data.content);
+    return adminLandingPageApi.saveDraft(data.content);
   },
 
   async uploadMedia(file, folder = "home") {
