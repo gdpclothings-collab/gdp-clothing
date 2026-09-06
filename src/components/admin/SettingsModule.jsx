@@ -82,7 +82,7 @@ export default function SettingsModule() {
 
       <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="text-xs text-[#777]">
-          Core GDP Clothing commerce configuration. Sensitive payment secrets remain outside the browser.
+          Store-wide identity and commerce defaults. Module-specific settings now live inside their owning admin modules.
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
@@ -118,7 +118,7 @@ export default function SettingsModule() {
             </Field>
           </SettingsSection>
 
-          <SettingsSection icon={ShoppingCart} title="Commerce defaults" description="Currency, timezone, order numbering and inventory alerts">
+          <SettingsSection icon={ShoppingCart} title="Regional & order defaults" description="Store-wide currency, timezone, order numbering and inventory alert threshold">
             <div className="grid sm:grid-cols-2 gap-3">
               <Field label="Currency">
                 <select value={form.currency || "CAD"} onChange={(event) => set("currency", event.target.value)} className={inputClass}>
@@ -169,9 +169,12 @@ export default function SettingsModule() {
           <SettingsNavCard icon={CreditCard} title="Payments" text="Stripe checkout, payment capture and payout configuration are server-side." status="Connected architecture" />
           <SettingsNavCard icon={Truck} title="Shipping & delivery" text="Order shipping methods, tracking and fulfillment status are active." status="Operational" />
           <SettingsNavCard icon={ReceiptText} title="Taxes" text="Tax amounts are stored per order; advanced regional tax rules are the next market layer." status="Core ready" />
-          <SettingsNavCard icon={Bell} title="Notifications" text="Transactional email settings can plug into the existing order workflow." status="Integration layer" />
+          <SettingsNavCard icon={Bell} title="Notifications" text="Notification templates and staff controls are managed in Team & notifications below." status="Managed below" />
           <SettingsNavCard icon={ShieldCheck} title="Privacy & policies" text="Keep customer-facing privacy, refund and fulfillment policies aligned with checkout." status="Store policy layer" />
-          <SettingsNavCard icon={Database} title="Supabase data" text="Commerce data runs on Supabase with row-level security enabled." status="Active" />
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs leading-5 text-blue-800">
+            <div className="font-semibold text-blue-900 mb-1">Settings ownership</div>
+            Store-wide identity and defaults stay here. Custom Studio behavior lives in <strong>Custom Studio → Settings</strong>. Garment-specific controls stay in <strong>Products</strong>. Service configuration lives in <strong>Apps & integrations</strong>.
+          </div>
 
           <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-[#e8e8e8] flex items-center gap-2">
@@ -197,7 +200,7 @@ export default function SettingsModule() {
         </div>
       </div>
 
-      <AdvancedSettingsModule />
+      <AdvancedSettingsModule visibleTabs={["staff", "notifications"]} />
     </div>
   );
 }
