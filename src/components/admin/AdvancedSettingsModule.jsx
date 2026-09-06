@@ -13,8 +13,13 @@ import {
 } from "lucide-react";
 import { adminAdvancedSettingsApi } from "@/lib/adminAdvancedSettingsApi";
 
-export default function AdvancedSettingsModule() {
-  const [tab, setTab] = useState("staff");
+export default function AdvancedSettingsModule({ visibleTabs = ["staff", "notifications", "integrations"], initialTab = undefined }) {
+  const availableTabs = [
+    { id: "staff", label: "Staff", Icon: UserRoundCog },
+    { id: "notifications", label: "Notifications", Icon: Bell },
+    { id: "integrations", label: "Integrations", Icon: Blocks },
+  ].filter((item) => visibleTabs.includes(item.id));
+  const [tab, setTab] = useState(initialTab || availableTabs[0]?.id || "staff");
   const [data, setData] = useState({
     roles: [],
     permissions: [],
@@ -48,6 +53,12 @@ export default function AdvancedSettingsModule() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (!availableTabs.some((item) => item.id === tab) && availableTabs[0]) {
+      setTab(availableTabs[0].id);
+    }
+  }, [visibleTabs.join("|")]);
+
   const showNotice = (message) => {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2400);
@@ -71,11 +82,7 @@ export default function AdvancedSettingsModule() {
           </div>
 
           <div className="md:ml-auto inline-flex rounded-lg border border-[#d5d5d5] bg-[#fafafa] p-1">
-            {[
-              { id: "staff", label: "Staff", Icon: UserRoundCog },
-              { id: "notifications", label: "Notifications", Icon: Bell },
-              { id: "integrations", label: "Integrations", Icon: Blocks },
-            ].map(({ id, label, Icon }) => (
+            {availableTabs.map(({ id, label, Icon }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
