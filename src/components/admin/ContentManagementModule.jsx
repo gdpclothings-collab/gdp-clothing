@@ -13,6 +13,8 @@ import {
   Archive,
 } from "lucide-react";
 import { adminContentManagementApi } from "@/lib/adminContentManagementApi";
+import AboutPageEditorFields from "@/components/admin/AboutPageEditorFields";
+import { mergeAboutPageBody } from "@/lib/aboutPageDefaults";
 
 function slugify(value) {
   return String(value || "")
@@ -388,10 +390,14 @@ function PageEditor({ page, onClose, onSaved }) {
     pageType: page?.page_type || "page",
     excerpt: page?.excerpt || "",
     content: page?.body?.content || "",
+    body: page?.body || {},
     status: page?.status || "draft",
     seoTitle: page?.seo?.title || "",
     seoDescription: page?.seo?.description || "",
   });
+
+  const isAboutPage =
+    slugify(form.slug || form.title) === "about" || form.body?.template === "about";
 
   const save = async () => {
     setSaving(true);
@@ -401,7 +407,9 @@ function PageEditor({ page, onClose, onSaved }) {
         slug: slugify(form.slug || form.title),
         pageType: form.pageType,
         excerpt: form.excerpt,
-        body: { ...(page?.body || {}), content: form.content },
+        body: isAboutPage
+          ? mergeAboutPageBody(form.body)
+          : { ...(form.body || {}), content: form.content },
         seo: {
           ...(page?.seo || {}),
           title: form.seoTitle || null,
@@ -459,9 +467,16 @@ function PageEditor({ page, onClose, onSaved }) {
         <textarea value={form.excerpt} onChange={(event) => setForm({ ...form, excerpt: event.target.value })} className={textareaClass} rows={2} />
       </Field>
 
-      <Field label="Page content" helper="Plain text / structured-content foundation">
-        <textarea value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} className={textareaClass} rows={12} />
-      </Field>
+      {isAboutPage ? (
+        <AboutPageEditorFields
+          body={form.body}
+          onChange={(body) => setForm((current) => ({ ...current, body }))}
+        />
+      ) : (
+        <Field label="Page content" helper="Plain text / structured-content foundation">
+          <textarea value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} className={textareaClass} rows={12} />
+        </Field>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="SEO title">
