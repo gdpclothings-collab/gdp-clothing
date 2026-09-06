@@ -77,7 +77,7 @@ export default function CustomStudioAdminModule() {
   const [tab, setTab] = useState("pipeline");
   const [data, setData] = useState({ orders: [], designs: [], proofs: [] });
   const [selectedProof, setSelectedProof] = useState(null);
-  const [studioSettings, setStudioSettings] = useState(DEFAULT_STUDIO_SETTINGS);
+  const [studioSettings, setStudioSettings] = useState(() => normalizeStudioSettings(DEFAULT_STUDIO_SETTINGS));
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
