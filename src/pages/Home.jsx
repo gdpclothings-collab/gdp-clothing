@@ -43,11 +43,11 @@ function SmartLink({ to, children, className = "", ...props }) {
 function TrustItem({ item }) {
   const Icon = TRUST_ICONS[item.icon] || ShieldCheck;
   return (
-    <div className="flex min-h-[82px] items-center gap-3 border-white/12 px-4 py-4 sm:px-6 lg:border-l first:lg:border-l-0">
+    <div className="flex min-h-[82px] items-center gap-3 border-white/10 px-4 py-4 sm:px-6 lg:border-l first:lg:border-l-0">
       <Icon size={28} strokeWidth={1.7} className="shrink-0 text-white" />
       <div>
         <div className="text-[11px] font-black uppercase tracking-[0.04em] text-white sm:text-xs">{item.title}</div>
-        <div className="mt-1 text-[10px] text-white/58 sm:text-xs">{item.text}</div>
+        <div className="mt-1 text-[10px] text-white/60 sm:text-xs">{item.text}</div>
       </div>
     </div>
   );
@@ -67,7 +67,7 @@ function CategoryCard({ item }) {
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10" />
       <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
         <div className="font-display text-4xl uppercase leading-none tracking-wide sm:text-5xl">{item.title}</div>
-        <div className="mt-1 flex items-center gap-2 text-[10px] font-medium text-white/78 sm:text-xs">
+        <div className="mt-1 flex items-center gap-2 text-[10px] font-medium text-white/80 sm:text-xs">
           <span>{item.subtitle}</span>
           <ArrowRight size={13} />
         </div>
@@ -128,7 +128,7 @@ function PromoCard({ item }) {
   return (
     <section className="relative min-h-[255px] overflow-hidden bg-black text-white lg:min-h-[300px]">
       <img src={item.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/88 via-black/48 to-black/18" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-black/20" />
       <div className="relative flex min-h-[255px] max-w-sm flex-col justify-end p-6 lg:min-h-[300px] lg:p-7">
         <h3 className="font-display text-5xl uppercase leading-[0.9] tracking-wide lg:text-6xl">{item.title}</h3>
         <p className="mt-2 text-xs leading-5 text-white/75 sm:text-sm">{item.subtitle}</p>
@@ -177,8 +177,8 @@ export default function Home() {
           alt="GDP Clothing"
           className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/58 to-black/20" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-black/15" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/15" />
 
         <div className="relative mx-auto flex min-h-[540px] max-w-[1500px] items-center px-5 py-10 sm:min-h-[610px] sm:px-7 lg:min-h-[650px] lg:px-10">
           <div className="w-full max-w-[600px]">
@@ -187,7 +187,7 @@ export default function Home() {
               alt="GDP Clothing"
               className="h-24 w-48 object-contain object-left sm:h-28 sm:w-56 lg:h-32 lg:w-64"
             />
-            <div className="mt-2 text-[12px] font-black uppercase tracking-[0.38em] text-white/88 sm:text-sm">
+            <div className="mt-2 text-[12px] font-black uppercase tracking-[0.38em] text-white/90 sm:text-sm">
               {landing.hero.brandLine}
             </div>
             <div className="mt-7 text-sm font-bold uppercase tracking-[0.18em] text-white/90 sm:text-lg">
@@ -226,7 +226,7 @@ export default function Home() {
         <div className="mb-5 flex items-end justify-between gap-4 border-b border-black/10 pb-4">
           <div>
             <h2 className="text-3xl font-black tracking-tight sm:text-4xl">{landing.bestSellers.title}</h2>
-            <p className="mt-1 text-xs text-black/58 sm:text-sm">{landing.bestSellers.subtitle}</p>
+            <p className="mt-1 text-xs text-black/60 sm:text-sm">{landing.bestSellers.subtitle}</p>
           </div>
           <SmartLink
             to={landing.bestSellers.ctaUrl}
