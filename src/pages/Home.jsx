@@ -2,21 +2,11 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, Heart, ShieldCheck, Sparkles, Truck } from "lucide-react";
 
-const CATEGORY_SPRITE = "/images/gdp-sold-categories.webp";
-
 const categories = [
-  { index: "01", title: "T-Shirts", subtitle: "Everyday / graphic", position: "0% 50%", to: "/shop?category=T-Shirt" },
-  { index: "02", title: "Custom", subtitle: "Photo / memory", position: "33.333% 50%", to: "/custom-studio" },
-  { index: "03", title: "Pets", subtitle: "Portrait / tribute", position: "66.666% 50%", to: "/custom-studio" },
-  { index: "04", title: "Moments", subtitle: "Birthday / event", position: "100% 50%", to: "/custom-studio" },
-];
-
-const soldSamples = [
-  { title: "Family Graphic Tee", price: "$34.99", image: "/images/gdp-sold-family.webp", tag: "CUSTOM / 001" },
-  { title: "Photo Collage Tee", price: "$34.99", sprite: "33.333% 50%", tag: "CUSTOM / 002" },
-  { title: "Pet Portrait Tee", price: "$36.99", image: "/images/gdp-sold-pets.webp", tag: "CUSTOM / 003" },
-  { title: "Name + Pet Tee", price: "$34.99", sprite: "66.666% 50%", tag: "CUSTOM / 004" },
-  { title: "Birthday Tee", price: "$34.99", sprite: "100% 50%", tag: "CUSTOM / 005" },
+  { index: "01", title: "T-Shirts", subtitle: "Everyday / graphic", to: "/shop?category=T-Shirt" },
+  { index: "02", title: "Custom", subtitle: "Photo / memory", to: "/custom-studio" },
+  { index: "03", title: "Pets", subtitle: "Portrait / tribute", to: "/custom-studio" },
+  { index: "04", title: "Moments", subtitle: "Birthday / event", to: "/custom-studio" },
 ];
 
 const process = [
@@ -26,61 +16,27 @@ const process = [
   { number: "04", title: "Wear the result", text: "We print the approved piece and prepare it for pickup or shipping." },
 ];
 
-function SpriteImage({ position, className = "" }) {
-  return (
-    <div
-      className={className}
-      style={{
-        backgroundImage: "url(" + CATEGORY_SPRITE + ")",
-        backgroundSize: "400% 100%",
-        backgroundPosition: position,
-        backgroundRepeat: "no-repeat",
-      }}
-    />
-  );
-}
-
 function CategoryTile({ item }) {
   return (
-    <Link to={item.to} className="group relative min-h-[260px] overflow-hidden bg-neutral-900 text-white sm:min-h-[340px]">
-      <SpriteImage position={item.position} className="absolute inset-0 transition-transform duration-700 group-hover:scale-[1.04]" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-      <div className="absolute left-4 top-4 font-mono text-[9px] uppercase tracking-[0.22em] text-white/55">{item.index}</div>
+    <Link
+      to={item.to}
+      className="group relative min-h-[220px] overflow-hidden border border-black/10 bg-black text-white sm:min-h-[300px]"
+    >
+      <div className="gdp-editorial-grid absolute inset-0 opacity-45" />
+      <div className="absolute -right-2 -top-6 font-display text-[150px] leading-none text-white/[0.045] sm:text-[210px]">
+        {item.index}
+      </div>
+      <div className="absolute left-4 top-4 font-mono text-[9px] uppercase tracking-[0.22em] text-white/45">
+        {item.index}
+      </div>
       <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
         <div className="font-display text-4xl leading-none tracking-wide sm:text-5xl">{item.title}</div>
-        <div className="mt-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.15em] text-white/65">
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/15 pt-3 text-[10px] font-black uppercase tracking-[0.15em] text-white/55">
           <span>{item.subtitle}</span>
           <ArrowUpRight size={15} />
         </div>
       </div>
     </Link>
-  );
-}
-
-function SampleCard({ item, index }) {
-  return (
-    <article className="group min-w-[74vw] snap-start sm:min-w-[320px] lg:min-w-0">
-      <Link to="/custom-studio" className="relative block overflow-hidden bg-[#e9e7e1]">
-        <div className="aspect-[4/5] overflow-hidden">
-          {item.image ? (
-            <img src={item.image} alt={item.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.035]" />
-          ) : (
-            <SpriteImage position={item.sprite} className="h-full w-full transition-transform duration-700 group-hover:scale-[1.035]" />
-          )}
-        </div>
-        <div className="absolute left-3 top-3 bg-black px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-white">{item.tag}</div>
-        <div className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-black transition-transform group-hover:-translate-y-1 group-hover:translate-x-1">
-          <ArrowUpRight size={16} />
-        </div>
-      </Link>
-      <div className="flex items-start justify-between gap-3 border-b border-black/15 py-3">
-        <div>
-          <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-black/40">Real GDP build / 0{index + 1}</div>
-          <Link to="/custom-studio" className="mt-1 block text-sm font-bold">{item.title}</Link>
-        </div>
-        <div className="text-sm font-semibold">{item.price}</div>
-      </div>
-    </article>
   );
 }
 
@@ -166,22 +122,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="builds" className="border-y border-black/10 bg-[#efeee8] py-12 lg:py-16">
-        <div className="mx-auto max-w-[1500px] px-4 sm:px-5 lg:px-8">
-          <div className="mb-7 grid gap-5 md:grid-cols-[1fr_380px] md:items-end">
-            <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-black/45">Archive / real work</div>
-              <h2 className="mt-2 font-display text-6xl leading-none tracking-wide sm:text-7xl md:text-8xl">GDP BUILDS</h2>
-            </div>
-            <p className="max-w-sm text-sm leading-6 text-black/55">
-              Finished custom pieces made from real customer ideas. No generic mockup wall - this is the work.
-            </p>
-          </div>
-          <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-3 sm:-mx-5 sm:px-5 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0">
-            {soldSamples.map((item, index) => <SampleCard key={item.title} item={item} index={index} />)}
-          </div>
-        </div>
-      </section>
 
       <section className="gdp-soft-grid mx-auto max-w-[1500px] px-4 py-14 sm:px-5 lg:px-8 lg:py-20">
         <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
@@ -210,16 +150,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid min-h-[520px] bg-black text-white md:grid-cols-2">
-        <div className="relative min-h-[420px] overflow-hidden md:min-h-[520px]">
-          <img src="/images/gdp-sold-family.webp" alt="GDP custom graphic tee" className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-          <div className="absolute left-5 top-5 border border-white/20 bg-black/30 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.18em] backdrop-blur-sm">
-            Custom archive / family piece
-          </div>
-        </div>
-        <div className="gdp-editorial-grid flex items-center px-5 py-12 sm:px-8 lg:px-14">
-          <div className="max-w-xl">
+      <section className="gdp-editorial-grid flex min-h-[460px] items-center bg-black px-5 py-14 text-white sm:px-8 lg:px-14">
+        <div className="mx-auto w-full max-w-[1500px]">
+          <div className="max-w-3xl">
             <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-white/40">GDP / custom culture</div>
             <h2 className="mt-3 font-display text-6xl leading-[0.86] tracking-wide sm:text-7xl lg:text-8xl">
               NOT JUST<br />A T-SHIRT.
