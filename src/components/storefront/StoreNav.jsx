@@ -7,7 +7,7 @@ import { storefrontContentApi } from "@/lib/storefrontContentApi";
 const FALLBACK_NAV = [
   { label: "Home", path: "/" },
   { label: "Shop", path: "/shop" },
-  { label: "Collections", path: "/shop" },
+  { label: "Collections", path: "/shop?view=collections" },
   { label: "Custom Tee", path: "/custom-studio" },
   { label: "About", path: "/pages/about" },
   { label: "Contact", path: "/pages/contact" },
@@ -65,9 +65,13 @@ export default function StoreNav() {
 
   const active = (path) => {
     if (!path || /^https?:\/\//i.test(path)) return false;
-    const pathname = path.split("?")[0].split("#")[0];
+    const [rawPathname, rawQuery = ""] = path.split("?");
+    const pathname = rawPathname.split("#")[0];
     if (pathname === "/") return location.pathname === "/";
-    return location.pathname.startsWith(pathname);
+    if (rawQuery) {
+      return location.pathname === pathname && location.search === "?" + rawQuery;
+    }
+    return location.pathname === pathname && !location.search;
   };
 
   const NavLink = ({ item, mobile = false }) => {
