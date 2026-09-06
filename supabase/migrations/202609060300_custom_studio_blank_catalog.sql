@@ -138,15 +138,8 @@ upserted as (
   returning id, slug, price, colors, sizes, customization
 ),
 targets as (
-  select p.id, p.slug, p.price, p.colors, p.sizes, p.customization
-  from public.products p
-  where p.slug in (
-    'gildan-short-sleeve-adult-custom',
-    'gildan-long-sleeve-adult-custom',
-    'gildan-short-sleeve-toddler-custom',
-    'gildan-short-sleeve-youth-custom',
-    'gildan-adult-fleece-hoodie-custom'
-  )
+  select u.id, u.slug, u.price, u.colors, u.sizes, u.customization
+  from upserted u
 ),
 matrix as (
   select
