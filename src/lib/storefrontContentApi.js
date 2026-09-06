@@ -1,21 +1,38 @@
 import { supabase } from "@/lib/supabaseClient";
 import { DEFAULT_LANDING_PAGE, mergeLandingPageConfig } from "@/lib/landingPageDefaults";
 
-export const storefrontContentApi = {
-  async getHomepage() {
-    const { data, error } = await supabase
-      .from("store_settings")
-      .select("homepage")
-      .eq("id", 1)
-      .maybeSingle();
+async function getPublishedHomepage() {
+  const { data, error } = await supabase
+    .from("store_settings")
+    .select("homepage")
+    .eq("id", 1)
+    .maybeSingle();
 
-    if (error) {
-      // Backward-compatible fallback while the landing-page migration is being deployed.
-      if (error.code === "42703" || /homepage.*column|column.*homepage/i.test(error.message || "")) return DEFAULT_LANDING_PAGE;
-      throw error;
+  if (error) {
+    if (error.code === "42703" || /homepage.*column|column.*homepage/i.test(error.message || "")) {
+      return DEFAULT_LANDING_PAGE;
+    }
+    throw error;
+  }
+
+  return mergeLandingPageConfig(data?.homepage);
+}
+
+export const storefrontContentApi = {
+  async getHomepage(options = {}) {
+    if (options.previewDraft) {
+      const { data, error } = await supabase
+        .from("landing_page_draft")
+        .select("content")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (!error && data?.content) {
+        return mergeLandingPageConfig(data.content);
+      }
     }
 
-    return mergeLandingPageConfig(data?.homepage);
+    return getPublishedHomepage();
   },
 
   async getPage(slug) {
@@ -49,3 +66,8 @@ export const storefrontContentApi = {
     };
   },
 };
+
+export function isLandingDraftPreview() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("cmsPreview") === "draft";
+}
