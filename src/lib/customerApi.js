@@ -100,7 +100,7 @@ export const customerApi = {
     if (!uuidPattern.test(String(id || ""))) return null;
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select("*, product_variants(*)")
       .eq("id", id)
       .maybeSingle();
     if (error) throw error;
@@ -110,7 +110,7 @@ export const customerApi = {
   async getDefaultCustomProduct() {
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select("*, product_variants(*)")
       .eq("status", "active")
       .eq("custom_designable", true)
       .order("featured", { ascending: false })
@@ -119,6 +119,23 @@ export const customerApi = {
       .maybeSingle();
     if (error) throw error;
     return normalizeProduct(data);
+  },
+
+  async getStudioCatalog() {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*, product_variants(*)")
+      .eq("status", "active")
+      .eq("custom_designable", true)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+
+    const products = (data || []).map(normalizeProduct);
+    const studioOnly = products.filter((product) =>
+      (product.tags || []).some((tag) => String(tag).toLowerCase() === "custom-studio-only")
+    );
+
+    return studioOnly.length ? studioOnly : products;
   },
 
   async uploadArtwork(file) {
