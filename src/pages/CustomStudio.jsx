@@ -622,9 +622,10 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
   const dragRef = useRef(null);
   const blankBack = side === "back" && placement === "front";
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
-  const mockupUrl = side === "back" ? previewConfig.backMockupUrl : previewConfig.frontMockupUrl;
+  const previewSettings = /** @type {any} */ (previewConfig || {});
+  const mockupUrl = side === "back" ? previewSettings.backMockupUrl : previewSettings.frontMockupUrl;
   const defaultArea = garment?.type === "Hoodie" ? { top: 32, width: 34, height: 36 } : { top: 29, width: 36, height: 38 };
-  const configuredArea = previewConfig?.printArea?.[side] || {};
+  const configuredArea = previewSettings?.printArea?.[side] || {};
   const printAreaStyle = {
     top: (Number(configuredArea.top) || defaultArea.top) + "%",
     width: (Number(configuredArea.width) || defaultArea.width) + "%",
