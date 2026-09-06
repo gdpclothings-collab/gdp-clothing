@@ -33,7 +33,7 @@ const COLOR_MAP = {
   "full color": "linear-gradient(135deg,#ec4899,#f59e0b,#3b82f6)",
 };
 
-function SmartLink({ to, children, className, ...props }) {
+function SmartLink({ to, children, className = "", ...props }) {
   if (/^https?:\/\//i.test(to || "")) {
     return <a href={to} className={className} {...props}>{children}</a>;
   }
