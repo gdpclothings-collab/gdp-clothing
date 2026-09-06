@@ -33,6 +33,8 @@ const DEFAULT_STUDIO_SETTINGS = {
   defaultDesignIntensity: 3,
   orderGuideEnabled: true,
   priceVisibility: "hidden",
+  frontBackEnabled: true,
+  frontBackFee: 10,
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -577,8 +579,8 @@ export default function CustomStudio() {
   const minPhotos = Number(config.minPhotos || 1);
   const revisions = Number(config.includedRevisions || 2);
   const rushFee = Number(config.rushDesignFee || 10) + Number(config.rushProductionFee || 15);
-  const frontBackEnabled = config.frontBackEnabled !== false;
-  const frontBackFee = Number(config.frontBackFee ?? 10);
+  const frontBackEnabled = studioSettings.frontBackEnabled !== false;
+  const frontBackFee = Math.max(0, Number(studioSettings.frontBackFee ?? 10) || 0);
   const availableColors = productColors(product);
   const availableSizes = productSizes(product, color);
   const selectedVariant = variantFor(product, color, size);
@@ -595,7 +597,7 @@ export default function CustomStudio() {
       setPlacement("front");
       setPreviewSide("front");
     }
-  }, [frontBackEnabled, placement, product?.id]);
+  }, [frontBackEnabled, placement]);
 
   const extrasPerUnit = (frontBackEnabled && placement === "front_back" ? frontBackFee : 0) + (priority === "rush" ? rushFee : 0);
   const priceFor = (itemColor, itemSize) => {
@@ -1034,7 +1036,7 @@ export default function CustomStudio() {
                   <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
                   {frontBackEnabled && <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>}
                 </div>
-                <p className="mt-2 text-[10px] text-[#817b73]">{frontBackEnabled ? "Front is the default. Back is optional and uses this garment's configured additional-print surcharge." : "This garment is currently configured for front printing only."}</p>
+                <p className="mt-2 text-[10px] text-[#817b73]">{frontBackEnabled ? "Front is the default. Back is optional and uses the Custom Studio additional-print surcharge." : "Custom Studio is currently configured for front printing only."}</p>
               </div>
 
               <div className="mt-7 border-t border-border pt-5">
