@@ -94,7 +94,8 @@ function garmentFromProduct(product) {
     tier: product.customization?.garmentTier || "classic",
     price: Number(product.price || 0),
     desc: product.description || "Choose your blank, color and size.",
-    image: product.images?.[0] || ""
+    image: product.images?.[0] || "",
+    images: product.images || []
   };
 }
 
@@ -103,6 +104,99 @@ function swatchFor(product, color) {
     DEFAULT_COLOR_SWATCHES[color] ||
     "#8b8b8b";
 }
+
+function normalizePreviewToken(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/grey/g, "gray")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function previewFileName(url) {
+  const raw = String(url || "").split("/").pop() || "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function garmentImageMatchesType(url, type) {
+  const name = normalizePreviewToken(previewFileName(url));
+  const key = normalizePreviewToken(type);
+  if (!name) return false;
+
+  if (key.includes("baby") || key.includes("bodysuit") || key.includes("onesie")) {
+    return name.includes("baby") || name.includes("bodysuit") || name.includes("onesie");
+  }
+  if (key.includes("toddler")) return name.includes("toddler");
+  if (key.includes("youth") || key === "kids") return name.includes("youth") || name.includes("kids");
+  if (key.includes("hoodie")) return name.includes("hoodie");
+  if (key.includes("crewneck") || key.includes("sweatshirt") || key.includes("sweater")) {
+    return name.includes("crewneck") || name.includes("sweatshirt") || name.includes("sweater");
+  }
+  if (key.includes("long sleeve")) {
+    return name.includes("long sleeve") || name.includes("longsleeve");
+  }
+  if (key.includes("t shirt") || key.includes("tee")) {
+    return name.includes("tee") || name.includes("t shirt") || name.includes("tshirt");
+  }
+  return true;
+}
+
+function imageMatchesPreviewColor(url, color) {
+  const name = normalizePreviewToken(previewFileName(url));
+  const key = normalizePreviewToken(color);
+  if (!name || !key) return false;
+
+  if (key === "sport gray") return name.includes("sport gray") || name.includes("sportgray");
+  if (key === "charcoal") return name.includes("charcoal");
+  if (key === "dark heather") return name.includes("dark heather");
+  if (key === "navy") return name.includes("navy");
+  if (key === "royal") {
+    if (name.includes("royal")) return true;
+    return name.includes("blue") && !name.includes("navy") && !name.includes("sky");
+  }
+  if (key === "sand") return name.includes("sand") || name.includes("beige") || name.includes("tan");
+  if (key === "forest") return name.includes("forest") || name.includes("forest green");
+  return name.includes(key);
+}
+
+function previewImageForGarment(garment, color, side) {
+  const images = uniqueValues(garment?.images || []);
+  if (!images.length) return "";
+
+  const typeMatches = images.filter((url) => garmentImageMatchesType(url, garment?.type));
+  const candidates = (typeMatches.length ? typeMatches : []).filter((url) => {
+    const name = normalizePreviewToken(previewFileName(url));
+    const isBack = name.includes("back") || name.includes("rear");
+    return side === "back" ? isBack : !isBack;
+  });
+
+  return candidates.find((url) => imageMatchesPreviewColor(url, color)) || "";
+}
+
+function defaultPrintAreaFor(type, side) {
+  const key = normalizePreviewToken(type);
+  if (key.includes("hoodie")) {
+    return side === "back"
+      ? { top: 30, width: 34, height: 38 }
+      : { top: 32, width: 34, height: 36 };
+  }
+  if (key.includes("baby") || key.includes("bodysuit") || key.includes("onesie")) {
+    return side === "back"
+      ? { top: 31, width: 34, height: 31 }
+      : { top: 31, width: 33, height: 28 };
+  }
+  if (key.includes("toddler")) return { top: 30, width: 37, height: 36 };
+  if (key.includes("youth") || key === "kids") return { top: 29, width: 36, height: 38 };
+  if (key.includes("crewneck") || key.includes("sweatshirt") || key.includes("sweater")) {
+    return { top: 30, width: 34, height: 37 };
+  }
+  return { top: 29, width: 36, height: 38 };
+}
+
 const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
 const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
 const ORDER_GUIDE_STEPS = [
@@ -943,10 +1037,12 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
-  const mockupUrl = side === "back"
+  const configuredMockupUrl = side === "back"
     ? (colorPreview.backUrl || previewSettings.backMockupUrl)
     : (colorPreview.frontUrl || previewSettings.frontMockupUrl);
-  const defaultArea = garment?.type === "Hoodie" ? { top: 32, width: 34, height: 36 } : { top: 29, width: 36, height: 38 };
+  const inferredMockupUrl = previewImageForGarment(garment, color, side);
+  const mockupUrl = configuredMockupUrl || inferredMockupUrl;
+  const defaultArea = defaultPrintAreaFor(garment?.type, side);
   const configuredArea = previewSettings?.printArea?.[side] || {};
   const printAreaStyle = {
     top: (Number(configuredArea.top) || defaultArea.top) + "%",
@@ -1008,19 +1104,52 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
 
 function GarmentShape({ type, color, side }) {
   const palette = garmentPalette(color);
-  const isHoodie = type === "Hoodie";
-  const isCrew = type === "Crewneck";
+  const key = normalizePreviewToken(type);
+  const isHoodie = key.includes("hoodie");
+  const isCrew = key.includes("crewneck") || key.includes("sweatshirt") || key.includes("sweater");
+  const isLongSleeve = key.includes("long sleeve");
+  const isBaby = key.includes("baby") || key.includes("bodysuit") || key.includes("onesie");
+  const isToddler = key.includes("toddler");
+  const isYouth = key.includes("youth") || key === "kids";
+
+  const longSleeveBody = "M123 70 L84 86 L49 112 L18 271 L63 280 L94 151 L98 392 L262 392 L266 151 L297 280 L342 271 L311 112 L276 86 L237 70 C224 91 204 101 180 101 C156 101 136 91 123 70 Z";
+
   return <svg viewBox="0 0 360 430" role="img" aria-label={color + " " + type + " " + side + " mockup"} className="w-full h-auto drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]">
     {isHoodie ? <>
-      <path d="M125 86 C133 45 153 25 180 25 C207 25 228 45 236 86 L215 105 C208 82 197 67 180 67 C163 67 152 82 145 105 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
-      <path d="M119 82 L76 108 L29 176 L68 198 L93 166 L93 390 L267 390 L267 166 L292 198 L331 176 L284 108 L241 82 C226 102 207 112 180 112 C153 112 134 102 119 82 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
-      {side === "front" && <path d="M137 291 Q180 270 223 291 L215 342 H145 Z" fill="none" stroke={palette.seam} strokeWidth="2" opacity=".55" />}
+      <path d="M124 89 C130 48 151 25 180 25 C209 25 230 48 236 89 L216 111 C208 82 197 68 180 68 C163 68 152 82 144 111 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d={longSleeveBody} fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      {side === "front" && <>
+        <path d="M139 284 Q180 266 221 284 L214 340 H146 Z" fill="none" stroke={palette.seam} strokeWidth="2" opacity=".55" />
+        <path d="M158 87 L174 131 M202 87 L186 131" stroke={palette.seam} strokeWidth="2" opacity=".55" />
+      </>}
+    </> : isBaby ? <>
+      <path d="M132 72 L94 87 L57 136 L87 158 L110 134 L110 292 L136 322 L151 392 L180 369 L209 392 L224 322 L250 292 L250 134 L273 158 L303 136 L266 87 L228 72 C218 91 201 101 180 101 C159 101 142 91 132 72 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M151 72 C156 88 166 94 180 94 C194 94 204 88 209 72" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".62" />
+      <path d="M151 392 Q180 405 209 392" fill="none" stroke={palette.seam} strokeWidth="2" opacity=".5" />
+      {side === "front" && <>
+        <circle cx="166" cy="384" r="2.4" fill={palette.seam} />
+        <circle cx="180" cy="388" r="2.4" fill={palette.seam} />
+        <circle cx="194" cy="384" r="2.4" fill={palette.seam} />
+      </>}
+    </> : isCrew ? <>
+      <path d={longSleeveBody} fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M149 69 C154 86 165 93 180 93 C195 93 206 86 211 69" fill="none" stroke={palette.seam} strokeWidth="6" opacity=".62" />
+      <path d="M98 365 L262 365" stroke={palette.seam} strokeWidth="6" opacity=".42" />
+      <path d="M20 258 L64 268 M296 268 L340 258" stroke={palette.seam} strokeWidth="6" opacity=".42" />
+    </> : isLongSleeve ? <>
+      <path d={longSleeveBody} fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M149 69 C154 85 164 92 180 92 C196 92 206 85 211 69" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
+    </> : isToddler ? <>
+      <path d="M132 78 L93 94 L52 148 L84 171 L108 146 L108 358 L252 358 L252 146 L276 171 L308 148 L267 94 L228 78 C218 96 201 105 180 105 C159 105 142 96 132 78 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M153 77 C157 92 166 99 180 99 C194 99 203 92 207 77" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
+    </> : isYouth ? <>
+      <path d="M128 74 L86 91 L38 151 L76 178 L103 148 L103 376 L257 376 L257 148 L284 178 L322 151 L274 91 L232 74 C221 93 203 102 180 102 C157 102 139 93 128 74 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M151 73 C155 88 165 95 180 95 C195 95 205 88 209 73" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
     </> : <>
       <path d="M123 70 L78 88 L27 154 L70 184 L96 151 L96 392 L264 392 L264 151 L290 184 L333 154 L282 88 L237 70 C224 91 204 101 180 101 C156 101 136 91 123 70 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
-      <path d="M149 69 C154 85 164 92 180 92 C196 92 206 85 211 69" fill="none" stroke={palette.seam} strokeWidth={isCrew ? "5" : "3"} opacity=".6" />
-      {isCrew && <path d="M97 365 L263 365" stroke={palette.seam} strokeWidth="5" opacity=".42" />}
+      <path d="M149 69 C154 85 164 92 180 92 C196 92 206 85 211 69" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
     </>}
-    <path d="M115 92 C138 105 156 112 180 112 C204 112 222 105 245 92" fill="none" stroke={palette.highlight} strokeWidth="14" opacity=".22" />
+    <path d="M116 93 C139 105 157 112 180 112 C203 112 221 105 244 93" fill="none" stroke={palette.highlight} strokeWidth="13" opacity=".2" />
   </svg>;
 }
 
