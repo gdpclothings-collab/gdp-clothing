@@ -21,6 +21,7 @@ const mapSettings = (row) =>
         youtube: row.youtube,
         footerText: row.footer_text,
         logo: row.logo,
+        customStudioSettings: row.custom_studio_settings || {},
         updatedAt: row.updated_at,
       }
     : null;
@@ -43,5 +44,25 @@ export const adminSettingsApi = {
 
   async save(settings) {
     await adminApi.saveStoreSettings(settings.id || 1, settings);
+  },
+
+  async loadCustomStudioSettings() {
+    const { data, error } = await supabase
+      .from("store_settings")
+      .select("custom_studio_settings")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.custom_studio_settings || {};
+  },
+
+  async saveCustomStudioSettings(settings) {
+    const { error } = await supabase
+      .from("store_settings")
+      .update({ custom_studio_settings: settings || {} })
+      .eq("id", 1);
+
+    if (error) throw error;
   },
 };
