@@ -23,6 +23,35 @@ import { adminProductsApi } from "@/lib/adminProductsApi";
 
 const PAGE_SIZE = 25;
 
+const PRODUCT_CATEGORIES = [
+  "Adult T-Shirt",
+  "Adult Long Sleeve",
+  "Youth T-Shirt",
+  "Toddler T-Shirt",
+  "Baby Bodysuit",
+  "Hoodie",
+  "Crewneck",
+  "Sweater",
+  "DTF Transfer",
+  "Custom Product",
+  "Accessories",
+  "Other",
+];
+
+const APPAREL_SIZE_PRESETS = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
+
+const RESERVED_PRODUCT_METAFIELDS = new Set([
+  "short_description",
+  "garment_brand",
+  "garment_model",
+  "fabric_blend",
+  "fabric_weight",
+  "fit",
+  "audience",
+  "sleeve_type",
+  "neck_style",
+]);
+
 const slugify = (value) =>
   String(value || "")
     .toLowerCase()
@@ -345,6 +374,7 @@ export default function ProductsModule() {
         <ProductEditor
           product={editor.product}
           collections={collections}
+          settings={settings}
           onClose={() => setEditor(null)}
           onSaved={afterSave}
         />
@@ -353,10 +383,11 @@ export default function ProductsModule() {
   );
 }
 
-function ProductEditor({ product, collections, onClose, onSaved }) {
+function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const isEdit = Boolean(product?.id);
   const shipping = product?.shippingPackage || {};
   const unitPrice = product?.unitPrice || {};
+  const productMetafields = product?.metafields || {};
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imageUrlDraft, setImageUrlDraft] = useState("");
@@ -365,7 +396,16 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({
     name: product?.name || "",
     slug: product?.slug || "",
+    shortDescription: productMetafields.short_description || "",
     description: product?.description || "",
+    garmentBrand: productMetafields.garment_brand || "",
+    garmentModel: productMetafields.garment_model || "",
+    fabricBlend: productMetafields.fabric_blend || "",
+    fabricWeight: productMetafields.fabric_weight || "",
+    fit: productMetafields.fit || "",
+    audience: productMetafields.audience || "",
+    sleeveType: productMetafields.sleeve_type || "",
+    neckStyle: productMetafields.neck_style || "",
     status: product?.status || "draft",
     type: product?.type || "",
     category: product?.category || "",
@@ -414,11 +454,26 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
       : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, color: "", size: "" }]
   );
   const [metafields, setMetafields] = useState(() => {
-    const entries = Object.entries(product?.metafields || {});
+    const entries = Object.entries(product?.metafields || {}).filter(
+      ([key]) => !RESERVED_PRODUCT_METAFIELDS.has(key)
+    );
     return entries.length
       ? entries.map(([key, value]) => ({ key, value: String(value ?? "") }))
       : [];
   });
+  const [baselineSnapshot, setBaselineSnapshot] = useState(null);
+  const [saveState, setSaveState] = useState(isEdit ? "saved" : "unsaved");
+
+  useEffect(() => {
+    const snapshot = JSON.stringify({ form, variants, metafields });
+    if (baselineSnapshot === null) {
+      setBaselineSnapshot(snapshot);
+      return;
+    }
+    if (!saving) {
+      setSaveState(isEdit && snapshot === baselineSnapshot ? "saved" : "unsaved");
+    }
+  }, [form, variants, metafields, baselineSnapshot, isEdit, saving]);
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -433,6 +488,45 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
         },
       },
     }));
+  };
+
+  const setMediaMeta = (url, key, value) => {
+    setForm((current) => {
+      const previousMeta = current.customization?.media?.[url] || {};
+      const nextMeta = { ...previousMeta, [key]: value };
+      const previousPreview = current.customization?.preview || {};
+      let nextPreview = { ...previousPreview };
+
+      if (["front", "back"].includes(nextMeta.view)) {
+        const previewKey = nextMeta.view === "front" ? "frontMockupUrl" : "backMockupUrl";
+        if (nextMeta.color) {
+          nextPreview = {
+            ...nextPreview,
+            colorMockups: {
+              ...(nextPreview.colorMockups || {}),
+              [nextMeta.color]: {
+                ...(nextPreview.colorMockups?.[nextMeta.color] || {}),
+                [nextMeta.view === "front" ? "frontUrl" : "backUrl"]: url,
+              },
+            },
+          };
+        } else {
+          nextPreview[previewKey] = url;
+        }
+      }
+
+      return {
+        ...current,
+        customization: {
+          ...(current.customization || {}),
+          media: {
+            ...(current.customization?.media || {}),
+            [url]: nextMeta,
+          },
+          preview: nextPreview,
+        },
+      };
+    });
   };
 
   const setColorPreviewValue = (color, key, value) => {
@@ -515,6 +609,29 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
     });
   };
 
+  const toggleSizePreset = (size) => {
+    const current = splitComma(form.sizes);
+    const exists = current.some((item) => item.toLowerCase() === size.toLowerCase());
+    set("sizes", (exists ? current.filter((item) => item.toLowerCase() !== size.toLowerCase()) : [...current, size]).join(", "));
+  };
+
+  const autoFillSkus = () => {
+    const productCode = (slugify(form.name) || "product")
+      .split("-")
+      .filter(Boolean)
+      .map((part) => part.slice(0, 3))
+      .join("")
+      .toUpperCase()
+      .slice(0, 12) || "PRODUCT";
+
+    setVariants((current) => current.map((variant, index) => {
+      if (String(variant.sku || "").trim()) return variant;
+      const colorCode = slugify(variant.color || "default").replace(/-/g, "").toUpperCase().slice(0, 5) || "DEF";
+      const sizeCode = slugify(variant.size || String(index + 1)).replace(/-/g, "").toUpperCase().slice(0, 5) || String(index + 1);
+      return { ...variant, sku: `GDP-${productCode}-${colorCode}-${sizeCode}` };
+    }));
+  };
+
   const addVariant = () => {
     setVariants((current) => [
       ...current,
@@ -527,6 +644,25 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
     const sizes = splitComma(form.sizes);
     if (!colors.length || !sizes.length) {
       window.alert("Add at least one color and one size first.");
+      return;
+    }
+
+    const targetKeys = new Set(
+      colors.flatMap((variantColor) =>
+        sizes.map((variantSize) => `${variantColor.trim().toLowerCase()}::${variantSize.trim().toLowerCase()}`)
+      )
+    );
+    const removedWithStock = variants.filter((variant) => {
+      const key = `${String(variant.color || "").trim().toLowerCase()}::${String(variant.size || "").trim().toLowerCase()}`;
+      return !targetKeys.has(key) && Number(variant.stock || 0) > 0;
+    });
+
+    if (
+      removedWithStock.length > 0 &&
+      !window.confirm(
+        `Generating this matrix will retire ${removedWithStock.length} existing variant${removedWithStock.length === 1 ? "" : "s"} that currently contain inventory. Continue?`
+      )
+    ) {
       return;
     }
 
@@ -553,6 +689,15 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
   };
 
   const removeVariant = (index) => {
+    const target = variants[index];
+    if (
+      Number(target?.stock || 0) > 0 &&
+      !window.confirm(
+        `${target?.name || "This variant"} currently has ${Number(target?.stock || 0)} unit(s) in stock. Removing it will retire the variant and set its inventory to 0 after save. Continue?`
+      )
+    ) {
+      return;
+    }
     setVariants((current) => current.filter((_, variantIndex) => variantIndex !== index));
   };
 
@@ -567,10 +712,19 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
   };
 
   const removeImage = (index) => {
-    setForm((current) => ({
-      ...current,
-      images: current.images.filter((_, imageIndex) => imageIndex !== index),
-    }));
+    setForm((current) => {
+      const removedUrl = current.images[index];
+      const nextMedia = { ...(current.customization?.media || {}) };
+      if (removedUrl) delete nextMedia[removedUrl];
+      return {
+        ...current,
+        images: current.images.filter((_, imageIndex) => imageIndex !== index),
+        customization: {
+          ...(current.customization || {}),
+          media: nextMedia,
+        },
+      };
+    });
     setDraggedImageIndex(null);
     setDragOverImageIndex(null);
   };
@@ -672,7 +826,22 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
 
   const submit = async (event) => {
     event.preventDefault();
+
+    const submittedExistingIds = new Set(variants.map((variant) => variant.id).filter(Boolean));
+    const retiringWithStock = (product?.variants || []).filter(
+      (variant) => variant.id && !submittedExistingIds.has(variant.id) && Number(variant.stock || 0) > 0
+    );
+    if (
+      retiringWithStock.length > 0 &&
+      !window.confirm(
+        `Saving will retire ${retiringWithStock.length} variant${retiringWithStock.length === 1 ? "" : "s"} that still contain inventory. Continue?`
+      )
+    ) {
+      return;
+    }
+
     setSaving(true);
+    setSaveState("saving");
     try {
       const safeVariants = variants.length
         ? variants
@@ -682,6 +851,21 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
       for (const row of metafields) {
         const key = String(row.key || "").trim();
         if (key) metafieldObject[key] = row.value ?? "";
+      }
+      const structuredMetafields = {
+        short_description: form.shortDescription,
+        garment_brand: form.garmentBrand,
+        garment_model: form.garmentModel,
+        fabric_blend: form.fabricBlend,
+        fabric_weight: form.fabricWeight,
+        fit: form.fit,
+        audience: form.audience,
+        sleeve_type: form.sleeveType,
+        neck_style: form.neckStyle,
+      };
+      for (const [key, value] of Object.entries(structuredMetafields)) {
+        const cleanValue = String(value || "").trim();
+        if (cleanValue) metafieldObject[key] = cleanValue;
       }
 
       const payload = {
@@ -756,6 +940,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
       await onSaved(isEdit ? "Product updated." : "Product created.");
     } catch (err) {
       console.error("Product save failed:", err);
+      setSaveState("unsaved");
       window.alert(err?.message || "Product save failed.");
     } finally {
       setSaving(false);
@@ -784,8 +969,20 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
               <div className="font-semibold truncate">
                 {form.name.trim() || (isEdit ? product?.name : "Unsaved product")}
               </div>
+              <div className="mt-0.5 text-[10px] text-white/55">
+                {saveState === "saving" ? "Saving changes…" : saveState === "saved" ? "Saved" : "Unsaved changes"}
+              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {isEdit && form.status === "active" && (
+                <button
+                  type="button"
+                  onClick={() => window.open(`/product/${product.id}`, "_blank", "noopener,noreferrer")}
+                  className="hidden sm:inline-flex h-9 px-3 rounded-lg border border-white/20 text-sm hover:bg-white/10 items-center"
+                >
+                  Preview
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -832,7 +1029,18 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                   />
                 </Field>
 
-                <Field label="Description" helper="Describe the product, fit, fabric, print and care instructions.">
+                <Field label="Short description" helper="One or two lines for product cards and quick customer scanning.">
+                  <textarea
+                    value={form.shortDescription}
+                    onChange={(event) => set("shortDescription", event.target.value)}
+                    className={textareaClass}
+                    rows={2}
+                    maxLength={220}
+                    placeholder="Classic heavyweight cotton tee made for custom printing."
+                  />
+                </Field>
+
+                <Field label="Full description" helper="Describe the product, fit, fabric, print and care instructions.">
                   <textarea
                     value={form.description}
                     onChange={(event) => set("description", event.target.value)}
@@ -885,7 +1093,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                           }`}
                           aria-label={`Product image ${index + 1}. Drag to reorder.`}
                         >
-                          <img src={image} alt="" draggable="false" className="w-full h-full object-cover pointer-events-none" />
+                          <img src={image} alt="" draggable="false" className="w-full h-full object-contain pointer-events-none" />
                           <div className="absolute left-2 bottom-2 h-7 px-2 rounded-full bg-black/70 text-white text-[10px] font-medium inline-flex items-center gap-1 pointer-events-none">
                             <GripVertical size={12} />
                             <span>{index + 1}</span>
@@ -929,6 +1137,67 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                     </div>
                   )}
 
+                  {form.images.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-[#dedede] bg-white overflow-hidden">
+                      <div className="px-3 py-2.5 border-b border-[#e8e8e8] bg-[#fafafa]">
+                        <div className="text-xs font-semibold">Media assignments</div>
+                        <div className="text-[10px] text-[#777] mt-0.5">
+                          Label each image once. Front/back + color assignments automatically wire the matching Custom Studio garment preview.
+                        </div>
+                      </div>
+                      <div className="divide-y divide-[#eeeeee]">
+                        {form.images.map((image, index) => {
+                          const meta = form.customization?.media?.[image] || {};
+                          return (
+                            <div key={`media-meta-${image}-${index}`} className="p-3 grid md:grid-cols-[54px_.75fr_.9fr_1.3fr_auto] gap-2 items-end">
+                              <div className="h-12 w-12 rounded-lg border border-[#e1e1e1] bg-[#fafafa] overflow-hidden grid place-items-center">
+                                <img src={image} alt="" className="h-full w-full object-contain" />
+                              </div>
+                              <TinyField label="View">
+                                <select value={meta.view || ""} onChange={(event) => setMediaMeta(image, "view", event.target.value)} className={tinyInputClass}>
+                                  <option value="">Unassigned</option>
+                                  <option value="front">Front</option>
+                                  <option value="back">Back</option>
+                                  <option value="side">Side</option>
+                                  <option value="lifestyle">Lifestyle</option>
+                                  <option value="detail">Detail</option>
+                                </select>
+                              </TinyField>
+                              <TinyField label="Color">
+                                <input
+                                  value={meta.color || ""}
+                                  onChange={(event) => setMediaMeta(image, "color", event.target.value)}
+                                  className={tinyInputClass}
+                                  placeholder="Black"
+                                  list="gdp-product-colors"
+                                />
+                              </TinyField>
+                              <TinyField label="Alt text">
+                                <input
+                                  value={meta.alt || ""}
+                                  onChange={(event) => setMediaMeta(image, "alt", event.target.value)}
+                                  className={tinyInputClass}
+                                  placeholder={`${form.name || "Product"} ${meta.view || "image"}`}
+                                />
+                              </TinyField>
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => reorderImage(index, 0)}
+                                className="h-9 px-2.5 rounded-lg border border-[#d5d5d5] text-[10px] font-semibold disabled:opacity-40"
+                              >
+                                {index === 0 ? "Cover" : "Set cover"}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <datalist id="gdp-product-colors">
+                    {splitComma(form.colors).map((color) => <option key={color} value={color} />)}
+                  </datalist>
+
                   <div className="mt-4 flex flex-col sm:flex-row gap-2">
                     <input
                       value={imageUrlDraft}
@@ -954,26 +1223,87 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                 </div>
               </EditorSection>
 
-              <EditorSection title="Category">
-                <Field label="Product category" helper="Used for storefront filters, reporting and merchandising.">
-                  <input
-                    list="gdp-product-categories"
-                    value={form.category}
-                    onChange={(event) => set("category", event.target.value)}
-                    className={inputClass}
-                    placeholder="T-Shirts"
-                  />
-                  <datalist id="gdp-product-categories">
-                    <option value="T-Shirts" />
-                    <option value="Hoodies" />
-                    <option value="Sweatshirts" />
-                    <option value="Tank Tops" />
-                    <option value="Long Sleeves" />
-                    <option value="Hats" />
-                    <option value="Accessories" />
-                    <option value="Custom Apparel" />
-                  </datalist>
-                </Field>
+              <EditorSection title="Classification">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Field label="Product category" helper="Controls storefront filtering and garment behavior.">
+                    <select value={form.category} onChange={(event) => set("category", event.target.value)} className={inputClass}>
+                      <option value="">Choose category</option>
+                      {PRODUCT_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Product type">
+                    <select value={form.type} onChange={(event) => set("type", event.target.value)} className={inputClass}>
+                      <option value="">Choose type</option>
+                      <option value="Blank Garment">Blank Garment</option>
+                      <option value="Customizable Garment">Customizable Garment</option>
+                      <option value="Finished Product">Finished Product</option>
+                      <option value="DTF Service">DTF Service</option>
+                      <option value="Accessory">Accessory</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </Field>
+                </div>
+              </EditorSection>
+
+              <EditorSection title="Garment specifications" icon={Package}>
+                <div className="text-xs text-[#777]">
+                  Structured apparel details are stored with the product and can be reused by storefront filters, product copy and Custom Studio.
+                </div>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Field label="Garment brand">
+                    <input value={form.garmentBrand} onChange={(event) => set("garmentBrand", event.target.value)} className={inputClass} placeholder="Gildan" />
+                  </Field>
+                  <Field label="Model">
+                    <input value={form.garmentModel} onChange={(event) => set("garmentModel", event.target.value)} className={inputClass} placeholder="5000" />
+                  </Field>
+                  <Field label="Material">
+                    <input value={form.material} onChange={(event) => set("material", event.target.value)} className={inputClass} placeholder="100% cotton" />
+                  </Field>
+                  <Field label="Fabric blend">
+                    <input value={form.fabricBlend} onChange={(event) => set("fabricBlend", event.target.value)} className={inputClass} placeholder="100% ring-spun cotton" />
+                  </Field>
+                  <Field label="Fabric weight">
+                    <input value={form.fabricWeight} onChange={(event) => set("fabricWeight", event.target.value)} className={inputClass} placeholder="180 gsm / 5.3 oz" />
+                  </Field>
+                  <Field label="Fit">
+                    <select value={form.fit} onChange={(event) => set("fit", event.target.value)} className={inputClass}>
+                      <option value="">Not specified</option>
+                      <option value="Regular">Regular</option>
+                      <option value="Classic">Classic</option>
+                      <option value="Relaxed">Relaxed</option>
+                      <option value="Oversized">Oversized</option>
+                      <option value="Slim">Slim</option>
+                    </select>
+                  </Field>
+                  <Field label="Audience">
+                    <select value={form.audience} onChange={(event) => set("audience", event.target.value)} className={inputClass}>
+                      <option value="">Not specified</option>
+                      <option value="Unisex">Unisex</option>
+                      <option value="Men">Men</option>
+                      <option value="Women">Women</option>
+                      <option value="Youth">Youth</option>
+                      <option value="Toddler">Toddler</option>
+                      <option value="Baby">Baby</option>
+                    </select>
+                  </Field>
+                  <Field label="Sleeve type">
+                    <select value={form.sleeveType} onChange={(event) => set("sleeveType", event.target.value)} className={inputClass}>
+                      <option value="">Not specified</option>
+                      <option value="Short Sleeve">Short Sleeve</option>
+                      <option value="Long Sleeve">Long Sleeve</option>
+                      <option value="Sleeveless">Sleeveless</option>
+                    </select>
+                  </Field>
+                  <Field label="Neck style">
+                    <select value={form.neckStyle} onChange={(event) => set("neckStyle", event.target.value)} className={inputClass}>
+                      <option value="">Not specified</option>
+                      <option value="Crew Neck">Crew Neck</option>
+                      <option value="V-Neck">V-Neck</option>
+                      <option value="Hooded">Hooded</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </Field>
+                </div>
               </EditorSection>
 
               <EditorSection title="Pricing">
@@ -1018,6 +1348,23 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                       />
                     </div>
                   </Field>
+                </div>
+
+                <div className="grid sm:grid-cols-3 gap-2 rounded-lg border border-[#e4e4e4] bg-[#fafafa] p-3">
+                  <div>
+                    <div className="text-[9px] uppercase tracking-wide text-[#888]">Profit / item</div>
+                    <div className="mt-1 text-sm font-semibold">{money(Math.max(0, Number(form.price || 0) - Number(form.costPerItem || 0)), settings?.currency || "CAD")}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-wide text-[#888]">Margin</div>
+                    <div className="mt-1 text-sm font-semibold">
+                      {Number(form.price || 0) > 0 ? `${Math.max(0, ((Number(form.price || 0) - Number(form.costPerItem || 0)) / Number(form.price || 0)) * 100).toFixed(1)}%` : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-wide text-[#888]">Variant pricing</div>
+                    <div className="mt-1 text-xs text-[#555]">Blank variant price = base price</div>
+                  </div>
                 </div>
 
                 <Toggle
@@ -1118,6 +1465,9 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                   onChange={(value) => set("sellWhenOutOfStock", value)}
                   label="Continue selling when out of stock"
                 />
+                <div className="text-[10px] text-[#777]">
+                  Global low-stock warning: {Number(settings?.low_stock_threshold ?? 5)} units or fewer. Change the global threshold in store settings.
+                </div>
               </EditorSection>
 
               <EditorSection title="Shipping" icon={Package}>
@@ -1247,6 +1597,25 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                   </Field>
                 </div>
 
+                <div className="rounded-lg border border-[#e3e3e3] bg-[#fafafa] p-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-[#777]">Quick sizes</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {APPAREL_SIZE_PRESETS.map((size) => {
+                      const selected = splitComma(form.sizes).some((item) => item.toLowerCase() === size.toLowerCase());
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => toggleSizePreset(size)}
+                          className={`h-8 min-w-10 rounded-lg border px-2 text-xs font-semibold ${selected ? "border-[#222] bg-[#222] text-white" : "border-[#d5d5d5] bg-white"}`}
+                        >
+                          {size}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="border border-[#dedede] rounded-xl overflow-hidden">
                   <div className="px-3 py-2.5 bg-[#fafafa] border-b border-[#e8e8e8] flex items-center justify-between gap-3">
                     <div>
@@ -1256,6 +1625,9 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={generateVariantMatrix} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-xs font-medium">
                         Generate matrix
+                      </button>
+                      <button type="button" onClick={autoFillSkus} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-xs font-medium">
+                        Auto-fill SKUs
                       </button>
                       <button type="button" onClick={addVariant} className="text-xs font-medium inline-flex items-center gap-1">
                         <Plus size={13} /> Add variant
@@ -1331,7 +1703,125 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                 </div>
               </EditorSection>
 
-              <EditorSection title="Product metafields">
+              {form.customDesignable && (
+                <EditorSection title="Custom Studio integration" icon={Sparkles}>
+                  <div className="text-[11px] leading-5 text-[#777]">
+                    Use the generated garment silhouette, or select an uploaded product image as the front/back mockup. Print-area values are percentages of the mockup canvas.
+                  </div>
+                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-5 text-blue-800">
+                    Global Custom Studio behavior, print-side visibility and print-side pricing are managed from <strong>Admin → Custom Studio → Settings</strong>. This product section only controls garment-specific preview media and print-area mapping.
+                  </div>
+                   <Field label="Front mockup" helper="Optional">
+                    <select
+                      value={form.customization?.preview?.frontMockupUrl || ""}
+                      onChange={(event) => setPreviewConfig("frontMockupUrl", event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Generated garment silhouette</option>
+                      {(form.images || []).map((url, index) => (
+                        <option key={"front-" + url} value={url}>Product media {index + 1}</option>
+                      ))}
+                    </select>
+                  </Field>
+                   <Field label="Back mockup" helper="Optional">
+                    <select
+                      value={form.customization?.preview?.backMockupUrl || ""}
+                      onChange={(event) => setPreviewConfig("backMockupUrl", event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Generated garment silhouette</option>
+                      {(form.images || []).map((url, index) => (
+                        <option key={"back-" + url} value={url}>Product media {index + 1}</option>
+                      ))}
+                    </select>
+                  </Field>
+                   {customStudioColors.length > 0 && (
+                    <div className="rounded-lg border border-[#e2e2e2] bg-white overflow-hidden">
+                      <div className="px-3 py-2.5 border-b border-[#eeeeee] bg-[#fafafa]">
+                        <div className="text-xs font-semibold">Color-specific preview media</div>
+                        <div className="text-[10px] text-[#777] mt-0.5">Optional. A color can override the general front/back mockup and swatch shown in Custom Studio.</div>
+                      </div>
+                      <div className="divide-y divide-[#eeeeee]">
+                        {customStudioColors.map((studioColor) => {
+                          const colorPreview = form.customization?.preview?.colorMockups?.[studioColor] || {};
+                          const swatch = form.customization?.preview?.colorSwatches?.[studioColor] || "#888888";
+                          return (
+                            <div key={studioColor} className="p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <input
+                                  type="color"
+                                  value={/^#[0-9a-f]{6}$/i.test(swatch) ? swatch : "#888888"}
+                                  onChange={(event) => setColorSwatch(studioColor, event.target.value)}
+                                  className="h-8 w-10 rounded border border-[#d5d5d5] bg-white p-1"
+                                  aria-label={studioColor + " swatch"}
+                                />
+                                <div className="text-xs font-semibold">{studioColor}</div>
+                              </div>
+                              <div className="grid sm:grid-cols-2 gap-2">
+                                <select
+                                  value={colorPreview.frontUrl || ""}
+                                  onChange={(event) => setColorPreviewValue(studioColor, "frontUrl", event.target.value)}
+                                  className={inputClass}
+                                >
+                                  <option value="">Use general front mockup</option>
+                                  {(form.images || []).map((url, index) => (
+                                    <option key={studioColor + "-front-" + url} value={url}>Product media {index + 1}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={colorPreview.backUrl || ""}
+                                  onChange={(event) => setColorPreviewValue(studioColor, "backUrl", event.target.value)}
+                                  className={inputClass}
+                                >
+                                  <option value="">Use general back mockup</option>
+                                  {(form.images || []).map((url, index) => (
+                                    <option key={studioColor + "-back-" + url} value={url}>Product media {index + 1}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                   <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+                    <div className="text-xs font-semibold">Front printable area</div>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <Field label="Top %">
+                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.front?.top ?? 29} onChange={(event) => setPrintAreaValue("front", "top", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Width %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.width ?? 36} onChange={(event) => setPrintAreaValue("front", "width", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Height %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.height ?? 38} onChange={(event) => setPrintAreaValue("front", "height", event.target.value)} className={inputClass} />
+                      </Field>
+                    </div>
+                  </div>
+                   <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+                    <div className="text-xs font-semibold">Back printable area</div>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <Field label="Top %">
+                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.back?.top ?? 29} onChange={(event) => setPrintAreaValue("back", "top", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Width %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.width ?? 36} onChange={(event) => setPrintAreaValue("back", "width", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Height %">
+                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.height ?? 38} onChange={(event) => setPrintAreaValue("back", "height", event.target.value)} className={inputClass} />
+                      </Field>
+                    </div>
+                  </div>
+                   <div className="text-[10px] leading-4 text-[#888]">
+                    Tip: keep the guide inside the real printable chest/back area. Customers can move and scale artwork within this zone, while the original uploaded files remain preserved for production.
+                  </div>
+                </EditorSection>
+              )}
+
+
+
+              <EditorSection title="Advanced metafields">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-[#777]">
                     Store extra product information such as fit, blank brand, print method or care notes.
@@ -1447,14 +1937,6 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
               </SideCard>
 
               <SideCard title="Product organization">
-                <Field label="Type">
-                  <input
-                    value={form.type}
-                    onChange={(event) => set("type", event.target.value)}
-                    className={inputClass}
-                    placeholder="Bootleg tee"
-                  />
-                </Field>
                 <Field label="Vendor">
                   <input value={form.vendor} onChange={(event) => set("vendor", event.target.value)} className={inputClass} />
                 </Field>
@@ -1486,14 +1968,6 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                     placeholder="vintage, graphic, memorial"
                   />
                 </Field>
-                <Field label="Material">
-                  <input
-                    value={form.material}
-                    onChange={(event) => set("material", event.target.value)}
-                    className={inputClass}
-                    placeholder="100% cotton"
-                  />
-                </Field>
               </SideCard>
 
               <SideCard title="Merchandising">
@@ -1513,129 +1987,6 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                 )}
               </SideCard>
 
-              {form.customDesignable && (
-                <SideCard title="Custom Studio preview">
-                  <div className="text-[11px] leading-5 text-[#777]">
-                    Use the generated garment silhouette, or select an uploaded product image as the front/back mockup. Print-area values are percentages of the mockup canvas.
-                  </div>
-
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-5 text-blue-800">
-                    Global Custom Studio behavior, print-side visibility and print-side pricing are managed from <strong>Admin → Custom Studio → Settings</strong>. This product section only controls garment-specific preview media and print-area mapping.
-                  </div>
-
-                  <Field label="Front mockup" helper="Optional">
-                    <select
-                      value={form.customization?.preview?.frontMockupUrl || ""}
-                      onChange={(event) => setPreviewConfig("frontMockupUrl", event.target.value)}
-                      className={inputClass}
-                    >
-                      <option value="">Generated garment silhouette</option>
-                      {(form.images || []).map((url, index) => (
-                        <option key={"front-" + url} value={url}>Product media {index + 1}</option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  <Field label="Back mockup" helper="Optional">
-                    <select
-                      value={form.customization?.preview?.backMockupUrl || ""}
-                      onChange={(event) => setPreviewConfig("backMockupUrl", event.target.value)}
-                      className={inputClass}
-                    >
-                      <option value="">Generated garment silhouette</option>
-                      {(form.images || []).map((url, index) => (
-                        <option key={"back-" + url} value={url}>Product media {index + 1}</option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  {customStudioColors.length > 0 && (
-                    <div className="rounded-lg border border-[#e2e2e2] bg-white overflow-hidden">
-                      <div className="px-3 py-2.5 border-b border-[#eeeeee] bg-[#fafafa]">
-                        <div className="text-xs font-semibold">Color-specific preview media</div>
-                        <div className="text-[10px] text-[#777] mt-0.5">Optional. A color can override the general front/back mockup and swatch shown in Custom Studio.</div>
-                      </div>
-                      <div className="divide-y divide-[#eeeeee]">
-                        {customStudioColors.map((studioColor) => {
-                          const colorPreview = form.customization?.preview?.colorMockups?.[studioColor] || {};
-                          const swatch = form.customization?.preview?.colorSwatches?.[studioColor] || "#888888";
-                          return (
-                            <div key={studioColor} className="p-3">
-                              <div className="flex items-center gap-2 mb-2">
-                                <input
-                                  type="color"
-                                  value={/^#[0-9a-f]{6}$/i.test(swatch) ? swatch : "#888888"}
-                                  onChange={(event) => setColorSwatch(studioColor, event.target.value)}
-                                  className="h-8 w-10 rounded border border-[#d5d5d5] bg-white p-1"
-                                  aria-label={studioColor + " swatch"}
-                                />
-                                <div className="text-xs font-semibold">{studioColor}</div>
-                              </div>
-                              <div className="grid sm:grid-cols-2 gap-2">
-                                <select
-                                  value={colorPreview.frontUrl || ""}
-                                  onChange={(event) => setColorPreviewValue(studioColor, "frontUrl", event.target.value)}
-                                  className={inputClass}
-                                >
-                                  <option value="">Use general front mockup</option>
-                                  {(form.images || []).map((url, index) => (
-                                    <option key={studioColor + "-front-" + url} value={url}>Product media {index + 1}</option>
-                                  ))}
-                                </select>
-                                <select
-                                  value={colorPreview.backUrl || ""}
-                                  onChange={(event) => setColorPreviewValue(studioColor, "backUrl", event.target.value)}
-                                  className={inputClass}
-                                >
-                                  <option value="">Use general back mockup</option>
-                                  {(form.images || []).map((url, index) => (
-                                    <option key={studioColor + "-back-" + url} value={url}>Product media {index + 1}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
-                    <div className="text-xs font-semibold">Front printable area</div>
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      <Field label="Top %">
-                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.front?.top ?? 29} onChange={(event) => setPrintAreaValue("front", "top", event.target.value)} className={inputClass} />
-                      </Field>
-                      <Field label="Width %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.width ?? 36} onChange={(event) => setPrintAreaValue("front", "width", event.target.value)} className={inputClass} />
-                      </Field>
-                      <Field label="Height %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.height ?? 38} onChange={(event) => setPrintAreaValue("front", "height", event.target.value)} className={inputClass} />
-                      </Field>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
-                    <div className="text-xs font-semibold">Back printable area</div>
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      <Field label="Top %">
-                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.back?.top ?? 29} onChange={(event) => setPrintAreaValue("back", "top", event.target.value)} className={inputClass} />
-                      </Field>
-                      <Field label="Width %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.width ?? 36} onChange={(event) => setPrintAreaValue("back", "width", event.target.value)} className={inputClass} />
-                      </Field>
-                      <Field label="Height %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.height ?? 38} onChange={(event) => setPrintAreaValue("back", "height", event.target.value)} className={inputClass} />
-                      </Field>
-                    </div>
-                  </div>
-
-                  <div className="text-[10px] leading-4 text-[#888]">
-                    Tip: keep the guide inside the real printable chest/back area. Customers can move and scale artwork within this zone, while the original uploaded files remain preserved for production.
-                  </div>
-                </SideCard>
-              )}
-
               <SideCard title="Theme template">
                 <select
                   value={form.themeTemplate}
@@ -1651,7 +2002,7 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-5 pb-20 lg:pb-0 flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -1665,6 +2016,21 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
               className="h-10 px-5 rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
             >
               <Save size={14} /> {saving ? "Saving…" : "Save product"}
+            </button>
+          </div>
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#d8d8d8] bg-white/95 backdrop-blur px-4 py-3 lg:hidden">
+          <div className="mx-auto flex max-w-[1240px] items-center gap-2">
+            <button type="button" onClick={onClose} className="h-10 flex-1 rounded-lg border border-[#d5d5d5] text-sm font-medium">
+              Discard
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !form.name.trim()}
+              className="h-10 flex-[1.35] rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-40"
+            >
+              <Save size={14} /> {saving ? "Saving…" : saveState === "saved" ? "Saved" : "Save product"}
             </button>
           </div>
         </div>
