@@ -431,6 +431,20 @@ export default function CustomStudio() {
   const [showMeasurements, setShowMeasurements] = useState(true);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [showOrderGuide, setShowOrderGuide] = useState(true);
+  const mobileEndRef = useRef(null);
+  const [mobileDockVisible, setMobileDockVisible] = useState(true);
+
+  useEffect(() => {
+    const node = mobileEndRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setMobileDockVisible(!entry.isIntersecting),
+      { rootMargin: "0px 0px 96px 0px", threshold: 0.01 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -813,7 +827,7 @@ export default function CustomStudio() {
         </div>
 
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
-          <section className="bg-[#fffdfa] border border-[#e2dcd3] rounded-[24px] p-5 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
+          <section className="bg-[#fffdfa] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
           {step === 2 && <div>
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choosing the occasion helps our designer understand the emotion and visual direction." />
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -858,7 +872,7 @@ export default function CustomStudio() {
                   onClick={() => chooseProduct(option)}
                   className={"group overflow-hidden rounded-2xl border text-left transition-all duration-200 " + (active ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.08)]" : "border-[#ddd7ce] bg-white/70 hover:border-accent hover:-translate-y-0.5")}
                 >
-                  <div className="aspect-[16/10] bg-[#f1ede6] overflow-hidden grid place-items-center">
+                  <div className="aspect-[2/1] sm:aspect-[16/10] bg-[#f1ede6] overflow-hidden grid place-items-center">
                     {option.images?.[0]
                       ? <img src={option.images[0]} alt="" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]" />
                       : <Shirt size={48} className="text-[#aaa39a]" />}
@@ -906,7 +920,7 @@ export default function CustomStudio() {
               <div className="grid md:grid-cols-[1fr_auto] gap-5 mt-6 items-start">
                 <div>
                   <label className="font-mono text-xs uppercase text-muted-foreground">Size</label>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
                     {availableSizes.map((optionSize) => {
                       const optionVariant = variantFor(product, color, optionSize);
                       const enabled = variantAvailable(product, optionVariant);
@@ -917,7 +931,7 @@ export default function CustomStudio() {
                         disabled={!enabled}
                         onClick={() => enabled && setSize(optionSize)}
                         title={!enabled ? "Unavailable" : ""}
-                        className={"min-w-14 rounded-xl border px-3 py-2.5 text-sm font-semibold transition " + (size === optionSize ? "border-accent bg-accent/[0.07] text-accent" : enabled ? "border-[#ddd7ce] bg-white hover:border-accent" : "border-[#e5e0d9] bg-[#f4f1ec] text-[#aaa39a] line-through cursor-not-allowed")}
+                        className={"w-full rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:w-auto sm:min-w-14 " + (size === optionSize ? "border-accent bg-accent/[0.07] text-accent" : enabled ? "border-[#ddd7ce] bg-white hover:border-accent" : "border-[#e5e0d9] bg-[#f4f1ec] text-[#aaa39a] line-through cursor-not-allowed")}
                       >
                         <span>{optionSize}</span>
                         {optionVariant?.price != null && optionPrice !== Number(product.price || 0) && <span className="block text-[8px] font-mono mt-0.5">{"$" + optionPrice.toFixed(2)}</span>}
@@ -1032,7 +1046,7 @@ export default function CustomStudio() {
             <div className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
               <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#fffdfa]">
                 <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-accent">Live garment preview</div>
+                  <div className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.18em] text-accent">Live garment preview</div>
                   <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || garment.label}</div>
                 </div>
                 <button type="button" onClick={() => setFullscreenPreview(true)} className="h-9 w-9 grid place-items-center rounded-xl border border-[#ddd6cc] bg-white text-[#5d5851] hover:border-accent hover:text-accent" aria-label="Open full screen preview"><Maximize2 size={15} /></button>
@@ -1083,13 +1097,13 @@ export default function CustomStudio() {
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
-                    <button type="button" onClick={() => setShowMeasurements(v => !v)} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}</button>
+                    <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
+                    <button type="button" onClick={() => setShowMeasurements(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}</button>
                   </div>
-                  <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
+                  <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
                 </div>
-                <p className="mt-2 text-[9px] font-mono uppercase tracking-wide text-[#9a9389]">Recommended print zone updates automatically for {size} and the selected garment.</p>
-                <p className="mt-2 text-[10px] leading-relaxed text-[#8a837a]">Digital concept preview. Final composition and placement are reviewed by a GDP designer before production.</p>
+                <p className="mt-2 text-[10px] font-mono uppercase tracking-wide text-[#8f887f]">Recommended print zone updates automatically for {size} and the selected garment.</p>
+                <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">Digital concept preview. Final composition and placement are reviewed by a GDP designer before production.</p>
               </div>
             </div>
 
@@ -1107,15 +1121,15 @@ export default function CustomStudio() {
           </aside>
       </div>
 
-        <div className="mt-6 flex justify-between gap-3 pb-24 md:pb-0">
+        <div ref={mobileEndRef} className="mt-6 flex justify-between gap-3 pb-8 md:pb-0">
           <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex items-center gap-2 rounded-xl border border-[#d9d2c8] bg-white px-5 py-3 font-bold uppercase text-xs text-[#332f2a] shadow-sm hover:border-[#aaa198]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
           {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 rounded-xl bg-[#171717] text-white px-6 py-3 font-bold uppercase text-xs shadow-lg disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
         </div>
 
-        <div className="md:hidden fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-white/10 bg-[#171717]/95 backdrop-blur-xl text-white p-2.5 pl-4 shadow-2xl flex items-center justify-between gap-3">
-          <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-2xl leading-none mt-1">{"$" + unitPrice.toFixed(2)}</div></div>
-          {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#171717] px-4 py-3 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-3 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
-        </div>
+        {mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#171717]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
+          <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{"$" + unitPrice.toFixed(2)}</div></div>
+          {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#171717] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
+        </div>}
 
         {fullscreenPreview && <div className="fixed inset-0 z-[90] bg-[#111]/95 backdrop-blur-sm p-3 md:p-7">
           <div className="h-full max-w-5xl mx-auto rounded-[28px] overflow-hidden bg-[#f4efe7] border border-white/10 flex flex-col">
@@ -1197,14 +1211,14 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
     setZoom(value => clampPreview(value + (event.deltaY < 0 ? .08 : -.08)));
   };
 
-  return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[390px] sm:h-[430px]")}>
+  return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
-    {showMeasurements && !blankBack && <div className="absolute left-3 top-11 z-30 max-w-[185px] rounded-xl border border-[#d8d2c8] bg-white/88 backdrop-blur px-2.5 py-2 shadow-sm pointer-events-none">
-      <div className="font-mono text-[7px] uppercase tracking-[0.14em] text-accent">Recommended print zone · {size || "—"}</div>
-      <div className="mt-1 text-[9px] font-bold text-[#292621]">{measurementPair(profile.widthIn, profile.heightIn)}</div>
-      <div className="mt-1 text-[7px] leading-relaxed text-[#6f6960]">{profile.placementLabel} · ↓ {measurementSingle(profile.collarIn)} from {String(garment?.previewType || garment?.type || "").toLowerCase().includes("hoodie") ? "hood seam" : "collar"}</div>
-      {profile.bottomClearanceIn && <div className="mt-1 text-[7px] font-semibold text-[#8a514b]">Keep ≥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
+    {showMeasurements && !blankBack && <div className="absolute left-3 top-11 z-30 max-w-[220px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
+      <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">Recommended print zone · {size || "—"}</div>
+      <div className="mt-1 text-[10px] font-bold text-[#292621]">{measurementPair(profile.widthIn, profile.heightIn)}</div>
+      <div className="mt-1 text-[8px] leading-relaxed text-[#625c54]">{profile.placementLabel} · ↓ {measurementSingle(profile.collarIn)} from {String(garment?.previewType || garment?.type || "").toLowerCase().includes("hoodie") ? "hood seam" : "collar"}</div>
+      {profile.bottomClearanceIn && <div className="mt-1 text-[8px] font-semibold text-[#8a514b]">Keep ≥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
     </div>}
 
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
@@ -1215,26 +1229,26 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
           <div className="absolute w-px bg-accent/65" style={{ left: "50%", top: collarAnchor + "%", height: collarGuideHeight + "%" }}>
             <span className="absolute -left-1 top-0 h-px w-2 bg-accent/70" />
             <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/90 px-1 py-0.5 font-mono text-[6px] text-accent">{formatMeasurementNumber(profile.collarIn)}"</span>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/90 px-1 py-0.5 font-mono text-[7px] text-accent">{formatMeasurementNumber(profile.collarIn)}"</span>
           </div>
 
           <div className="absolute left-1/2 -translate-x-1/2" style={printAreaStyle}>
             <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-accent/55" />
-            <span className="absolute left-1/2 top-1 -translate-x-1/2 rounded-md bg-[#fffdfa]/90 px-1 py-0.5 font-mono text-[6px] uppercase tracking-wide text-[#8b565c]">center</span>
+            <span className="absolute left-1/2 top-1 -translate-x-1/2 rounded-md bg-[#fffdfa]/90 px-1 py-0.5 font-mono text-[7px] uppercase tracking-wide text-[#8b565c]">center</span>
 
             <div className="absolute -top-2 left-0 right-0 h-px bg-accent/70">
               <span className="absolute left-0 -top-1 h-2 w-px bg-accent/70" />
               <span className="absolute right-0 -top-1 h-2 w-px bg-accent/70" />
-              <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[6px] font-semibold text-accent">{formatMeasurementNumber(profile.widthIn)}" wide</span>
+              <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[7px] font-semibold text-accent">{formatMeasurementNumber(profile.widthIn)}" wide</span>
             </div>
 
             <div className="absolute -right-2 top-0 bottom-0 w-px bg-accent/70">
               <span className="absolute -left-1 top-0 h-px w-2 bg-accent/70" />
               <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1 py-0.5 font-mono text-[6px] font-semibold text-accent">{formatMeasurementNumber(profile.heightIn)}" high</span>
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1 py-0.5 font-mono text-[7px] font-semibold text-accent">{formatMeasurementNumber(profile.heightIn)}" high</span>
             </div>
 
-            {profile.bottomClearanceIn && <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[6px] text-[#8a514b]">↑ {formatMeasurementNumber(profile.bottomClearanceIn)}" pocket clearance</span>}
+            {profile.bottomClearanceIn && <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[7px] text-[#8a514b]">↑ {formatMeasurementNumber(profile.bottomClearanceIn)}" pocket clearance</span>}
           </div>
         </div>}
 
@@ -1257,8 +1271,8 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
     </div>
 
     <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
-      <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[8px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
-      {photo && !blankBack && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[8px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1"><Move size={10}/> Drag to position</span>}
+      <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
+      {photo && !blankBack && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1"><Move size={10}/> Drag to position</span>}
     </div>
   </div>;
 }
@@ -1348,7 +1362,7 @@ function ReviewCard({ label, value, sub }) {
   return <div className="rounded-2xl border border-[#dfd8cf] bg-white/65 p-4"><div className="font-mono text-[9px] uppercase tracking-wide text-[#867f76]">{label}</div><div className="font-bold mt-1 text-[#292621]">{value}</div>{sub && <div className="text-xs text-[#7a746c] mt-1">{sub}</div>}</div>;
 }
 function SummaryRow({ label, value }) {
-  return <div className="flex justify-between gap-3 mt-3 text-sm"><span className="opacity-55">{label}</span><span className="text-right">{value}</span></div>;
+  return <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:justify-between sm:gap-3"><span className="opacity-55">{label}</span><span className="break-words font-medium sm:max-w-[68%] sm:text-right">{value}</span></div>;
 }
 function GroupRow({ item, product, onChange, onRemove }) {
   const colors = productColors(product);
