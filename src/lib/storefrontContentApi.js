@@ -1,6 +1,23 @@
 import { supabase } from "@/lib/supabaseClient";
+import { DEFAULT_LANDING_PAGE, mergeLandingPageConfig } from "@/lib/landingPageDefaults";
 
 export const storefrontContentApi = {
+  async getHomepage() {
+    const { data, error } = await supabase
+      .from("store_settings")
+      .select("homepage")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (error) {
+      // Backward-compatible fallback while the landing-page migration is being deployed.
+      if (error.code === "42703") return DEFAULT_LANDING_PAGE;
+      throw error;
+    }
+
+    return mergeLandingPageConfig(data?.homepage);
+  },
+
   async getPage(slug) {
     const { data, error } = await supabase
       .from("content_pages")
