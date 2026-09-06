@@ -90,6 +90,10 @@ function garmentFromProduct(product) {
   return {
     id: product.id,
     type: product.type || "T-Shirt",
+    // Product names are often more specific than the generic product type
+    // (for example: "Long Sleeve Crew Neck Adult T-Shirt"). Keep that richer
+    // description for mockup matching and fallback silhouette selection.
+    previewType: [product.name, product.type].filter(Boolean).join(" "),
     label: product.name || "Custom garment",
     tier: product.customization?.garmentTier || "classic",
     price: Number(product.price || 0),
@@ -133,8 +137,8 @@ function garmentImageMatchesType(url, type) {
   if (key.includes("toddler")) return name.includes("toddler");
   if (key.includes("youth") || key === "kids") return name.includes("youth") || name.includes("kids");
   if (key.includes("hoodie")) return name.includes("hoodie");
-  if (key.includes("crewneck") || key.includes("sweatshirt") || key.includes("sweater")) {
-    return name.includes("crewneck") || name.includes("sweatshirt") || name.includes("sweater");
+  if (key.includes("crewneck") || key.includes("crew neck") || key.includes("sweatshirt") || key.includes("sweater")) {
+    return name.includes("crewneck") || name.includes("crew neck") || name.includes("sweatshirt") || name.includes("sweater");
   }
   if (key.includes("long sleeve")) {
     return name.includes("long sleeve") || name.includes("longsleeve");
@@ -167,14 +171,38 @@ function previewImageForGarment(garment, color, side) {
   const images = uniqueValues(garment?.images || []);
   if (!images.length) return "";
 
-  const typeMatches = images.filter((url) => garmentImageMatchesType(url, garment?.type));
-  const candidates = (typeMatches.length ? typeMatches : []).filter((url) => {
+  const previewType = garment?.previewType || garment?.type;
+  const typeMatches = images.filter((url) => garmentImageMatchesType(url, previewType));
+
+  // Every image here already belongs to the selected product. Storage URLs can
+  // be UUID-based and may not contain garment/color keywords, so an empty
+  // filename match must not force the generic SVG preview.
+  const scopedImages = typeMatches.length ? typeMatches : images;
+  const candidates = scopedImages.filter((url) => {
     const name = normalizePreviewToken(previewFileName(url));
     const isBack = name.includes("back") || name.includes("rear");
     return side === "back" ? isBack : !isBack;
   });
 
-  return candidates.find((url) => imageMatchesPreviewColor(url, color)) || "";
+  const exactColorMatch = candidates.find((url) => imageMatchesPreviewColor(url, color));
+  if (exactColorMatch) return exactColorMatch;
+
+  // On the front view, fall back to the selected product's own primary/front
+  // image. This keeps the live preview visually matched to the garment card
+  // instead of showing a different generic shirt silhouette.
+  if (side === "front") {
+    return candidates[0] ||
+      scopedImages.find((url) => {
+        const name = normalizePreviewToken(previewFileName(url));
+        return !name.includes("back") && !name.includes("rear");
+      }) ||
+      garment?.image ||
+      "";
+  }
+
+  // Never show a front product photo on the back view. If there is no back
+  // mockup, StudioPreview will safely use the generated back silhouette.
+  return candidates[0] || "";
 }
 
 function defaultPrintAreaFor(type, side) {
@@ -191,7 +219,7 @@ function defaultPrintAreaFor(type, side) {
   }
   if (key.includes("toddler")) return { top: 30, width: 37, height: 36 };
   if (key.includes("youth") || key === "kids") return { top: 29, width: 36, height: 38 };
-  if (key.includes("crewneck") || key.includes("sweatshirt") || key.includes("sweater")) {
+  if (key.includes("crewneck") || key.includes("crew neck") || key.includes("sweatshirt") || key.includes("sweater")) {
     return { top: 30, width: 34, height: 37 };
   }
   return { top: 29, width: 36, height: 38 };
@@ -1042,7 +1070,7 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
     : (colorPreview.frontUrl || previewSettings.frontMockupUrl);
   const inferredMockupUrl = previewImageForGarment(garment, color, side);
   const mockupUrl = configuredMockupUrl || inferredMockupUrl;
-  const defaultArea = defaultPrintAreaFor(garment?.type, side);
+  const defaultArea = defaultPrintAreaFor(garment?.previewType || garment?.type, side);
   const configuredArea = previewSettings?.printArea?.[side] || {};
   const printAreaStyle = {
     top: (Number(configuredArea.top) || defaultArea.top) + "%",
@@ -1077,7 +1105,7 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
     <div className="absolute inset-x-0 top-3 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/75 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
       <div className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}>
-        {mockupUrl ? <img src={mockupUrl} alt={(garment?.label || "Custom garment") + " " + side + " mockup"} className="w-full h-auto object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]" /> : <GarmentShape type={garment?.type || "T-Shirt"} color={color} side={side} />}
+        {mockupUrl ? <img src={mockupUrl} alt={(garment?.label || "Custom garment") + " " + side + " mockup"} className="w-full h-auto object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]" /> : <GarmentShape type={garment?.previewType || garment?.type || "T-Shirt"} color={color} side={side} />}
         <div
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -1106,7 +1134,7 @@ function GarmentShape({ type, color, side }) {
   const palette = garmentPalette(color);
   const key = normalizePreviewToken(type);
   const isHoodie = key.includes("hoodie");
-  const isCrew = key.includes("crewneck") || key.includes("sweatshirt") || key.includes("sweater");
+  const isCrew = key.includes("crewneck") || key.includes("crew neck") || key.includes("sweatshirt") || key.includes("sweater");
   const isLongSleeve = key.includes("long sleeve");
   const isBaby = key.includes("baby") || key.includes("bodysuit") || key.includes("onesie");
   const isToddler = key.includes("toddler");
