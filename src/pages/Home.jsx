@@ -166,7 +166,8 @@ export default function Home() {
   const bestSellers = useMemo(() => {
     const limit = Math.max(1, Math.min(8, Number(landing.bestSellers?.limit || 5)));
     const marked = products.filter((product) => product.bestSeller);
-    return (marked.length ? marked : products).slice(0, limit);
+    const remaining = products.filter((product) => !product.bestSeller);
+    return [...marked, ...remaining].slice(0, limit);
   }, [products, landing.bestSellers?.limit]);
 
   return (
