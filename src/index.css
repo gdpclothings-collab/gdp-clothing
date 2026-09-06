@@ -76,7 +76,21 @@
   body {
     @apply bg-background text-foreground font-body;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: hsl(0 0% 42%);
+    opacity: 1;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: hsl(0 0% 68%);
+  }
+
   ::selection {
     background: hsl(224 100% 59%);
     color: white;
@@ -87,6 +101,58 @@
   .font-display { font-family: var(--font-display); }
   .font-mono { font-family: var(--font-mono); }
   .text-balance { text-wrap: balance; }
+
+  /*
+   * GDP readability baseline
+   * ------------------------
+   * Several admin and Custom Studio screens intentionally used very light
+   * microcopy. On smaller Windows/desktop displays those colors lose
+   * legibility. These aliases retain hierarchy while keeping secondary text
+   * comfortably readable on light and dark surfaces.
+   */
+  [class~="text-[#777]"] {
+    color: #555;
+  }
+
+  [class~="text-[#888]"],
+  [class~="text-[#999]"] {
+    color: #5f5f5f;
+  }
+
+  [class~="text-[#706a62]"],
+  [class~="text-[#7d766d]"],
+  [class~="text-[#817b73]"],
+  [class~="text-[#8f887f]"] {
+    color: #5c554d;
+  }
+
+  [class~="text-black/35"],
+  [class~="text-black/40"],
+  [class~="text-black/42"],
+  [class~="text-black/45"],
+  [class~="text-black/50"] {
+    color: rgb(0 0 0 / 0.7);
+  }
+
+  [class~="text-white/40"],
+  [class~="text-white/45"],
+  [class~="text-white/50"],
+  [class~="text-white/55"] {
+    color: rgb(255 255 255 / 0.78);
+  }
+
+  .dark [class~="text-[#777]"],
+  .dark [class~="text-[#888]"],
+  .dark [class~="text-[#999]"] {
+    color: #c2c2c2;
+  }
+
+  [class~="text-[8px]"],
+  [class~="text-[9px]"],
+  [class~="text-[10px]"],
+  [class~="text-[11px]"] {
+    text-rendering: optimizeLegibility;
+  }
   .grain {
     position: relative;
   }
