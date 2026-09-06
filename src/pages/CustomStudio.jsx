@@ -105,6 +105,16 @@ function swatchFor(product, color) {
 }
 const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
 const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
+const ORDER_GUIDE_STEPS = [
+  { title: "Choose garment", detail: "Pick clothing, color, size, quantity and print placement." },
+  { title: "Tell us the occasion", detail: "Share who or what the custom piece is for." },
+  { title: "Choose your style", detail: "Pick the GDP design direction and mood you want." },
+  { title: "Upload photos", detail: "Add your best-quality photos or artwork references." },
+  { title: "Personalize it", detail: "Add names, dates, quotes, numbers and designer notes." },
+  { title: "Timing & approval", detail: "Set your needed-by date and confirm artwork permissions." },
+  { title: "Review & checkout", detail: "Final-check everything, add to cart and complete checkout." }
+];
+const AFTER_ORDER_STEPS = ["Order received","Artwork review","Proof / approval when required","Printing","Quality check","Pickup / shipping"];
 const MAX_MB = 12;
 const OPTIMIZE_ABOVE_MB = 2.5;
 const MAX_UPLOAD_DIMENSION = 3600;
@@ -221,6 +231,7 @@ export default function CustomStudio() {
   const [artworkOffset, setArtworkOffset] = useState({ x: 0, y: 0 });
   const [showGuides, setShowGuides] = useState(true);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
+  const [showOrderGuide, setShowOrderGuide] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -549,6 +560,56 @@ export default function CustomStudio() {
                 {number < STEPS.length && <div className={"h-px min-w-5 flex-1 " + (complete ? "bg-accent/35" : "bg-[#ddd7cf]")} />}
               </React.Fragment>;
             })}
+          </div>
+
+          <div className="mt-3 overflow-hidden rounded-2xl border border-[#e3ddd4] bg-white/75 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setShowOrderGuide((visible) => !visible)}
+              aria-expanded={showOrderGuide}
+              className="w-full flex items-center justify-between gap-4 px-4 py-3 text-left hover:bg-[#fbf8f3] transition"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Sparkles size={15} className="text-accent" />
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#39352f]">How Custom Orders Work</span>
+                <span className="hidden sm:inline text-[11px] text-[#827b72]">A quick guide from blank garment to finished order.</span>
+              </span>
+              <span className="shrink-0 text-[10px] font-mono uppercase tracking-wide text-accent">{showOrderGuide ? "Hide guide" : "View guide"}</span>
+            </button>
+
+            {showOrderGuide && <div className="border-t border-[#ebe5dc]">
+              <div className="overflow-x-auto">
+                <div className="grid min-w-[980px] grid-cols-7 divide-x divide-[#ebe5dc]">
+                  {ORDER_GUIDE_STEPS.map((guide, index) => {
+                    const number = index + 1;
+                    const active = number === step;
+                    const complete = number < step;
+                    return <button
+                      type="button"
+                      key={guide.title}
+                      onClick={() => number < step && setStep(number)}
+                      className={"p-3.5 text-left transition " + (active ? "bg-accent/[0.055]" : complete ? "bg-[#fbfaf7]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={"grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[9px] font-bold " + (active ? "border-accent bg-accent text-white" : complete ? "border-accent/30 text-accent" : "border-[#d9d2c8] text-[#7f786f]")}>{complete ? <Check size={11}/> : number}</span>
+                        <span className={"text-[10px] font-bold uppercase tracking-wide " + (active ? "text-accent" : "text-[#48433d]")}>{guide.title}</span>
+                      </div>
+                      <p className="mt-2 text-[10px] leading-relaxed text-[#827b72]">{guide.detail}</p>
+                    </button>;
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 border-t border-[#ebe5dc] bg-[#1a1917] px-4 py-3 text-white sm:flex-row sm:items-center">
+                <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">After you order</span>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[10px] text-white/75">
+                  {AFTER_ORDER_STEPS.map((item, index) => <React.Fragment key={item}>
+                    <span className="inline-flex items-center gap-1.5"><Check size={10} className="text-accent" />{item}</span>
+                    {index < AFTER_ORDER_STEPS.length - 1 && <ArrowRight size={10} className="hidden sm:block text-white/25" />}
+                  </React.Fragment>)}
+                </div>
+              </div>
+            </div>}
           </div>
         </div>
 
