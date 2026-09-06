@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { storefrontContentApi } from "@/lib/storefrontContentApi";
+import { storefrontContentApi } from "@/lib/storefrontContentApi";\nimport AboutPageContent from "@/components/storefront/AboutPageContent";
 
 export default function ContentPage() {
   const { slug } = useParams();
@@ -85,7 +85,7 @@ export default function ContentPage() {
     );
   }
 
-  const content = String(page.body?.content || "");
+  if (slug === "about" || page.body?.template === "about") {\n    return <AboutPageContent page={page} />;\n  }\n\n  const content = String(page.body?.content || "");
 
   return (
     <article className="max-w-4xl mx-auto px-4 lg:px-8 py-10 md:py-16">
