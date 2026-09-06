@@ -526,7 +526,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const [variants, setVariants] = useState(() =>
     product?.variants?.length
       ? product.variants.map((variant) => ({ ...variant }))
-      : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, color: "", size: "" }]
+      : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, costPerItem: null, color: "", size: "" }]
   );
   const [metafields, setMetafields] = useState(() => {
     const entries = Object.entries(product?.metafields || {}).filter(
@@ -555,12 +555,14 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     size: "all",
     stock: "all",
     pricing: "all",
+    costing: "all",
     groupBy: "color",
     sortBy: "color_size",
   });
   const [selectedVariantKeys, setSelectedVariantKeys] = useState([]);
   const [variantBulkStock, setVariantBulkStock] = useState("");
   const [variantBulkPrice, setVariantBulkPrice] = useState("");
+  const [variantBulkCost, setVariantBulkCost] = useState("");
   const [variantBulkAdjustment, setVariantBulkAdjustment] = useState("");
 
   useEffect(() => {
@@ -765,7 +767,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     setVariants((current) => {
       const next = current.length
         ? current.map((variant, index) => (index === 0 ? { ...variant, [key]: value } : variant))
-        : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, color: "", size: "", [key]: value }];
+        : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, costPerItem: null, color: "", size: "", [key]: value }];
       return next;
     });
   };
@@ -839,7 +841,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const addVariant = () => {
     setVariants((current) => [
       ...current,
-      { name: "Variant", sku: "", barcode: "", podSku: "", stock: 0, price: null, color: "", size: "" },
+      { name: "Variant", sku: "", barcode: "", podSku: "", stock: 0, price: null, costPerItem: null, color: "", size: "" },
     ]);
   };
 
@@ -886,6 +888,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
           podSku: existing?.podSku || "",
           stock: Number(existing?.stock || 0),
           price: existing?.price ?? null,
+          costPerItem: existing?.costPerItem ?? null,
           color: variantColor,
           size: variantSize,
         };
@@ -1056,7 +1059,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     try {
       const safeVariants = variants.length
         ? variants
-        : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, color: "", size: "" }];
+        : [{ name: "Default", sku: "", barcode: "", podSku: "", stock: 0, price: null, costPerItem: null, color: "", size: "" }];
 
       const metafieldObject = {};
       for (const row of metafields) {
@@ -1142,6 +1145,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
           podSku: variant.podSku || null,
           stock: Math.max(0, Number(variant.stock || 0)),
           price: variant.price === "" || variant.price === null ? null : Number(variant.price),
+          costPerItem:
+            variant.costPerItem === "" || variant.costPerItem === null || variant.costPerItem === undefined
+              ? null
+              : Number(variant.costPerItem),
           color: variant.color || null,
           size: variant.size || null,
         })),
@@ -1269,6 +1276,15 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     const stock = Number(variant.stock || 0);
     const priceOverride = variant.price !== null && variant.price !== undefined && variant.price !== "";
     const effectivePrice = priceOverride ? Number(variant.price || 0) : Number(form.price || 0);
+    const costOverride =
+      variant.costPerItem !== null &&
+      variant.costPerItem !== undefined &&
+      variant.costPerItem !== "";
+    const effectiveCost = costOverride
+      ? Number(variant.costPerItem || 0)
+      : Number(form.costPerItem || 0);
+    const effectiveProfit = effectivePrice - effectiveCost;
+    const effectiveMargin = effectivePrice > 0 ? (effectiveProfit / effectivePrice) * 100 : 0;
     const stockStatus = stock <= 0 ? "out" : stock <= lowStockThreshold ? "low" : "in";
     return {
       variant,
@@ -1278,6 +1294,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       stockStatus,
       priceOverride,
       effectivePrice,
+      costOverride,
+      effectiveCost,
+      effectiveProfit,
+      effectiveMargin,
       color: String(variant.color || "").trim(),
       size: String(variant.size || "").trim(),
     };
@@ -1306,6 +1326,9 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       if (variantFilters.pricing === "base" && row.priceOverride) return false;
       if (variantFilters.pricing === "override" && !row.priceOverride) return false;
       if (variantFilters.pricing === "missing" && row.effectivePrice > 0) return false;
+      if (variantFilters.costing === "base" && row.costOverride) return false;
+      if (variantFilters.costing === "override" && !row.costOverride) return false;
+      if (variantFilters.costing === "missing" && row.effectiveCost > 0) return false;
       return true;
     })
     .sort((a, b) => {
@@ -1325,6 +1348,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       if (variantFilters.sortBy === "stock_desc") return b.stock - a.stock;
       if (variantFilters.sortBy === "price_asc") return a.effectivePrice - b.effectivePrice;
       if (variantFilters.sortBy === "price_desc") return b.effectivePrice - a.effectivePrice;
+      if (variantFilters.sortBy === "cost_asc") return a.effectiveCost - b.effectiveCost;
+      if (variantFilters.sortBy === "cost_desc") return b.effectiveCost - a.effectiveCost;
+      if (variantFilters.sortBy === "profit_asc") return a.effectiveProfit - b.effectiveProfit;
+      if (variantFilters.sortBy === "profit_desc") return b.effectiveProfit - a.effectiveProfit;
       return (a.color || "zzzz").localeCompare(b.color || "zzzz") || sizeRank(a.size) - sizeRank(b.size) || a.index - b.index;
     });
 
@@ -1347,6 +1374,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     size: "all",
     stock: "all",
     pricing: "all",
+    costing: "all",
     groupBy: "color",
     sortBy: "color_size",
   });
@@ -1871,7 +1899,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       />
                     </div>
                   </Field>
-                  <Field label="Cost per item">
+                  <Field label="Base product cost" helper="Inherited by every variant unless that variant has a cost override.">
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#777]">$</span>
                       <input
@@ -1898,8 +1926,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[9px] uppercase tracking-wide text-[#888]">Variant pricing</div>
-                    <div className="mt-1 text-xs text-[#555]">Blank variant price = base price</div>
+                    <div className="text-[9px] uppercase tracking-wide text-[#888]">Variant costs</div>
+                    <div className="mt-1 text-xs text-[#555]">Blank variant cost = base product cost</div>
                   </div>
                 </div>
 
@@ -2157,12 +2185,15 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold">Variant inventory</div>
-                        <div className="text-[10px] text-[#777]">Filter, group and bulk-edit SKU, barcode, stock and optional price overrides without losing unsaved changes.</div>
+                        <div className="text-[10px] text-[#777]">Filter, group and bulk-edit SKU, barcode, stock, price and cost overrides without losing unsaved changes.</div>
                       </div>
                       <div className="flex flex-wrap gap-1.5 text-[10px]">
                         <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "all" }))} className="rounded-full border border-[#ddd] bg-white px-2.5 py-1">
                           {variantSummary.total} variants
                         </button>
+                        <span className="rounded-full border border-[#ddd] bg-white px-2.5 py-1">
+                          Base cost {form.costPerItem === "" || form.costPerItem === null ? "—" : money(form.costPerItem, settings?.currency || "CAD")}
+                        </span>
                         <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "in" }))} className="rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 px-2.5 py-1">
                           {variantSummary.inStock} in stock
                         </button>
@@ -2175,7 +2206,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       </div>
                     </div>
 
-                    <div className="mt-3 grid sm:grid-cols-2 xl:grid-cols-[1.45fr_.8fr_.7fr_.8fr_.85fr_.85fr_.95fr_auto] gap-2">
+                    <div className="mt-3 grid sm:grid-cols-2 xl:grid-cols-[1.35fr_.72fr_.65fr_.72fr_.78fr_.78fr_.78fr_.9fr_auto] gap-2">
                       <div className="relative">
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999]" />
                         <input value={variantFilters.search} onChange={(event) => setVariantFilters((current) => ({ ...current, search: event.target.value }))} className={`${tinyInputClass} pl-8`} placeholder="Search SKU, barcode, color or size" />
@@ -2200,6 +2231,12 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                         <option value="override">Price override</option>
                         <option value="missing">Missing price</option>
                       </select>
+                      <select value={variantFilters.costing} onChange={(event) => setVariantFilters((current) => ({ ...current, costing: event.target.value }))} className={tinyInputClass}>
+                        <option value="all">All costs</option>
+                        <option value="base">Base cost</option>
+                        <option value="override">Cost override</option>
+                        <option value="missing">Missing cost</option>
+                      </select>
                       <select value={variantFilters.groupBy} onChange={(event) => setVariantFilters((current) => ({ ...current, groupBy: event.target.value }))} className={tinyInputClass}>
                         <option value="color">Group: Color</option>
                         <option value="size">Group: Size</option>
@@ -2213,6 +2250,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                         <option value="stock_desc">Stock high → low</option>
                         <option value="price_asc">Price low → high</option>
                         <option value="price_desc">Price high → low</option>
+                        <option value="cost_asc">Cost low → high</option>
+                        <option value="cost_desc">Cost high → low</option>
+                        <option value="profit_asc">Profit low → high</option>
+                        <option value="profit_desc">Profit high → low</option>
                       </select>
                       <button type="button" onClick={clearVariantFilters} className="h-9 rounded-lg border border-[#d5d5d5] bg-white px-3 text-[10px] font-semibold">Clear</button>
                     </div>
@@ -2223,6 +2264,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       {variantFilters.size !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, size: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Size: {variantFilters.size} ×</button>}
                       {variantFilters.stock !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Stock: {variantFilters.stock} ×</button>}
                       {variantFilters.pricing !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, pricing: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Pricing: {variantFilters.pricing} ×</button>}
+                      {variantFilters.costing !== "all" && <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, costing: "all" }))} className="rounded-full bg-[#ededed] px-2.5 py-1 text-[9px]">Cost: {variantFilters.costing} ×</button>}
                     </div>
 
                     <div className="mt-3 flex flex-col gap-2 rounded-lg border border-[#e2e2e2] bg-white p-2.5">
@@ -2258,7 +2300,12 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                           <input type="number" min="0" step="0.01" value={variantBulkPrice} onChange={(event) => setVariantBulkPrice(event.target.value)} placeholder="Price" className="h-8 w-20 rounded-lg border border-[#d5d5d5] px-2 text-[10px]" />
                           <button type="button" disabled={variantBulkPrice === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, price: Number(variantBulkPrice || 0) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Set price</button>
                           <button type="button" onClick={() => updateSelectedVariants((variant) => ({ ...variant, price: null }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold">Use base price</button>
-                          <button type="button" disabled={variantBulkPrice === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, price: Math.max(0, Number(form.price || 0) + Number(variantBulkPrice || 0)) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Base + adjustment</button>
+                          <button type="button" disabled={variantBulkPrice === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, price: Math.max(0, Number(form.price || 0) + Number(variantBulkPrice || 0)) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Base + price adjustment</button>
+                          <span className="h-6 w-px bg-[#e2e2e2]" aria-hidden="true" />
+                          <input type="number" min="0" step="0.01" value={variantBulkCost} onChange={(event) => setVariantBulkCost(event.target.value)} placeholder="Cost" className="h-8 w-20 rounded-lg border border-[#d5d5d5] px-2 text-[10px]" />
+                          <button type="button" disabled={variantBulkCost === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, costPerItem: Number(variantBulkCost || 0) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Set cost</button>
+                          <button type="button" onClick={() => updateSelectedVariants((variant) => ({ ...variant, costPerItem: null }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold">Use base cost</button>
+                          <button type="button" disabled={variantBulkCost === ""} onClick={() => updateSelectedVariants((variant) => ({ ...variant, costPerItem: Math.max(0, Number(form.costPerItem || 0) + Number(variantBulkCost || 0)) }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold disabled:opacity-40">Base + cost adjustment</button>
                           <button type="button" onClick={() => autoFillSkus(true)} className="h-8 rounded-lg border border-[#d5d5d5] px-2.5 text-[10px] font-semibold">Fill selected SKUs</button>
                           <button type="button" onClick={retireSelectedVariants} className="h-8 rounded-lg border border-red-200 text-red-700 px-2.5 text-[10px] font-semibold">Retire selected</button>
                         </div>
@@ -2302,7 +2349,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                             </div>
                           )}
                           <div className="border-t border-[#eeeeee] p-3 bg-white">
-                            <div className="grid md:grid-cols-2 xl:grid-cols-[28px_1.1fr_.9fr_.9fr_.75fr_.75fr_.65fr_.75fr_auto] gap-2 items-end">
+                            <div className="grid md:grid-cols-2 xl:grid-cols-[28px_1.05fr_.82fr_.82fr_.68fr_.62fr_.58fr_.68fr_.7fr_auto] gap-2 items-end">
                               <div className="h-9 flex items-center">
                                 <input type="checkbox" checked={selectedVariantKeys.includes(row.key)} onChange={() => toggleVariantSelection(variant, row.index)} aria-label={`Select ${variant.name || "variant"}`} />
                               </div>
@@ -2333,6 +2380,22 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                                 <div>
                                   <input type="number" min="0" step="0.01" value={variant.price ?? ""} onChange={(event) => updateVariant(row.index, "price", event.target.value)} className={tinyInputClass} placeholder={`Base ${money(form.price, settings?.currency || "CAD")}`} />
                                   <div className="mt-1 text-[8px] uppercase text-[#888]">{row.priceOverride ? "Override" : "Base price"}</div>
+                                </div>
+                              </TinyField>
+                              <TinyField label="Cost">
+                                <div>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={variant.costPerItem ?? ""}
+                                    onChange={(event) => updateVariant(row.index, "costPerItem", event.target.value)}
+                                    className={tinyInputClass}
+                                    placeholder={form.costPerItem === "" || form.costPerItem === null ? "Base —" : `Base ${money(form.costPerItem, settings?.currency || "CAD")}`}
+                                  />
+                                  <div className="mt-1 text-[8px] uppercase text-[#888]">
+                                    {row.costOverride ? "Cost override" : "Base cost"} · Profit {money(row.effectiveProfit, settings?.currency || "CAD")} · {row.effectivePrice > 0 ? `${row.effectiveMargin.toFixed(1)}%` : "—"}
+                                  </div>
                                 </div>
                               </TinyField>
                               <button type="button" onClick={() => removeVariant(row.index)} disabled={variants.length === 1} className="h-9 w-9 rounded-lg border border-[#ddd] grid place-items-center hover:bg-red-50 hover:text-red-600 disabled:opacity-35" aria-label="Remove variant">
