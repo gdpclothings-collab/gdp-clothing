@@ -665,15 +665,15 @@ export default function CustomStudio() {
             >
               <span className="inline-flex items-center gap-2">
                 <Sparkles size={15} className="text-accent" />
-                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#39352f]">How Custom Orders Work</span>
-                <span className="hidden sm:inline text-[11px] text-[#827b72]">A quick guide from blank garment to finished order.</span>
+                <span className="text-[12px] md:text-[13px] font-extrabold uppercase tracking-[0.07em] text-[#26231f]">How Custom Orders Work</span>
+                <span className="hidden sm:inline text-[12px] leading-relaxed text-[#5f5951]">A quick guide from blank garment to finished order.</span>
               </span>
-              <span className="shrink-0 text-[10px] font-mono uppercase tracking-wide text-accent">{showOrderGuide ? "Hide guide" : "View guide"}</span>
+              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-accent">{showOrderGuide ? "Hide guide" : "View guide"}</span>
             </button>
 
             {showOrderGuide && <div className="border-t border-[#ebe5dc]">
               <div className="overflow-x-auto">
-                <div className="grid min-w-[980px] grid-cols-7 divide-x divide-[#ebe5dc]">
+                <div className="grid min-w-[1120px] grid-cols-7 divide-x divide-[#e4ddd3]">
                   {ORDER_GUIDE_STEPS.map((guide, index) => {
                     const number = index + 1;
                     const active = number === step;
@@ -682,24 +682,24 @@ export default function CustomStudio() {
                       type="button"
                       key={guide.title}
                       onClick={() => number < step && setStep(number)}
-                      className={"p-3.5 text-left transition " + (active ? "bg-accent/[0.055]" : complete ? "bg-[#fbfaf7]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
+                      className={"p-4 text-left transition " + (active ? "bg-accent/[0.065]" : complete ? "bg-[#fbfaf7]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={"grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[9px] font-bold " + (active ? "border-accent bg-accent text-white" : complete ? "border-accent/30 text-accent" : "border-[#d9d2c8] text-[#7f786f]")}>{complete ? <Check size={11}/> : number}</span>
-                        <span className={"text-[10px] font-bold uppercase tracking-wide " + (active ? "text-accent" : "text-[#48433d]")}>{guide.title}</span>
+                        <span className={"grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] font-bold " + (active ? "border-accent bg-accent text-white" : complete ? "border-accent/40 text-accent" : "border-[#d0c8bd] text-[#5f5951]")}>{complete ? <Check size={12}/> : number}</span>
+                        <span className={"text-[11px] md:text-[12px] font-extrabold uppercase tracking-[0.035em] leading-tight " + (active ? "text-accent" : "text-[#302c27]")}>{guide.title}</span>
                       </div>
-                      <p className="mt-2 text-[10px] leading-relaxed text-[#827b72]">{guide.detail}</p>
+                      <p className="mt-2.5 text-[12px] leading-[1.55] font-medium text-[#5a544c]">{guide.detail}</p>
                     </button>;
                   })}
                 </div>
               </div>
 
               <div className="flex flex-col gap-2 border-t border-[#ebe5dc] bg-[#1a1917] px-4 py-3 text-white sm:flex-row sm:items-center">
-                <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.18em] text-white/45">After you order</span>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[10px] text-white/75">
+                <span className="shrink-0 text-[10px] md:text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">After you order</span>
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 text-[11px] md:text-[12px] font-medium text-white/85">
                   {AFTER_ORDER_STEPS.map((item, index) => <React.Fragment key={item}>
-                    <span className="inline-flex items-center gap-1.5"><Check size={10} className="text-accent" />{item}</span>
-                    {index < AFTER_ORDER_STEPS.length - 1 && <ArrowRight size={10} className="hidden sm:block text-white/25" />}
+                    <span className="inline-flex items-center gap-1.5"><Check size={12} className="text-accent" />{item}</span>
+                    {index < AFTER_ORDER_STEPS.length - 1 && <ArrowRight size={11} className="hidden sm:block text-white/35" />}
                   </React.Fragment>)}
                 </div>
               </div>
