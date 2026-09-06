@@ -36,7 +36,6 @@ import {
   Palette,
   CreditCard,
   Truck,
-  ReceiptText,
   UserRoundCog,
   LifeBuoy,
   Tags,
