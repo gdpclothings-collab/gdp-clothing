@@ -469,7 +469,7 @@ export default function CustomStudio() {
   const [showMeasurements, setShowMeasurements] = useState(true);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [showIntensityExamples, setShowIntensityExamples] = useState(false);
-  const [studioSettings, setStudioSettings] = useState(DEFAULT_STUDIO_SETTINGS);
+  const [studioSettings, setStudioSettings] = useState(() => normalizeStudioSettings(DEFAULT_STUDIO_SETTINGS));
   const [showOrderGuide, setShowOrderGuide] = useState(DEFAULT_STUDIO_SETTINGS.orderGuideEnabled);
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
