@@ -783,7 +783,52 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
             ...(current.customization?.preview?.printArea || {}),
             [side]: {
               ...(current.customization?.preview?.printArea?.[side] || {}),
+              mode: "custom",
               [key]: value === "" ? "" : Number(value),
+            },
+          },
+        },
+      },
+    }));
+  };
+
+  const setPrintGuideValue = (side, key, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        preview: {
+          ...(current.customization?.preview || {}),
+          printGuide: {
+            ...(current.customization?.preview?.printGuide || {}),
+            [side]: {
+              ...(current.customization?.preview?.printGuide?.[side] || {}),
+              [key]: typeof value === "boolean" ? value : (value === "" ? "" : Number(value)),
+            },
+          },
+        },
+      },
+    }));
+  };
+
+  const setSizePrintGuideValue = (side, size, key, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        preview: {
+          ...(current.customization?.preview || {}),
+          printGuide: {
+            ...(current.customization?.preview?.printGuide || {}),
+            [side]: {
+              ...(current.customization?.preview?.printGuide?.[side] || {}),
+              sizeOverrides: {
+                ...(current.customization?.preview?.printGuide?.[side]?.sizeOverrides || {}),
+                [size]: {
+                  ...(current.customization?.preview?.printGuide?.[side]?.sizeOverrides?.[size] || {}),
+                  [key]: value === "" ? "" : Number(value),
+                },
+              },
             },
           },
         },
@@ -1269,6 +1314,12 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     ...splitComma(form.colors),
     ...variants.map((variant) => String(variant.color || "").trim()).filter(Boolean),
   ]));
+  const customStudioSizes = Array.from(new Set([
+    ...splitComma(form.sizes),
+    ...variants.map((variant) => String(variant.size || "").trim()).filter(Boolean),
+  ]));
+  const customStudioBackGuide = form.customization?.preview?.printGuide?.back || {};
+  const customStudioBackSizeScaling = customStudioBackGuide.sizeScalingEnabled !== false;
 
   const mediaRows = form.images.map((image, index) => {
     const meta = form.customization?.media?.[image] || {};
@@ -2640,18 +2691,99 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                   </div>
                    <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
                     <div className="text-xs font-semibold">Back printable area</div>
+                    <div className="text-[10px] text-[#777] mt-0.5">Percent values position the guide on the garment mockup. Editing any value automatically switches the Back side to a custom preview box.</div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
                       <Field label="Top %">
-                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.back?.top ?? 29} onChange={(event) => setPrintAreaValue("back", "top", event.target.value)} className={inputClass} />
+                        <input type="number" min="5" max="80" step="0.5" value={form.customization?.preview?.printArea?.back?.top ?? 29} onChange={(event) => setPrintAreaValue("back", "top", event.target.value)} className={inputClass} />
                       </Field>
                       <Field label="Width %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.width ?? 36} onChange={(event) => setPrintAreaValue("back", "width", event.target.value)} className={inputClass} />
+                        <input type="number" min="10" max="80" step="0.5" value={form.customization?.preview?.printArea?.back?.width ?? 36} onChange={(event) => setPrintAreaValue("back", "width", event.target.value)} className={inputClass} />
                       </Field>
                       <Field label="Height %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.back?.height ?? 38} onChange={(event) => setPrintAreaValue("back", "height", event.target.value)} className={inputClass} />
+                        <input type="number" min="10" max="80" step="0.5" value={form.customization?.preview?.printArea?.back?.height ?? 38} onChange={(event) => setPrintAreaValue("back", "height", event.target.value)} className={inputClass} />
                       </Field>
                     </div>
                   </div>
+
+                  <div className="rounded-lg border border-[#cfd9e3] bg-[#f7fafc] p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-xs font-semibold text-[#17324D]">Back print production guide</div>
+                        <div className="text-[10px] leading-4 text-[#66727e] mt-0.5">Physical measurements shown to customers and production. These do not change the original artwork file.</div>
+                      </div>
+                      <label className="inline-flex items-center gap-2 text-[10px] font-semibold text-[#44515d]">
+                        <input
+                          type="checkbox"
+                          checked={customStudioBackSizeScaling}
+                          onChange={(event) => setPrintGuideValue("back", "sizeScalingEnabled", event.target.checked)}
+                        />
+                        Size-aware scaling
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mt-3">
+                      <Field label="Top drop (in)">
+                        <input type="number" min="0.5" max="12" step="0.25" value={customStudioBackGuide.collarIn ?? ""} placeholder="3.25" onChange={(event) => setPrintGuideValue("back", "collarIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Recommended W">
+                        <input type="number" min="2" max="20" step="0.25" value={customStudioBackGuide.widthIn ?? ""} placeholder="11" onChange={(event) => setPrintGuideValue("back", "widthIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Recommended H">
+                        <input type="number" min="2" max="24" step="0.25" value={customStudioBackGuide.heightIn ?? ""} placeholder="14" onChange={(event) => setPrintGuideValue("back", "heightIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Maximum W">
+                        <input type="number" min="2" max="20" step="0.25" value={customStudioBackGuide.maxWidthIn ?? ""} placeholder="12" onChange={(event) => setPrintGuideValue("back", "maxWidthIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Maximum H">
+                        <input type="number" min="2" max="24" step="0.25" value={customStudioBackGuide.maxHeightIn ?? ""} placeholder="16" onChange={(event) => setPrintGuideValue("back", "maxHeightIn", event.target.value)} className={inputClass} />
+                      </Field>
+                    </div>
+
+                    {customStudioBackSizeScaling && customStudioSizes.length > 0 && (
+                      <div className="mt-3 overflow-hidden rounded-lg border border-[#dbe3ea] bg-white">
+                        <div className="grid grid-cols-[minmax(72px,1fr)_1fr_1fr] gap-2 border-b border-[#e6ebef] bg-[#f7f9fb] px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-[#697580]">
+                          <span>Size</span><span>Recommended W</span><span>Recommended H</span>
+                        </div>
+                        <div className="divide-y divide-[#edf0f2]">
+                          {customStudioSizes.map((studioSize) => {
+                            const sizeGuide = customStudioBackGuide.sizeOverrides?.[studioSize] || {};
+                            return (
+                              <div key={"back-guide-" + studioSize} className="grid grid-cols-[minmax(72px,1fr)_1fr_1fr] gap-2 items-center px-3 py-2">
+                                <span className="text-xs font-semibold text-[#33404c]">{studioSize}</span>
+                                <input
+                                  type="number"
+                                  min="2"
+                                  max="20"
+                                  step="0.25"
+                                  value={sizeGuide.widthIn ?? ""}
+                                  placeholder="Auto"
+                                  onChange={(event) => setSizePrintGuideValue("back", studioSize, "widthIn", event.target.value)}
+                                  className={inputClass}
+                                  aria-label={studioSize + " back recommended width"}
+                                />
+                                <input
+                                  type="number"
+                                  min="2"
+                                  max="24"
+                                  step="0.25"
+                                  value={sizeGuide.heightIn ?? ""}
+                                  placeholder="Auto"
+                                  onChange={(event) => setSizePrintGuideValue("back", studioSize, "heightIn", event.target.value)}
+                                  className={inputClass}
+                                  aria-label={studioSize + " back recommended height"}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-2 text-[10px] leading-4 text-[#66727e]">
+                      Hoodie default uses a lower back placement to clear the hood. Leave a size field blank to use the calibrated GDP garment preset.
+                    </div>
+                  </div>
+
                    <div className="text-[10px] leading-4 text-[#888]">
                     Tip: keep the guide inside the real printable chest/back area. Customers can move and scale artwork within this zone, while the original uploaded files remain preserved for production.
                   </div>
