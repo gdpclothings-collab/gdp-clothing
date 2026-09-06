@@ -138,6 +138,17 @@ export const customerApi = {
     return studioOnly.length ? studioOnly : products;
   },
 
+  async getCustomStudioSettings() {
+    const { data, error } = await supabase
+      .from("store_settings")
+      .select("custom_studio_settings")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.custom_studio_settings || {};
+  },
+
   async uploadArtwork(file) {
     const user = await requireUser();
     const safeName = String(file.name || "artwork")
