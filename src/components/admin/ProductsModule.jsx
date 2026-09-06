@@ -435,6 +435,41 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
     }));
   };
 
+  const setColorPreviewValue = (color, key, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        preview: {
+          ...(current.customization?.preview || {}),
+          colorMockups: {
+            ...(current.customization?.preview?.colorMockups || {}),
+            [color]: {
+              ...(current.customization?.preview?.colorMockups?.[color] || {}),
+              [key]: value,
+            },
+          },
+        },
+      },
+    }));
+  };
+
+  const setColorSwatch = (color, value) => {
+    setForm((current) => ({
+      ...current,
+      customization: {
+        ...(current.customization || {}),
+        preview: {
+          ...(current.customization?.preview || {}),
+          colorSwatches: {
+            ...(current.customization?.preview?.colorSwatches || {}),
+            [color]: value,
+          },
+        },
+      },
+    }));
+  };
+
   const setPrintAreaValue = (side, key, value) => {
     setForm((current) => ({
       ...current,
@@ -485,6 +520,36 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
       ...current,
       { name: "Variant", sku: "", barcode: "", podSku: "", stock: 0, price: null, color: "", size: "" },
     ]);
+  };
+
+  const generateVariantMatrix = () => {
+    const colors = splitComma(form.colors);
+    const sizes = splitComma(form.sizes);
+    if (!colors.length || !sizes.length) {
+      window.alert("Add at least one color and one size first.");
+      return;
+    }
+
+    setVariants((current) => colors.flatMap((variantColor) =>
+      sizes.map((variantSize) => {
+        const existing = current.find((variant) =>
+          String(variant.color || "").trim().toLowerCase() === variantColor.toLowerCase() &&
+          String(variant.size || "").trim().toLowerCase() === variantSize.toLowerCase()
+        );
+
+        return {
+          ...(existing || {}),
+          name: `${variantColor} / ${variantSize}`,
+          sku: existing?.sku || "",
+          barcode: existing?.barcode || "",
+          podSku: existing?.podSku || "",
+          stock: Number(existing?.stock || 0),
+          price: existing?.price ?? null,
+          color: variantColor,
+          size: variantSize,
+        };
+      })
+    ));
   };
 
   const removeVariant = (index) => {
@@ -702,6 +767,10 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
     barcode: "",
     stock: 0,
   };
+  const customStudioColors = Array.from(new Set([
+    ...splitComma(form.colors),
+    ...variants.map((variant) => String(variant.color || "").trim()).filter(Boolean),
+  ]));
 
   return (
     <div className="fixed inset-0 z-[70] bg-[#f4f4f4] overflow-y-auto">
@@ -1184,9 +1253,14 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                       <div className="text-sm font-semibold">Variant inventory</div>
                       <div className="text-[10px] text-[#777]">Keep SKU, barcode, stock and optional price per variation.</div>
                     </div>
-                    <button type="button" onClick={addVariant} className="text-xs font-medium inline-flex items-center gap-1">
-                      <Plus size={13} /> Add variant
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={generateVariantMatrix} className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] bg-white text-xs font-medium">
+                        Generate matrix
+                      </button>
+                      <button type="button" onClick={addVariant} className="text-xs font-medium inline-flex items-center gap-1">
+                        <Plus size={13} /> Add variant
+                      </button>
+                    </div>
                   </div>
                   <div className="divide-y divide-[#eeeeee]">
                     {variants.map((variant, index) => (
@@ -1470,6 +1544,57 @@ function ProductEditor({ product, collections, onClose, onSaved }) {
                       ))}
                     </select>
                   </Field>
+
+                  {customStudioColors.length > 0 && (
+                    <div className="rounded-lg border border-[#e2e2e2] bg-white overflow-hidden">
+                      <div className="px-3 py-2.5 border-b border-[#eeeeee] bg-[#fafafa]">
+                        <div className="text-xs font-semibold">Color-specific preview media</div>
+                        <div className="text-[10px] text-[#777] mt-0.5">Optional. A color can override the general front/back mockup and swatch shown in Custom Studio.</div>
+                      </div>
+                      <div className="divide-y divide-[#eeeeee]">
+                        {customStudioColors.map((studioColor) => {
+                          const colorPreview = form.customization?.preview?.colorMockups?.[studioColor] || {};
+                          const swatch = form.customization?.preview?.colorSwatches?.[studioColor] || "#888888";
+                          return (
+                            <div key={studioColor} className="p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <input
+                                  type="color"
+                                  value={/^#[0-9a-f]{6}$/i.test(swatch) ? swatch : "#888888"}
+                                  onChange={(event) => setColorSwatch(studioColor, event.target.value)}
+                                  className="h-8 w-10 rounded border border-[#d5d5d5] bg-white p-1"
+                                  aria-label={studioColor + " swatch"}
+                                />
+                                <div className="text-xs font-semibold">{studioColor}</div>
+                              </div>
+                              <div className="grid sm:grid-cols-2 gap-2">
+                                <select
+                                  value={colorPreview.frontUrl || ""}
+                                  onChange={(event) => setColorPreviewValue(studioColor, "frontUrl", event.target.value)}
+                                  className={inputClass}
+                                >
+                                  <option value="">Use general front mockup</option>
+                                  {(form.images || []).map((url, index) => (
+                                    <option key={studioColor + "-front-" + url} value={url}>Product media {index + 1}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={colorPreview.backUrl || ""}
+                                  onChange={(event) => setColorPreviewValue(studioColor, "backUrl", event.target.value)}
+                                  className={inputClass}
+                                >
+                                  <option value="">Use general back mockup</option>
+                                  {(form.images || []).map((url, index) => (
+                                    <option key={studioColor + "-back-" + url} value={url}>Product media {index + 1}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
                     <div className="text-xs font-semibold">Front printable area</div>
