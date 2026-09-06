@@ -184,13 +184,17 @@ function useLandingSeo(landing) {
       ogTitle: ogTitle?.getAttribute("content") || "",
       ogDescription: ogDescription?.getAttribute("content") || "",
       favicon: favicon?.getAttribute("href") || "",
+      faviconType: favicon?.getAttribute("type") || "",
     };
 
     document.title = seo.title || DEFAULT_LANDING_PAGE.seo.title;
     description?.setAttribute("content", seo.description || DEFAULT_LANDING_PAGE.seo.description);
     ogTitle?.setAttribute("content", seo.ogTitle || seo.title || DEFAULT_LANDING_PAGE.seo.ogTitle);
     ogDescription?.setAttribute("content", seo.ogDescription || seo.description || DEFAULT_LANDING_PAGE.seo.ogDescription);
-    if (favicon && branding.faviconUrl) favicon.setAttribute("href", branding.faviconUrl);
+    if (favicon && branding.faviconUrl) {
+      favicon.setAttribute("href", branding.faviconUrl);
+      favicon.removeAttribute("type");
+    }
 
     let ogImage = document.head.querySelector('meta[property="og:image"]');
     const createdOgImage = !ogImage;
@@ -208,7 +212,11 @@ function useLandingSeo(landing) {
       description?.setAttribute("content", previous.description);
       ogTitle?.setAttribute("content", previous.ogTitle);
       ogDescription?.setAttribute("content", previous.ogDescription);
-      if (favicon) favicon.setAttribute("href", previous.favicon);
+      if (favicon) {
+        favicon.setAttribute("href", previous.favicon);
+        if (previous.faviconType) favicon.setAttribute("type", previous.faviconType);
+        else favicon.removeAttribute("type");
+      }
       if (createdOgImage) {
         ogImage.remove();
       } else {
