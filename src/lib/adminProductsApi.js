@@ -176,8 +176,27 @@ export const adminProductsApi = {
     return data.publicUrl;
   },
 
+  async get(productId) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*, product_variants(*), collection_products(collection_id)")
+      .eq("id", productId)
+      .single();
+
+    if (error) throw error;
+    return mapProduct(data);
+  },
+
   async save(productId, payload) {
-    return adminApi.saveProduct(productId || null, payload);
+    const savedId = await adminApi.saveProduct(productId || null, payload);
+    const { data, error } = await supabase
+      .from("products")
+      .select("*, product_variants(*), collection_products(collection_id)")
+      .eq("id", savedId)
+      .single();
+
+    if (error) throw error;
+    return mapProduct(data);
   },
 
   async setStatus(productId, status) {
