@@ -32,6 +32,7 @@ const DEFAULT_STUDIO_SETTINGS = {
   showCombinedIntensityGuide: true,
   defaultDesignIntensity: 3,
   orderGuideEnabled: true,
+  priceVisibility: "hidden",
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -73,7 +74,7 @@ const FALLBACK_GARMENT = {
 };
 
 const DEFAULT_COLOR_SWATCHES = {
-  "Black": "#171717",
+  "Black": "#17324D",
   "Vintage Black": "#292929",
   "White": "#f7f6f1",
   "Sport Grey": "#b7b8b3",
@@ -465,12 +466,13 @@ export default function CustomStudio() {
   const [artworkScale, setArtworkScale] = useState(92);
   const [artworkRotation, setArtworkRotation] = useState(0);
   const [artworkOffset, setArtworkOffset] = useState({ x: 0, y: 0 });
+  const [artworkFitMode, setArtworkFitMode] = useState("fit");
   const [showGuides, setShowGuides] = useState(true);
-  const [showMeasurements, setShowMeasurements] = useState(true);
+  const [showMeasurements, setShowMeasurements] = useState(false);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [showIntensityExamples, setShowIntensityExamples] = useState(false);
   const [studioSettings, setStudioSettings] = useState(() => normalizeStudioSettings(DEFAULT_STUDIO_SETTINGS));
-  const [showOrderGuide, setShowOrderGuide] = useState(DEFAULT_STUDIO_SETTINGS.orderGuideEnabled);
+  const [showOrderGuide, setShowOrderGuide] = useState(false);
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
 
@@ -513,7 +515,7 @@ export default function CustomStudio() {
         if (!active) return;
         setStudioSettings(nextStudioSettings);
         setDesignIntensity(Math.min(5, Math.max(1, Number(nextStudioSettings.defaultDesignIntensity || 3))));
-        setShowOrderGuide(nextStudioSettings.orderGuideEnabled !== false);
+        setShowOrderGuide(false);
         setCatalog(studioCatalog);
         if (!p) return;
 
@@ -554,11 +556,15 @@ export default function CustomStudio() {
     setArtworkScale(92);
     setArtworkRotation(0);
     setArtworkOffset({ x: 0, y: 0 });
+    setArtworkFitMode("fit");
     setPreviewZoom(1);
   };
 
   const config = product?.customization || {};
   const mobileFloatingCtaEnabled = studioSettings.mobileFloatingCtaEnabled === true;
+  const priceVisibility = ["hidden", "total", "all"].includes(studioSettings.priceVisibility) ? studioSettings.priceVisibility : "hidden";
+  const showGarmentPrices = priceVisibility === "all";
+  const showOrderPrice = priceVisibility !== "hidden";
   const intensityExamplesEnabled = studioSettings.intensityExamplesEnabled !== false;
   const intensityExampleImageUrl = studioSettings.intensityExampleImageUrl || DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
   const intensityImages = normalizeIntensityExamples(studioSettings.intensityExamples);
@@ -602,6 +608,7 @@ export default function CustomStudio() {
     setArtworkScale(92);
     setArtworkRotation(0);
     setArtworkOffset({ x: 0, y: 0 });
+    setArtworkFitMode("fit");
     setPreviewZoom(1);
   };
 
@@ -794,18 +801,18 @@ export default function CustomStudio() {
   const activeOccasion = OCCASIONS.find(group => group.id === occasionGroup) || OCCASIONS[0];
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fbf8f2_0%,#f7f3ec_38%,#fbfaf7_100%)]">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
       <div className="max-w-[1540px] mx-auto px-4 lg:px-8 py-6 md:py-10">
-        <div className="relative overflow-hidden rounded-[28px] border border-[#e4ded4] bg-[linear-gradient(135deg,#fffdfa_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
+        <div className="relative overflow-hidden rounded-[28px] border border-[#DCE3EA] bg-[linear-gradient(135deg,#FFFFFF_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
           <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-accent/[0.06] blur-3xl pointer-events-none" />
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
             <div>
               <span className="font-mono text-[10px] md:text-xs uppercase tracking-[0.28em] text-accent">GDP Custom Studio</span>
-              <h1 className="font-display text-5xl md:text-7xl leading-[.92] mt-2 text-[#171717]">MAKE IT PERSONAL</h1>
+              <h1 className="font-display text-4xl md:text-6xl leading-[.94] mt-2 text-[#17324D]">MAKE IT PERSONAL</h1>
               <p className="text-[#69645d] max-w-2xl mt-3 leading-relaxed">Turn your favorite people, pets and memories into wearable art. Build the concept here, then a real GDP designer reviews it before production.</p>
             </div>
             <div className="inline-flex items-center gap-2 self-start lg:self-auto rounded-full border border-[#ded7cd] bg-white/75 px-3.5 py-2 text-[11px] font-semibold text-[#4f4b46] shadow-sm">
-              <ShieldCheck size={15} className="text-accent" /> Designer review included
+              <ShieldCheck size={15} className="text-accent" /> Designer reviewed · Proof before printing · Secure checkout
             </div>
           </div>
         </div>
@@ -813,15 +820,15 @@ export default function CustomStudio() {
         <div className="mb-7">
           <div className="md:hidden mb-3">
             <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wide text-[#736d65]"><span>Step {step} of {STEPS.length}</span><span>{STEPS[step - 1]}</span></div>
-            <div className="h-1.5 rounded-full bg-[#e8e1d7] mt-2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${(step / STEPS.length) * 100}%` }} /></div>
+            <div className="h-1.5 rounded-full bg-[#E3E9EF] mt-2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${(step / STEPS.length) * 100}%` }} /></div>
           </div>
-          <div className="hidden md:flex items-center gap-0 rounded-2xl border border-[#e3ddd4] bg-white/70 p-2 shadow-sm overflow-x-auto">
+          <div className="hidden md:flex items-center gap-0 rounded-2xl border border-[#DCE3EA] bg-white/70 p-2 shadow-sm overflow-x-auto">
             {STEPS.map((label, index) => {
               const number = index + 1;
               const complete = step > number;
               const active = step === number;
               return <React.Fragment key={label}>
-                <button onClick={() => number < step && setStep(number)} className={"group flex items-center gap-2 px-3 py-2 rounded-xl whitespace-nowrap transition " + (active ? "bg-[#171717] text-white shadow-sm" : complete ? "text-accent" : "text-[#8b857d]")}>
+                <button onClick={() => number < step && setStep(number)} className={"group flex items-center gap-2 px-3 py-2 rounded-xl whitespace-nowrap transition " + (active ? "bg-[#17324D] text-white shadow-sm" : complete ? "text-accent" : "text-[#8b857d]")}>
                   <span className={"grid h-6 w-6 place-items-center rounded-full border text-[10px] font-bold " + (active ? "border-white/30" : complete ? "border-accent/30 bg-accent/[0.06]" : "border-[#d8d2c9]")}>{complete ? <Check size={12} /> : number}</span>
                   <span className="text-[11px] font-bold uppercase tracking-wide">{label}</span>
                 </button>
@@ -830,7 +837,14 @@ export default function CustomStudio() {
             })}
           </div>
 
-          <div className="mt-3 overflow-hidden rounded-2xl border border-[#e3ddd4] bg-white/75 shadow-sm">
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[#DCE3EA] bg-white px-3 py-2.5 shadow-sm">
+            <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] bg-white px-4 py-2.5 font-bold uppercase text-xs text-[#17324D] hover:border-[#9fb0c0]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
+            {step < STEPS.length
+              ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#17324D] px-5 py-2.5 font-bold uppercase text-xs text-white shadow-sm disabled:opacity-40">Continue <ArrowRight size={16}/></button>
+              : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-bold uppercase text-xs text-white shadow-sm disabled:opacity-40">{saving ? "Saving…" : "Add to cart"} <ArrowRight size={16}/></button>}
+          </div>
+
+          <div className="mt-3 overflow-hidden rounded-2xl border border-[#DCE3EA] bg-white/75 shadow-sm">
             <button
               type="button"
               onClick={() => setShowOrderGuide((visible) => !visible)}
@@ -856,7 +870,7 @@ export default function CustomStudio() {
                       type="button"
                       key={guide.title}
                       onClick={() => number < step && setStep(number)}
-                      className={"p-4 text-left transition " + (active ? "bg-accent/[0.065]" : complete ? "bg-[#fbfaf7]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
+                      className={"p-4 text-left transition " + (active ? "bg-accent/[0.065]" : complete ? "bg-[#F8FAFC]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
                     >
                       <div className="flex items-center gap-2">
                         <span className={"grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] font-bold " + (active ? "border-accent bg-accent text-white" : complete ? "border-accent/40 text-accent" : "border-[#d0c8bd] text-[#5f5951]")}>{complete ? <Check size={12}/> : number}</span>
@@ -868,7 +882,7 @@ export default function CustomStudio() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 border-t border-[#ebe5dc] bg-[#1a1917] px-4 py-3 text-white sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-2 border-t border-[#ebe5dc] bg-[#17212B] px-4 py-3 text-white sm:flex-row sm:items-center">
                 <span className="shrink-0 text-[10px] md:text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">After you order</span>
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 text-[11px] md:text-[12px] font-medium text-white/85">
                   {AFTER_ORDER_STEPS.map((item, index) => <React.Fragment key={item}>
@@ -882,7 +896,7 @@ export default function CustomStudio() {
         </div>
 
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
-          <section className="bg-[#fffdfa] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
+          <section className="bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
           {step === 2 && <div>
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choosing the occasion helps our designer understand the emotion and visual direction." />
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -906,44 +920,10 @@ export default function CustomStudio() {
                 <div className="font-bold">{style[0]}</div><p className="text-sm text-muted-foreground mt-1">{style[1]}</p>
               </button>)}
             </div>
-            <div className="grid md:grid-cols-2 gap-5 mt-6">
-              <div><label className="font-mono text-xs uppercase text-muted-foreground">Mood</label><div className="flex flex-wrap gap-2 mt-2">
-                {MOODS.map(mood => <button key={mood} onClick={() => setDesignMood(mood)} className={"px-3 py-2 border text-sm " + (designMood === mood ? "bg-primary text-primary-foreground border-primary" : "border-border")}>{mood}</button>)}
-              </div></div>
-              <div>
-                <label className="font-mono text-xs uppercase text-muted-foreground">Design intensity — {designIntensity}/5</label>
-                <input type="range" min="1" max="5" value={designIntensity} onChange={e => setDesignIntensity(Number(e.target.value))} className="w-full mt-4" />
-                <div className="flex justify-between text-[10px] uppercase font-mono text-muted-foreground"><span>Clean</span><span>Balanced</span><span>Maximum Chaos</span></div>
-                <div className="mt-3 rounded-xl border border-[#e2dcd3] bg-white/70 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold text-[#27231f]">{designIntensity}/5 · {intensityLevel.label}</div>
-                      <p className="mt-1 text-[12px] leading-relaxed text-[#716a62]">{intensityLevel.description}</p>
-                    </div>
-                    {intensityExamplesEnabled && <button
-                      type="button"
-                      onClick={() => setShowIntensityExamples(true)}
-                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[#d7d0c7] bg-[#fffdfa] px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-[#37322d] hover:border-accent hover:text-accent"
-                    >
-                      <Info size={13} /> Examples
-                    </button>}
-                  </div>
-                  {intensityExamplesEnabled && <button
-                    type="button"
-                    onClick={() => setShowIntensityExamples(true)}
-                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-accent hover:underline"
-                  >
-                    See design intensity examples →
-                  </button>}
-                  {selectedIntensityImage && selectedIntensityImage !== HIDDEN_INTENSITY_IMAGE && <button
-                    type="button"
-                    onClick={() => setShowIntensityExamples(true)}
-                    className="mt-3 block w-full overflow-hidden rounded-xl border border-[#ddd6cd] bg-[#151515]"
-                    aria-label={`Open ${designIntensity} out of 5 intensity example`}
-                  >
-                    <IntensityExampleVisual src={selectedIntensityImage} label={`${designIntensity}/5 ${intensityLevel.label}`} className="aspect-[16/9]" />
-                  </button>}
-                </div>
+            <div className="mt-6">
+              <label className="font-mono text-xs uppercase text-muted-foreground">Mood</label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {MOODS.map(mood => <button key={mood} onClick={() => setDesignMood(mood)} className={"px-3 py-2 border text-sm " + (designMood === mood ? "bg-[#17324D] text-white border-[#17324D]" : "border-border bg-white")}>{mood}</button>)}
               </div>
             </div>
           </div>}
@@ -974,7 +954,7 @@ export default function CustomStudio() {
                       </div>
                       {active && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-white"><Check size={13}/></span>}
                     </div>
-                    <div className="font-mono text-sm mt-3">From {"$" + Number(optionGarment.price).toFixed(2)}</div>
+                    {showGarmentPrices && <div className="font-mono text-sm mt-3">From {"$" + Number(optionGarment.price).toFixed(2)}</div>}
                   </div>
                 </button>;
               })}
@@ -994,7 +974,7 @@ export default function CustomStudio() {
                       type="button"
                       key={optionColor}
                       onClick={() => setColor(optionColor)}
-                      className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#171717] bg-[#171717] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
+                      className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
                     >
                       <span
                         className="h-5 w-5 rounded-full border border-black/15 shadow-inner"
@@ -1023,7 +1003,7 @@ export default function CustomStudio() {
                         className={"w-full rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:w-auto sm:min-w-14 " + (size === optionSize ? "border-accent bg-accent/[0.07] text-accent" : enabled ? "border-[#ddd7ce] bg-white hover:border-accent" : "border-[#e5e0d9] bg-[#f4f1ec] text-[#aaa39a] line-through cursor-not-allowed")}
                       >
                         <span>{optionSize}</span>
-                        {optionVariant?.price != null && optionPrice !== Number(product.price || 0) && <span className="block text-[8px] font-mono mt-0.5">{"$" + optionPrice.toFixed(2)}</span>}
+                        {showGarmentPrices && optionVariant?.price != null && optionPrice !== Number(product.price || 0) && <span className="block text-[8px] font-mono mt-0.5">{"$" + optionPrice.toFixed(2)}</span>}
                       </button>;
                     })}
                   </div>
@@ -1088,6 +1068,32 @@ export default function CustomStudio() {
               {photos.map((photo,index) => <PhotoCard key={photo.url} photo={photo} onPrimary={() => setPrimary(index)} onRemove={() => removePhoto(index)} />)}
             </div>
             <div className="font-mono text-xs text-muted-foreground mt-3">{photos.length}/{maxPhotos} photos</div>
+
+            <div className="mt-7 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 md:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#64788A]">Design intensity</div>
+                  <div className="mt-1 font-bold text-[#17324D]">How bold should the finished design feel?</div>
+                  <p className="mt-1 text-xs leading-relaxed text-[#64707C]">Choose the visual density after selecting your photos. 3/5 Balanced is the recommended starting point.</p>
+                </div>
+                {intensityExamplesEnabled && <button type="button" onClick={() => setShowIntensityExamples(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#C9D4DE] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] hover:border-[#17324D]"><Info size={13}/> View examples</button>}
+              </div>
+              <div className="mt-4 grid grid-cols-5 gap-2">
+                {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => <button
+                  key={level}
+                  type="button"
+                  onClick={() => setDesignIntensity(Number(level))}
+                  className={"rounded-xl border px-1.5 py-3 text-center transition " + (Number(level) === designIntensity ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#C9D4DE] bg-white text-[#44515D] hover:border-[#17324D]")}
+                >
+                  <div className="text-sm font-black">{level}/5</div>
+                  <div className="mt-1 hidden text-[9px] font-semibold uppercase sm:block">{item.label}</div>
+                </button>)}
+              </div>
+              <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white p-3">
+                <div className="text-sm font-bold text-[#17324D]">{designIntensity}/5 · {intensityLevel.label}</div>
+                <p className="mt-1 text-[12px] leading-relaxed text-[#64707C]">{intensityLevel.description}</p>
+              </div>
+            </div>
           </div>}
 
           {step === 5 && <div>
@@ -1126,14 +1132,14 @@ export default function CustomStudio() {
               <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
             </div>
             {groupGarments.length > 0 && <div className="mt-4 border border-border p-4"><div className="font-bold">Additional shirts using the same design</div>{groupGarments.map((g,i) => <div key={i} className="text-sm text-muted-foreground mt-1">{g.quantity}× {g.color} · {g.size}</div>)}</div>}
-            <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Before cart discounts, shipping, tax or coupon.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>
+            {showOrderPrice && <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Before cart discounts, shipping, tax or coupon.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>}
             <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide disabled:opacity-50">{saving ? "Saving custom design…" : "Add Custom Order to Cart →"}</button>
           </div>}
         </section>
 
           <aside className="h-fit lg:sticky lg:top-24 space-y-4">
             <div className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
-              <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#fffdfa]">
+              <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#FFFFFF]">
                 <div>
                   <div className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.18em] text-accent">Live garment preview</div>
                   <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || garment.label}</div>
@@ -1154,17 +1160,18 @@ export default function CustomStudio() {
                 artworkRotation={artworkRotation}
                 artworkOffset={artworkOffset}
                 setArtworkOffset={setArtworkOffset}
+                artworkFitMode={artworkFitMode}
                 showGuides={showGuides}
                 showMeasurements={showMeasurements}
                 size={size}
                 previewConfig={config.preview || {}}
               />
 
-              <div className="p-4 border-t border-[#ebe5dc] bg-[#fffdfa]">
+              <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex rounded-xl border border-[#ddd6cc] bg-[#f5f0e9] p-1">
-                    <button type="button" onClick={() => setPreviewSide("front")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "front" ? "bg-[#171717] text-white" : "text-[#756f67]")}>Front</button>
-                    <button type="button" onClick={() => setPreviewSide("back")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "back" ? "bg-[#171717] text-white" : "text-[#756f67]")}>Back</button>
+                    <button type="button" onClick={() => setPreviewSide("front")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "front" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Front</button>
+                    <button type="button" onClick={() => setPreviewSide("back")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "back" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Back</button>
                   </div>
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom out"><ZoomOut size={14} /></button>
@@ -1175,8 +1182,12 @@ export default function CustomStudio() {
 
                 {primaryPhoto && previewSide === "front" && <div className="mt-4 space-y-3">
                   <div>
-                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Artwork size</span><span>{artworkScale}%</span></div>
-                    <input type="range" min="55" max="145" value={artworkScale} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#d9273e]" />
+                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Design size</span><span>{artworkScale}%</span></div>
+                    <input type="range" min="55" max="145" value={artworkScale} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
+                    <div className="mt-2 inline-flex rounded-lg border border-[#DCE3EA] bg-[#F4F7FA] p-1">
+                      <button type="button" onClick={() => setArtworkFitMode("fit")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fit" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
+                      <button type="button" onClick={() => setArtworkFitMode("fill")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fill" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fill</button>
+                    </div>
                   </div>
                   <div>
                     <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Rotation</span><span>{artworkRotation}°</span></div>
@@ -1196,7 +1207,7 @@ export default function CustomStudio() {
               </div>
             </div>
 
-            <div className="rounded-[22px] border border-[#ddd6cc] bg-[#1a1917] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
+            <div className="rounded-[22px] border border-[#ddd6cc] bg-[#17212B] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
               <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">Your order</div>
               <div className="font-display text-3xl mt-2">{occasion}</div>
               <SummaryRow label="Style" value={designStyle.replace("GDP ","")} />
@@ -1205,25 +1216,25 @@ export default function CustomStudio() {
               <SummaryRow label="Photos" value={photos.length + "/" + maxPhotos} />
               <SummaryRow label="Total shirts" value={totalUnits} />
               <SummaryRow label="Proof" value={proofRequired ? "Before print" : "Skipped"} />
-              <div className="border-t border-white/15 mt-5 pt-4 flex justify-between items-end"><span className="text-[10px] uppercase font-mono text-white/45">Unit price</span><span className="font-display text-3xl">{"$" + unitPrice.toFixed(2)}</span></div>
+              {showOrderPrice && <div className="border-t border-white/15 mt-5 pt-4 flex justify-between items-end"><span className="text-[10px] uppercase font-mono text-white/45">{priceVisibility === "total" ? "Estimated subtotal" : "Unit price"}</span><span className="font-display text-3xl">{"$" + (priceVisibility === "total" ? estimatedSubtotal : unitPrice).toFixed(2)}</span></div>}
             </div>
           </aside>
       </div>
 
         <div ref={mobileEndRef} className="mt-6 flex justify-between gap-3 pb-8 md:pb-0">
           <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex items-center gap-2 rounded-xl border border-[#d9d2c8] bg-white px-5 py-3 font-bold uppercase text-xs text-[#332f2a] shadow-sm hover:border-[#aaa198]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
-          {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 rounded-xl bg-[#171717] text-white px-6 py-3 font-bold uppercase text-xs shadow-lg disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
+          {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 rounded-xl bg-[#17324D] text-white px-6 py-3 font-bold uppercase text-xs shadow-lg disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
         </div>
 
-        {mobileFloatingCtaEnabled && mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#171717]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
-          <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{"$" + unitPrice.toFixed(2)}</div></div>
-          {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#171717] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
+        {mobileFloatingCtaEnabled && mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#17324D]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
+          <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{showOrderPrice ? "$" + (priceVisibility === "total" ? estimatedSubtotal : unitPrice).toFixed(2) : "GDP Studio"}</div></div>
+          {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#17324D] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
         </div>}
 
         {showIntensityExamples && <div className="fixed inset-0 z-[96] flex items-end justify-center bg-black/70 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Design intensity examples">
           <button type="button" className="absolute inset-0" onClick={() => setShowIntensityExamples(false)} aria-label="Close design intensity examples" />
-          <div className="relative z-10 w-full max-h-[92dvh] overflow-y-auto rounded-t-[28px] border border-white/10 bg-[#fbf8f2] shadow-2xl sm:max-w-5xl sm:rounded-[28px]">
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-[#ded8cf] bg-[#fbf8f2]/95 px-4 py-3.5 backdrop-blur sm:px-5">
+          <div className="relative z-10 w-full max-h-[92dvh] overflow-y-auto rounded-t-[28px] border border-white/10 bg-[#F4F7FA] shadow-2xl sm:max-w-5xl sm:rounded-[28px]">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-[#ded8cf] bg-[#F4F7FA]/95 px-4 py-3.5 backdrop-blur sm:px-5">
               <div>
                 <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-accent">Design intensity guide</div>
                 <div className="mt-0.5 font-bold text-[#24211e]">From clean to full bootleg energy</div>
@@ -1305,18 +1316,18 @@ export default function CustomStudio() {
 
         {fullscreenPreview && <div className="fixed inset-0 z-[90] bg-[#111]/95 backdrop-blur-sm p-3 md:p-7">
           <div className="h-full max-w-5xl mx-auto rounded-[28px] overflow-hidden bg-[#f4efe7] border border-white/10 flex flex-col">
-            <div className="h-16 shrink-0 flex items-center justify-between gap-4 px-4 md:px-6 bg-[#171717] text-white">
+            <div className="h-16 shrink-0 flex items-center justify-between gap-4 px-4 md:px-6 bg-[#17324D] text-white">
               <div><div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">GDP Custom Studio</div><div className="font-semibold">Full-screen garment preview</div></div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setShowMeasurements(v => !v)} className={"h-9 w-9 grid place-items-center rounded-xl border " + (showMeasurements ? "border-accent bg-accent/15 text-white" : "border-white/15 text-white/75")} aria-label={showMeasurements ? "Hide measurements" : "Show measurements"}><Ruler size={15}/></button>
                 <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomOut size={15}/></button>
                 <span className="w-12 text-center font-mono text-[10px]">{Math.round(previewZoom * 100)}%</span>
                 <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomIn size={15}/></button>
-                <button type="button" onClick={() => setFullscreenPreview(false)} className="h-9 w-9 grid place-items-center rounded-xl bg-white text-[#171717]" aria-label="Close full screen preview"><X size={16}/></button>
+                <button type="button" onClick={() => setFullscreenPreview(false)} className="h-9 w-9 grid place-items-center rounded-xl bg-white text-[#17324D]" aria-label="Close full screen preview"><X size={16}/></button>
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} fullscreen />
+              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} fullscreen />
             </div>
           </div>
         </div>}
@@ -1356,7 +1367,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, showGuides, showMeasurements, size, previewConfig = {}, fullscreen = false }) {
+function StudioPreview({ garment, color, side, placement, photo, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "fit", showGuides, showMeasurements, size, previewConfig = {}, fullscreen = false }) {
   const dragRef = useRef(null);
   const blankBack = side === "back" && placement === "front";
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
@@ -1433,7 +1444,7 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
 
           <div className="absolute left-1/2 -translate-x-1/2" style={printAreaStyle}>
             <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-accent/55" />
-            <span className="absolute left-1/2 top-1 -translate-x-1/2 rounded-md bg-[#fffdfa]/90 px-1 py-0.5 font-mono text-[7px] uppercase tracking-wide text-[#8b565c]">center</span>
+            <span className="absolute left-1/2 top-1 -translate-x-1/2 rounded-md bg-[#FFFFFF]/90 px-1 py-0.5 font-mono text-[7px] uppercase tracking-wide text-[#8b565c]">center</span>
 
             <div className="absolute -top-2 left-0 right-0 h-px bg-accent/70">
               <span className="absolute left-0 -top-1 h-2 w-px bg-accent/70" />
@@ -1459,7 +1470,7 @@ function StudioPreview({ garment, color, side, placement, photo, personalization
           style={printAreaStyle}
           className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
-          {blankBack ? <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div> : photo ? <img src={photo.url} alt="Primary artwork preview" draggable="false" className="absolute left-1/2 top-1/2 h-[88%] w-[88%] object-cover rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none" style={{ transform: `translate(calc(-50% + ${artworkOffset.x}%), calc(-50% + ${artworkOffset.y}%)) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)` }} /> : <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>}
+          {blankBack ? <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div> : photo ? <img src={photo.url} alt="Primary artwork preview" draggable="false" className={"absolute left-1/2 top-1/2 h-[88%] w-[88%] rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none " + (artworkFitMode === "fill" ? "object-cover" : "object-contain")} style={{ transform: `translate(calc(-50% + ${artworkOffset.x}%), calc(-50% + ${artworkOffset.y}%)) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)` }} /> : <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>}
           {!blankBack && (personalization?.name || personalization?.dates || personalization?.quote) && <div className="absolute inset-x-1 bottom-1.5 text-center text-white pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.85)]">
             {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
             {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
@@ -1539,7 +1550,7 @@ function garmentPalette(color) {
   if (key.includes("forest")) return { base: "#29463b", stroke: "#10231c", seam: "#72877f", highlight: "#6f9385" };
   if (key.includes("charcoal") || key.includes("heather")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
   if (key.includes("vintage")) return { base: "#272422", stroke: "#101010", seam: "#595553", highlight: "#68615e" };
-  return { base: "#171717", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
+  return { base: "#17324D", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
 }
 
 function StepTitle({ eyebrow, title, text }) {
