@@ -72,6 +72,65 @@ function money(value, currency = "CAD") {
   });
 }
 
+function updatedTimeParts(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const exact = new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+
+  const full = new Intl.DateTimeFormat("en-CA", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+
+  const diffMs = Date.now() - date.getTime();
+  const future = diffMs < 0;
+  const absSeconds = Math.max(0, Math.round(Math.abs(diffMs) / 1000));
+
+  let relative = future ? "soon" : "just now";
+  if (absSeconds >= 60) {
+    const minutes = Math.round(absSeconds / 60);
+    if (minutes < 60) {
+      relative = future
+        ? `in ${minutes} min`
+        : `${minutes} min ago`;
+    } else {
+      const hours = Math.round(minutes / 60);
+      if (hours < 24) {
+        relative = future
+          ? `in ${hours} hr`
+          : `${hours} hr ago`;
+      } else {
+        const days = Math.round(hours / 24);
+        if (days === 1 && !future) {
+          relative = "Yesterday";
+        } else if (days < 7) {
+          relative = future
+            ? `in ${days} days`
+            : `${days} days ago`;
+        } else {
+          relative = "";
+        }
+      }
+    }
+  }
+
+  return { exact, full, relative };
+}
+
 export default function ProductsModule() {
   const [products, setProducts] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -307,7 +366,20 @@ export default function ProductsModule() {
                       <Td>{product.category || "—"}</Td>
                       <Td>{product.vendor || "GDP Clothing"}</Td>
                       <Td right>{money(product.price, settings.currency)}</Td>
-                      <Td>{product.updatedAt ? new Date(product.updatedAt).toLocaleDateString("en-CA") : "—"}</Td>
+                      <Td>
+                        {(() => {
+                          const updated = updatedTimeParts(product.updatedAt);
+                          if (!updated) return "—";
+                          return (
+                            <div title={updated.full} className="whitespace-nowrap">
+                              <div className="text-xs font-medium text-[#333]">{updated.exact}</div>
+                              {updated.relative && (
+                                <div className="mt-0.5 text-[10px] text-[#888]">{updated.relative}</div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </Td>
                       <Td right>
                         <div className="inline-flex items-center gap-2">
                           <button
