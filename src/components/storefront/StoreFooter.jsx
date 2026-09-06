@@ -10,7 +10,7 @@ export default function StoreFooter() {
           <Link to="/" aria-label="GDP Clothing home">
             <img src="/images/gdp-logo.webp" alt="GDP Clothing" className="h-11 w-[78px] object-contain object-left" />
           </Link>
-          <div className="border-l border-white/14 pl-4 text-[10px] font-medium text-white/70 sm:text-xs">
+          <div className="border-l border-white/15 pl-4 text-[10px] font-medium text-white/70 sm:text-xs">
             Good People. Dope Clothes.
           </div>
         </div>
@@ -20,7 +20,7 @@ export default function StoreFooter() {
             href="https://www.instagram.com/gdpclothings"
             target="_blank"
             rel="noopener noreferrer"
-            className="grid h-9 w-9 place-items-center rounded-full text-white/72 transition hover:bg-white hover:text-black"
+            className="grid h-9 w-9 place-items-center rounded-full text-white/70 transition hover:bg-white hover:text-black"
             aria-label="Instagram"
           >
             <Instagram size={18} />
@@ -29,7 +29,7 @@ export default function StoreFooter() {
             href="https://www.youtube.com/@GDPClothingYXE"
             target="_blank"
             rel="noopener noreferrer"
-            className="grid h-9 w-9 place-items-center rounded-full text-white/72 transition hover:bg-white hover:text-black"
+            className="grid h-9 w-9 place-items-center rounded-full text-white/70 transition hover:bg-white hover:text-black"
             aria-label="YouTube"
           >
             <Youtube size={18} />
@@ -38,7 +38,7 @@ export default function StoreFooter() {
             href="https://www.facebook.com/gdpclothing"
             target="_blank"
             rel="noopener noreferrer"
-            className="grid h-9 w-9 place-items-center rounded-full text-white/72 transition hover:bg-white hover:text-black"
+            className="grid h-9 w-9 place-items-center rounded-full text-white/70 transition hover:bg-white hover:text-black"
             aria-label="Facebook"
           >
             <Facebook size={18} />
