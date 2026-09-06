@@ -577,7 +577,8 @@ export default function CustomStudio() {
   const minPhotos = Number(config.minPhotos || 1);
   const revisions = Number(config.includedRevisions || 2);
   const rushFee = Number(config.rushDesignFee || 10) + Number(config.rushProductionFee || 15);
-  const frontBackFee = Number(config.frontBackFee || 10);
+  const frontBackEnabled = config.frontBackEnabled !== false;
+  const frontBackFee = Number(config.frontBackFee ?? 10);
   const availableColors = productColors(product);
   const availableSizes = productSizes(product, color);
   const selectedVariant = variantFor(product, color, size);
@@ -589,7 +590,14 @@ export default function CustomStudio() {
     }
   }, [color, product?.id]);
 
-  const extrasPerUnit = (placement === "front_back" ? frontBackFee : 0) + (priority === "rush" ? rushFee : 0);
+  useEffect(() => {
+    if (!frontBackEnabled && placement === "front_back") {
+      setPlacement("front");
+      setPreviewSide("front");
+    }
+  }, [frontBackEnabled, placement, product?.id]);
+
+  const extrasPerUnit = (frontBackEnabled && placement === "front_back" ? frontBackFee : 0) + (priority === "rush" ? rushFee : 0);
   const priceFor = (itemColor, itemSize) => {
     const variant = variantFor(product, itemColor, itemSize);
     const base = variant?.price == null ? Number(product?.price || garment.price || 0) : Number(variant.price || 0);
@@ -1024,9 +1032,9 @@ export default function CustomStudio() {
                 <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
-                  <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>
+                  {frontBackEnabled && <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>}
                 </div>
-                <p className="mt-2 text-[10px] text-[#817b73]">Front is the default. Back is optional and uses this garment's configured additional-print surcharge.</p>
+                <p className="mt-2 text-[10px] text-[#817b73]">{frontBackEnabled ? "Front is the default. Back is optional and uses this garment's configured additional-print surcharge." : "This garment is currently configured for front printing only."}</p>
               </div>
 
               <div className="mt-7 border-t border-border pt-5">
