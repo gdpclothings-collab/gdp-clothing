@@ -84,6 +84,7 @@ export default function LandingPageModule() {
   };
 
   const setHero = (patch) => setForm((current) => ({ ...current, hero: { ...current.hero, ...patch } }));
+  const setTrust = (index, patch) => setForm((current) => ({ ...current, trustBar: current.trustBar.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }));
   const setBest = (patch) => setForm((current) => ({ ...current, bestSellers: { ...current.bestSellers, ...patch } }));
   const setCategory = (index, patch) => setForm((current) => ({ ...current, categories: current.categories.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }));
   const setPromo = (index, patch) => setForm((current) => ({ ...current, promos: current.promos.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }));
@@ -132,6 +133,21 @@ export default function LandingPageModule() {
 
       <section className="rounded-xl border border-[#dedede] bg-white p-4">
         <div className="mb-4">
+          <div className="font-semibold">Trust bar</div>
+          <div className="text-xs text-[#777]">Four reassurance messages shown directly under the hero.</div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {form.trustBar.map((item, index) => (
+            <div key={index} className="space-y-2 rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
+              <Field label="Title"><input value={item.title || ""} onChange={(e) => setTrust(index, { title: e.target.value })} className={inputClass} /></Field>
+              <Field label="Text"><input value={item.text || ""} onChange={(e) => setTrust(index, { text: e.target.value })} className={inputClass} /></Field>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-[#dedede] bg-white p-4">
+        <div className="mb-4">
           <div className="font-semibold">Shop category cards</div>
           <div className="text-xs text-[#777]">Four image cards immediately below the trust bar.</div>
         </div>
@@ -154,10 +170,11 @@ export default function LandingPageModule() {
           <div className="font-semibold">Best sellers section</div>
           <div className="text-xs text-[#777]">Products are automatically pulled from active catalog items marked Best Seller.</div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <Field label="Title"><input value={form.bestSellers.title || ""} onChange={(e) => setBest({ title: e.target.value })} className={inputClass} /></Field>
           <Field label="Subtitle"><input value={form.bestSellers.subtitle || ""} onChange={(e) => setBest({ subtitle: e.target.value })} className={inputClass} /></Field>
           <Field label="CTA label"><input value={form.bestSellers.ctaLabel || ""} onChange={(e) => setBest({ ctaLabel: e.target.value })} className={inputClass} /></Field>
+          <Field label="CTA URL"><input value={form.bestSellers.ctaUrl || ""} onChange={(e) => setBest({ ctaUrl: e.target.value })} className={inputClass} /></Field>
           <Field label="Product limit"><input type="number" min="1" max="8" value={form.bestSellers.limit || 5} onChange={(e) => setBest({ limit: Math.max(1, Math.min(8, Number(e.target.value || 5))) })} className={inputClass} /></Field>
         </div>
       </section>
