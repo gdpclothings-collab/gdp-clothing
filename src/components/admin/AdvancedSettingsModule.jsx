@@ -12,6 +12,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { adminAdvancedSettingsApi } from "@/lib/adminAdvancedSettingsApi";
+import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 export default function AdvancedSettingsModule({ visibleTabs = ["staff", "notifications", "integrations"], initialTab = undefined }) {
   const availableTabs = [
@@ -495,16 +496,25 @@ function RoleEditor({ role, permissions, rolePermissions, onClose, onSaved }) {
         form.permissionKeys
       );
       await onSaved(role?.id ? "Role template updated." : "Role template created.");
+      return true;
     } catch (err) {
       console.error("Role save failed:", err);
       window.alert(err?.message || "Could not save role.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: role?.name ? `Role: ${role.name}` : "Role template editor",
+  });
+
   return (
-    <Editor title={role ? "Edit role template" : "Create role template"} onClose={onClose} onSave={save} saving={saving} wide>
+    <Editor title={role ? "Edit role template" : "Create role template"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty} wide>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Role name">
           <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />
@@ -576,16 +586,25 @@ function TemplateEditor({ template, onClose, onSaved }) {
           .filter(Boolean),
       });
       await onSaved(template?.id ? "Notification template updated." : "Notification template created.");
+      return true;
     } catch (err) {
       console.error("Template save failed:", err);
       window.alert(err?.message || "Could not save notification template.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: template?.name ? `Notification template: ${template.name}` : "Notification template editor",
+  });
+
   return (
-    <Editor title={template ? "Edit notification template" : "Create notification template"} onClose={onClose} onSave={save} saving={saving}>
+    <Editor title={template ? "Edit notification template" : "Create notification template"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty}>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Name">
           <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />
@@ -636,7 +655,7 @@ function IntegrationEditor({ integration, onClose, onSaved }) {
         : {};
     } catch {
       window.alert("Public configuration must be valid JSON.");
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -646,16 +665,25 @@ function IntegrationEditor({ integration, onClose, onSaved }) {
         publicConfig,
       });
       await onSaved(integration?.id ? "Integration metadata updated." : "Integration added.");
+      return true;
     } catch (err) {
       console.error("Integration save failed:", err);
       window.alert(err?.message || "Could not save integration.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: integration?.display_name ? `Integration: ${integration.display_name}` : "Integration editor",
+  });
+
   return (
-    <Editor title={integration ? "Edit integration" : "Add integration"} onClose={onClose} onSave={save} saving={saving}>
+    <Editor title={integration ? "Edit integration" : "Add integration"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty}>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Provider">
           <input value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value })} className={inputClass} />
@@ -687,7 +715,7 @@ function IntegrationEditor({ integration, onClose, onSaved }) {
   );
 }
 
-function Editor({ title, onClose, onSave, saving, children, wide = false }) {
+function Editor({ title, onClose, onSave, saving, dirty, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[85] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className={`w-full ${wide ? "max-w-4xl" : "max-w-2xl"} bg-white rounded-2xl shadow-2xl overflow-hidden my-6`}>
@@ -698,7 +726,7 @@ function Editor({ title, onClose, onSave, saving, children, wide = false }) {
         <div className="p-5 space-y-4">{children}</div>
         <div className="px-5 py-4 border-t border-[#e3e3e3] flex justify-end gap-2">
           <button onClick={onClose} className={secondaryButton}>Cancel</button>
-          <button onClick={onSave} disabled={saving} className={primaryButton}>
+          <button onClick={onSave} disabled={saving || !dirty} className={primaryButton}>
             <Save size={14} /> {saving ? "Saving…" : "Save"}
           </button>
         </div>
