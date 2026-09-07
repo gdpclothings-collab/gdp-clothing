@@ -93,4 +93,3 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
     </div>}
   </main>;
 }
-
