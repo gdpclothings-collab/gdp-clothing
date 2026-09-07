@@ -190,6 +190,11 @@ function ControlRow({ control, saving, onSave }) {
 export default function SecurityComplianceModule() {
   const [snapshot, setSnapshot] = useState(EMPTY_SNAPSHOT);
   const [controls, setControls] = useState([]);
+  const [incidents, setIncidents] = useState([]);
+  const [privacyRequests, setPrivacyRequests] = useState([]);
+  const [incidentTitle, setIncidentTitle] = useState("");
+  const [incidentSeverity, setIncidentSeverity] = useState("medium");
+  const [incidentPrivacy, setIncidentPrivacy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -203,6 +208,8 @@ export default function SecurityComplianceModule() {
       const data = await securityComplianceApi.load();
       setSnapshot({ ...EMPTY_SNAPSHOT, ...(data.snapshot || {}) });
       setControls(data.controls || []);
+      setIncidents(data.incidents || []);
+      setPrivacyRequests(data.privacyRequests || []);
     } catch (loadError) {
       console.error("Security compliance load failed:", loadError);
       setError(loadError?.message || "Could not load the security compliance center.");
@@ -280,6 +287,57 @@ export default function SecurityComplianceModule() {
       return groups;
     }, {});
   }, [controls]);
+
+  const createIncident = async () => {
+    const title = incidentTitle.trim();
+    if (!title) return;
+    setSavingKey("incident-create");
+    setError("");
+    try {
+      const created = await securityComplianceApi.createIncident({
+        title,
+        severity: incidentSeverity,
+        personalInformationInvolved: incidentPrivacy,
+      });
+      setIncidents((current) => [created, ...current]);
+      setIncidentTitle("");
+      setIncidentSeverity("medium");
+      setIncidentPrivacy(false);
+    } catch (saveError) {
+      console.error("Security incident creation failed:", saveError);
+      setError(saveError?.message || "Could not create the security incident.");
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const updateIncident = async (incident, changes) => {
+    setSavingKey("incident-" + incident.id);
+    setError("");
+    try {
+      const updated = await securityComplianceApi.updateIncident(incident.id, changes);
+      setIncidents((current) => current.map((item) => item.id === incident.id ? updated : item));
+    } catch (saveError) {
+      console.error("Security incident update failed:", saveError);
+      setError(saveError?.message || "Could not update the security incident.");
+    } finally {
+      setSavingKey("");
+    }
+  };
+
+  const updatePrivacyRequest = async (request, changes) => {
+    setSavingKey("privacy-" + request.id);
+    setError("");
+    try {
+      const updated = await securityComplianceApi.updatePrivacyRequest(request.id, changes);
+      setPrivacyRequests((current) => current.map((item) => item.id === request.id ? updated : item));
+    } catch (saveError) {
+      console.error("Privacy request update failed:", saveError);
+      setError(saveError?.message || "Could not update the privacy request.");
+    } finally {
+      setSavingKey("");
+    }
+  };
 
   const updateControl = async (controlKey, changes) => {
     setSavingKey(controlKey);
@@ -383,6 +441,106 @@ export default function SecurityComplianceModule() {
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {systemChecks.map((check) => <SystemCheck key={check.id} check={check} />)}
+        </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <div className="overflow-hidden rounded-2xl border border-[#dadada] bg-white">
+          <div className="border-b border-[#e6e6e6] px-4 py-4 md:px-5">
+            <h2 className="font-bold text-[#222]">Privacy request queue</h2>
+            <p className="mt-1 text-sm text-[#777]">Customer access, correction and deletion-review requests.</p>
+          </div>
+          <div className="max-h-[430px] overflow-y-auto">
+            {privacyRequests.length === 0 ? (
+              <div className="p-5 text-sm text-[#777]">No privacy requests have been submitted.</div>
+            ) : privacyRequests.slice(0, 30).map((request) => (
+              <div key={request.id} className="border-t border-[#ededed] p-4 first:border-t-0">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold capitalize">{String(request.request_type || "").replaceAll("_", " ")}</div>
+                    <div className="mt-1 text-xs text-[#777]">{request.email || "Authenticated customer"} · {formatCheckedAt(request.created_at)}</div>
+                  </div>
+                  <select
+                    value={request.status}
+                    disabled={savingKey === "privacy-" + request.id}
+                    onChange={(event) => updatePrivacyRequest(request, { status: event.target.value })}
+                    className="h-9 rounded-lg border border-[#d6d6d6] bg-white px-2 text-xs"
+                  >
+                    <option value="open">Open</option>
+                    <option value="in_review">In review</option>
+                    <option value="completed">Completed</option>
+                    <option value="declined">Declined</option>
+                  </select>
+                </div>
+                {request.details && <p className="mt-2 text-xs leading-5 text-[#666]">{request.details}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-[#dadada] bg-white">
+          <div className="border-b border-[#e6e6e6] px-4 py-4 md:px-5">
+            <h2 className="font-bold text-[#222]">Security incident register</h2>
+            <p className="mt-1 text-sm text-[#777]">Record, contain, investigate and close security/privacy incidents.</p>
+          </div>
+          <div className="p-4 md:p-5">
+            <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
+              <input
+                value={incidentTitle}
+                onChange={(event) => setIncidentTitle(event.target.value)}
+                placeholder="Incident title"
+                className="h-10 rounded-lg border border-[#d6d6d6] px-3 text-sm outline-none focus:border-[#777]"
+              />
+              <select
+                value={incidentSeverity}
+                onChange={(event) => setIncidentSeverity(event.target.value)}
+                className="h-10 rounded-lg border border-[#d6d6d6] bg-white px-2 text-sm"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <label className="mt-2 flex items-start gap-2 text-xs text-[#666]">
+              <input type="checkbox" checked={incidentPrivacy} onChange={(event) => setIncidentPrivacy(event.target.checked)} className="mt-0.5" />
+              <span>Personal information may be involved</span>
+            </label>
+            <button
+              type="button"
+              onClick={createIncident}
+              disabled={!incidentTitle.trim() || savingKey === "incident-create"}
+              className="mt-3 h-9 rounded-lg bg-[#222] px-4 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              {savingKey === "incident-create" ? "Recording…" : "Record incident"}
+            </button>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto border-t border-[#ededed]">
+            {incidents.length === 0 ? (
+              <div className="p-5 text-sm text-[#777]">No security incidents recorded.</div>
+            ) : incidents.slice(0, 30).map((incident) => (
+              <div key={incident.id} className="border-t border-[#ededed] p-4 first:border-t-0">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">{incident.title}</div>
+                    <div className="mt-1 text-xs capitalize text-[#777]">{incident.severity} · {formatCheckedAt(incident.detected_at)}{incident.personal_information_involved ? " · privacy review required" : ""}</div>
+                  </div>
+                  <select
+                    value={incident.status}
+                    disabled={savingKey === "incident-" + incident.id}
+                    onChange={(event) => updateIncident(incident, { status: event.target.value })}
+                    className="h-9 rounded-lg border border-[#d6d6d6] bg-white px-2 text-xs"
+                  >
+                    <option value="open">Open</option>
+                    <option value="contained">Contained</option>
+                    <option value="investigating">Investigating</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
