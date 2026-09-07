@@ -282,9 +282,10 @@ export default function DTFGangSheet() {
     );
   };
 
+  const hasArtwork = artworks.length > 0;
   const price = useMemo(
-    () => calculateDtfPrice(sheetWidth, sheetLength, settings),
-    [sheetWidth, sheetLength, settings]
+    () => calculateDtfPrice(hasArtwork ? sheetWidth : 0, hasArtwork ? sheetLength : 0, settings),
+    [hasArtwork, sheetWidth, sheetLength, settings]
   );
   const selectedArtwork = artworks.find((item) => item.id === selectedId) || null;
   const selectedQuality = getArtworkQuality(selectedArtwork, settings);
@@ -453,6 +454,10 @@ export default function DTFGangSheet() {
     setArtworks(next);
     setSelectedId(next[0]?.id || "");
     setApproval(false);
+    if (!next.length) {
+      setArtworkReviewRequested(false);
+      setNotice("");
+    }
   };
 
   const autoArrange = () => {
@@ -1021,7 +1026,7 @@ export default function DTFGangSheet() {
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <Metric label="Film used" value={`${round(utilization, 1)}%`} helper="Artwork area / film area" />
               <Metric label="Artwork length" value={`${round(usedLength, 1)}"`} helper={usedLength && usedLength < sheetLength ? `${round(sheetLength - usedLength, 1)}" remaining` : "Current layout"} />
-              <Metric label="Production segments" value={String(Math.max(1, Math.ceil(sheetLength / settings.productionSegmentLength)))} helper={`Internally split at ${settings.productionSegmentLength}" when needed`} />
+              <Metric label="Production segments" value={String(hasArtwork ? Math.max(1, Math.ceil(sheetLength / settings.productionSegmentLength)) : 0)} helper={hasArtwork ? `Internally split at ${settings.productionSegmentLength}" when needed` : "No artwork loaded"} />
             </div>
           </main>
 
@@ -1029,7 +1034,7 @@ export default function DTFGangSheet() {
             <Panel title="Order summary" icon={ShoppingBag}>
               <SummaryRow label="Order type" value={mode === "upload" ? "Print-ready upload" : "Gang sheet builder"} />
               <SummaryRow label="Film size" value={`${round(sheetWidth, 2)}" × ${round(sheetLength, 2)}"`} />
-              <SummaryRow label="Area" value={`${round(price.area, 1)} in²`} />
+              <SummaryRow label="Area" value={hasArtwork ? `${round(price.area, 1)} in²` : "—"} />
               <SummaryRow label="Standard rate" value={`$${settings.standardRate.toFixed(3)}/in²`} />
               <SummaryRow label="Volume rate" value={`$${settings.volumeRate.toFixed(3)}/in²`} />
               <SummaryRow label="Designs" value={String(artworks.length)} />
@@ -1037,9 +1042,9 @@ export default function DTFGangSheet() {
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-black/45">Film price</div>
-                    <div className="mt-1 font-mono text-3xl font-black">${price.price.toFixed(2)}</div>
+                    <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `${price.price.toFixed(2)}` : "—"}</div>
                   </div>
-                  <div className="pb-1 font-mono text-[9px] uppercase text-black/40">CAD</div>
+                  <div className="pb-1 font-mono text-[9px] uppercase text-black/40">{hasArtwork ? "CAD" : "Upload artwork"}</div>
                 </div>
                 {settings.pricingMode === "graduated" && price.volumeArea > 0 && (
                   <div className="mt-2 text-[11px] leading-5 text-black/50">
@@ -1132,7 +1137,11 @@ export default function DTFGangSheet() {
               className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/25"
             >
               <ShoppingBag size={17} />
-              {saving ? "Uploading artwork…" : `Add to cart · $${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}`}
+              {saving
+                ? "Uploading artwork…"
+                : hasArtwork
+                  ? `Add to cart · ${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}`
+                  : "Upload artwork to continue"}
             </button>
 
             <div className="border border-black/10 bg-white p-4 text-[10px] leading-5 text-black/46">
