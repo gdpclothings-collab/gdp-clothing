@@ -3,9 +3,11 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   Heart,
+  Layers3,
   ShieldCheck,
   Shirt,
   ShoppingBag,
+  Sparkles,
   Truck,
 } from "lucide-react";
 import { isLandingDraftPreview, storefrontContentApi } from "@/lib/storefrontContentApi";
@@ -162,6 +164,61 @@ function PromoCard({ item }) {
           className="mt-5 inline-flex min-h-10 w-fit items-center gap-3 bg-white px-5 text-[10px] font-black uppercase tracking-[0.12em] text-black transition hover:bg-[#e11d2e] hover:text-white"
         >
           {item.buttonLabel} <ArrowRight size={14} />
+        </SmartLink>
+      </div>
+    </section>
+  );
+}
+
+function DTFSpotlight() {
+  return (
+    <section className="border-b border-black/10 bg-[#eae7de]">
+      <div className="mx-auto grid max-w-[1500px] gap-7 px-5 py-9 sm:px-7 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:px-10 lg:py-11">
+        <div className="max-w-3xl">
+          <div className="inline-flex items-center gap-2 font-mono text-[9px] font-black uppercase tracking-[0.16em] text-black/45">
+            <Sparkles size={13} /> DTF Transfers
+          </div>
+          <h2 className="mt-3 font-display text-5xl uppercase leading-[0.9] tracking-wide sm:text-6xl">
+            Build or upload your gang sheet
+          </h2>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-black/55">
+            Order custom DTF transfer film with live layout preview, artwork resizing, print-quality checks and advanced nesting before checkout.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <SmartLink
+              to="/dtf"
+              className="inline-flex min-h-11 items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#e11d2e]"
+            >
+              Explore DTF <ArrowRight size={14} />
+            </SmartLink>
+            <SmartLink
+              to="/dtf-gang-sheet?mode=build"
+              className="inline-flex min-h-11 items-center justify-center gap-3 border border-black/20 bg-white px-5 text-[10px] font-black uppercase tracking-[0.12em] text-black transition hover:border-black"
+            >
+              Open gang sheet builder <Layers3 size={14} />
+            </SmartLink>
+          </div>
+        </div>
+
+        <SmartLink
+          to="/dtf"
+          className="group relative min-h-[220px] overflow-hidden border border-black/10 bg-[#111] p-6 text-white sm:min-h-[250px]"
+        >
+          <div className="absolute inset-0 opacity-25" style={{
+            backgroundImage:
+              "linear-gradient(45deg,#2a2a2a 25%,transparent 25%),linear-gradient(-45deg,#2a2a2a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#2a2a2a 75%),linear-gradient(-45deg,transparent 75%,#2a2a2a 75%)",
+            backgroundSize: "22px 22px",
+            backgroundPosition: "0 0,0 11px,11px -11px,-11px 0px",
+          }} />
+          <img
+            src="/images/dtf-gang-sheet.svg"
+            alt="Custom DTF gang sheet"
+            className="relative mx-auto h-[170px] w-full max-w-[360px] object-contain transition duration-500 group-hover:scale-[1.03] sm:h-[195px]"
+          />
+          <div className="relative mt-2 flex items-center justify-between gap-4 border-t border-white/15 pt-4">
+            <span className="text-[10px] font-black uppercase tracking-[0.12em]">Film only · Custom length</span>
+            <ArrowRight size={15} />
+          </div>
         </SmartLink>
       </div>
     </section>
@@ -362,6 +419,8 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <DTFSpotlight />
 
       {(landing.layout?.sectionOrder || []).map((key) => (
         landing.layout?.visibility?.[key] === false ? null : <React.Fragment key={key}>{sections[key]}</React.Fragment>
