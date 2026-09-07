@@ -68,7 +68,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
   const [reviewMode, setReviewMode] = useState(false);
   const [text, setText] = useState({name:'',message:'',color:'#111111'});
   const [approved, setApproved] = useState(false), [saving, setSaving] = useState(false), [capturing, setCapturing] = useState(false);
-  const previewRef = useRef(null), previewSectionRef = useRef(null), saveLock = useRef(false);
+  const previewRef = useRef(null), previewSectionRef = useRef(null), reviewErrorRef = useRef(null), saveLock = useRef(false), saveRequestId = useRef('');
   const navigate = useNavigate(), { addItem, replaceItem } = useCart();
   useEffect(() => {
     window.scrollTo({top:0,behavior:'instant'});
@@ -92,6 +92,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
   const resetArtwork = () => {const initial=fitSeasonalArtwork(selected,area,0);setRequested(0);setPosition({x:initial?(area.width-initial.width)/2:0,y:0});setRotation(0);setApproved(false);setReviewMode(false);};
   const updateText = patch => {setText(t=>({...t,...patch}));setApproved(false);setReviewMode(false);};
   useEffect(() => { setApproved(false); setReviewMode(false); setText(current=>({...current,color:preferredTextColor(color,colorSwatch)})); }, [product.id, color, size]);
+  useEffect(() => { saveRequestId.current=''; }, [product.id,color,size,selected?.id,requested,position.x,position.y,rotation,text.name,text.message,text.color]);
   useEffect(() => {
     if (!catalog || !selected) return;
     const current = artworks.find(item => item.id === selected.id);
@@ -112,6 +113,8 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
     setSaving(true);setError('');
     try {
       const configuration = seasonalSelection(selected,layout,text,area,rotation);
+      const requestId=saveRequestId.current||crypto.randomUUID();
+      saveRequestId.current=requestId;
       let configuredPreview = selected.preview;
       try {
         setCapturing(true);
@@ -127,7 +130,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
       const design = await customerApi.createCustomDesign({productId:product.id,productName:product.name,name:selected.title,
         designStyle:`Seasonal: ${selected.title}`,occasion:selected.category,designMood:'Original artwork',designIntensity:1,
         color,size,placement:'front',photoAssets:[],personalization:{name:configuration.name,message:configuration.message},
-        seasonalArtworkId:selected.id,seasonalConfiguration:configuration,
+        seasonalArtworkId:selected.id,seasonalConfiguration:{...configuration,client_request_id:requestId},
         customerConfirmedRights:true,approvalPolicyAcknowledged:approved,proofRequired:true,status:'in_cart',priority:'standard'});
       const cartItem={productId:product.id,name:product.name,image:configuredPreview,isCustom:true,customDesignId:design.id,
         ...(design.guestDesignToken ? {guestDesignToken:design.guestDesignToken} : {}),
@@ -136,7 +139,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
         fabric:fabricDescription,seasonalDraft:{artworkId:selected.id,width:layout.width,position:{x:layout.x,y:layout.y},rotation,text,category:selected.category}};
       if (editCartKey) replaceItem(editCartKey,cartItem); else addItem(cartItem);
       navigate('/cart');
-    } catch (e) {setError(e.message || 'Could not save this design. Please try again.');}
+    } catch (e) {setError(e.message || 'Could not save this design. Please try again.');window.setTimeout(()=>reviewErrorRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),50);}
     finally {setSaving(false);saveLock.current=false;}
   };
   const previewConfig = area ? {...product.customization?.preview, printGuide:{...product.customization?.preview?.printGuide,front:{...product.customization?.preview?.printGuide?.front,widthIn:Number(area.width),heightIn:Number(area.height),maxWidthIn:Number(area.width),maxHeightIn:Number(area.height),sizeScalingEnabled:false}}} : product.customization?.preview;
@@ -150,17 +153,18 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
       </div>
     </header>
     <div className="mb-6 grid grid-cols-3 overflow-hidden rounded-2xl border border-[#DCE3EA] bg-white/75 p-1 text-center text-[10px] font-bold uppercase tracking-wide text-[#7B8793] shadow-sm">{['Choose design','Customize','Review'].map((label,index)=><div key={label} className={`rounded-xl px-3 py-2.5 transition ${studioStage===index+1?'bg-[#17324D] text-white shadow-sm':studioStage>index+1?'text-emerald-700':'text-[#7B8793]'}`}>{studioStage>index+1?<Check size={12} className="mr-1 inline"/>:null}{index+1} · {label}</div>)}</div>
-    {error && <p role="alert" className="p-4 mb-4 bg-red-50 text-red-800 rounded">{error}</p>}
+    {error && !reviewMode && <p role="alert" className="p-4 mb-4 bg-red-50 text-red-800 rounded">{error}</p>}
     {!catalog && !error && <p role="status">Loading seasonal designs…</p>}
     {catalog && artworks.length===0 && <div className="p-6 rounded border"><h2 className="font-semibold">Seasonal designs are being prepared</h2><p className="mt-2">New designs will appear here once approved for printing. You can continue with a photo design today.</p><button onClick={onBack} className="underline mt-4">Choose another design option</button></div>}
     {reviewMode && selected && layout && <section aria-label="Review seasonal design" className="mx-auto max-w-5xl rounded-3xl border border-[#CDD7E0] bg-white p-4 shadow-[0_24px_70px_rgba(23,50,77,.12)] sm:p-6">
       <div className="mb-5 flex items-start justify-between gap-4"><div><p className="font-mono text-xs uppercase tracking-[.18em] text-[#A66331]">Final review</p><h2 className="mt-1 font-display text-3xl text-[#17324D] sm:text-4xl">CHECK EVERY DETAIL</h2><p className="mt-2 text-sm text-[#66717C]">Your production proof will still require approval before printing.</p></div><button type="button" onClick={()=>setReviewMode(false)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] px-3 text-sm font-bold text-[#52616F]"><Edit3 size={15}/> Edit</button></div>
+      {error&&<div ref={reviewErrorRef} role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">{error}<span className="mt-1 block text-xs font-normal">Your design is preserved. Use Retry add to cart below.</span></div>}
       <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
         <div ref={previewRef} className="overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#DCE4E9]"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig||{}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{x:0,y:0}} showGuides={false} showMeasurements={false} seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation}/>}/></div>
         <div className="flex flex-col gap-3">
           {[['Garment',garment.label],['Fabric',fabricDescription],['Colour & size',`${color} · ${size}`],['Artwork',selected.title],['Placement',`${layout.width.toFixed(2)} × ${layout.height.toFixed(2)} in · ${Math.round(rotation)}°`],['Personalization',[text.name,text.message].filter(Boolean).join(' · ')||'None']].map(([label,value])=><div key={label} className="rounded-2xl bg-[#F3F6F8] p-3"><div className="text-xs font-bold uppercase tracking-wide text-[#7A8792]">{label}</div><div className="mt-1 text-sm font-semibold text-[#17324D]">{value}</div></div>)}
           <button type="button" onClick={()=>setReviewMode(false)} className="mt-1 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#DCE3EA] px-4 text-sm font-bold text-[#52616F]"><Edit3 size={15}/> Edit design</button>
-          <button disabled={saving} onClick={save} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40"><ShoppingBag size={17}/>{saving?(editCartKey?'Updating cart…':'Adding to cart…'):(editCartKey?'Update cart':'Add design to cart')}</button>
+          <button disabled={saving} onClick={save} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40"><ShoppingBag size={17}/>{saving?(editCartKey?'Updating cart…':'Adding to cart…'):(error?'Retry add to cart':editCartKey?'Update cart':'Add design to cart')}</button>
         </div>
       </div>
     </section>}
