@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { adminInventoryOperationsApi } from "@/lib/adminInventoryOperationsApi";
+import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -532,21 +533,30 @@ function LocationModal({ onClose, onSaved }) {
   });
 
   const save = async () => {
-    if (!form.code.trim() || !form.name.trim()) return;
+    if (!form.code.trim() || !form.name.trim()) return false;
     setSaving(true);
     try {
       await adminInventoryOperationsApi.createLocation(form);
       await onSaved();
+      return true;
     } catch (err) {
       console.error("Create inventory location failed:", err);
       window.alert(err?.message || "Could not create location.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: "Inventory location editor",
+  });
+
   return (
-    <Modal title="Create inventory location" subtitle="Add a warehouse, studio, pickup or fulfillment location" onClose={onClose}>
+    <Modal title="Create inventory location" subtitle="Add a warehouse, studio, pickup or fulfillment location" onClose={requestClose}>
       <div className="space-y-3">
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="Location code">
@@ -584,8 +594,8 @@ function LocationModal({ onClose, onSaved }) {
         </label>
 
         <div className="pt-3 flex justify-end gap-2">
-          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-[#d5d5d5] text-sm">Cancel</button>
-          <button onClick={save} disabled={saving || !form.code.trim() || !form.name.trim()} className="h-9 px-4 rounded-lg bg-[#222] text-white text-sm font-medium disabled:opacity-40">
+          <button onClick={requestClose} className="h-9 px-4 rounded-lg border border-[#d5d5d5] text-sm">Cancel</button>
+          <button onClick={save} disabled={saving || !form.code.trim() || !form.name.trim() || !isDirty} className="h-9 px-4 rounded-lg bg-[#222] text-white text-sm font-medium disabled:opacity-40">
             {saving ? "Saving…" : "Create location"}
           </button>
         </div>
@@ -616,7 +626,7 @@ function TransferModal({ locations, variants, onClose, onSaved }) {
   }, [variants, search]);
 
   const create = async () => {
-    if (!fromLocationId || !toLocationId || fromLocationId === toLocationId) return;
+    if (!fromLocationId || !toLocationId || fromLocationId === toLocationId) return false;
 
     const items = Object.entries(quantities)
       .filter(([, quantity]) => Number(quantity || 0) > 0)
@@ -631,16 +641,25 @@ function TransferModal({ locations, variants, onClose, onSaved }) {
         items,
       });
       await onSaved();
+      return true;
     } catch (err) {
       console.error("Create transfer failed:", err);
       window.alert(err?.message || "Could not create transfer.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: { fromLocationId, toLocationId, note, quantities },
+    onSave: create,
+    onClose,
+    label: "Inventory transfer editor",
+  });
+
   return (
-    <Modal title="Create inventory transfer" subtitle="Draft a controlled stock movement between locations" onClose={onClose} wide>
+    <Modal title="Create inventory transfer" subtitle="Draft a controlled stock movement between locations" onClose={requestClose} wide>
       <div className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="From">
@@ -702,10 +721,10 @@ function TransferModal({ locations, variants, onClose, onSaved }) {
         )}
 
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-[#d5d5d5] text-sm">Cancel</button>
+          <button onClick={requestClose} className="h-9 px-4 rounded-lg border border-[#d5d5d5] text-sm">Cancel</button>
           <button
             onClick={create}
-            disabled={saving || !toLocationId || fromLocationId === toLocationId}
+            disabled={saving || !toLocationId || fromLocationId === toLocationId || !isDirty}
             className="h-9 px-4 rounded-lg bg-[#222] text-white text-sm font-medium disabled:opacity-40"
           >
             {saving ? "Creating…" : "Create draft transfer"}
