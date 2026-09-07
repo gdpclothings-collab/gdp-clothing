@@ -29,7 +29,7 @@ export const adminProductionApi = {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, order_number, customer_name, customer_email, total, status, fulfillment_status, priority, need_by_date, production_checklist, tracking_number, carrier, created_at, order_items(id, name, image, variant, size, color, quantity, is_custom, custom_design_id)"
+        "id, order_number, customer_name, customer_email, total, status, production_status, fulfillment_status, priority, need_by_date, production_checklist, tracking_number, carrier, created_at, order_items(id, name, image, variant, size, color, quantity, is_custom, custom_design_id)"
       )
       .in("status", PRODUCTION_STATUSES)
       .order("need_by_date", { ascending: true, nullsFirst: false })
@@ -45,9 +45,38 @@ export const adminProductionApi = {
   },
 
   async setStatus(orderId, status) {
+    const productionStatus =
+      status === "production_queue"
+        ? "queued"
+        : status === "printing"
+          ? "printing"
+          : status === "quality_control"
+            ? "quality_control"
+            : status === "packing"
+              ? "packing"
+              : status === "completed"
+                ? "completed"
+                : ["ready_for_pickup", "shipped", "out_for_delivery", "delivered"].includes(status)
+                  ? "ready"
+                  : "not_started";
+
+    const fulfillmentStatus =
+      status === "ready_for_pickup"
+        ? "ready_for_pickup"
+        : status === "shipped"
+          ? "shipped"
+          : status === "out_for_delivery"
+            ? "out_for_delivery"
+            : status === "delivered"
+              ? "delivered"
+              : status === "completed"
+                ? "fulfilled"
+                : undefined;
+
     await adminApi.updateOrder(orderId, {
       status,
-      fulfillmentStatus: status,
+      productionStatus,
+      ...(fulfillmentStatus ? { fulfillmentStatus } : {}),
     });
   },
 
