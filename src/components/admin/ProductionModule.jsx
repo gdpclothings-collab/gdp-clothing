@@ -15,6 +15,7 @@ import {
   PRODUCTION_CHECKS,
   PRODUCTION_STATUSES,
 } from "@/lib/adminProductionApi";
+import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 function prettify(value) {
   return String(value || "—").replaceAll("_", " ");
@@ -106,9 +107,11 @@ export default function ProductionModule() {
       await adminProductionApi.setStatus(order.id, status);
       showNotice(`${order.order_number} moved to ${prettify(status)}.`);
       await load();
+      return true;
     } catch (err) {
       console.error("Production status update failed:", err);
       showNotice(err?.message || "Could not update production status.");
+      return false;
     }
   };
 
@@ -210,10 +213,12 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
   const [checklist, setChecklist] = useState(order.production_checklist || {});
   const [savingCheck, setSavingCheck] = useState("");
   const [status, setStatus] = useState(order.status);
+  const [savedStatus, setSavedStatus] = useState(order.status);
 
   useEffect(() => {
     setChecklist(order.production_checklist || {});
     setStatus(order.status);
+    setSavedStatus(order.status);
   }, [order.id, order.status, order.production_checklist]);
 
   const toggleCheck = async (key, checked) => {
@@ -235,24 +240,38 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
   const readyForProduction = PRODUCTION_CHECKS.every(([key]) => checklist[key]);
 
   const saveStatus = async () => {
-    if (status === order.status) return;
+    if (status === savedStatus) return true;
     if (status === "printing" && !readyForProduction) {
       window.alert("Complete every production check before moving this order to printing.");
-      return;
+      return false;
     }
-    await onStatus(order, status);
+    const ok = await onStatus(order, status);
+    if (ok !== false) setSavedStatus(status);
+    return ok !== false;
   };
+
+  const { requestAction: requestProductionAction } = useUnsavedChangesGuard({
+    isDirty: status !== savedStatus,
+    onSave: saveStatus,
+    label: `Production order: ${order.order_number}`,
+  });
+
+  const requestClose = () =>
+    requestProductionAction(onClose, {
+      title: "Unsaved production status",
+      description: "Save the status change before closing, discard it, or keep editing.",
+    });
 
   return (
     <div className="fixed inset-0 z-[70]">
-      <button className="absolute inset-0 bg-black/35" onClick={onClose} aria-label="Close production order" />
+      <button className="absolute inset-0 bg-black/35" onClick={requestClose} aria-label="Close production order" />
       <aside className="absolute right-0 top-0 h-full w-full max-w-[650px] bg-[#f6f6f6] shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 h-16 px-5 border-b border-[#e3e3e3] bg-white flex items-center justify-between">
           <div>
             <div className="font-semibold">{order.order_number}</div>
             <div className="text-xs text-[#777]">{order.customer_name || "Customer"} · {prettify(order.status)}</div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
+          <button onClick={requestClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -264,7 +283,7 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
               </select>
               <button
                 onClick={saveStatus}
-                disabled={status === order.status}
+                disabled={status === savedStatus}
                 className="h-10 px-4 rounded-lg bg-[#222] text-white text-sm font-medium disabled:opacity-40"
               >
                 Update
