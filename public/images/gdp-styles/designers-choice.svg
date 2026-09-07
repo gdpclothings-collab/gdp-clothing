@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="GDP Designers Choice artwork overlay">
+<defs>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity=".28"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<defs><linearGradient id="foil" x1="0" x2="1"><stop stop-color="#8b6200"/><stop offset=".3" stop-color="#ffe08a"/><stop offset=".55" stop-color="#b17700"/><stop offset=".8" stop-color="#fff0a8"/><stop offset="1" stop-color="#8b6200"/></linearGradient></defs>
+<g filter="url(#shadow)">
+ <path d="M120 100l155-45 72 38 170-45 173 47 93-38 178 63-39 122 54 83-45 115 31 115-62 89 28 105-105 74 23 92H208l19-95-98-76 28-104-62-90 36-111-48-95 58-98Z" fill="none" stroke="#f3f0e9" stroke-width="28"/>
+ <path d="M116 112l120-35 38 25M810 102l126 44-31 88M130 742l112 58-20 99M844 775l89 67-24 76" fill="none" stroke="url(#foil)" stroke-width="20"/>
+ <path d="M120 180l60-145 70 92 86-102 25 158" fill="none" stroke="url(#foil)" stroke-width="28" stroke-linejoin="round"/>
+ <path d="M858 170l20-49 24 49 49 20-49 20-24 49-20-49-49-20Z" fill="url(#foil)"/>
+ <path d="M180 680l18-46 22 46 46 18-46 22-22 46-18-46-46-22Z" fill="url(#foil)"/>
+ <text x="120" y="350" font-family="Arial,sans-serif" font-style="italic" font-weight="800" font-size="38" fill="#fff">GOOD</text><text x="120" y="395" font-family="Arial,sans-serif" font-style="italic" font-weight="800" font-size="38" fill="url(#foil)">PEOPLE</text><text x="120" y="440" font-family="Arial,sans-serif" font-style="italic" font-weight="800" font-size="38" fill="#fff">DOPE CLOTHES</text>
+ <path d="M160 790c130 46 263 45 380 9 126 39 252 36 382-11" fill="none" stroke="#121212" stroke-width="72" stroke-linecap="round"/>
+ <text x="540" y="880" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="150" fill="url(#foil)" stroke="#151515" stroke-width="10" paint-order="stroke">GDP</text>
+ <text x="540" y="948" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="46" fill="#fff">Good People Dope Clothes</text>
+</g></svg>

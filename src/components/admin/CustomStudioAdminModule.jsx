@@ -21,6 +21,10 @@ import {
 import { adminCustomStudioApi } from "@/lib/adminCustomStudioApi";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
+import {
+  GDP_STYLE_TEMPLATES,
+  normalizeStyleTemplates,
+} from "@/lib/customStudioStyleTemplates";
 
 function prettify(value) {
   return String(value || "—").replaceAll("_", " ");
@@ -56,6 +60,7 @@ const DEFAULT_STUDIO_SETTINGS = {
   priceVisibility: "hidden",
   frontBackEnabled: true,
   frontBackFee: 10,
+  styleTemplates: {},
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -77,6 +82,7 @@ function normalizeStudioSettings(settings = {}) {
     priceVisibility: ["hidden", "total", "all"].includes(settings?.priceVisibility) ? settings.priceVisibility : "hidden",
     frontBackEnabled: settings?.frontBackEnabled !== false,
     frontBackFee: Math.max(0, Number(settings?.frontBackFee ?? 10) || 0),
+    styleTemplates: settings?.styleTemplates && typeof settings.styleTemplates === "object" ? settings.styleTemplates : {},
   };
 }
 
@@ -425,12 +431,49 @@ export default function CustomStudioAdminModule() {
 
 function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange, onSave, onIntensityImageChange }) {
   const [uploadingLevel, setUploadingLevel] = useState(null);
+  const [uploadingStyle, setUploadingStyle] = useState(null);
 
   if (loading) {
     return <div className="rounded-xl border border-[#dedede] bg-white py-16 text-center text-sm text-[#777]">Loading Custom Studio settings…</div>;
   }
 
   const examples = normalizeIntensityExamples(settings.intensityExamples);
+  const styleTemplates = normalizeStyleTemplates(settings.styleTemplates);
+
+  const updateStyleTemplate = (styleId, patch) => {
+    const currentTemplates = settings.styleTemplates || {};
+    const current = currentTemplates[styleId] || {};
+    const next = {
+      ...current,
+      ...patch,
+      photoZone: patch.photoZone ? { ...(current.photoZone || {}), ...patch.photoZone } : current.photoZone,
+      textZone: patch.textZone ? { ...(current.textZone || {}), ...patch.textZone } : current.textZone,
+      defaultTransform: patch.defaultTransform
+        ? {
+            ...(current.defaultTransform || {}),
+            ...patch.defaultTransform,
+            offset: patch.defaultTransform.offset
+              ? { ...(current.defaultTransform?.offset || {}), ...patch.defaultTransform.offset }
+              : current.defaultTransform?.offset,
+          }
+        : current.defaultTransform,
+    };
+    onChange("styleTemplates", { ...currentTemplates, [styleId]: next });
+  };
+
+  const uploadStyleArtwork = async (style, file) => {
+    if (!file || !style) return;
+    setUploadingStyle(style.id);
+    try {
+      const url = await adminSettingsApi.uploadStyleTemplateAsset(file, style.id);
+      updateStyleTemplate(style.id, { assetUrl: url });
+    } catch (err) {
+      console.error("GDP style artwork upload failed:", err);
+      window.alert(err?.message || "Could not upload the GDP style artwork.");
+    } finally {
+      setUploadingStyle(null);
+    }
+  };
 
   const uploadExample = async (level, file) => {
     if (!file) return;
@@ -648,6 +691,165 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
               </div>
             );
           })}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#e8e8e8] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-semibold">GDP artwork templates</div>
+            <div className="text-xs text-[#777] mt-0.5">Manage the 9 photo-ready overlays used by the live Custom Studio preview. PNG, WEBP and SVG preserve transparency.</div>
+          </div>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !dirty}
+            className="h-9 px-3 rounded-lg bg-[#222] text-white text-xs font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            <Save size={13} /> {saving ? "Saving…" : "Save template settings"}
+          </button>
+        </div>
+
+        <div className="p-4 grid lg:grid-cols-2 gap-4">
+          {styleTemplates.map((style) => {
+            const base = GDP_STYLE_TEMPLATES.find((item) => item.id === style.id) || style;
+            const isCustomAsset = style.assetUrl !== base.assetUrl;
+            return (
+              <div key={style.id} className="rounded-xl border border-[#e1e1e1] bg-[#fafafa] overflow-hidden">
+                <div className="grid grid-cols-[118px_1fr] gap-3 p-3 border-b border-[#e6e6e6] bg-white">
+                  <div className="aspect-square rounded-lg overflow-hidden border border-[#dedede] bg-[linear-gradient(45deg,#ececec_25%,transparent_25%),linear-gradient(-45deg,#ececec_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ececec_75%),linear-gradient(-45deg,transparent_75%,#ececec_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px]">
+                    <img src={style.assetUrl} alt={style.name + " overlay preview"} className="h-full w-full object-contain p-1" loading="lazy" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-bold">{style.name}</div>
+                        <div className="mt-1 text-[10px] leading-4 text-[#777]">{style.description}</div>
+                      </div>
+                      <label className="inline-flex items-center gap-1.5 text-[10px] font-semibold whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={style.enabled !== false}
+                          onChange={(event) => updateStyleTemplate(style.id, { enabled: event.target.checked })}
+                        />
+                        Enabled
+                      </label>
+                    </div>
+                    <div className="mt-3 grid grid-cols-[1fr_84px] gap-2">
+                      <label className="h-9 rounded-lg bg-[#222] text-white text-[10px] font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer">
+                        <Upload size={12} />
+                        {uploadingStyle === style.id ? "Uploading…" : isCustomAsset ? "Replace overlay" : "Upload overlay"}
+                        <input
+                          type="file"
+                          accept="image/png,image/webp,image/svg+xml,.svg"
+                          className="hidden"
+                          disabled={uploadingStyle !== null}
+                          onChange={(event) => uploadStyleArtwork(style, event.target.files?.[0])}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!isCustomAsset}
+                        onClick={() => updateStyleTemplate(style.id, { assetUrl: base.assetUrl })}
+                        className="h-9 rounded-lg border border-[#d7d7d7] bg-white text-[10px] font-semibold disabled:opacity-35"
+                      >
+                        GDP default
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <label className="text-[10px] font-medium text-[#555]">
+                      Display order
+                      <input
+                        type="number"
+                        min="0"
+                        max="999"
+                        value={style.sortOrder}
+                        onChange={(event) => updateStyleTemplate(style.id, { sortOrder: Number(event.target.value || 0) })}
+                        className="mt-1 h-8 w-full rounded-md border border-[#d4d4d4] bg-white px-2 text-xs"
+                      />
+                    </label>
+                    <label className="text-[10px] font-medium text-[#555]">
+                      Photo fit
+                      <select
+                        value={style.defaultTransform?.fitMode || "crop"}
+                        onChange={(event) => updateStyleTemplate(style.id, { defaultTransform: { fitMode: event.target.value } })}
+                        className="mt-1 h-8 w-full rounded-md border border-[#d4d4d4] bg-white px-2 text-xs"
+                      >
+                        <option value="crop">Crop to fill</option>
+                        <option value="fit">Fit · no crop</option>
+                      </select>
+                    </label>
+                    <label className="text-[10px] font-medium text-[#555]">
+                      Default zoom %
+                      <input
+                        type="number"
+                        min="55"
+                        max="180"
+                        value={style.defaultTransform?.scale || 100}
+                        onChange={(event) => updateStyleTemplate(style.id, { defaultTransform: { scale: Number(event.target.value || 100) } })}
+                        className="mt-1 h-8 w-full rounded-md border border-[#d4d4d4] bg-white px-2 text-xs"
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-[#777]">Photo placement zone · % of artwork canvas</div>
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {[
+                        ["x", "Left"],
+                        ["y", "Top"],
+                        ["width", "Width"],
+                        ["height", "Height"],
+                      ].map(([key, label]) => (
+                        <label key={key} className="text-[9px] font-medium text-[#666]">
+                          {label}
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.5"
+                            value={style.photoZone?.[key] ?? 0}
+                            onChange={(event) => updateStyleTemplate(style.id, { photoZone: { [key]: Number(event.target.value || 0) } })}
+                            className="mt-1 h-8 w-full rounded-md border border-[#d4d4d4] bg-white px-2 text-xs"
+                          />
+                        </label>
+                      ))}
+                      <label className="text-[9px] font-medium text-[#666]">
+                        Shape
+                        <select
+                          value={style.photoZone?.shape || "rounded"}
+                          onChange={(event) => updateStyleTemplate(style.id, { photoZone: { shape: event.target.value } })}
+                          className="mt-1 h-8 w-full rounded-md border border-[#d4d4d4] bg-white px-2 text-xs"
+                        >
+                          <option value="rounded">Rounded</option>
+                          <option value="rect">Rectangle</option>
+                          <option value="oval">Oval</option>
+                          <option value="circle">Circle</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+
+                  <label className="block text-[10px] font-medium text-[#555]">
+                    Artwork asset URL
+                    <input
+                      value={style.assetUrl || ""}
+                      onChange={(event) => updateStyleTemplate(style.id, { assetUrl: event.target.value })}
+                      className="mt-1 h-8 w-full rounded-md border border-[#d4d4d4] bg-white px-2 text-[10px]"
+                    />
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-[#e7e7e7] bg-blue-50 px-4 py-3 text-[11px] leading-5 text-blue-900">
+          Customer photo layer → template foreground overlay → optional personalization. Photo coordinates and transforms are saved with the custom design so production can reproduce the approved preview.
         </div>
       </section>
     </div>

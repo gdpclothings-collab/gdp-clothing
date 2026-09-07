@@ -88,6 +88,39 @@ export const adminSettingsApi = {
     return data.publicUrl;
   },
 
+  async uploadStyleTemplateAsset(file, styleId) {
+    if (!file) throw new Error("Choose a transparent artwork file to upload.");
+    const allowedTypes = ["image/png", "image/webp", "image/svg+xml"];
+    if (!allowedTypes.includes(String(file.type || ""))) {
+      throw new Error("GDP style artwork supports transparent PNG, WEBP, or SVG files.");
+    }
+    if (Number(file.size || 0) > 18 * 1024 * 1024) {
+      throw new Error("GDP style artwork must be 18 MB or smaller.");
+    }
+
+    const safeStyle = String(styleId || "style").replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+    const safeName = String(file.name || "overlay")
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const unique = typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+    const path = `custom-studio/styles/${safeStyle}/${Date.now()}-${unique}-${safeName || "overlay"}`;
+
+    const { error } = await supabase.storage
+      .from("product-images")
+      .upload(path, file, {
+        upsert: false,
+        cacheControl: "3600",
+        contentType: file.type || undefined,
+      });
+    if (error) throw error;
+
+    const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error("Could not create a public style artwork URL.");
+    return data.publicUrl;
+  },
+
   async saveCustomStudioSettings(settings) {
     const { error } = await supabase
       .from("store_settings")

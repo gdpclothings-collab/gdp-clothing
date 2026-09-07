@@ -10,6 +10,11 @@ import {
   resolveMockupNormalization,
   resolvePreviewCanvas,
 } from "@/lib/garmentPreviewNormalization";
+import {
+  GDP_STYLE_TEMPLATES,
+  normalizeStyleTemplates,
+  styleTemplateForName,
+} from "@/lib/customStudioStyleTemplates";
 
 const OCCASIONS = [
   {
@@ -98,6 +103,7 @@ const DEFAULT_STUDIO_SETTINGS = {
   priceVisibility: "hidden",
   frontBackEnabled: true,
   frontBackFee: 10,
+  styleTemplates: {},
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -115,37 +121,30 @@ function normalizeStudioSettings(settings = {}) {
     ...DEFAULT_STUDIO_SETTINGS,
     ...(settings || {}),
     intensityExamples: normalizeIntensityExamples(settings?.intensityExamples),
+    styleTemplates: settings?.styleTemplates && typeof settings.styleTemplates === "object" ? settings.styleTemplates : {},
   };
 }
 
-function defaultArtworkState() {
+function defaultArtworkState(template) {
+  const defaults = template?.defaultTransform || {};
   return {
-    scale: 92,
-    rotation: 0,
-    offset: { x: 0, y: 0 },
-    fitMode: "fit",
+    scale: Number(defaults.scale ?? 100),
+    rotation: Number(defaults.rotation ?? 0),
+    offset: {
+      x: Number(defaults.offset?.x ?? 0),
+      y: Number(defaults.offset?.y ?? 0),
+    },
+    fitMode: defaults.fitMode === "fit" ? "fit" : "crop",
     sourcePhotoIndex: 0,
   };
 }
 
-function defaultArtworkStates() {
+function defaultArtworkStates(template) {
   return {
-    front: defaultArtworkState(),
-    back: defaultArtworkState(),
+    front: defaultArtworkState(template),
+    back: defaultArtworkState(template),
   };
 }
-
-const STYLES = [
-  ["GDP Classic 90s","Layered portraits, chrome type, clouds and full retro energy."],
-  ["GDP Y2K","Metallic type, stars, glow effects and early-2000s attitude."],
-  ["GDP Vintage Wash","Muted colors, distressed graphics and old-photo texture."],
-  ["GDP Sports Hype","Player portraits, number, team colors and season highlights."],
-  ["GDP Memorial","Respectful composition with names, dates and meaningful text."],
-  ["GDP Love Story","Couple-focused composition for anniversaries and gifts."],
-  ["GDP Pet Legend","Bold pet portraits, names and playful personality."],
-  ["GDP Minimal","Cleaner layout, fewer photos and quieter typography."],
-  ["GDP Designer's Choice","Tell us the story and let a GDP designer choose the direction."]
-];
 
 const FALLBACK_GARMENT = {
   type: "T-Shirt",
@@ -741,6 +740,8 @@ export default function CustomStudio() {
   const [showOrderGuide, setShowOrderGuide] = useState(DEFAULT_STUDIO_SETTINGS.orderGuideEnabled);
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
+  const styleTemplates = normalizeStyleTemplates(studioSettings.styleTemplates);
+  const activeStyleTemplate = styleTemplateForName(designStyle, studioSettings.styleTemplates);
 
   useEffect(() => {
     const node = mobileEndRef.current;
@@ -793,7 +794,16 @@ export default function CustomStudio() {
         setColor(initialColor);
         setSize(sizes[0] || "M");
         setProofRequired(p?.customization?.proofRequired !== false);
-        if (p?.customization?.allowedStyles?.length) setDesignStyle(p.customization.allowedStyles[0]);
+        const loadedTemplates = normalizeStyleTemplates(nextStudioSettings.styleTemplates);
+        const allowedStyles = p?.customization?.allowedStyles || [];
+        const initialTemplate =
+          loadedTemplates.find((item) => item.enabled && (!allowedStyles.length || allowedStyles.includes(item.name))) ||
+          loadedTemplates.find((item) => item.enabled) ||
+          loadedTemplates[0];
+        if (initialTemplate) {
+          setDesignStyle(initialTemplate.name);
+          setArtworkStates(defaultArtworkStates(initialTemplate));
+        }
       } catch (error) {
         if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
       }
@@ -815,11 +825,14 @@ export default function CustomStudio() {
     setSize(sizes[0] || "M");
     setGroupGarments([]);
     setProofRequired(nextProduct?.customization?.proofRequired !== false);
-    if (nextProduct?.customization?.allowedStyles?.length) {
-      setDesignStyle(nextProduct.customization.allowedStyles[0]);
-    }
+    const allowedStyles = nextProduct?.customization?.allowedStyles || [];
+    const nextTemplate =
+      styleTemplates.find((item) => item.enabled && (!allowedStyles.length || allowedStyles.includes(item.name))) ||
+      styleTemplates.find((item) => item.enabled) ||
+      styleTemplates[0];
+    if (nextTemplate) setDesignStyle(nextTemplate.name);
     setPreviewSide("front");
-    setArtworkStates(defaultArtworkStates());
+    setArtworkStates(defaultArtworkStates(nextTemplate));
     setPreviewZoom(1);
   };
 
@@ -835,7 +848,27 @@ export default function CustomStudio() {
   const hasIntensityOverrides = Object.values(intensityImages).some((value) => Boolean(value));
   const showCombinedIntensityGuide = studioSettings.showCombinedIntensityGuide !== false;
   const intensityLevel = DESIGN_INTENSITY_LEVELS[designIntensity] || DESIGN_INTENSITY_LEVELS[3];
-  const styleOptions = config.allowedStyles?.length ? STYLES.filter(style => config.allowedStyles.includes(style[0])) : STYLES;
+  const allowedStyleNames = config.allowedStyles || [];
+  const configuredStyleOptions = styleTemplates.filter((style) =>
+    style.enabled && (!allowedStyleNames.length || allowedStyleNames.includes(style.name))
+  );
+  const styleOptions = configuredStyleOptions.length
+    ? configuredStyleOptions
+    : styleTemplates.filter((style) => style.enabled);
+  const chooseStyleTemplate = (style) => {
+    if (!style) return;
+    setDesignStyle(style.name);
+    setArtworkStates((current) => ({
+      front: {
+        ...defaultArtworkState(style),
+        sourcePhotoIndex: Number(current?.front?.sourcePhotoIndex || 0),
+      },
+      back: {
+        ...defaultArtworkState(style),
+        sourcePhotoIndex: Number(current?.back?.sourcePhotoIndex || 0),
+      },
+    }));
+  };
   const maxPhotos = Number(config.maxPhotos || 10);
   const minPhotos = Number(config.minPhotos || 1);
   const revisions = Number(config.includedRevisions || 2);
@@ -892,7 +925,10 @@ export default function CustomStudio() {
   const resetPreviewPlacement = () => {
     setArtworkStates((current) => ({
       ...current,
-      [previewSide]: defaultArtworkState(),
+      [previewSide]: {
+        ...defaultArtworkState(activeStyleTemplate),
+        sourcePhotoIndex: Number(current?.[previewSide]?.sourcePhotoIndex || 0),
+      },
     }));
     setPreviewZoom(1);
   };
@@ -1020,8 +1056,12 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 4,
+            version: 5,
             side: previewSide,
+            styleTemplateId: activeStyleTemplate?.id || null,
+            styleTemplateAssetUrl: activeStyleTemplate?.assetUrl || "",
+            styleTemplatePhotoZone: activeStyleTemplate?.photoZone || null,
+            styleTemplateTextZone: activeStyleTemplate?.textZone || null,
             artworkScale,
             artworkRotation,
             artworkOffset,
@@ -1034,7 +1074,8 @@ export default function CustomStudio() {
             },
             garmentId: productId,
             variantId: selectedVariant?.id || null,
-            conceptOnly: true
+            conceptOnly: true,
+            templateComposite: true
           }
         },
         placement,
@@ -1280,8 +1321,15 @@ export default function CustomStudio() {
           {step === 3 && <div>
             <StepTitle eyebrow="Choose the visual direction" title="PICK A GDP STYLE" text="You choose the vibe. Our designer handles the actual composition." />
             <div className="grid md:grid-cols-2 gap-3">
-              {styleOptions.map(style => <button key={style[0]} onClick={() => setDesignStyle(style[0])} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (designStyle === style[0] ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
-                <div className="font-bold">{style[0]}</div><p className="text-sm text-muted-foreground mt-1">{style[1]}</p>
+              {styleOptions.map((style) => <button key={style.id} onClick={() => chooseStyleTemplate(style)} className={"grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
+                <div className="min-w-0">
+                  <div className="font-bold">{style.name}</div>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{style.description}</p>
+                  <div className="mt-2 text-[9px] font-mono uppercase tracking-[0.12em] text-[#8a8279]">Photo-ready template</div>
+                </div>
+                <div className="relative aspect-square overflow-hidden rounded-xl border border-[#e2dcd3] bg-[linear-gradient(45deg,#f0ede8_25%,transparent_25%),linear-gradient(-45deg,#f0ede8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f0ede8_75%),linear-gradient(-45deg,transparent_75%,#f0ede8_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px]">
+                  <img src={style.assetUrl} alt="" loading="lazy" className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain" />
+                </div>
               </button>)}
             </div>
             <div className="mt-6">
@@ -1546,6 +1594,7 @@ export default function CustomStudio() {
                 showMeasurements={showMeasurements}
                 size={size}
                 previewConfig={config.preview || {}}
+                styleTemplate={activeStyleTemplate}
               />
 
               <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
@@ -1595,7 +1644,7 @@ export default function CustomStudio() {
                   <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
                 </div>
                 <p className="mt-2 text-[10px] font-mono uppercase tracking-wide text-[#8f887f]">Recommended print zone updates automatically for {size} and the selected garment.</p>
-                <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">Digital concept preview. Final composition and placement are reviewed by a GDP designer before production.</p>
+                <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">Your uploaded photo is auto-fitted inside the selected GDP artwork template. Drag, zoom or switch Fit / Crop without losing the original image.</p>
               </div>
             </div>
 
@@ -1719,7 +1768,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={primaryPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} fullscreen />
+              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} fullscreen />
             </div>
           </div>
         </div>}
@@ -1759,7 +1808,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "fit", showGuides, showMeasurements, size, previewConfig = {}, fullscreen = false }) {
+function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, fullscreen = false }) {
   const dragRef = useRef(null);
   const blankArtwork =
     (side === "back" && placement === "front") ||
@@ -1825,6 +1874,27 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     top: (50 + Number(artworkOffset?.y || 0)) + "%",
     transform: `translate(-50%, -50%) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)`,
     transformOrigin: "center center"
+  };
+  const template = styleTemplate || GDP_STYLE_TEMPLATES[0];
+  const photoZone = template?.photoZone || { x: 10, y: 8, width: 80, height: 64, shape: "rounded", radius: 10 };
+  const textZone = template?.textZone || { x: 10, y: 80, width: 80, height: 15, align: "center", tone: "light" };
+  const zoneRadius = photoZone.shape === "circle" || photoZone.shape === "oval"
+    ? "50%"
+    : photoZone.shape === "rect"
+      ? "0"
+      : `${Number(photoZone.radius || 8)}%`;
+  const photoZoneStyle = {
+    left: `${Number(photoZone.x || 0)}%`,
+    top: `${Number(photoZone.y || 0)}%`,
+    width: `${Number(photoZone.width || 100)}%`,
+    height: `${Number(photoZone.height || 100)}%`,
+    borderRadius: zoneRadius,
+  };
+  const textZoneStyle = {
+    left: `${Number(textZone.x || 0)}%`,
+    top: `${Number(textZone.y || 0)}%`,
+    width: `${Number(textZone.width || 100)}%`,
+    height: `${Number(textZone.height || 15)}%`,
   };
   const collarAnchor = Math.min(printArea.top - 2, Number(profile.collarAnchor || 20));
   const collarGuideHeight = Math.max(2, printArea.top - collarAnchor);
@@ -1922,31 +1992,59 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
         >
           {blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
-          ) : photo ? (
-            artworkFitMode === "crop" ? (
-              <div
-                className="absolute h-[88%] w-[88%] overflow-hidden rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none"
-                style={artworkLayerStyle}
-              >
-                <img src={photo.url} alt="Primary artwork preview" draggable="false" className="h-full w-full object-cover pointer-events-none" />
-              </div>
-            ) : (
-              <img
-                src={photo.url}
-                alt="Primary artwork preview"
-                draggable="false"
-                className="absolute h-auto w-auto max-h-[88%] max-w-[88%] object-contain rounded-sm shadow-[0_5px_15px_rgba(0,0,0,.18)] pointer-events-none"
-                style={artworkLayerStyle}
-              />
-            )
           ) : (
-            <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>
+            <>
+              <div
+                className={"absolute z-10 overflow-hidden " + (showGuides ? "ring-1 ring-white/35" : "")}
+                style={photoZoneStyle}
+              >
+                {photo ? (
+                  artworkFitMode === "crop" ? (
+                    <div className="absolute h-full w-full pointer-events-none" style={artworkLayerStyle}>
+                      <img src={photo.url} alt="Customer photo preview" draggable="false" className="h-full w-full object-cover pointer-events-none" />
+                    </div>
+                  ) : (
+                    <img
+                      src={photo.url}
+                      alt="Customer photo preview"
+                      draggable="false"
+                      className="absolute max-h-full max-w-full object-contain pointer-events-none"
+                      style={artworkLayerStyle}
+                    />
+                  )
+                ) : (
+                  <div className="absolute inset-0 grid place-items-center rounded-[inherit] border border-dashed border-white/55 bg-[#17324D]/10 text-center px-3">
+                    <div>
+                      <Upload size={18} className="mx-auto text-white drop-shadow"/>
+                      <div className="mt-1.5 text-[7px] font-bold uppercase tracking-[0.12em] text-white drop-shadow">Upload photo</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {template?.assetUrl && (
+                <img
+                  src={template.assetUrl}
+                  alt=""
+                  draggable="false"
+                  className="absolute inset-0 z-20 h-full w-full object-fill pointer-events-none"
+                />
+              )}
+
+              {(personalization?.name || personalization?.dates || personalization?.quote) && (
+                <div
+                  className={"absolute z-30 grid content-center px-2 pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.75)] " + (textZone?.tone === "dark" ? "text-[#26211d]" : "text-white")}
+                  style={textZoneStyle}
+                >
+                  <div className={textZone?.align === "left" ? "text-left" : textZone?.align === "right" ? "text-right" : "text-center"}>
+                    {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
+                    {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
+                    {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-          {!blankArtwork && (personalization?.name || personalization?.dates || personalization?.quote) && <div className="absolute inset-x-1 bottom-1.5 text-center text-white pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.85)]">
-            {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
-            {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
-            {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
-          </div>}
         </div>
       </div>
     </div>

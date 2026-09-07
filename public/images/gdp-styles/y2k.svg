@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="GDP Y2K artwork overlay">
+<defs>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity=".28"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".2" stop-color="#88cfff"/><stop offset=".45" stop-color="#1b2e4f"/><stop offset=".7" stop-color="#fff"/><stop offset="1" stop-color="#4396ff"/></linearGradient></defs>
+<g fill="none" stroke="url(#c)" stroke-linecap="round" filter="url(#glow)">
+ <ellipse cx="540" cy="410" rx="335" ry="330" stroke-width="24"/>
+ <ellipse cx="540" cy="410" rx="410" ry="170" stroke-width="18" transform="rotate(-18 540 410)"/>
+ <ellipse cx="540" cy="410" rx="410" ry="128" stroke-width="8" transform="rotate(20 540 410)" opacity=".75"/>
+</g>
+<g fill="url(#c)" stroke="#0f1d31" stroke-width="8" filter="url(#shadow)">
+ <path d="M146 146l32 66 66 32-66 32-32 66-32-66-66-32 66-32Z"/>
+ <path d="M903 118l26 57 57 26-57 26-26 57-26-57-57-26 57-26Z"/>
+ <path d="M874 600l20 45 45 20-45 20-20 45-20-45-45-20 45-20Z"/>
+</g>
+<g font-family="Arial,sans-serif" fill="#dff3ff">
+ <text x="860" y="275" font-weight="900" font-size="64">GDP</text>
+ <text x="856" y="310" font-size="22" letter-spacing="3">PEOPLE · CULTURE</text>
+ <text x="856" y="340" font-size="22" letter-spacing="3">DOPE · CLOTHES</text>
+</g>
+<g filter="url(#shadow)">
+ <path d="M175 820c122-71 251-83 365-51 131-40 270-24 382 54" fill="none" stroke="url(#c)" stroke-width="32" stroke-linecap="round"/>
+ <text x="540" y="915" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="82" fill="url(#c)" stroke="#102038" stroke-width="6" paint-order="stroke">Good People</text>
+ <text x="540" y="992" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-weight="700" font-size="76" fill="url(#c)" stroke="#102038" stroke-width="6" paint-order="stroke">Dope Clothes</text>
+</g></svg>

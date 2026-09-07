@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="GDP Sports Hype artwork overlay">
+<defs>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity=".28"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g filter="url(#shadow)">
+ <path d="M95 170l210-85 42 60 193-88 190 88 46-60 210 85-68 126 60 107-82 118 48 126-119 92 16 148H239l15-148-120-92 48-126-82-118 60-107Z" fill="none" stroke="#d51e2e" stroke-width="24"/>
+ <g fill="#111827" stroke="#fff" stroke-width="10">
+   <path d="M188 122l25 47 50 8-36 35 8 51-47-24-47 24 8-51-36-35 50-8Z"/>
+   <path d="M892 122l25 47 50 8-36 35 8 51-47-24-47 24 8-51-36-35 50-8Z"/>
+ </g>
+ <g>
+   <circle cx="145" cy="430" r="92" fill="#f47721" stroke="#111" stroke-width="10"/><path d="M53 430h184M145 338c-38 47-38 137 0 184M145 338c38 47 38 137 0 184" fill="none" stroke="#111" stroke-width="8"/>
+   <circle cx="935" cy="430" r="88" fill="#fff" stroke="#111" stroke-width="10"/><path d="M935 342l37 28-15 43-44 0-15-43Z" fill="#111"/><path d="M872 385l41 28M998 385l-41 28M890 480l23-67M980 480l-23-67" stroke="#111" stroke-width="8"/>
+ </g>
+ <text x="540" y="185" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="150" fill="#121212" stroke="#fff" stroke-width="10" paint-order="stroke">GDP</text>
+ <text x="540" y="862" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="185" fill="#111" stroke="#d51e2e" stroke-width="18" paint-order="stroke">00</text>
+ <path d="M210 900h660l-45 86H255Z" fill="#111" stroke="#d51e2e" stroke-width="10"/>
+ <text x="540" y="957" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="39" fill="#fff">GOOD PEOPLE DOPE CLOTHES</text>
+</g></svg>

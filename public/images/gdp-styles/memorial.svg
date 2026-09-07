@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="GDP Memorial artwork overlay">
+<defs>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity=".28"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff3bd"/><stop offset=".25" stop-color="#d39b28"/><stop offset=".5" stop-color="#fff1a7"/><stop offset=".78" stop-color="#b97b14"/><stop offset="1" stop-color="#fff6ca"/></linearGradient></defs>
+<g filter="url(#shadow)">
+ <ellipse cx="540" cy="385" rx="294" ry="334" fill="none" stroke="url(#gold)" stroke-width="28"/>
+ <path d="M540 45c78 48 112 111 117 171M540 45c-78 48-112 111-117 171" fill="none" stroke="#f6e7b0" stroke-width="22" opacity=".55"/>
+ <g fill="#fff" stroke="#d6c6a4" stroke-width="4">
+  <path d="M146 215c85-79 151-58 191 8-48-33-85-20-112 29 50-17 92-5 124 36-85 20-153-4-203-73Z"/>
+  <path d="M934 215c-85-79-151-58-191 8 48-33 85-20 112 29-50-17-92-5-124 36 85 20 153-4 203-73Z"/>
+ </g>
+ <g fill="#fff" stroke="#cbb990" stroke-width="3">
+  <path d="M175 650c-90-80-44-181 57-118 27-87 130-67 126 36 85 18 76 122-12 131-39 99-147 72-148-29Z"/>
+  <path d="M905 650c90-80 44-181-57-118-27-87-130-67-126 36-85 18-76 122 12 131 39 99 147 72 148-29Z"/>
+ </g>
+ <g fill="#2f6d3c"><path d="M105 680c86-70 159-75 239-24-77 18-141 55-194 111Z"/><path d="M975 680c-86-70-159-75-239-24 77 18 141 55 194 111Z"/></g>
+ <path d="M540 672v96M506 716h68" stroke="url(#gold)" stroke-width="20" stroke-linecap="round"/>
+ <path d="M185 785c203-65 507-64 710 0l-70 150H255Z" fill="#fff7e5" stroke="url(#gold)" stroke-width="16"/>
+ <text x="540" y="868" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="74" fill="#8b5b12">Forever Remembered</text>
+ <text x="540" y="962" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="64" fill="#8b5b12">GDP</text>
+</g></svg>
