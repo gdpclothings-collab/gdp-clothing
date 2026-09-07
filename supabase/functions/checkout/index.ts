@@ -17,13 +17,103 @@ function corsHeaders(req: Request) {
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const roundMoney = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
+const defaultDtfSettings = {
+  enabled: true,
+  maxWidth: 34,
+  defaultWidth: 34,
+  minLength: 6,
+  standardMaxLength: 36,
+  pricingMode: "graduated",
+  standardRate: 0.028,
+  volumeRate: 0.025,
+  breakpointArea: 1224,
+  spacing: 0.25,
+  minimumDpi: 200,
+  recommendedDpi: 300,
+  artworkReviewEnabled: true,
+  artworkReviewPrice: 0,
+  maxUploadMb: 100,
+  acceptedMimeTypes: [
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/svg+xml",
+    "application/pdf",
+  ],
+};
+
+function numberOr(value: unknown, fallback: number) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeDtfSettings(raw: any = {}) {
+  const next = { ...defaultDtfSettings, ...(raw || {}) };
+  next.maxWidth = Math.max(1, numberOr(next.maxWidth, 34));
+  next.defaultWidth = Math.min(next.maxWidth, Math.max(1, numberOr(next.defaultWidth, next.maxWidth)));
+  next.minLength = Math.max(1, numberOr(next.minLength, 6));
+  next.standardRate = Math.max(0, numberOr(next.standardRate, 0.028));
+  next.volumeRate = Math.max(0, numberOr(next.volumeRate, 0.025));
+  next.breakpointArea = Math.max(1, numberOr(next.breakpointArea, 1224));
+  next.spacing = Math.max(0, numberOr(next.spacing, 0.25));
+  next.artworkReviewPrice = Math.max(0, numberOr(next.artworkReviewPrice, 0));
+  next.maxUploadMb = Math.max(1, numberOr(next.maxUploadMb, 100));
+  next.pricingMode = next.pricingMode === "flat_tier" ? "flat_tier" : "graduated";
+  next.acceptedMimeTypes = Array.isArray(next.acceptedMimeTypes) && next.acceptedMimeTypes.length
+    ? next.acceptedMimeTypes.map((value: unknown) => String(value))
+    : defaultDtfSettings.acceptedMimeTypes;
+  return next;
+}
+
+function calculateDtfPrice(width: number, length: number, rawSettings: any) {
+  const settings = normalizeDtfSettings(rawSettings);
+  const area = width * length;
+  let price = 0;
+  let standardArea = 0;
+  let volumeArea = 0;
+
+  if (settings.pricingMode === "flat_tier" && area > settings.breakpointArea) {
+    volumeArea = area;
+    price = area * settings.volumeRate;
+  } else {
+    standardArea = Math.min(area, settings.breakpointArea);
+    volumeArea = Math.max(0, area - settings.breakpointArea);
+    price = standardArea * settings.standardRate + volumeArea * settings.volumeRate;
+  }
+
+  return {
+    area,
+    price: roundMoney(price),
+    standardArea,
+    volumeArea,
+    settings,
+  };
+}
+
+function safeUploadFileName(value: unknown) {
+  return String(value || "artwork")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "artwork";
+}
+
+function isDtfProduct(product: any) {
+  return product?.slug === "dtf-gang-sheet"
+    || product?.theme_template === "dtf-gang-sheet"
+    || product?.metafields?.dtf_gang_sheet === true;
+}
+
+function validDtfStoragePath(value: unknown) {
+  return /^dtf\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(String(value || ""));
+}
+
 function respond(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
 }
 
 function validOrigin(value: unknown) {
   const text = String(value || "");
-  if (text === "https://gdp-clothing.pages.dev") return text;
+  if (["https://gdp-clothing.pages.dev", "https://gdpclothing.ca", "https://www.gdpclothing.ca"].includes(text)) return text;
   if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(text)) return text;
   return "https://gdp-clothing.pages.dev";
 }
@@ -287,6 +377,47 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const action = body?.action;
 
+    if (action === "createDtfUpload") {
+      const files = Array.isArray(body?.files) ? body.files.slice(0, 30) : [];
+      if (!files.length) {
+        return respond(req, { error: true, message: "Choose at least one artwork file." }, 400);
+      }
+
+      const { data: settingsRow, error: settingsError } = await service
+        .from("store_settings")
+        .select("dtf_settings")
+        .eq("id", 1)
+        .maybeSingle();
+      if (settingsError) throw settingsError;
+
+      const dtfSettings = normalizeDtfSettings(settingsRow?.dtf_settings || {});
+      if (!dtfSettings.enabled) {
+        return respond(req, { error: true, message: "DTF ordering is currently paused." }, 409);
+      }
+
+      const uploads: Array<{ path: string; token: string }> = [];
+      for (const descriptor of files) {
+        const mimeType = String(descriptor?.type || "");
+        const size = Number(descriptor?.size || 0);
+        if (!dtfSettings.acceptedMimeTypes.includes(mimeType)) {
+          return respond(req, { error: true, message: "One or more artwork file types are not supported." }, 400);
+        }
+        if (!Number.isFinite(size) || size <= 0 || size > dtfSettings.maxUploadMb * 1024 * 1024) {
+          return respond(req, { error: true, message: `Artwork files must be ${dtfSettings.maxUploadMb} MB or smaller.` }, 400);
+        }
+
+        const path = `dtf/${crypto.randomUUID()}/${safeUploadFileName(descriptor?.name)}`;
+        const { data: signed, error: signedError } = await service.storage
+          .from("dtf-artwork")
+          .createSignedUploadUrl(path);
+        if (signedError || !signed?.token) throw signedError || new Error("Could not create a DTF upload token.");
+
+        uploads.push({ path, token: signed.token });
+      }
+
+      return respond(req, { uploads });
+    }
+
     if (action === "validateCoupon") {
       const code = String(body?.code || "").trim().toUpperCase();
       if (!code) return respond(req, { active: false });
@@ -479,6 +610,15 @@ Deno.serve(async (req: Request) => {
       return respond(req, { error: true, message: "One or more products are unavailable." }, 400);
     }
 
+    const { data: storeSettings, error: storeSettingsError } = await service
+      .from("store_settings")
+      .select("order_prefix,dtf_settings")
+      .eq("id", 1)
+      .maybeSingle();
+    if (storeSettingsError) throw storeSettingsError;
+
+    const dtfSettings = normalizeDtfSettings(storeSettings?.dtf_settings || {});
+
     const { data: variantRows, error: variantError } = await service
       .from("product_variants")
       .select("*")
@@ -518,7 +658,9 @@ Deno.serve(async (req: Request) => {
 
     const normalizedItems: any[] = [];
     let subtotal = 0;
-    let itemCount = 0;
+    let eligibleSubtotal = 0;
+    let exemptSubtotal = 0;
+    let eligibleItemCount = 0;
 
     for (const item of cart) {
       const product = products.get(String(item.productId));
@@ -587,8 +729,92 @@ Deno.serve(async (req: Request) => {
 
       const designId = uuidRe.test(String(item.customDesignId || "")) ? String(item.customDesignId) : null;
       const design = designId ? customDesigns.get(designId) : null;
+      let customData: Record<string, unknown> = {};
+      let discountExempt = false;
 
-      if (design) {
+      if (isDtfProduct(product)) {
+        if (!dtfSettings.enabled) {
+          return respond(req, { error: true, message: "DTF ordering is currently paused." }, 409);
+        }
+
+        const spec = item?.dtfSpec || {};
+        const mode = String(spec.mode || "");
+        const width = Number(spec.width);
+        const length = Number(spec.length);
+        const layout = Array.isArray(spec.layout) ? spec.layout.slice(0, 100) : [];
+
+        if (!["build", "upload"].includes(mode)) {
+          return respond(req, { error: true, message: "Choose a valid DTF order type." }, 400);
+        }
+        if (!Number.isFinite(width) || width < 1 || width > dtfSettings.maxWidth) {
+          return respond(req, { error: true, message: `DTF film width must be between 1" and ${dtfSettings.maxWidth}".` }, 400);
+        }
+        if (!Number.isFinite(length) || length < dtfSettings.minLength || length > 10000) {
+          return respond(req, { error: true, message: `DTF film length must be at least ${dtfSettings.minLength}".` }, 400);
+        }
+        if (spec.approvalAcknowledged !== true) {
+          return respond(req, { error: true, message: "Approve the DTF film layout before checkout." }, 400);
+        }
+        if (!layout.length || (mode === "upload" && layout.length !== 1)) {
+          return respond(req, { error: true, message: mode === "upload" ? "Upload one print-ready gang sheet." : "Add artwork to the DTF film." }, 400);
+        }
+
+        const cleanLayout = [];
+        for (const artwork of layout) {
+          const storagePath = String(artwork?.storagePath || "");
+          const x = Number(artwork?.x);
+          const y = Number(artwork?.y);
+          const artWidth = Number(artwork?.width);
+          const artHeight = Number(artwork?.height);
+          const rotation = Number(artwork?.rotation || 0);
+
+          if (!validDtfStoragePath(storagePath)) {
+            return respond(req, { error: true, message: "A DTF artwork upload is missing or invalid." }, 400);
+          }
+          if (![x, y, artWidth, artHeight, rotation].every(Number.isFinite) || x < 0 || y < 0 || artWidth <= 0 || artHeight <= 0) {
+            return respond(req, { error: true, message: "A DTF artwork placement is invalid." }, 400);
+          }
+          if (x + artWidth > width + 0.05 || y + artHeight > length + 0.05) {
+            return respond(req, { error: true, message: "DTF artwork extends beyond the selected film." }, 400);
+          }
+
+          cleanLayout.push({
+            name: safeUploadFileName(artwork?.name),
+            type: String(artwork?.type || ""),
+            storagePath,
+            x,
+            y,
+            width: artWidth,
+            height: artHeight,
+            rotation,
+            pixelWidth: Math.max(0, Number(artwork?.pixelWidth || 0)),
+            pixelHeight: Math.max(0, Number(artwork?.pixelHeight || 0)),
+          });
+        }
+
+        const dtfPrice = calculateDtfPrice(width, length, dtfSettings);
+        const reviewRequested = spec.artworkReviewRequested === true && dtfSettings.artworkReviewEnabled === true;
+        unitPrice = dtfPrice.price + (reviewRequested ? dtfSettings.artworkReviewPrice : 0);
+        discountExempt = true;
+        customData = {
+          type: "dtf_gang_sheet",
+          mode,
+          width,
+          length,
+          area: dtfPrice.area,
+          pricingMode: dtfSettings.pricingMode,
+          standardArea: dtfPrice.standardArea,
+          volumeArea: dtfPrice.volumeArea,
+          standardRate: dtfSettings.standardRate,
+          volumeRate: dtfSettings.volumeRate,
+          artworkReviewRequested: reviewRequested,
+          approvalAcknowledged: true,
+          approvalTimestamp: String(spec.approvalTimestamp || new Date().toISOString()),
+          utilization: Math.max(0, Math.min(100, Number(spec.utilization || 0))),
+          usedLength: Math.max(0, Number(spec.usedLength || 0)),
+          layout: cleanLayout,
+        };
+      } else if (design) {
         const cfg = product.customization || {};
         if (design.placement === "front_back") unitPrice += Number(cfg.frontBackFee ?? 10);
         if (design.priority === "rush") {
@@ -597,8 +823,14 @@ Deno.serve(async (req: Request) => {
       }
 
       unitPrice = roundMoney(unitPrice);
-      subtotal += unitPrice * quantity;
-      itemCount += quantity;
+      const lineSubtotal = unitPrice * quantity;
+      subtotal += lineSubtotal;
+      if (discountExempt) {
+        exemptSubtotal += lineSubtotal;
+      } else {
+        eligibleSubtotal += lineSubtotal;
+        eligibleItemCount += quantity;
+      }
 
       normalizedItems.push({
         product,
@@ -606,16 +838,25 @@ Deno.serve(async (req: Request) => {
         variantRow,
         quantity,
         unitPrice,
-        size: String(item.size || design?.size || variantRow?.size || ""),
-        color: String(item.color || design?.color || variantRow?.color || ""),
-        variant: String(variantRow?.name || item.variant || product.type || ""),
+        customData,
+        discountExempt,
+        size: isDtfProduct(product)
+          ? `${Number((customData as any).width || 0)}" × ${Number((customData as any).length || 0)}"`
+          : String(item.size || design?.size || variantRow?.size || ""),
+        color: isDtfProduct(product) ? "DTF Film" : String(item.color || design?.color || variantRow?.color || ""),
+        variant: isDtfProduct(product)
+          ? ((customData as any).mode === "upload" ? "Upload Print-Ready Gang Sheet" : "Build My Gang Sheet")
+          : String(variantRow?.name || item.variant || product.type || ""),
       });
     }
 
     subtotal = roundMoney(subtotal);
-    const quantityFactor = itemCount >= 3 ? 0.75 : itemCount >= 2 ? 0.80 : 1;
-    const discounted = roundMoney(subtotal * quantityFactor);
-    const quantityDiscount = roundMoney(subtotal - discounted);
+    eligibleSubtotal = roundMoney(eligibleSubtotal);
+    exemptSubtotal = roundMoney(exemptSubtotal);
+    const quantityFactor = eligibleItemCount >= 3 ? 0.75 : eligibleItemCount >= 2 ? 0.80 : 1;
+    const eligibleDiscounted = roundMoney(eligibleSubtotal * quantityFactor);
+    const discounted = roundMoney(eligibleDiscounted + exemptSubtotal);
+    const quantityDiscount = roundMoney(eligibleSubtotal - eligibleDiscounted);
 
     const couponCode = String(body?.discountCode || customer.discountCode || "").trim().toUpperCase();
     const coupon = await getCoupon(service, couponCode, discounted);
@@ -635,13 +876,7 @@ Deno.serve(async (req: Request) => {
     const tax = checkoutRules.tax;
     const total = roundMoney(afterCoupon + shipping + tax);
 
-    const { data: settings } = await service
-      .from("store_settings")
-      .select("order_prefix")
-      .eq("id", 1)
-      .maybeSingle();
-
-    const prefix = String(settings?.order_prefix || "GDP").replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "GDP";
+    const prefix = String(storeSettings?.order_prefix || "GDP").replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "GDP";
     const orderNumber = `${prefix}-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
 
     const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim();
@@ -685,7 +920,7 @@ Deno.serve(async (req: Request) => {
 
     if (orderError) throw orderError;
 
-    const orderItems = normalizedItems.map(({ product, design, variantRow, quantity, unitPrice, size, color, variant }) => ({
+    const orderItems = normalizedItems.map(({ product, design, variantRow, quantity, unitPrice, size, color, variant, customData }) => ({
       order_id: order.id,
       product_id: product.id,
       variant_id: variantRow?.id || null,
@@ -699,6 +934,7 @@ Deno.serve(async (req: Request) => {
       unit_price: unitPrice,
       fulfillment_mode: product.fulfillment_mode || "in_house",
       is_custom: Boolean(design),
+      custom_data: customData || {},
     }));
 
     const { error: itemError } = await service.from("order_items").insert(orderItems);
