@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { adminContentManagementApi } from "@/lib/adminContentManagementApi";
 import AboutPageEditorFields from "@/components/admin/AboutPageEditorFields";
+import ContactPageEditorFields from "@/components/admin/ContactPageEditorFields";
 import { mergeAboutPageBody } from "@/lib/aboutPageDefaults";
+import { mergeContactPageBody } from "@/lib/contactPageDefaults";
 import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function slugify(value) {
@@ -399,6 +401,8 @@ function PageEditor({ page, onClose, onSaved }) {
 
   const isAboutPage =
     slugify(form.slug || form.title) === "about" || form.body?.template === "about";
+  const isContactPage =
+    slugify(form.slug || form.title) === "contact" || form.body?.template === "contact";
 
   const save = async () => {
     setSaving(true);
@@ -410,7 +414,9 @@ function PageEditor({ page, onClose, onSaved }) {
         excerpt: form.excerpt,
         body: isAboutPage
           ? mergeAboutPageBody(form.body)
-          : { ...(form.body || {}), content: form.content },
+          : isContactPage
+            ? mergeContactPageBody(form.body)
+            : { ...(form.body || {}), content: form.content },
         seo: {
           ...(page?.seo || {}),
           title: form.seoTitle || null,
@@ -479,6 +485,11 @@ function PageEditor({ page, onClose, onSaved }) {
 
       {isAboutPage ? (
         <AboutPageEditorFields
+          body={form.body}
+          onChange={(body) => setForm((current) => ({ ...current, body }))}
+        />
+      ) : isContactPage ? (
+        <ContactPageEditorFields
           body={form.body}
           onChange={(body) => setForm((current) => ({ ...current, body }))}
         />
