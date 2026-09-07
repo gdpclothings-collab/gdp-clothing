@@ -895,13 +895,17 @@ export default function CustomStudio() {
       if (next.length && !next.some(p => p.isPrimary)) next[0] = { ...next[0], isPrimary: true };
       return next;
     });
-    setArtworkStates((current) => Object.fromEntries(
-      Object.entries(current).map(([side, state]) => {
+    setArtworkStates((current) => {
+      const adjustSourceIndex = (state) => {
         const sourceIndex = Number(state?.sourcePhotoIndex || 0);
         const nextIndex = sourceIndex === index ? 0 : (sourceIndex > index ? sourceIndex - 1 : sourceIndex);
-        return [side, { ...state, sourcePhotoIndex: Math.max(0, nextIndex) }];
-      })
-    ));
+        return { ...state, sourcePhotoIndex: Math.max(0, nextIndex) };
+      };
+      return {
+        front: adjustSourceIndex(current.front),
+        back: adjustSourceIndex(current.back),
+      };
+    });
   };
 
   const addGroupGarment = () => setGroupGarments(prev => [...prev, { size, color, quantity: 1 }]);
