@@ -27,7 +27,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
   useEffect(() => {
     window.scrollTo({top:0,behavior:'instant'});
     let active = true;
-    supabase.rpc('list_seasonal_artworks', {p_product:product.id,p_size:size}).then(({data,error:failure}) => {
+    Promise.resolve(supabase.rpc('list_seasonal_artworks', {p_product:product.id,p_size:size})).then(({data,error:failure}) => {
       if (!active) return;
       if (failure) setError('Seasonal designs could not load. Try again or use the photo design option.');
       else setCatalog(data);
