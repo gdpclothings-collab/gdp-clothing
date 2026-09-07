@@ -495,6 +495,24 @@ Deno.serve(async (req: Request) => {
         return respond(req, { error: true, message: "Registration acceptance could not be verified." }, 403);
       }
 
+      const signupMetadata = authUserData.user.user_metadata || {};
+      const termsAcceptedAt = String(signupMetadata.terms_accepted_at || "");
+      const privacyAcknowledgedAt = String(signupMetadata.privacy_acknowledged_at || "");
+      const metadataPolicyVersion = String(signupMetadata.policy_version || "");
+      const acceptedTimestamp = Date.parse(termsAcceptedAt);
+      const privacyTimestamp = Date.parse(privacyAcknowledgedAt);
+      const recentCutoff = Date.now() - 60 * 60 * 1000;
+
+      if (
+        metadataPolicyVersion !== "2026-09-07" ||
+        !Number.isFinite(acceptedTimestamp) ||
+        !Number.isFinite(privacyTimestamp) ||
+        acceptedTimestamp < recentCutoff ||
+        privacyTimestamp < recentCutoff
+      ) {
+        return respond(req, { error: true, message: "Registration policy acceptance is missing or expired." }, 403);
+      }
+
       const acceptedAt = new Date().toISOString();
       const { error: acceptanceError } = await service.from("policy_acceptances").insert([
         {
@@ -516,7 +534,7 @@ Deno.serve(async (req: Request) => {
       ]);
       if (acceptanceError) throw acceptanceError;
 
-      if (body?.marketingConsent === true) {
+      if (signupMetadata.marketing_consent === true) {
         const { error: marketingError } = await service.from("marketing_consents").insert({
           user_id: userId,
           email,
