@@ -64,11 +64,75 @@ export const adminProductsApi = {
     pageSize = 25,
     search = "",
     status = "all",
+    inventory = "all",
+    category = "",
+    vendor = "",
+    minPrice = "",
+    maxPrice = "",
+    updatedWithinDays = "all",
+    lowStockThreshold = 5,
   } = {}) {
     const safePage = Math.max(1, Number(page) || 1);
     const safePageSize = Math.min(100, Math.max(10, Number(pageSize) || 25));
     const from = (safePage - 1) * safePageSize;
     const to = from + safePageSize - 1;
+
+    let inventoryProductIds = null;
+    if (inventory !== "all" && inventory !== "not_tracked") {
+      const { data: variantRows, error: variantError } = await supabase
+        .from("product_variants")
+        .select("product_id, stock, active")
+        .eq("active", true);
+
+      if (variantError) throw variantError;
+
+      const byProduct = new Map();
+      for (const variant of variantRows || []) {
+        const productId = variant.product_id;
+        if (!productId) continue;
+        const current = byProduct.get(productId) || { total: 0, hasLow: false };
+        const stock = Number(variant.stock || 0);
+        current.total += stock;
+        if (stock <= Number(lowStockThreshold || 0)) current.hasLow = true;
+        byProduct.set(productId, current);
+      }
+
+      inventoryProductIds = [];
+      for (const [productId, stockState] of byProduct.entries()) {
+        const matches =
+          inventory === "in_stock"
+            ? stockState.total > 0
+            : inventory === "low_stock"
+              ? stockState.hasLow
+              : inventory === "out_of_stock"
+                ? stockState.total <= 0
+                : true;
+        if (matches) inventoryProductIds.push(productId);
+      }
+
+      if (inventory === "out_of_stock") {
+        const { data: trackedProducts, error: trackedError } = await supabase
+          .from("products")
+          .select("id")
+          .eq("track_inventory", true);
+        if (trackedError) throw trackedError;
+        const known = new Set(inventoryProductIds);
+        for (const product of trackedProducts || []) {
+          if (!byProduct.has(product.id) && !known.has(product.id)) {
+            inventoryProductIds.push(product.id);
+          }
+        }
+      }
+
+      if (inventoryProductIds.length === 0) {
+        return {
+          products: [],
+          total: 0,
+          page: safePage,
+          pageSize: safePageSize,
+        };
+      }
+    }
 
     let query = supabase
       .from("products")
@@ -88,6 +152,30 @@ export const adminProductsApi = {
     }
 
     if (status !== "all") query = query.eq("status", status);
+    if (category) query = query.eq("category", category);
+    if (vendor) query = query.eq("vendor", vendor);
+
+    const parsedMinPrice = Number(minPrice);
+    if (String(minPrice).trim() !== "" && Number.isFinite(parsedMinPrice)) {
+      query = query.gte("price", parsedMinPrice);
+    }
+
+    const parsedMaxPrice = Number(maxPrice);
+    if (String(maxPrice).trim() !== "" && Number.isFinite(parsedMaxPrice)) {
+      query = query.lte("price", parsedMaxPrice);
+    }
+
+    const parsedDays = Number(updatedWithinDays);
+    if (updatedWithinDays !== "all" && Number.isFinite(parsedDays) && parsedDays > 0) {
+      const cutoff = new Date(Date.now() - parsedDays * 24 * 60 * 60 * 1000).toISOString();
+      query = query.gte("updated_at", cutoff);
+    }
+
+    if (inventory === "not_tracked") {
+      query = query.eq("track_inventory", false);
+    } else if (inventoryProductIds) {
+      query = query.eq("track_inventory", true).in("id", inventoryProductIds);
+    }
 
     const { data, error, count } = await query;
     if (error) throw error;
@@ -98,6 +186,24 @@ export const adminProductsApi = {
       page: safePage,
       pageSize: safePageSize,
     };
+  },
+
+  async filterOptions() {
+    const { data, error } = await supabase
+      .from("products")
+      .select("category, vendor");
+
+    if (error) throw error;
+
+    const categories = Array.from(
+      new Set((data || []).map((row) => String(row.category || "").trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+
+    const vendors = Array.from(
+      new Set((data || []).map((row) => String(row.vendor || "GDP Clothing").trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+
+    return { categories, vendors };
   },
 
   async summary(lowStockThreshold = 5) {
