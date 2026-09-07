@@ -115,9 +115,102 @@ export function getArtworkQuality(item, settingsInput = {}) {
   return { label: "Low resolution", tone: "bad", dpi };
 }
 
+export function normalizeArtworkRotation(value = 0) {
+  const angle = numberOr(value, 0) % 360;
+  return angle < 0 ? angle + 360 : angle;
+}
+
+export function getArtworkRotatedBounds(item = {}) {
+  const x = numberOr(item.x, 0);
+  const y = numberOr(item.y, 0);
+  const width = Math.max(0, numberOr(item.width, 0));
+  const height = Math.max(0, numberOr(item.height, 0));
+  const angle = normalizeArtworkRotation(item.rotation);
+  const radians = (angle * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(radians));
+  const sin = Math.abs(Math.sin(radians));
+  const boundsWidth = width * cos + height * sin;
+  const boundsHeight = width * sin + height * cos;
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+
+  return {
+    left: centerX - boundsWidth / 2,
+    top: centerY - boundsHeight / 2,
+    right: centerX + boundsWidth / 2,
+    bottom: centerY + boundsHeight / 2,
+    width: boundsWidth,
+    height: boundsHeight,
+    centerX,
+    centerY,
+    angle,
+  };
+}
+
+function artworkCorners(item = {}) {
+  const x = numberOr(item.x, 0);
+  const y = numberOr(item.y, 0);
+  const width = Math.max(0, numberOr(item.width, 0));
+  const height = Math.max(0, numberOr(item.height, 0));
+  const angle = normalizeArtworkRotation(item.rotation);
+  const radians = (angle * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+
+  return [
+    [-halfWidth, -halfHeight],
+    [halfWidth, -halfHeight],
+    [halfWidth, halfHeight],
+    [-halfWidth, halfHeight],
+  ].map(([localX, localY]) => ({
+    x: centerX + localX * cos - localY * sin,
+    y: centerY + localX * sin + localY * cos,
+  }));
+}
+
+function polygonsOverlap(a, b) {
+  const axes = [];
+  for (const polygon of [a, b]) {
+    for (let index = 0; index < polygon.length; index += 1) {
+      const current = polygon[index];
+      const next = polygon[(index + 1) % polygon.length];
+      const edgeX = next.x - current.x;
+      const edgeY = next.y - current.y;
+      const length = Math.hypot(edgeX, edgeY) || 1;
+      axes.push({ x: -edgeY / length, y: edgeX / length });
+    }
+  }
+
+  for (const axis of axes) {
+    let minA = Infinity;
+    let maxA = -Infinity;
+    let minB = Infinity;
+    let maxB = -Infinity;
+
+    for (const point of a) {
+      const projection = point.x * axis.x + point.y * axis.y;
+      minA = Math.min(minA, projection);
+      maxA = Math.max(maxA, projection);
+    }
+    for (const point of b) {
+      const projection = point.x * axis.x + point.y * axis.y;
+      minB = Math.min(minB, projection);
+      maxB = Math.max(maxB, projection);
+    }
+
+    if (maxA <= minB + 0.0001 || maxB <= minA + 0.0001) return false;
+  }
+
+  return true;
+}
+
 export function usedArtworkLength(items = [], spacing = 0.25) {
   if (!items.length) return 0;
-  return Math.max(...items.map((item) => numberOr(item.y, 0) + numberOr(item.height, 0))) + spacing;
+  return Math.max(...items.map((item) => getArtworkRotatedBounds(item).bottom)) + spacing;
 }
 
 export function calculateUtilization(items = [], sheetWidth = 34, sheetLength = 36) {
@@ -179,15 +272,19 @@ export function artworkOverlaps(items = []) {
   const overlaps = [];
   for (let i = 0; i < items.length; i += 1) {
     const a = items[i];
+    const aBounds = getArtworkRotatedBounds(a);
     for (let j = i + 1; j < items.length; j += 1) {
       const b = items[j];
-      const intersects =
-        numberOr(a.x, 0) < numberOr(b.x, 0) + numberOr(b.width, 0) &&
-        numberOr(a.x, 0) + numberOr(a.width, 0) > numberOr(b.x, 0) &&
-        numberOr(a.y, 0) < numberOr(b.y, 0) + numberOr(b.height, 0) &&
-        numberOr(a.y, 0) + numberOr(a.height, 0) > numberOr(b.y, 0);
+      const bBounds = getArtworkRotatedBounds(b);
+      const aabbIntersects =
+        aBounds.left < bBounds.right &&
+        aBounds.right > bBounds.left &&
+        aBounds.top < bBounds.bottom &&
+        aBounds.bottom > bBounds.top;
 
-      if (intersects) overlaps.push([a.id, b.id]);
+      if (aabbIntersects && polygonsOverlap(artworkCorners(a), artworkCorners(b))) {
+        overlaps.push([a.id, b.id]);
+      }
     }
   }
   return overlaps;
