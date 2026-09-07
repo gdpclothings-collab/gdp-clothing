@@ -213,6 +213,18 @@ export default function DTFGangSheetAdminModule() {
               onChange={(value) => set("allowCustomLength", value)}
             />
             <ToggleField
+              label="Advanced nesting"
+              helper="Uses multi-pass MaxRects packing to minimize film length. Turn off to fall back to the original row arrangement."
+              checked={form.advancedNestingEnabled}
+              onChange={(value) => set("advancedNestingEnabled", value)}
+            />
+            <ToggleField
+              label="Automatic 90° rotation"
+              helper="Lets Advanced Nest rotate artwork when it saves film while preserving the selected print dimensions."
+              checked={form.autoRotateEnabled}
+              onChange={(value) => set("autoRotateEnabled", value)}
+            />
+            <ToggleField
               label="Professional artwork review option"
               helper="Shows an optional pre-production review checkbox in the builder."
               checked={form.artworkReviewEnabled}
