@@ -112,10 +112,6 @@ export default function DTFGangSheet() {
 
     return () => {
       active = false;
-      setArtworks((current) => {
-        current.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
-        return current;
-      });
     };
   }, []);
 
@@ -699,7 +695,7 @@ export default function DTFGangSheet() {
                     onPointerLeave={endDrag}
                   >
                     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-between bg-black/70 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.08em] text-white">
-                      <span>34" wide DTF film</span>
+                      <span>{round(sheetWidth, 1)}" wide DTF film</span>
                       <span>{round(sheetLength, 1)}" length</span>
                     </div>
                     {artworks.map((item) => {
