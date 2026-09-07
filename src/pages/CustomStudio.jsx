@@ -336,14 +336,46 @@ function recommendedPrintProfile(type, size, side = "front") {
   }
 
   if (!isBack) {
-    return {
-      ...profile,
-      maxWidthIn: profile.maxWidthIn || profile.widthIn,
-      maxHeightIn: profile.maxHeightIn || profile.heightIn,
-    };
+    return recommendedFrontPrintProfile(key, normalizedSize, profile);
   }
 
   return recommendedBackPrintProfile(key, normalizedSize, profile);
+}
+
+function recommendedFrontPrintProfile(key, normalizedSize, profile) {
+  let maxWidthIn = 12;
+  let maxHeightIn = 16;
+
+  if (key.includes("baby") || key.includes("bodysuit") || key.includes("onesie")) {
+    maxWidthIn = 6;
+    maxHeightIn = 7;
+  } else if (key.includes("toddler")) {
+    maxWidthIn = 7.5;
+    maxHeightIn = 9;
+  } else if (key.includes("youth") || key === "kids") {
+    maxWidthIn = 10;
+    maxHeightIn = 12;
+  } else if (key.includes("hoodie")) {
+    maxWidthIn = 12;
+    maxHeightIn = 14;
+  } else if (
+    key.includes("sweatshirt") ||
+    key.includes("sweater") ||
+    key.includes("crewneck") ||
+    (key.includes("crew neck") && !key.includes("t shirt"))
+  ) {
+    maxWidthIn = 12;
+    maxHeightIn = 15;
+  }
+
+  return {
+    ...profile,
+    maxWidthIn,
+    maxHeightIn,
+    placementLabel: key.includes("baby") || key.includes("bodysuit") || key.includes("onesie")
+      ? "Centered torso"
+      : profile.placementLabel,
+  };
 }
 
 function recommendedBackPrintProfile(key, normalizedSize, frontProfile) {
@@ -1582,11 +1614,11 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
     {showMeasurements && !blankBack && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
-      <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">{side === "back" ? "Back print guide" : "Recommended print zone"} · {size || "—"}</div>
+      <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">{side === "back" ? "Back print guide" : "Front print guide"} · {size || "—"}</div>
       <div className="mt-1 text-[10px] font-bold text-[#292621]">Recommended · {measurementPair(profile.widthIn, profile.heightIn)}</div>
-      {side === "back" && <div className="mt-1 text-[8px] font-semibold text-[#6f6a63]">Maximum safe area · {measurementPair(profile.maxWidthIn, profile.maxHeightIn)}</div>}
+      <div className="mt-1 text-[8px] font-semibold text-[#6f6a63]">Maximum safe area · {measurementPair(profile.maxWidthIn, profile.maxHeightIn)}</div>
       <div className="mt-1 text-[8px] leading-relaxed text-[#625c54]">{profile.placementLabel} · ↓ {measurementSingle(profile.collarIn)} from {String(garment?.previewType || garment?.type || "").toLowerCase().includes("hoodie") ? "hood seam" : "collar"}</div>
-      {side === "back" && configuredGuide?.sizeScalingEnabled !== false && <div className="mt-1 text-[8px] text-[#7a746c]">Size-aware preset is active for {size || "this size"}.</div>}
+      {configuredGuide?.sizeScalingEnabled !== false && <div className="mt-1 text-[8px] text-[#7a746c]">Size-aware preset is active for {size || "this size"}.</div>}
       {profile.bottomClearanceIn && <div className="mt-1 text-[8px] font-semibold text-[#8a514b]">Keep ≥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
     </div>}
 
@@ -1601,9 +1633,9 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
             <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/90 px-1 py-0.5 font-mono text-[7px] text-accent">{formatMeasurementNumber(profile.collarIn)}"</span>
           </div>
 
-          {side === "back" && <div className="absolute left-1/2 -translate-x-1/2 rounded-sm border border-dotted border-[#7b8794]/75 bg-[#17324D]/[0.015]" style={maxPrintAreaStyle}>
+          <div className="absolute left-1/2 -translate-x-1/2 rounded-sm border border-dotted border-[#7b8794]/75 bg-[#17324D]/[0.015]" style={maxPrintAreaStyle}>
             <span className="absolute bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-white/90 px-1.5 py-0.5 font-mono text-[6px] uppercase tracking-wide text-[#65717d]">maximum safe area</span>
-          </div>}
+          </div>
 
           <div className="absolute left-1/2 -translate-x-1/2" style={printAreaStyle}>
             <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-accent/55" />
