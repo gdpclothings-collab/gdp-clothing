@@ -1489,6 +1489,8 @@ export default function DTFGangSheet() {
                             top: `${(item.y / sheetLength) * 100}%`,
                             width: `${(item.width / sheetWidth) * 100}%`,
                             height: `${(item.height / sheetLength) * 100}%`,
+                            transform: `rotate(${normalizeArtworkRotation(item.rotation)}deg)`,
+                            transformOrigin: "center center",
                           }}
                           title={item.name}
                         >
@@ -1499,19 +1501,11 @@ export default function DTFGangSheet() {
                               draggable="false"
                               onDragStart={(event) => event.preventDefault()}
                               className="pointer-events-none absolute left-1/2 top-1/2 select-none object-contain"
-                              style={
-                                Math.abs(Number(item.rotation || 0)) % 180 === 90
-                                  ? {
-                                      width: `${(item.height / Math.max(0.01, item.width)) * 100}%`,
-                                      height: `${(item.width / Math.max(0.01, item.height)) * 100}%`,
-                                      transform: "translate(-50%, -50%) rotate(90deg)",
-                                    }
-                                  : {
-                                      width: "100%",
-                                      height: "100%",
-                                      transform: "translate(-50%, -50%)",
-                                    }
-                              }
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                transform: "translate(-50%, -50%)",
+                              }}
                             />
                           ) : (
                             <div className="flex h-full min-h-10 items-center justify-center bg-white/85 px-2 text-center font-mono text-[8px] font-bold uppercase">
@@ -1520,8 +1514,11 @@ export default function DTFGangSheet() {
                           )}
                           {selected && (
                             <>
-                              <span className="pointer-events-none absolute -left-0.5 -top-5 bg-black px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white">
-                                {round(item.width, 1)}" × {round(item.height, 1)}"
+                              <span
+                                className="pointer-events-none absolute -left-0.5 -top-5 bg-black px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white"
+                                style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
+                              >
+                                {round(item.width, 1)}" × {round(item.height, 1)}" · {round(normalizeArtworkRotation(item.rotation), 1)}°
                               </span>
                               <button
                                 type="button"
@@ -1537,27 +1534,31 @@ export default function DTFGangSheet() {
                                   removeArtwork(item.id);
                                 }}
                                 className="absolute -right-3 -top-3 z-30 grid h-7 w-7 place-items-center rounded-full border border-white bg-red-600 text-white shadow-lg transition hover:bg-red-700"
+                                style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
                               >
                                 <Trash2 size={13} />
                               </button>
                               {mode === "build" && (
-                                <button
-                                  type="button"
-                                  aria-label={`Rotate ${item.name}`}
-                                  title="Rotate artwork 90°"
-                                  onPointerDown={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                  }}
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    rotateSelected();
-                                  }}
-                                  className="absolute -bottom-4 -left-4 z-30 grid h-8 w-8 place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg transition hover:bg-black hover:text-white"
-                                >
-                                  <RotateCw size={14} />
-                                </button>
+                                <>
+                                  <span
+                                    className="pointer-events-none absolute left-1/2 h-7 border-l border-black/40"
+                                    style={{ top: "-29px" }}
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label={`Rotate ${item.name} freely`}
+                                    title="Drag to rotate freely · Hold Shift to snap by 15°"
+                                    onPointerDown={(event) => onRotatePointerDown(event, item)}
+                                    className="absolute z-30 grid h-8 w-8 cursor-grab place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg transition active:cursor-grabbing hover:bg-black hover:text-white"
+                                    style={{
+                                      left: "50%",
+                                      top: "-43px",
+                                      transform: `translateX(-50%) rotate(${-normalizeArtworkRotation(item.rotation)}deg)`,
+                                    }}
+                                  >
+                                    <RotateCw size={14} />
+                                  </button>
+                                </>
                               )}
                               <button
                                 type="button"
@@ -1565,6 +1566,7 @@ export default function DTFGangSheet() {
                                 title="Drag to resize artwork"
                                 onPointerDown={(event) => onResizePointerDown(event, item)}
                                 className="absolute -bottom-4 -right-4 z-30 grid h-8 w-8 cursor-nwse-resize place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg"
+                                style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
                               >
                                 <Maximize2 size={14} />
                               </button>
@@ -1640,6 +1642,52 @@ export default function DTFGangSheet() {
                     </div>
                   </Field>
                 </div>
+                {mode === "build" && (
+                  <div className="mb-3 border border-black/10 bg-white p-3">
+                    <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                      <Field label="Rotation">
+                        <div className="flex items-center gap-2">
+                          <input
+                            key={`rotation-${selectedArtwork.id}-${round(normalizeArtworkRotation(selectedArtwork.rotation), 1)}`}
+                            type="number"
+                            min="0"
+                            max="359.9"
+                            step="0.1"
+                            defaultValue={round(normalizeArtworkRotation(selectedArtwork.rotation), 1)}
+                            onBlur={(event) => commitSelectedRotation(event.target.value, event.target)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") event.currentTarget.blur();
+                            }}
+                            className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
+                          />
+                          <span className="font-mono text-xs">°</span>
+                        </div>
+                      </Field>
+                      <button
+                        type="button"
+                        onClick={rotateSelected}
+                        className="mb-4 flex min-h-10 items-center gap-1.5 border border-black/15 px-3 text-[9px] font-black uppercase"
+                      >
+                        <RotateCw size={13} /> +90°
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[0, 90, 180, 270].map((angle) => (
+                        <button
+                          key={angle}
+                          type="button"
+                          onClick={() => setSelectedRotation(angle)}
+                          className={`min-h-8 border px-2 font-mono text-[9px] ${Math.abs(normalizeArtworkRotation(selectedArtwork.rotation) - angle) < 0.05 ? "border-black bg-black text-white" : "border-black/15 bg-white hover:border-black"}`}
+                        >
+                          {angle}°
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2 text-[9px] leading-4 text-black/40">
+                      Drag the rotation handle above the selected artwork for full 360° control. Hold Shift on desktop to snap in 15° increments.
+                    </div>
+                  </div>
+                )}
                 <div className="mb-3 text-[10px] leading-4 text-black/45">
                   Aspect ratio is locked so the artwork cannot be stretched or distorted.
                 </div>
@@ -1719,7 +1767,7 @@ export default function DTFGangSheet() {
                     <RotateCcw size={13} /> Reset size
                   </button>
                   <button type="button" onClick={rotateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
-                    <RotateCw size={13} /> Rotate
+                    <RotateCw size={13} /> Rotate 90°
                   </button>
                   <button type="button" onClick={duplicateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
                     <Copy size={13} /> Duplicate
@@ -1837,7 +1885,7 @@ export default function DTFGangSheet() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="truncate text-[10px] font-black uppercase tracking-[0.08em]">{selectedArtwork.name}</div>
-                <div className="mt-0.5 font-mono text-[9px] text-black/45">{round(selectedArtwork.width, 2)}" × {round(selectedArtwork.height, 2)}"</div>
+                <div className="mt-0.5 font-mono text-[9px] text-black/45">{round(selectedArtwork.width, 2)}" × {round(selectedArtwork.height, 2)}" · {round(normalizeArtworkRotation(selectedArtwork.rotation), 1)}°</div>
               </div>
               <button
                 type="button"
