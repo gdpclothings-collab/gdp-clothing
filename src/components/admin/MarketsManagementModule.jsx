@@ -11,6 +11,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { adminMarketsApi } from "@/lib/adminMarketsApi";
+import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function money(value, currency = "CAD") {
   return Number(value || 0).toLocaleString("en-CA", {
@@ -377,16 +378,25 @@ function MarketEditor({ market, onClose, onSaved }) {
         countries: form.countries.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean),
       });
       await onSaved();
+      return true;
     } catch (err) {
       console.error("Market save failed:", err);
       window.alert(err?.message || "Could not save market.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: market?.name ? `Market: ${market.name}` : "Market editor",
+  });
+
   return (
-    <Editor title={market ? "Edit market" : "Add market"} onClose={onClose} onSave={save} saving={saving}>
+    <Editor title={market ? "Edit market" : "Add market"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty}>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Market code"><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} className={inputClass} /></Field>
         <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} /></Field>
@@ -422,16 +432,25 @@ function ShippingEditor({ rate, markets, profiles, onClose, onSaved }) {
     try {
       await adminMarketsApi.saveShippingRate(rate?.id || null, form);
       await onSaved();
+      return true;
     } catch (err) {
       console.error("Shipping rate save failed:", err);
       window.alert(err?.message || "Could not save shipping rate.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: rate?.name ? `Shipping rate: ${rate.name}` : "Shipping rate editor",
+  });
+
   return (
-    <Editor title={rate ? "Edit shipping rate" : "Add shipping rate"} onClose={onClose} onSave={save} saving={saving}>
+    <Editor title={rate ? "Edit shipping rate" : "Add shipping rate"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty}>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Profile">
           <select value={form.profileId} onChange={(e) => setForm({ ...form, profileId: e.target.value })} className={inputClass}>
@@ -475,16 +494,25 @@ function TaxEditor({ rule, markets, onClose, onSaved }) {
     try {
       await adminMarketsApi.saveTaxRule(rule?.id || null, form);
       await onSaved();
+      return true;
     } catch (err) {
       console.error("Tax rule save failed:", err);
       window.alert(err?.message || "Could not save tax rule.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: rule?.name ? `Tax rule: ${rule.name}` : "Tax rule editor",
+  });
+
   return (
-    <Editor title={rule ? "Edit tax rule" : "Add tax rule"} onClose={onClose} onSave={save} saving={saving}>
+    <Editor title={rule ? "Edit tax rule" : "Add tax rule"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty}>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Market">
           <select value={form.marketId} onChange={(e) => setForm({ ...form, marketId: e.target.value })} className={inputClass}>
@@ -504,7 +532,7 @@ function TaxEditor({ rule, markets, onClose, onSaved }) {
   );
 }
 
-function Editor({ title, onClose, onSave, saving, children }) {
+function Editor({ title, onClose, onSave, saving, dirty, children }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-6">
@@ -515,7 +543,7 @@ function Editor({ title, onClose, onSave, saving, children }) {
         <div className="p-5 space-y-3">{children}</div>
         <div className="px-5 py-4 border-t border-[#e3e3e3] flex justify-end gap-2">
           <button onClick={onClose} className={secondaryButton}>Cancel</button>
-          <button onClick={onSave} disabled={saving} className={primaryButton}>
+          <button onClick={onSave} disabled={saving || !dirty} className={primaryButton}>
             <Save size={14} /> {saving ? "Saving…" : "Save"}
           </button>
         </div>
