@@ -846,6 +846,60 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     }));
   };
 
+  const setMockupNormalizationValue = (side, key, value) => {
+    setForm((current) => {
+      const preview = current.customization?.preview || {};
+      const parsed = value === "" ? "" : Number(value);
+      const normalizedValue = key === "scale" && parsed !== "" ? parsed / 100 : parsed;
+
+      return {
+        ...current,
+        customization: {
+          ...(current.customization || {}),
+          preview: {
+            ...preview,
+            canvas: {
+              width: 1000,
+              height: 1200,
+              ...(preview.canvas || {}),
+            },
+            normalization: {
+              ...(preview.normalization || {}),
+              [side]: {
+                ...(preview.normalization?.[side] || {}),
+                [key]: normalizedValue,
+              },
+            },
+          },
+        },
+      };
+    });
+  };
+
+  const resetMockupNormalization = (side) => {
+    setForm((current) => {
+      const preview = current.customization?.preview || {};
+      return {
+        ...current,
+        customization: {
+          ...(current.customization || {}),
+          preview: {
+            ...preview,
+            canvas: {
+              width: 1000,
+              height: 1200,
+              ...(preview.canvas || {}),
+            },
+            normalization: {
+              ...(preview.normalization || {}),
+              [side]: { scale: 1, offsetX: 0, offsetY: 0 },
+            },
+          },
+        },
+      };
+    });
+  };
+
   const updateMediaAssignments = (urls, patchOrFactory, { clear = false } = {}) => {
     const selectedUrls = Array.from(new Set((urls || []).filter(Boolean)));
     if (!selectedUrls.length) return;
@@ -2889,6 +2943,80 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       </div>
                     </div>
                   )}
+                  <div className="rounded-lg border border-[#cfd9e3] bg-[#f7fafc] p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-xs font-semibold text-[#17324D]">Front / Back mockup normalization</div>
+                        <div className="mt-0.5 text-[10px] leading-4 text-[#66727e]">
+                          Both sides render inside the same 1000 × 1200 Studio canvas. Use these controls only for fine calibration so switching sides does not zoom, jump or drift.
+                        </div>
+                      </div>
+                      <div className="rounded-full border border-[#cbd7e1] bg-white px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-[#52616e]">
+                        Canonical canvas · 5:6
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                      {["front", "back"].map((studioSide) => {
+                        const normalization = form.customization?.preview?.normalization?.[studioSide] || {};
+                        const storedScale = Number(normalization.scale);
+                        const scalePercent = Number.isFinite(storedScale) && storedScale > 0 ? storedScale * 100 : 100;
+                        return (
+                          <div key={studioSide} className="rounded-lg border border-[#dbe3ea] bg-white p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-[11px] font-bold uppercase tracking-wide text-[#17324D]">{studioSide} view</div>
+                              <button
+                                type="button"
+                                onClick={() => resetMockupNormalization(studioSide)}
+                                className="h-7 rounded-md border border-[#d5dce2] px-2 text-[9px] font-semibold text-[#5d6872] hover:border-[#9eacb8]"
+                              >
+                                Reset
+                              </button>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2">
+                              <Field label="Scale %">
+                                <input
+                                  type="number"
+                                  min="70"
+                                  max="130"
+                                  step="0.5"
+                                  value={Number(scalePercent.toFixed(2))}
+                                  onChange={(event) => setMockupNormalizationValue(studioSide, "scale", event.target.value)}
+                                  className={inputClass}
+                                />
+                              </Field>
+                              <Field label="X offset %">
+                                <input
+                                  type="number"
+                                  min="-20"
+                                  max="20"
+                                  step="0.5"
+                                  value={normalization.offsetX ?? 0}
+                                  onChange={(event) => setMockupNormalizationValue(studioSide, "offsetX", event.target.value)}
+                                  className={inputClass}
+                                />
+                              </Field>
+                              <Field label="Y offset %">
+                                <input
+                                  type="number"
+                                  min="-20"
+                                  max="20"
+                                  step="0.5"
+                                  value={normalization.offsetY ?? 0}
+                                  onChange={(event) => setMockupNormalizationValue(studioSide, "offsetY", event.target.value)}
+                                  className={inputClass}
+                                />
+                              </Field>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 text-[10px] leading-4 text-[#66727e]">
+                      Target tolerance: visible garment height within 3%, center position within 2%, and no perceptible zoom when toggling Front ↔ Back.
+                    </div>
+                  </div>
+
                    <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
                     <div className="text-xs font-semibold">Front printable area</div>
                     <div className="text-[10px] text-[#777] mt-0.5">Percent values position the guide on the garment mockup. Editing any value automatically switches the Front side to a custom preview box.</div>

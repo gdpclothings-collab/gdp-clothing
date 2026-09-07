@@ -4,6 +4,12 @@ import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, 
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
+import {
+  getMockupLayerStyle,
+  preloadPreviewImages,
+  resolveMockupNormalization,
+  resolvePreviewCanvas,
+} from "@/lib/garmentPreviewNormalization";
 
 const OCCASIONS = [
   { id: "love", label: "Love & Relationships", icon: Heart, options: ["Anniversary","Boyfriend","Girlfriend","Husband","Wife","Valentine's","Couple"] },
@@ -1519,11 +1525,22 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
   const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
-  const configuredMockupUrl = side === "back"
-    ? (colorPreview.backUrl || previewSettings.backMockupUrl)
-    : (colorPreview.frontUrl || previewSettings.frontMockupUrl);
-  const inferredMockupUrl = previewImageForGarment(garment, color, side);
-  const mockupUrl = configuredMockupUrl || inferredMockupUrl;
+  const frontMockupUrl =
+    colorPreview.frontUrl ||
+    previewSettings.frontMockupUrl ||
+    previewImageForGarment(garment, color, "front");
+  const backMockupUrl =
+    colorPreview.backUrl ||
+    previewSettings.backMockupUrl ||
+    previewImageForGarment(garment, color, "back");
+  const mockupUrl = side === "back" ? backMockupUrl : frontMockupUrl;
+  const previewCanvas = resolvePreviewCanvas(previewSettings);
+  const mockupNormalization = resolveMockupNormalization(previewSettings, side);
+  const mockupLayerStyle = getMockupLayerStyle(mockupNormalization);
+
+  useEffect(() => {
+    preloadPreviewImages([frontMockupUrl, backMockupUrl]);
+  }, [frontMockupUrl, backMockupUrl]);
   const configuredNumber = (value, fallback) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -1606,8 +1623,21 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     </div>}
 
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
-      <div className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}>
-        {mockupUrl ? <img src={mockupUrl} alt={(garment?.label || "Custom garment") + " " + side + " mockup"} className="w-full h-auto object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]" /> : <GarmentShape type={garment?.previewType || garment?.type || "T-Shirt"} color={color} side={side} />}
+      <div
+        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}
+        style={{ aspectRatio: `${previewCanvas.width} / ${previewCanvas.height}` }}
+      >
+        {mockupUrl ? (
+          <img
+            src={mockupUrl}
+            alt={(garment?.label || "Custom garment") + " " + side + " mockup"}
+            className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]"
+            style={mockupLayerStyle}
+            draggable="false"
+          />
+        ) : (
+          <GarmentShape type={garment?.previewType || garment?.type || "T-Shirt"} color={color} side={side} />
+        )}
 
         {showMeasurements && !blankBack && <div className="absolute inset-0 z-20 pointer-events-none select-none">
           <div className="absolute w-px bg-accent/65" style={{ left: "50%", top: collarAnchor + "%", height: collarGuideHeight + "%" }}>
