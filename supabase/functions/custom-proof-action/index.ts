@@ -231,7 +231,7 @@ Deno.serve(async (req: Request) => {
       if (proof.order_id) {
         await service
           .from("orders")
-          .update({ status: "approved", fulfillment_status: "approved" })
+          .update({ status: "approved", design_status: "approved" })
           .eq("id", proof.order_id);
       }
 
@@ -265,7 +265,7 @@ Deno.serve(async (req: Request) => {
       if (proof.order_id) {
         await service
           .from("orders")
-          .update({ status: "revision_requested", fulfillment_status: "revision_requested" })
+          .update({ status: "revision_requested", design_status: "revision_requested" })
           .eq("id", proof.order_id);
       }
 
