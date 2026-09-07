@@ -1,23 +1,68 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { useAuth } from "@/lib/AuthContext";
+import {
+  readStoredJson,
+  removeStoredKey,
+  scopedStorageKey,
+  writeStoredJson,
+} from "@/lib/customerStorageScope";
 
 const CartContext = createContext(null);
-const CART_KEY = "gdp_cart_v1";
-const WISH_KEY = "gdp_wishlist_v1";
+const CART_KEY = "gdp_cart_v2";
+const SAVED_KEY = "gdp_saved_v2";
+const WISH_KEY = "gdp_wishlist_v2";
+const LEGACY_KEYS = ["gdp_cart_v1", "gdp_saved_v1", "gdp_wishlist_v1"];
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch { return []; }
-  });
-  const [saved, setSaved] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("gdp_saved_v1")) || []; } catch { return []; }
-  });
-  const [wishlist, setWishlist] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(WISH_KEY)) || []; } catch { return []; }
-  });
+  const { user, isLoadingAuth } = useAuth();
+  const storageKeys = useMemo(() => ({
+    cart: scopedStorageKey(CART_KEY, user),
+    saved: scopedStorageKey(SAVED_KEY, user),
+    wishlist: scopedStorageKey(WISH_KEY, user),
+  }), [user?.id]);
+  const storageSignature = `${storageKeys.cart}|${storageKeys.saved}|${storageKeys.wishlist}`;
 
-  useEffect(() => { localStorage.setItem(CART_KEY, JSON.stringify(items)); }, [items]);
-  useEffect(() => { localStorage.setItem(WISH_KEY, JSON.stringify(wishlist)); }, [wishlist]);
-  useEffect(() => { localStorage.setItem("gdp_saved_v1", JSON.stringify(saved)); }, [saved]);
+  const [items, setItems] = useState([]);
+  const [saved, setSaved] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  const [loadedStorageSignature, setLoadedStorageSignature] = useState("");
+
+  useEffect(() => {
+    if (isLoadingAuth) {
+      setLoadedStorageSignature("");
+      return;
+    }
+
+    setItems(readStoredJson(storageKeys.cart, []));
+    setSaved(readStoredJson(storageKeys.saved, []));
+    setWishlist(readStoredJson(storageKeys.wishlist, []));
+    setLoadedStorageSignature(storageSignature);
+
+    // The old v1 keys were shared by every account in the browser. Remove
+    // them after auth resolution so they can never leak into another user.
+    LEGACY_KEYS.forEach(removeStoredKey);
+  }, [
+    isLoadingAuth,
+    storageKeys.cart,
+    storageKeys.saved,
+    storageKeys.wishlist,
+    storageSignature,
+  ]);
+
+  useEffect(() => {
+    if (loadedStorageSignature !== storageSignature) return;
+    writeStoredJson(storageKeys.cart, items);
+  }, [items, loadedStorageSignature, storageSignature, storageKeys.cart]);
+
+  useEffect(() => {
+    if (loadedStorageSignature !== storageSignature) return;
+    writeStoredJson(storageKeys.wishlist, wishlist);
+  }, [wishlist, loadedStorageSignature, storageSignature, storageKeys.wishlist]);
+
+  useEffect(() => {
+    if (loadedStorageSignature !== storageSignature) return;
+    writeStoredJson(storageKeys.saved, saved);
+  }, [saved, loadedStorageSignature, storageSignature, storageKeys.saved]);
 
   const addItem = useCallback((item) => {
     setItems(prev => {
