@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -392,6 +392,7 @@ export default function DTFGangSheet() {
   const [artworks, setArtworks] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [approval, setApproval] = useState(false);
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [artworkReviewRequested, setArtworkReviewRequested] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -923,6 +924,7 @@ export default function DTFGangSheet() {
     setArtworks([]);
     setSelectedId("");
     setApproval(false);
+    setRightsConfirmed(false);
     setArtworkReviewRequested(false);
     setPageError("");
     setNotice("Workspace reset. Upload artwork to start a new gang sheet.");
@@ -1161,6 +1163,10 @@ export default function DTFGangSheet() {
       setPageError("Review the film preview and confirm artwork approval before adding it to the cart.");
       return;
     }
+    if (!rightsConfirmed) {
+      setPageError("Confirm that you own or have permission to reproduce the DTF artwork before adding it to cart.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -1227,6 +1233,8 @@ export default function DTFGangSheet() {
           utilization: round(utilization, 2),
           usedLength: round(usedLength, 3),
           artworkReviewRequested,
+          rightsConfirmed: true,
+          rightsTimestamp: approvalTimestamp,
           approvalAcknowledged: true,
           approvalTimestamp,
           layout,
@@ -1904,6 +1912,22 @@ export default function DTFGangSheet() {
               </span>
             </label>
 
+            <label className="flex cursor-pointer items-start gap-3 border border-black/15 bg-white p-4">
+              <input
+                type="checkbox"
+                checked={rightsConfirmed}
+                onChange={(event) => setRightsConfirmed(event.target.checked)}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                <span className="block text-xs font-black uppercase tracking-[0.07em]">I have artwork rights</span>
+                <span className="mt-1 block text-[11px] leading-4 text-black/48">
+                  I own or have permission to reproduce this artwork for printing.{" "}
+                  <Link to="/pages/custom-artwork-policy" target="_blank" className="font-semibold text-black underline">Read the upload policy</Link>.
+                </span>
+              </span>
+            </label>
+
             {artworks.length > 0 && fitLength + 0.5 < sheetLength && (
               <button type="button" onClick={fitSheet} className="w-full border border-emerald-300 bg-emerald-50 p-4 text-left">
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.07em] text-emerald-900">
@@ -1917,7 +1941,7 @@ export default function DTFGangSheet() {
 
             <button
               type="button"
-              disabled={saving || !approval || Boolean(validation.errors.length)}
+              disabled={saving || !approval || !rightsConfirmed || Boolean(validation.errors.length)}
               onClick={addToCart}
               className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/25"
             >
