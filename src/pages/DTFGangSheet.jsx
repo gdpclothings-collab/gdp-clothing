@@ -11,6 +11,7 @@ import {
   Shirt,
   ShoppingBag,
   Sparkles,
+  RotateCw,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import {
   usedArtworkLength,
 } from "@/lib/dtfGangSheet";
 import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
+import { advancedNestArtwork } from "@/lib/dtfNesting";
 
 const round = (value, decimals = 2) => {
   const power = 10 ** decimals;
@@ -38,32 +40,166 @@ const createArtworkId = () =>
     ? crypto.randomUUID()
     : `art-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-function imageMetadata(file) {
+async function imageMetadata(file) {
   if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
-    return Promise.resolve({ pixelWidth: 0, pixelHeight: 0, aspectRatio: 1 });
+    return {
+      pixelWidth: 0,
+      pixelHeight: 0,
+      originalPixelWidth: 0,
+      originalPixelHeight: 0,
+      aspectRatio: 1,
+      previewUrl: "",
+      cropBounds: null,
+      transparentTrimmed: false,
+    };
   }
 
+  const sourceUrl = URL.createObjectURL(file);
+
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
     const image = new Image();
-    image.onload = () => {
-      const pixelWidth = Number(image.naturalWidth || 0);
-      const pixelHeight = Number(image.naturalHeight || 0);
-      URL.revokeObjectURL(url);
+
+    image.onload = async () => {
+      const originalPixelWidth = Number(image.naturalWidth || 0);
+      const originalPixelHeight = Number(image.naturalHeight || 0);
+      let pixelWidth = originalPixelWidth;
+      let pixelHeight = originalPixelHeight;
+      let aspectRatio = originalPixelHeight > 0 ? originalPixelWidth / originalPixelHeight : 1;
+      let previewUrl = sourceUrl;
+      let cropBounds = null;
+      let transparentTrimmed = false;
+
+      try {
+        if (
+          file.type === "image/png" &&
+          originalPixelWidth > 0 &&
+          originalPixelHeight > 0
+        ) {
+          const maxSampleSide = 900;
+          const sampleScale = Math.min(
+            1,
+            maxSampleSide / Math.max(originalPixelWidth, originalPixelHeight)
+          );
+          const sampleWidth = Math.max(1, Math.round(originalPixelWidth * sampleScale));
+          const sampleHeight = Math.max(1, Math.round(originalPixelHeight * sampleScale));
+          const sampleCanvas = document.createElement("canvas");
+          sampleCanvas.width = sampleWidth;
+          sampleCanvas.height = sampleHeight;
+          const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
+
+          if (sampleContext) {
+            sampleContext.clearRect(0, 0, sampleWidth, sampleHeight);
+            sampleContext.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+            const pixels = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight).data;
+            let minX = sampleWidth;
+            let minY = sampleHeight;
+            let maxX = -1;
+            let maxY = -1;
+            let hasTransparency = false;
+
+            for (let y = 0; y < sampleHeight; y += 1) {
+              for (let x = 0; x < sampleWidth; x += 1) {
+                const alpha = pixels[(y * sampleWidth + x) * 4 + 3];
+                if (alpha < 250) hasTransparency = true;
+                if (alpha > 8) {
+                  minX = Math.min(minX, x);
+                  minY = Math.min(minY, y);
+                  maxX = Math.max(maxX, x);
+                  maxY = Math.max(maxY, y);
+                }
+              }
+            }
+
+            if (hasTransparency && maxX >= minX && maxY >= minY) {
+              const pad = 1;
+              minX = Math.max(0, minX - pad);
+              minY = Math.max(0, minY - pad);
+              maxX = Math.min(sampleWidth - 1, maxX + pad);
+              maxY = Math.min(sampleHeight - 1, maxY + pad);
+
+              const left = minX / sampleWidth;
+              const top = minY / sampleHeight;
+              const right = (maxX + 1) / sampleWidth;
+              const bottom = (maxY + 1) / sampleHeight;
+              const visibleWidthRatio = Math.max(0.001, right - left);
+              const visibleHeightRatio = Math.max(0.001, bottom - top);
+              const trimRatio = 1 - visibleWidthRatio * visibleHeightRatio;
+
+              if (trimRatio >= 0.01) {
+                cropBounds = { left, top, right, bottom };
+                transparentTrimmed = true;
+                pixelWidth = Math.max(1, Math.round(originalPixelWidth * visibleWidthRatio));
+                pixelHeight = Math.max(1, Math.round(originalPixelHeight * visibleHeightRatio));
+                aspectRatio = pixelWidth / Math.max(1, pixelHeight);
+
+                const maxPreviewSide = 1200;
+                const previewScale = Math.min(1, maxPreviewSide / Math.max(pixelWidth, pixelHeight));
+                const previewWidth = Math.max(1, Math.round(pixelWidth * previewScale));
+                const previewHeight = Math.max(1, Math.round(pixelHeight * previewScale));
+                const previewCanvas = document.createElement("canvas");
+                previewCanvas.width = previewWidth;
+                previewCanvas.height = previewHeight;
+                const previewContext = previewCanvas.getContext("2d");
+
+                if (previewContext) {
+                  previewContext.clearRect(0, 0, previewWidth, previewHeight);
+                  previewContext.drawImage(
+                    image,
+                    left * originalPixelWidth,
+                    top * originalPixelHeight,
+                    visibleWidthRatio * originalPixelWidth,
+                    visibleHeightRatio * originalPixelHeight,
+                    0,
+                    0,
+                    previewWidth,
+                    previewHeight
+                  );
+
+                  const previewBlob = await new Promise((blobResolve) =>
+                    previewCanvas.toBlob(blobResolve, "image/png")
+                  );
+                  if (previewBlob) {
+                    previewUrl = URL.createObjectURL(previewBlob);
+                    URL.revokeObjectURL(sourceUrl);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (analysisError) {
+        console.debug("Transparent PNG analysis fallback:", analysisError);
+      }
+
       resolve({
         pixelWidth,
         pixelHeight,
-        aspectRatio: pixelHeight > 0 ? pixelWidth / pixelHeight : 1,
+        originalPixelWidth,
+        originalPixelHeight,
+        aspectRatio,
+        previewUrl,
+        cropBounds,
+        transparentTrimmed,
       });
     };
+
     image.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ pixelWidth: 0, pixelHeight: 0, aspectRatio: 1 });
+      URL.revokeObjectURL(sourceUrl);
+      resolve({
+        pixelWidth: 0,
+        pixelHeight: 0,
+        originalPixelWidth: 0,
+        originalPixelHeight: 0,
+        aspectRatio: 1,
+        previewUrl: "",
+        cropBounds: null,
+        transparentTrimmed: false,
+      });
     };
-    image.src = url;
+
+    image.src = sourceUrl;
   });
 }
-
 function checkerboardStyle() {
   return {
     backgroundColor: "#f7f7f7",
@@ -115,6 +251,36 @@ export default function DTFGangSheet() {
       active = false;
     };
   }, []);
+
+  const runNesting = (items, currentLength = sheetLength) => {
+    if (!settings.advancedNestingEnabled) {
+      const arranged = autoArrangeArtwork(items, sheetWidth, currentLength, settings.spacing);
+      return {
+        items: arranged,
+        usedLength: usedArtworkLength(arranged, settings.spacing),
+        recommendedLength: Math.max(
+          settings.minLength,
+          Math.ceil(usedArtworkLength(arranged, settings.spacing) * 4) / 4
+        ),
+        efficiency: calculateUtilization(arranged, sheetWidth, Math.max(currentLength, 0.01)),
+        rotatedCount: 0,
+        unpacked: [],
+        passes: 1,
+        algorithm: "row-pack-fallback",
+      };
+    }
+
+    return advancedNestArtwork(
+      items,
+      sheetWidth,
+      currentLength,
+      settings.spacing,
+      {
+        allowRotation: settings.autoRotateEnabled !== false,
+        minLength: settings.minLength,
+      }
+    );
+  };
 
   const price = useMemo(
     () => calculateDtfPrice(sheetWidth, sheetLength, settings),
@@ -211,9 +377,15 @@ export default function DTFGangSheet() {
         name: file.name,
         type: file.type,
         size: file.size,
-        previewUrl: String(file.type || "").startsWith("image/") ? URL.createObjectURL(file) : "",
+        previewUrl:
+          metadata.previewUrl ||
+          (String(file.type || "").startsWith("image/") ? URL.createObjectURL(file) : ""),
         pixelWidth: metadata.pixelWidth,
         pixelHeight: metadata.pixelHeight,
+        originalPixelWidth: metadata.originalPixelWidth || metadata.pixelWidth,
+        originalPixelHeight: metadata.originalPixelHeight || metadata.pixelHeight,
+        cropBounds: metadata.cropBounds,
+        transparentTrimmed: metadata.transparentTrimmed === true,
         aspectRatio: metadata.aspectRatio || 1,
         isVector,
         x: settings.spacing,
@@ -225,9 +397,11 @@ export default function DTFGangSheet() {
     }
 
     const merged = mode === "upload" ? nextItems : [...artworks, ...nextItems];
-    const arranged = autoArrangeArtwork(merged, sheetWidth, sheetLength, settings.spacing);
-    setArtworks(arranged);
-    setSelectedId(arranged[arranged.length - 1]?.id || "");
+    const nested = runNesting(merged, sheetLength);
+    const nextLength = Math.max(sheetLength, nested.recommendedLength);
+    setSheetLength(nextLength);
+    setArtworks(nested.items);
+    setSelectedId(nested.items[nested.items.length - 1]?.id || "");
     setApproval(false);
   };
 
@@ -239,8 +413,14 @@ export default function DTFGangSheet() {
         const next = { ...item, ...patch };
         if (patch.width != null) {
           const width = Math.max(0.5, Math.min(Number(patch.width || 0.5), sheetWidth - settings.spacing * 2));
+          const rotated = Math.abs(Number(item.rotation || 0)) % 180 === 90;
           next.width = width;
-          next.height = Math.max(0.5, width / Math.max(0.01, item.aspectRatio || 1));
+          next.height = Math.max(
+            0.5,
+            rotated
+              ? width * Math.max(0.01, item.aspectRatio || 1)
+              : width / Math.max(0.01, item.aspectRatio || 1)
+          );
           next.x = Math.min(next.x, Math.max(0, sheetWidth - next.width));
         }
         return next;
@@ -257,8 +437,9 @@ export default function DTFGangSheet() {
       x: Math.min(sheetWidth - selectedArtwork.width, selectedArtwork.x + settings.spacing * 2),
       y: Math.min(sheetLength - selectedArtwork.height, selectedArtwork.y + settings.spacing * 2),
     };
-    const arranged = autoArrangeArtwork([...artworks, copy], sheetWidth, sheetLength, settings.spacing);
-    setArtworks(arranged);
+    const nested = runNesting([...artworks, copy], sheetLength);
+    setSheetLength(Math.max(sheetLength, nested.recommendedLength));
+    setArtworks(nested.items);
     setSelectedId(copy.id);
     setApproval(false);
   };
@@ -275,18 +456,71 @@ export default function DTFGangSheet() {
   };
 
   const autoArrange = () => {
-    const next = autoArrangeArtwork(artworks, sheetWidth, sheetLength, settings.spacing);
-    setArtworks(next);
+    const beforeLength = fitLengthToArtwork(artworks, settings);
+    const nested = runNesting(artworks, sheetLength);
+
+    if (nested.unpacked.length) {
+      setPageError(`${nested.unpacked.length} artwork item${nested.unpacked.length === 1 ? "" : "s"} could not fit within the ${sheetWidth}" film width.`);
+      return;
+    }
+
+    const previousLength = sheetLength;
+    setSheetLength(nested.recommendedLength);
+    setArtworks(nested.items);
     setApproval(false);
-    setNotice("Artwork arranged automatically.");
+    setPageError("");
+
+    const saved = Math.max(0, previousLength - nested.recommendedLength);
+    const detail = [
+      `${nested.passes} packing passes`,
+      `${nested.rotatedCount} auto-rotated`,
+      `${nested.efficiency.toFixed(1)}% packing efficiency`,
+    ].join(" · ");
+
+    setNotice(
+      saved >= 0.25
+        ? `Advanced nesting saved about ${saved.toFixed(2)}" of film. ${detail}.`
+        : beforeLength > nested.recommendedLength + 0.01
+          ? `Advanced nesting tightened the layout to ${nested.recommendedLength}". ${detail}.`
+          : `Advanced nesting optimized the current layout. ${detail}.`
+    );
   };
 
   const fitSheet = () => {
     const nextLength = Math.max(settings.minLength, fitLength);
     setSheetLength(nextLength);
-    setArtworks((current) => autoArrangeArtwork(current, sheetWidth, nextLength, settings.spacing));
     setApproval(false);
     setNotice(`Film length fitted to ${nextLength}".`);
+  };
+
+  const rotateSelected = () => {
+    if (!selectedArtwork || mode === "upload") return;
+
+    const nextRotation = (Number(selectedArtwork.rotation || 0) + 90) % 180;
+    const nextWidth = selectedArtwork.height;
+    const nextHeight = selectedArtwork.width;
+
+    if (nextWidth > sheetWidth - settings.spacing * 2) {
+      setPageError(`This design is too wide to rotate inside the ${sheetWidth}" film.`);
+      return;
+    }
+
+    setArtworks((current) =>
+      current.map((item) =>
+        item.id === selectedArtwork.id
+          ? {
+              ...item,
+              rotation: nextRotation,
+              width: nextWidth,
+              height: nextHeight,
+              x: Math.min(item.x, Math.max(0, sheetWidth - nextWidth)),
+              y: Math.min(item.y, Math.max(0, sheetLength - nextHeight)),
+            }
+          : item
+      )
+    );
+    setApproval(false);
+    setPageError("");
   };
 
   const onPointerDown = (event, item) => {
@@ -360,6 +594,10 @@ export default function DTFGangSheet() {
         rotation: Number(item.rotation || 0),
         pixelWidth: Number(item.pixelWidth || 0),
         pixelHeight: Number(item.pixelHeight || 0),
+        originalPixelWidth: Number(item.originalPixelWidth || item.pixelWidth || 0),
+        originalPixelHeight: Number(item.originalPixelHeight || item.pixelHeight || 0),
+        cropBounds: item.cropBounds || null,
+        transparentTrimmed: item.transparentTrimmed === true,
       }));
 
       const reviewFee = artworkReviewRequested && settings.artworkReviewEnabled
@@ -623,6 +861,7 @@ export default function DTFGangSheet() {
                           <div className="truncate text-[11px] font-semibold">{index + 1}. {item.name}</div>
                           <div className={`mt-0.5 font-mono text-[9px] ${selectedId === item.id ? "text-white/60" : "text-black/45"}`}>
                             {round(item.width, 2)}" × {round(item.height, 2)}" · {quality.dpi ? `${Math.round(quality.dpi)} DPI` : quality.label}
+                            {item.transparentTrimmed ? " · Transparent edges trimmed" : ""}
                           </div>
                         </div>
                       </button>
@@ -656,12 +895,15 @@ export default function DTFGangSheet() {
                       : "Vector/PDF artwork is not limited by raster DPI in this preview."}
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={duplicateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-2 border border-black/15 bg-white text-[10px] font-black uppercase disabled:opacity-35">
-                    <Copy size={14} /> Duplicate
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <button type="button" onClick={rotateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
+                    <RotateCw size={13} /> Rotate
                   </button>
-                  <button type="button" onClick={removeSelected} className="flex min-h-10 items-center justify-center gap-2 border border-black/15 bg-white text-[10px] font-black uppercase hover:border-red-400 hover:text-red-700">
-                    <Trash2 size={14} /> Remove
+                  <button type="button" onClick={duplicateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
+                    <Copy size={13} /> Duplicate
+                  </button>
+                  <button type="button" onClick={removeSelected} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase hover:border-red-400 hover:text-red-700">
+                    <Trash2 size={13} /> Remove
                   </button>
                 </div>
               </Panel>
@@ -678,7 +920,7 @@ export default function DTFGangSheet() {
                 <div className="flex flex-wrap gap-2">
                   {mode === "build" && (
                     <button type="button" onClick={autoArrange} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
-                      Auto arrange
+                      {settings.advancedNestingEnabled ? "Advanced Nest" : "Auto Arrange"}
                     </button>
                   )}
                   <button type="button" onClick={fitSheet} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
@@ -720,12 +962,29 @@ export default function DTFGangSheet() {
                             top: `${(item.y / sheetLength) * 100}%`,
                             width: `${(item.width / sheetWidth) * 100}%`,
                             height: `${(item.height / sheetLength) * 100}%`,
-                            transform: `rotate(${Number(item.rotation || 0)}deg)`,
                           }}
                           title={item.name}
                         >
                           {item.previewUrl ? (
-                            <img src={item.previewUrl} alt={item.name} draggable="false" className="pointer-events-none h-full w-full select-none object-contain" />
+                            <img
+                              src={item.previewUrl}
+                              alt={item.name}
+                              draggable="false"
+                              className="pointer-events-none absolute left-1/2 top-1/2 select-none object-contain"
+                              style={
+                                Math.abs(Number(item.rotation || 0)) % 180 === 90
+                                  ? {
+                                      width: `${(item.height / Math.max(0.01, item.width)) * 100}%`,
+                                      height: `${(item.width / Math.max(0.01, item.height)) * 100}%`,
+                                      transform: "translate(-50%, -50%) rotate(90deg)",
+                                    }
+                                  : {
+                                      width: "100%",
+                                      height: "100%",
+                                      transform: "translate(-50%, -50%)",
+                                    }
+                              }
+                            />
                           ) : (
                             <div className="flex h-full min-h-10 items-center justify-center bg-white/85 px-2 text-center font-mono text-[8px] font-bold uppercase">
                               PDF artwork

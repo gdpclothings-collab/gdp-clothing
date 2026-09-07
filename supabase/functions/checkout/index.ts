@@ -778,6 +778,24 @@ Deno.serve(async (req: Request) => {
             return respond(req, { error: true, message: "DTF artwork extends beyond the selected film." }, 400);
           }
 
+          const rawCrop = artwork?.cropBounds;
+          const cropBounds =
+            rawCrop &&
+            [rawCrop.left, rawCrop.top, rawCrop.right, rawCrop.bottom].every((value) => Number.isFinite(Number(value))) &&
+            Number(rawCrop.left) >= 0 &&
+            Number(rawCrop.top) >= 0 &&
+            Number(rawCrop.right) <= 1 &&
+            Number(rawCrop.bottom) <= 1 &&
+            Number(rawCrop.right) > Number(rawCrop.left) &&
+            Number(rawCrop.bottom) > Number(rawCrop.top)
+              ? {
+                  left: Number(rawCrop.left),
+                  top: Number(rawCrop.top),
+                  right: Number(rawCrop.right),
+                  bottom: Number(rawCrop.bottom),
+                }
+              : null;
+
           cleanLayout.push({
             name: safeUploadFileName(artwork?.name),
             type: String(artwork?.type || ""),
@@ -789,6 +807,10 @@ Deno.serve(async (req: Request) => {
             rotation,
             pixelWidth: Math.max(0, Number(artwork?.pixelWidth || 0)),
             pixelHeight: Math.max(0, Number(artwork?.pixelHeight || 0)),
+            originalPixelWidth: Math.max(0, Number(artwork?.originalPixelWidth || artwork?.pixelWidth || 0)),
+            originalPixelHeight: Math.max(0, Number(artwork?.originalPixelHeight || artwork?.pixelHeight || 0)),
+            cropBounds,
+            transparentTrimmed: artwork?.transparentTrimmed === true && Boolean(cropBounds),
           });
         }
 

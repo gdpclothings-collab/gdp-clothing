@@ -9,6 +9,7 @@
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
+    "test:dtf-nesting": "node scripts/verify-dtf-nesting.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

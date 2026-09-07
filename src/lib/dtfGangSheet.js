@@ -19,6 +19,8 @@ export const DEFAULT_DTF_SETTINGS = {
   minimumDpi: 200,
   allowCustomWidth: true,
   allowCustomLength: true,
+  advancedNestingEnabled: true,
+  autoRotateEnabled: true,
   productionSegmentLength: 120,
   artworkReviewEnabled: true,
   artworkReviewPrice: 0,
