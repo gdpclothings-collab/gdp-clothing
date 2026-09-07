@@ -1339,6 +1339,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     ...splitComma(form.sizes),
     ...variants.map((variant) => String(variant.size || "").trim()).filter(Boolean),
   ]));
+  const customStudioFrontGuide = form.customization?.preview?.printGuide?.front || {};
+  const customStudioFrontSizeScaling = customStudioFrontGuide.sizeScalingEnabled !== false;
   const customStudioBackGuide = form.customization?.preview?.printGuide?.back || {};
   const customStudioBackSizeScaling = customStudioBackGuide.sizeScalingEnabled !== false;
 
@@ -2706,16 +2708,96 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                   )}
                    <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
                     <div className="text-xs font-semibold">Front printable area</div>
+                    <div className="text-[10px] text-[#777] mt-0.5">Percent values position the guide on the garment mockup. Editing any value automatically switches the Front side to a custom preview box.</div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
                       <Field label="Top %">
-                        <input type="number" min="5" max="80" step="1" value={form.customization?.preview?.printArea?.front?.top ?? 29} onChange={(event) => setPrintAreaValue("front", "top", event.target.value)} className={inputClass} />
+                        <input type="number" min="5" max="80" step="0.5" value={form.customization?.preview?.printArea?.front?.top ?? 29} onChange={(event) => setPrintAreaValue("front", "top", event.target.value)} className={inputClass} />
                       </Field>
                       <Field label="Width %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.width ?? 36} onChange={(event) => setPrintAreaValue("front", "width", event.target.value)} className={inputClass} />
+                        <input type="number" min="10" max="80" step="0.5" value={form.customization?.preview?.printArea?.front?.width ?? 36} onChange={(event) => setPrintAreaValue("front", "width", event.target.value)} className={inputClass} />
                       </Field>
                       <Field label="Height %">
-                        <input type="number" min="10" max="80" step="1" value={form.customization?.preview?.printArea?.front?.height ?? 38} onChange={(event) => setPrintAreaValue("front", "height", event.target.value)} className={inputClass} />
+                        <input type="number" min="10" max="80" step="0.5" value={form.customization?.preview?.printArea?.front?.height ?? 38} onChange={(event) => setPrintAreaValue("front", "height", event.target.value)} className={inputClass} />
                       </Field>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-[#cfd9e3] bg-[#f7fafc] p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-xs font-semibold text-[#17324D]">Front print production guide</div>
+                        <div className="text-[10px] leading-4 text-[#66727e] mt-0.5">Physical measurements shown to customers and production. These do not change the original artwork file.</div>
+                      </div>
+                      <label className="inline-flex items-center gap-2 text-[10px] font-semibold text-[#44515d]">
+                        <input
+                          type="checkbox"
+                          checked={customStudioFrontSizeScaling}
+                          onChange={(event) => setPrintGuideValue("front", "sizeScalingEnabled", event.target.checked)}
+                        />
+                        Size-aware scaling
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mt-3">
+                      <Field label="Top drop (in)">
+                        <input type="number" min="0.5" max="12" step="0.25" value={customStudioFrontGuide.collarIn ?? ""} placeholder="2.75" onChange={(event) => setPrintGuideValue("front", "collarIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Recommended W">
+                        <input type="number" min="2" max="20" step="0.25" value={customStudioFrontGuide.widthIn ?? ""} placeholder="11.5" onChange={(event) => setPrintGuideValue("front", "widthIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Recommended H">
+                        <input type="number" min="2" max="24" step="0.25" value={customStudioFrontGuide.heightIn ?? ""} placeholder="14.5" onChange={(event) => setPrintGuideValue("front", "heightIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Maximum W">
+                        <input type="number" min="2" max="20" step="0.25" value={customStudioFrontGuide.maxWidthIn ?? ""} placeholder="12" onChange={(event) => setPrintGuideValue("front", "maxWidthIn", event.target.value)} className={inputClass} />
+                      </Field>
+                      <Field label="Maximum H">
+                        <input type="number" min="2" max="24" step="0.25" value={customStudioFrontGuide.maxHeightIn ?? ""} placeholder="16" onChange={(event) => setPrintGuideValue("front", "maxHeightIn", event.target.value)} className={inputClass} />
+                      </Field>
+                    </div>
+
+                    {customStudioFrontSizeScaling && customStudioSizes.length > 0 && (
+                      <div className="mt-3 overflow-hidden rounded-lg border border-[#dbe3ea] bg-white">
+                        <div className="grid grid-cols-[minmax(72px,1fr)_1fr_1fr] gap-2 border-b border-[#e6ebef] bg-[#f7f9fb] px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-[#697580]">
+                          <span>Size</span><span>Recommended W</span><span>Recommended H</span>
+                        </div>
+                        <div className="divide-y divide-[#edf0f2]">
+                          {customStudioSizes.map((studioSize) => {
+                            const sizeGuide = customStudioFrontGuide.sizeOverrides?.[studioSize] || {};
+                            return (
+                              <div key={"front-guide-" + studioSize} className="grid grid-cols-[minmax(72px,1fr)_1fr_1fr] gap-2 items-center px-3 py-2">
+                                <span className="text-xs font-semibold text-[#33404c]">{studioSize}</span>
+                                <input
+                                  type="number"
+                                  min="2"
+                                  max="20"
+                                  step="0.25"
+                                  value={sizeGuide.widthIn ?? ""}
+                                  placeholder="Auto"
+                                  onChange={(event) => setSizePrintGuideValue("front", studioSize, "widthIn", event.target.value)}
+                                  className={inputClass}
+                                  aria-label={studioSize + " front recommended width"}
+                                />
+                                <input
+                                  type="number"
+                                  min="2"
+                                  max="24"
+                                  step="0.25"
+                                  value={sizeGuide.heightIn ?? ""}
+                                  placeholder="Auto"
+                                  onChange={(event) => setSizePrintGuideValue("front", studioSize, "heightIn", event.target.value)}
+                                  className={inputClass}
+                                  aria-label={studioSize + " front recommended height"}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-2 text-[10px] leading-4 text-[#66727e]">
+                      Hoodie front presets keep the artwork above the kangaroo pocket. Leave a size field blank to use the calibrated GDP garment preset.
                     </div>
                   </div>
                    <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
