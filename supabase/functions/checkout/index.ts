@@ -442,9 +442,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "createGuestCustomDesign") {
       const requestUser = await optionalUser(req, supabaseUrl, anonKey);
-      if (isAccountUser(requestUser)) {
-        return respond(req, { error: true, message: "Signed-in designs must use the account design flow." }, 409);
-      }
+      const accountUser = isAccountUser(requestUser) ? requestUser : null;
 
       const raw = body?.design || {};
       if (JSON.stringify(raw).length > 100_000) {
@@ -494,12 +492,51 @@ Deno.serve(async (req: Request) => {
         : "classic";
       const priority = raw.priority === "rush" ? "rush" : "standard";
       const primaryPhotoIndex = Math.min(Math.max(0, Number(raw.primary_photo_index || 0)), Math.max(0, photoPaths.length - 1));
-      const guestToken = crypto.randomUUID();
+      const clientRequestId = uuidRe.test(String(raw.seasonal_configuration?.client_request_id || ""))
+        ? String(raw.seasonal_configuration.client_request_id)
+        : crypto.randomUUID();
+      const guestToken = clientRequestId;
+      const guestTokenHash = await sha256Hex(guestToken);
+
+      if (accountUser && seasonalArtworkId) {
+        const { data: existing, error: existingError } = await service
+          .from("custom_designs")
+          .select("id,product_id,product_name,name,status")
+          .eq("user_id", accountUser.id)
+          .contains("seasonal_configuration", { client_request_id: clientRequestId })
+          .maybeSingle();
+        if (existingError) throw existingError;
+        if (existing) return respond(req, { design: existing });
+      }
+
+      if (!accountUser) {
+        const { data: existingSession, error: existingSessionError } = await service
+          .from("guest_design_sessions")
+          .select("design_id,expires_at,converted_at")
+          .eq("token_hash", guestTokenHash)
+          .maybeSingle();
+        if (existingSessionError) throw existingSessionError;
+        if (existingSession && !existingSession.converted_at && new Date(existingSession.expires_at).getTime() > Date.now()) {
+          const { data: existingDesign, error: existingDesignError } = await service
+            .from("custom_designs")
+            .select("id,product_id,product_name,name,status")
+            .eq("id", existingSession.design_id)
+            .maybeSingle();
+          if (existingDesignError) throw existingDesignError;
+          if (existingDesign) return respond(req, { design: existingDesign, guestToken });
+        }
+        if (existingSession?.converted_at) {
+          return respond(req, { error: true, message: "This custom design is already attached to a checkout." }, 409);
+        }
+        if (existingSession && new Date(existingSession.expires_at).getTime() <= Date.now()) {
+          return respond(req, { error: true, message: "This saved design attempt expired. Edit the design once, then try again." }, 410);
+        }
+      }
 
       const { data: design, error: designError } = await service
         .from("custom_designs")
         .insert({
-          user_id: null,
+          user_id: accountUser?.id || null,
           product_id: product.id,
           product_name: product.name,
           name: cleanText(raw.name, 180),
@@ -537,16 +574,31 @@ Deno.serve(async (req: Request) => {
         .single();
       if (designError) throw designError;
 
-      const { error: sessionError } = await service.from("guest_design_sessions").insert({
-        design_id: design.id,
-        token_hash: await sha256Hex(guestToken),
-      });
-      if (sessionError) {
-        await service.from("custom_designs").delete().eq("id", design.id);
-        throw sessionError;
+      if (!accountUser) {
+        const { error: sessionError } = await service.from("guest_design_sessions").insert({
+          design_id: design.id,
+          token_hash: guestTokenHash,
+        });
+        if (sessionError) {
+          await service.from("custom_designs").delete().eq("id", design.id);
+          const { data: racedSession } = await service
+            .from("guest_design_sessions")
+            .select("design_id,expires_at,converted_at")
+            .eq("token_hash", guestTokenHash)
+            .maybeSingle();
+          if (racedSession?.design_id && !racedSession.converted_at && new Date(racedSession.expires_at).getTime() > Date.now()) {
+            const { data: racedDesign } = await service
+              .from("custom_designs")
+              .select("id,product_id,product_name,name,status")
+              .eq("id", racedSession.design_id)
+              .maybeSingle();
+            if (racedDesign) return respond(req, { design: racedDesign, guestToken });
+          }
+          throw sessionError;
+        }
       }
 
-      return respond(req, { design, guestToken });
+      return respond(req, { design, ...(accountUser ? {} : { guestToken }) });
     }
 
     if (action === "createDtfUpload") {
