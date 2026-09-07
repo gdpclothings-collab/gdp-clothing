@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { storefrontContentApi } from "@/lib/storefrontContentApi";
 import AboutPageContent from "@/components/storefront/AboutPageContent";
+import ContactPageContent from "@/components/storefront/ContactPageContent";
 
 export default function ContentPage() {
   const { slug } = useParams();
@@ -88,6 +89,10 @@ export default function ContentPage() {
 
   if (slug === "about" || page.body?.template === "about") {
     return <AboutPageContent page={page} />;
+  }
+
+  if (slug === "contact" || page.body?.template === "contact") {
+    return <ContactPageContent page={page} />;
   }
 
   const content = String(page.body?.content || "");
