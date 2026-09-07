@@ -13,6 +13,7 @@ import {
   Truck,
 } from "lucide-react";
 import { adminDiscountsApi } from "@/lib/adminDiscountsApi";
+import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function money(value) {
   return Number(value || 0).toLocaleString("en-CA", {
@@ -237,8 +238,7 @@ function DiscountEditor({ discount, references, onClose, onSaved }) {
         ? references.collections
         : [];
 
-  const submit = async (event) => {
-    event.preventDefault();
+  const save = async () => {
     setSaving(true);
     try {
       await adminDiscountsApi.save(discount?.id || null, {
@@ -254,17 +254,31 @@ function DiscountEditor({ discount, references, onClose, onSaved }) {
         usageLimit: form.usageLimit === "" ? null : Number(form.usageLimit),
       });
       await onSaved(discount?.id ? "Discount updated." : "Discount created.");
+      return true;
     } catch (err) {
       console.error("Discount save failed:", err);
       window.alert(err?.message || "Discount save failed.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const submit = async (event) => {
+    event.preventDefault();
+    await save();
+  };
+
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: discount?.code ? `Discount: ${discount.code}` : "Discount editor",
+  });
+
   return (
     <div className="fixed inset-0 z-[70]">
-      <button className="absolute inset-0 bg-black/35" onClick={onClose} aria-label="Close discount editor" />
+      <button className="absolute inset-0 bg-black/35" onClick={requestClose} aria-label="Close discount editor" />
       <aside className="absolute right-0 top-0 h-full w-full max-w-[600px] bg-[#f6f6f6] shadow-2xl overflow-y-auto">
         <form onSubmit={submit}>
           <div className="sticky top-0 z-20 h-16 px-5 border-b border-[#dedede] bg-white flex items-center justify-between">
@@ -273,8 +287,8 @@ function DiscountEditor({ discount, references, onClose, onSaved }) {
               <div className="text-xs text-[#777]">GDP Clothing promotion rules</div>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
-              <button type="submit" disabled={saving || !form.code.trim()} className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-40">
+              <button type="button" onClick={requestClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
+              <button type="submit" disabled={saving || !form.code.trim() || !isDirty} className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-40">
                 <Save size={14} /> {saving ? "Saving…" : "Save"}
               </button>
             </div>
