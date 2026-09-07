@@ -100,8 +100,6 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
     saveLock.current = true;
     setSaving(true);setError('');
     try {
-      const {data:{user}} = await supabase.auth.getUser();
-      if (!user) {setError('Please sign in using Account in another tab, then return here to add your design. Your current selection will stay here.');return;}
       const configuration = seasonalSelection(selected,layout,text,area,rotation);
       let configuredPreview = selected.preview;
       try {
@@ -121,6 +119,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
         seasonalArtworkId:selected.id,seasonalConfiguration:configuration,
         customerConfirmedRights:true,approvalPolicyAcknowledged:approved,proofRequired:true,status:'in_cart',priority:'standard'});
       const cartItem={productId:product.id,name:product.name,image:configuredPreview,isCustom:true,customDesignId:design.id,
+        ...(design.guestDesignToken ? {guestDesignToken:design.guestDesignToken} : {}),
         variantId:variant?.id||null,variant:variant?.name||garment.label,color,size,quantity,price:unitPrice,
         fulfillmentMode:product.fulfillmentMode||'in_house',designStyle:`Seasonal: ${selected.title}`,occasion:selected.category,proofRequired:true,
         fabric:fabricDescription,seasonalDraft:{artworkId:selected.id,width:layout.width,position:{x:layout.x,y:layout.y},rotation,text,category:selected.category}};
