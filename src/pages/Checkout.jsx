@@ -5,6 +5,7 @@ import { useCart } from "@/lib/CartContext";
 import { customerApi } from "@/lib/customerApi";
 import { isIframe } from "@/lib/utils";
 import { loadStripe } from "@stripe/stripe-js";
+import { calculateCartQuantityDiscount } from "@/lib/cartPricing";
 
 const PROVINCES = [
   "Alberta",
@@ -47,7 +48,7 @@ function normalizeCanadianPostalCode(value) {
 }
 
 export default function Checkout() {
-  const { items, subtotal, clearCart, itemCount } = useCart();
+  const { items, clearCart } = useCart();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     email: "", phone: "", firstName: "", lastName: "",
@@ -70,13 +71,10 @@ export default function Checkout() {
   });
   const paymentHostRef = useRef(null);
 
-  const qtyDiscount = (total, count) => {
-    if (count >= 3) return total * 0.75;
-    if (count >= 2) return total * 0.80;
-    return total;
-  };
-  const discounted = qtyDiscount(subtotal, itemCount);
-  const discountAmt = subtotal - discounted;
+  const quantityPricing = calculateCartQuantityDiscount(items);
+  const subtotal = quantityPricing.subtotal;
+  const discounted = quantityPricing.afterDiscount;
+  const discountAmt = quantityPricing.discount;
   const couponAmt = appliedDiscount ? (appliedDiscount.type === "fixed" ? appliedDiscount.value : discounted * (appliedDiscount.value / 100)) : 0;
   const afterCoupon = Math.max(0, discounted - couponAmt);
   const fallbackShipping =
@@ -405,7 +403,15 @@ export default function Checkout() {
           <div className="space-y-3 max-h-72 overflow-y-auto mb-4">
             {items.map(i => (
               <div key={i.key} className="flex justify-between text-sm">
-                <span className="pr-2">{i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span>{i.isCustom && <span className="block text-[10px] font-mono uppercase text-accent">{i.occasion || "Custom"} · {i.proofRequired === false ? "Proof skipped" : "Proof before print"}</span>}</span>
+                <span className="pr-2">
+                  {i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span>
+                  {i.isCustom && <span className="block text-[10px] font-mono uppercase text-accent">{i.occasion || "Custom"} · {i.proofRequired === false ? "Proof skipped" : "Proof before print"}</span>}
+                  {i.isDtf && i.dtfSpec && (
+                    <span className="block text-[10px] font-mono uppercase text-accent">
+                      DTF film · {i.dtfSpec.width}" × {i.dtfSpec.length}" · {i.dtfSpec.layout?.length || 0} artwork item{i.dtfSpec.layout?.length === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono shrink-0">${(i.price * i.quantity).toFixed(2)}</span>
               </div>
             ))}
@@ -434,7 +440,7 @@ export default function Checkout() {
                 ? `Pay Now · ${total.toFixed(2)}`
                 : `Continue to Payment · ${total.toFixed(2)}`}
           </button>
-          <p className="text-[11px] text-muted-foreground mt-2 text-center">By placing your order you agree to GDP Clothing's terms. Custom items require proof approval before printing.</p>
+          <p className="text-[11px] text-muted-foreground mt-2 text-center">By placing your order you agree to GDP Clothing's terms. DTF sheets are produced from the film layout approved in the builder.</p>
         </aside>
       </div>
     </div>

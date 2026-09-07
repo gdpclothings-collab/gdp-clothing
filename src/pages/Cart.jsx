@@ -3,21 +3,19 @@ import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Heart } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
+import { calculateCartQuantityDiscount } from "@/lib/cartPricing";
 
 export default function Cart() {
-  const { items, updateQty, removeItem, subtotal, saved, moveToCart, itemCount } = useCart();
+  const { items, updateQty, removeItem, saved, moveToCart } = useCart();
   const navigate = useNavigate();
 
-  const qtyDiscount = (total, count) => {
-    if (count >= 3) return total * 0.75;
-    if (count >= 2) return total * 0.80;
-    return total;
-  };
-
-  const discount = subtotal - qtyDiscount(subtotal, itemCount);
-  const shipping = subtotal >= 150 ? 0 : 12.99;
-  const tax = (qtyDiscount(subtotal, itemCount) + shipping) * 0.11;
-  const total = qtyDiscount(subtotal, itemCount) + shipping + tax;
+  const quantityPricing = calculateCartQuantityDiscount(items);
+  const subtotal = quantityPricing.subtotal;
+  const discount = quantityPricing.discount;
+  const discountedSubtotal = quantityPricing.afterDiscount;
+  const shipping = discountedSubtotal >= 150 ? 0 : 12.99;
+  const tax = (discountedSubtotal + shipping) * 0.11;
+  const total = discountedSubtotal + shipping + tax;
 
   if (items.length === 0) {
     return (
@@ -47,9 +45,18 @@ export default function Cart() {
                   <div>
                     <h3 className="font-medium">{item.name}</h3>
                     {item.isCustom && <span className="font-mono text-[10px] uppercase text-accent">GDP Custom Studio</span>}
+                    {item.isDtf && <span className="font-mono text-[10px] uppercase text-accent">DTF Gang Sheet · Film only</span>}
                     <div className="text-xs text-muted-foreground mt-1 font-mono uppercase">
                       {item.color} · {item.size} {item.fulfillmentMode === "pod" ? "· POD" : item.fulfillmentMode === "in_house" ? "· In-House" : ""}
                     </div>
+                    {item.isDtf && item.dtfSpec && (
+                      <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
+                        <div>Order type: <span className="text-foreground">{item.dtfSpec.mode === "upload" ? "Print-ready upload" : "Gang sheet builder"}</span></div>
+                        <div>Film: <span className="text-foreground">{item.dtfSpec.width}" × {item.dtfSpec.length}" · {Number(item.dtfSpec.area || 0).toFixed(1)} in²</span></div>
+                        <div>Artwork: <span className="text-foreground">{item.dtfSpec.layout?.length || 0} file{item.dtfSpec.layout?.length === 1 ? "" : "s"} · {Number(item.dtfSpec.utilization || 0).toFixed(1)}% film usage</span></div>
+                        <div className="font-mono text-[10px]">DTF film pricing is exempt from apparel quantity discounts.</div>
+                      </div>
+                    )}
                     {item.isCustom && (
                       <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
                         {item.occasion && <div>Occasion: <span className="text-foreground">{item.occasion}</span></div>}
@@ -97,7 +104,7 @@ export default function Cart() {
           </div>
           {discount > 0 && (
             <div className="mt-2 text-xs font-mono uppercase text-accent bg-accent/10 px-2 py-1">
-              {itemCount >= 3 ? "25% off (3+ items)" : "20% off (2 items)"}
+              {quantityPricing.eligibleCount >= 3 ? "25% off eligible apparel (3+ items)" : "20% off eligible apparel (2 items)"}
             </div>
           )}
           <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-border">
