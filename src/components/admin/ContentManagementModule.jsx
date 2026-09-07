@@ -13,6 +13,7 @@ import {
   Archive,
 } from "lucide-react";
 import { adminContentManagementApi } from "@/lib/adminContentManagementApi";
+import ArtworkLibraryTab from "@/components/admin/ArtworkLibraryTab";
 import AboutPageEditorFields from "@/components/admin/AboutPageEditorFields";
 import ContactPageEditorFields from "@/components/admin/ContactPageEditorFields";
 import { mergeAboutPageBody } from "@/lib/aboutPageDefaults";
@@ -130,6 +131,7 @@ export default function ContentManagementModule() {
             { id: "pages", label: "Pages", Icon: FileText },
             { id: "navigation", label: "Navigation", Icon: MenuIcon },
             { id: "media", label: "Media", Icon: ImageIcon },
+            { id: "artwork", label: "Artwork", Icon: ImageIcon },
           ].map(({ id, label, Icon }) => (
             <button
               key={id}
@@ -180,6 +182,7 @@ export default function ContentManagementModule() {
       {tab === "media" && (
         <MediaTab media={media} loading={loading} />
       )}
+      {tab === "artwork" && <ArtworkLibraryTab />}
 
       {pageEditor && (
         <PageEditor
