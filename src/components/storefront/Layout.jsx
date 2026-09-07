@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import StoreNav from "./StoreNav";
 import StoreFooter from "./StoreFooter";
 import AIAssistant from "./AIAssistant";
+import CookiePreferences from "./CookiePreferences";
 
 export default function Layout() {
   return (
@@ -13,6 +14,7 @@ export default function Layout() {
       </main>
       <StoreFooter />
       <AIAssistant />
+      <CookiePreferences />
     </div>
   );
 }
