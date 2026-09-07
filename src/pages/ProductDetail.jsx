@@ -38,9 +38,9 @@ export default function ProductDetail() {
       const nextProduct = productResult.error ? null : normalizeProduct(productResult.data);
       setProduct(nextProduct);
 
-      const firstVariant = nextProduct?.variants?.[0];
-      setColor(nextProduct?.colors?.[0] || firstVariant?.color || "");
-      setSize(nextProduct?.sizes?.[0] || firstVariant?.size || "M");
+      setColor("");
+      setSize("");
+      setQty(1);
 
       if (nextProduct?.id) {
         const reviewResult = await supabase
@@ -112,10 +112,12 @@ export default function ProductDetail() {
   const colors = productColors.length ? productColors : variantColors.length ? variantColors : ["Black"];
   const sizes = productSizes.length ? productSizes : variantSizes.length ? variantSizes : SIZES;
   const selectedVariant =
-    variants.find((variant) => (!variant.color || variant.color === color) && (!variant.size || variant.size === size)) ||
-    (variants.length === 1 ? variants[0] : null);
+    variants.find((variant) => (!variant.color || variant.color === color) && (!variant.size || variant.size === size)) || null;
+  const selectionComplete = Boolean(color) && Boolean(size);
+  const validCombination = !variants.length || Boolean(selectedVariant);
   const displayPrice = selectedVariant?.price == null ? Number(product.price || 0) : Number(selectedVariant.price);
   const inStock = !product.trackInventory || !variants.length || Boolean(selectedVariant && Number(selectedVariant.stock || 0) > 0);
+  const canAddToCart = selectionComplete && validCombination && inStock;
   const maxQty = product.trackInventory && selectedVariant ? Math.max(0, Number(selectedVariant.stock || 0)) : 99;
   const wished = wishlist.includes(product.id);
   const avgRating = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null;
@@ -124,24 +126,14 @@ export default function ProductDetail() {
 
   const selectColor = (nextColor) => {
     setColor(nextColor);
-    if (!variants.length) return;
-    const exact = variants.find((variant) => (!variant.color || variant.color === nextColor) && (!variant.size || variant.size === size));
-    if (exact) return;
-    const fallback = variants.find((variant) => !variant.color || variant.color === nextColor);
-    if (fallback?.size) setSize(fallback.size);
   };
 
   const selectSize = (nextSize) => {
     setSize(nextSize);
-    if (!variants.length) return;
-    const exact = variants.find((variant) => (!variant.size || variant.size === nextSize) && (!variant.color || variant.color === color));
-    if (exact) return;
-    const fallback = variants.find((variant) => !variant.size || variant.size === nextSize);
-    if (fallback?.color) setColor(fallback.color);
   };
 
   const addToCart = () => {
-    if (!inStock) return;
+    if (!canAddToCart) return;
     addItem({
       productId: product.id,
       variantId: selectedVariant?.id || null,
@@ -219,7 +211,7 @@ export default function ProductDetail() {
             <div className="mt-7 border-t border-black/15 pt-5">
               <div className="mb-3 flex items-center justify-between">
                 <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Colour</span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{color}</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{color || "Choose"}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {colors.map((item) => (
@@ -233,7 +225,7 @@ export default function ProductDetail() {
             <div className="mt-6">
               <div className="mb-3 flex items-center justify-between">
                 <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size}</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span>
               </div>
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                 {sizes.map((item) => (
@@ -246,7 +238,11 @@ export default function ProductDetail() {
 
             {variants.length > 0 && product.trackInventory && (
               <div className="mt-3 font-mono text-[8px] uppercase tracking-[0.13em] text-black/38">
-                Selected variant stock / {selectedVariant ? selectedVariant.stock : 0}
+                {!selectionComplete
+                  ? "Choose colour and size to see availability"
+                  : !validCombination
+                    ? "This colour / size combination is unavailable"
+                    : `Selected variant stock / ${selectedVariant?.stock ?? 0}`}
               </div>
             )}
 
@@ -263,12 +259,17 @@ export default function ProductDetail() {
 
             <div className="mt-2">
               {product.customDesignable ? (
-                <button onClick={() => navigate("/custom-studio?product=" + product.id)} className="flex min-h-14 w-full items-center justify-center gap-3 bg-[#e11d2e] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-black">
+                <button onClick={() => {
+                  const query = new URLSearchParams({ product: product.id });
+                  if (color) query.set("color", color);
+                  if (size) query.set("size", size);
+                  navigate("/custom-studio?" + query.toString());
+                }} className="flex min-h-14 w-full items-center justify-center gap-3 bg-[#e11d2e] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-black">
                   <Sparkles size={17} /> Customize this product
                 </button>
               ) : (
-                <button onClick={addToCart} disabled={!inStock} className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/30">
-                  <ShoppingBag size={17} /> {inStock ? "Add to bag" : "Sold out"}
+                <button onClick={addToCart} disabled={!canAddToCart} className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/30">
+                  <ShoppingBag size={17} /> {!selectionComplete ? "Choose colour + size" : !validCombination ? "Unavailable combination" : inStock ? "Add to bag" : "Sold out"}
                 </button>
               )}
             </div>

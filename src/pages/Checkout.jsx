@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Lock, CreditCard, Check, AlertTriangle, Truck, Store } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
+import { useAuth } from "@/lib/AuthContext";
+import { removeStoredKey, scopedStorageKey } from "@/lib/customerStorageScope";
 import { customerApi } from "@/lib/customerApi";
 import { isIframe } from "@/lib/utils";
 import { loadStripe } from "@stripe/stripe-js";
@@ -49,7 +51,9 @@ function normalizeCanadianPostalCode(value) {
 
 export default function Checkout() {
   const { items, clearCart } = useCart();
+  const { user, isLoadingAuth } = useAuth();
   const navigate = useNavigate();
+  const checkoutStorageKey = scopedStorageKey("gdp_checkout_session_v2", user);
   const [form, setForm] = useState({
     email: "", phone: "", firstName: "", lastName: "",
     address: "", city: "", province: "Saskatchewan", postalCode: "", country: "Canada",
@@ -62,13 +66,8 @@ export default function Checkout() {
   const [checkoutActions, setCheckoutActions] = useState(null);
   const [paymentSession, setPaymentSession] = useState(null);
   const [paymentCanConfirm, setPaymentCanConfirm] = useState(false);
-  const [checkoutSessionToken, setCheckoutSessionToken] = useState(() => {
-    try {
-      return window.localStorage.getItem("gdp_checkout_session") || "";
-    } catch {
-      return "";
-    }
-  });
+  const [checkoutSessionToken, setCheckoutSessionToken] = useState("");
+  const [loadedCheckoutStorageKey, setLoadedCheckoutStorageKey] = useState("");
   const paymentHostRef = useRef(null);
 
   const quantityPricing = calculateCartQuantityDiscount(items);
@@ -86,6 +85,23 @@ export default function Checkout() {
   const taxShipping = checkoutConfig?.taxShipping ?? true;
   const tax = (afterCoupon + (taxShipping ? shipping : 0)) * taxRate;
   const total = afterCoupon + shipping + tax;
+
+  useEffect(() => {
+    if (isLoadingAuth) {
+      setLoadedCheckoutStorageKey("");
+      return;
+    }
+
+    let token = "";
+    try {
+      token = window.localStorage.getItem(checkoutStorageKey) || "";
+    } catch {
+      token = "";
+    }
+    setCheckoutSessionToken(token);
+    setLoadedCheckoutStorageKey(checkoutStorageKey);
+    removeStoredKey("gdp_checkout_session");
+  }, [checkoutStorageKey, isLoadingAuth]);
 
   useEffect(() => {
     if (!items.length || checkoutActions) return undefined;
@@ -120,7 +136,7 @@ export default function Checkout() {
   ]);
 
   useEffect(() => {
-    if (!items.length || checkoutActions) return undefined;
+    if (!items.length || checkoutActions || loadedCheckoutStorageKey !== checkoutStorageKey) return undefined;
 
     const timer = window.setTimeout(async () => {
       try {
@@ -140,7 +156,7 @@ export default function Checkout() {
         if (result?.sessionToken && result.sessionToken !== checkoutSessionToken) {
           setCheckoutSessionToken(result.sessionToken);
           try {
-            window.localStorage.setItem("gdp_checkout_session", result.sessionToken);
+            window.localStorage.setItem(checkoutStorageKey, result.sessionToken);
           } catch {
             // Checkout tracking still works for the current page without local storage.
           }
@@ -162,6 +178,8 @@ export default function Checkout() {
     total,
     checkoutSessionToken,
     checkoutActions,
+    checkoutStorageKey,
+    loadedCheckoutStorageKey,
   ]);
 
   if (items.length === 0) {
@@ -264,7 +282,7 @@ export default function Checkout() {
         });
 
         try {
-          window.localStorage.removeItem("gdp_checkout_session");
+          window.localStorage.removeItem(checkoutStorageKey);
         } catch {
           // Local storage is optional.
         }

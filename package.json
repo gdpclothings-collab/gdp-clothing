@@ -10,6 +10,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "test:dtf-nesting": "node scripts/verify-dtf-nesting.mjs",
+    "test:fresh-session": "node scripts/verify-fresh-session-state.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
