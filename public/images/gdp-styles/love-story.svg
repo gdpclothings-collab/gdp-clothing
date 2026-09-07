@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="GDP Love Story artwork overlay">
+<defs>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity=".28"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<defs><linearGradient id="gold2"><stop stop-color="#fff0a8"/><stop offset=".4" stop-color="#c68b1f"/><stop offset=".7" stop-color="#fff1ad"/><stop offset="1" stop-color="#a66b0d"/></linearGradient></defs>
+<g filter="url(#shadow)">
+ <path d="M540 90c-106-99-273-12-273 131 0 196 273 332 273 332s273-136 273-332C813 78 646-9 540 90Z" fill="none" stroke="url(#gold2)" stroke-width="28"/>
+ <g fill="#9e1524" stroke="#6f0e18" stroke-width="5">
+  <circle cx="198" cy="300" r="80"/><circle cx="180" cy="420" r="72"/><circle cx="240" cy="545" r="82"/>
+  <circle cx="882" cy="300" r="80"/><circle cx="900" cy="420" r="72"/><circle cx="840" cy="545" r="82"/>
+ </g>
+ <g fill="none" stroke="#d8a037" stroke-width="16">
+  <path d="M130 210c90-75 151-79 205-14M950 210c-90-75-151-79-205-14"/>
+  <path d="M122 610c90-70 164-77 224-24M958 610c-90-70-164-77-224-24"/>
+ </g>
+ <g fill="#d1162e"><path d="M530 60c-42-52-118-12-118 49 0 80 118 142 118 142s118-62 118-142c0-61-76-101-118-49Z"/></g>
+ <path d="M210 755c202-80 457-80 660 0" fill="none" stroke="#9e1524" stroke-width="52" stroke-linecap="round"/>
+ <text x="540" y="845" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="112" fill="url(#gold2)" stroke="#7e101d" stroke-width="6" paint-order="stroke">GDP</text>
+ <text x="540" y="927" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="48" fill="#fff0ca" stroke="#7e101d" stroke-width="8" paint-order="stroke">Good People Dope Clothes</text>
+</g></svg>
