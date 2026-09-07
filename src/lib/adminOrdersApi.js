@@ -238,6 +238,28 @@ export const adminOrdersApi = {
     return data;
   },
 
+  async updateWorkflow(orderId, values) {
+    const payload = {
+      status: values.status,
+      design_status: values.designStatus,
+      production_status: values.productionStatus,
+      fulfillment_status: values.fulfillmentStatus,
+      tracking_number: values.trackingNumber?.trim() || null,
+      carrier: values.carrier?.trim() || null,
+      notes: values.notes?.trim() || null,
+    };
+
+    const { data, error } = await supabase
+      .from("orders")
+      .update(payload)
+      .eq("id", orderId)
+      .select(ORDER_SELECT)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async bulkUpdateStatus(orderIds, status) {
     const ids = cleanIds(orderIds);
     if (!ids.length) return [];

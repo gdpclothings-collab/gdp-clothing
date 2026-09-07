@@ -21,34 +21,14 @@ import {
   Save,
 } from "lucide-react";
 import { adminOrdersApi } from "@/lib/adminOrdersApi";
+import {
+  canCompleteOrder,
+  getFulfillmentOptions,
+  getWorkflowIssues,
+} from "@/lib/orderWorkflow";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 const PAGE_SIZE = 25;
-
-const STATUS_OPTIONS = [
-  "draft",
-  "pending_payment",
-  "paid",
-  "payment_failed",
-  "artwork_needed",
-  "design_in_progress",
-  "proof_ready",
-  "awaiting_approval",
-  "revision_requested",
-  "approved",
-  "production_queue",
-  "printing",
-  "quality_control",
-  "packing",
-  "ready_for_pickup",
-  "shipped",
-  "out_for_delivery",
-  "delivered",
-  "completed",
-  "cancelled",
-  "refunded",
-  "partially_refunded",
-];
 
 const FULFILLMENT_OPTIONS = [
   "unfulfilled",
@@ -153,7 +133,6 @@ export default function OrdersModule() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [advanced, setAdvanced] = useState(EMPTY_ADVANCED_FILTERS);
-  const [bulkStatus, setBulkStatus] = useState("");
   const [bulkFulfillment, setBulkFulfillment] = useState("");
   const [busyIds, setBusyIds] = useState(() => new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -294,30 +273,10 @@ export default function OrdersModule() {
   const saveOrder = async (order, values) => {
     markBusy(order.id, true);
     try {
-      if (values.status !== order.status) {
-        await adminOrdersApi.updateStatus(order.id, values.status);
-      }
-      if (values.designStatus !== (order.design_status || "not_required")) {
-        await adminOrdersApi.updateDesignStatus(order.id, values.designStatus);
-      }
-      if (values.productionStatus !== (order.production_status || "not_started")) {
-        await adminOrdersApi.updateProductionStatus(order.id, values.productionStatus);
-      }
-      if (values.fulfillmentStatus !== (order.fulfillment_status || "unfulfilled")) {
-        await adminOrdersApi.updateFulfillment(order.id, values.fulfillmentStatus);
-      }
-      if (
-        values.trackingNumber !== (order.tracking_number || "") ||
-        values.carrier !== (order.carrier || "")
-      ) {
-        await adminOrdersApi.updateTracking(order.id, {
-          trackingNumber: values.trackingNumber,
-          carrier: values.carrier,
-        });
-      }
-      if (values.notes !== (order.notes || "")) {
-        await adminOrdersApi.updateNotes(order.id, values.notes);
-      }
+      const issues = getWorkflowIssues({ ...order, ...values });
+      if (issues.length) throw new Error(issues[0]);
+
+      await adminOrdersApi.updateWorkflow(order.id, values);
 
       showNotice(order.order_number + " saved.");
       await refreshAfterMutation();
@@ -328,23 +287,6 @@ export default function OrdersModule() {
       return false;
     } finally {
       markBusy(order.id, false);
-    }
-  };
-
-  const applyBulkStatus = async () => {
-    if (!bulkStatus || selectedIds.size === 0) return;
-    setBulkSaving(true);
-    try {
-      await adminOrdersApi.bulkUpdateStatus([...selectedIds], bulkStatus);
-      showNotice(selectedIds.size + " order(s) moved to " + prettify(bulkStatus) + ".");
-      setSelectedIds(new Set());
-      setBulkStatus("");
-      await refreshAfterMutation();
-    } catch (err) {
-      console.error("Bulk status update failed:", err);
-      showNotice(err?.message || "Bulk status update failed.");
-    } finally {
-      setBulkSaving(false);
     }
   };
 
@@ -556,27 +498,6 @@ export default function OrdersModule() {
             <div className="flex flex-col sm:flex-row gap-2 flex-1">
               <div className="flex gap-2">
                 <select
-                  value={bulkStatus}
-                  onChange={(event) => setBulkStatus(event.target.value)}
-                  className="h-9 min-w-[190px] rounded-lg border border-[#d5d5d5] px-3 text-sm bg-white"
-                >
-                  <option value="">Change order status…</option>
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{prettify(option)}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={applyBulkStatus}
-                  disabled={!bulkStatus || bulkSaving}
-                  className="h-9 px-3 rounded-lg bg-[#222] text-white text-xs font-medium disabled:opacity-40"
-                >
-                  Apply
-                </button>
-              </div>
-
-              <div className="flex gap-2">
-                <select
                   value={bulkFulfillment}
                   onChange={(event) => setBulkFulfillment(event.target.value)}
                   className="h-9 min-w-[190px] rounded-lg border border-[#d5d5d5] px-3 text-sm bg-white"
@@ -686,13 +607,7 @@ export default function OrdersModule() {
                       </Td>
                       <Td>{itemCount(order)}</Td>
                       <Td>
-                        <QuickSelect
-                          value={order.status}
-                          options={STATUS_OPTIONS}
-                          disabled={busy}
-                          onChange={(value) => updateStatus(order, value)}
-                          ariaLabel={"Change status for " + order.order_number}
-                        />
+                        <StatusPill value={order.status} />
                         <div className="mt-1 flex flex-wrap gap-1">
                           {order.design_status && order.design_status !== "not_required" && (
                             <StatusPill value={order.design_status} compact />
@@ -706,7 +621,7 @@ export default function OrdersModule() {
                       <Td>
                         <QuickSelect
                           value={order.fulfillment_status || "unfulfilled"}
-                          options={FULFILLMENT_OPTIONS}
+                          options={getFulfillmentOptions(order)}
                           disabled={busy}
                           onChange={(value) => updateFulfillment(order, value)}
                           ariaLabel={"Change fulfillment for " + order.order_number}
@@ -947,7 +862,7 @@ function OrderActions({ order, busy, onView, onCopy, onComplete, onCancel }) {
           </ActionMenuButton>
           <div className="my-1 h-px bg-[#ececec]" />
           <ActionMenuButton
-            disabled={order.status === "completed"}
+            disabled={order.status === "completed" || !canCompleteOrder(order)}
             onClick={onComplete}
           >
             <CheckCircle2 size={14} /> Mark completed
@@ -1068,6 +983,8 @@ function OrderDrawer({ order, saving, onClose, onSave }) {
     setValues((current) => ({ ...current, [key]: value }));
   };
 
+  const workflowIssues = getWorkflowIssues({ ...order, ...values });
+
   return (
     <div className="fixed inset-0 z-[70]">
       <button
@@ -1110,16 +1027,14 @@ function OrderDrawer({ order, saving, onClose, onSave }) {
 
           <Section title="Workflow controls">
             <div className="grid sm:grid-cols-2 gap-3">
-              <WorkflowSelect
-                label="Order status"
-                value={values.status}
-                options={STATUS_OPTIONS}
-                onChange={(value) => setField("status", value)}
-              />
+              <div className="rounded-lg border border-[#d5d5d5] bg-[#f7f7f7] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-[#777]">Customer status · automatic</div>
+                <div className="mt-1 text-sm font-semibold capitalize">{prettify(values.status)}</div>
+              </div>
               <WorkflowSelect
                 label="Fulfillment"
                 value={values.fulfillmentStatus}
-                options={FULFILLMENT_OPTIONS}
+                options={getFulfillmentOptions({ ...order, ...values })}
                 onChange={(value) => setField("fulfillmentStatus", value)}
               />
               <WorkflowSelect
@@ -1135,9 +1050,18 @@ function OrderDrawer({ order, saving, onClose, onSave }) {
                 onChange={(value) => setField("productionStatus", value)}
               />
             </div>
-            <div className="mt-3 rounded-lg bg-[#f7f7f7] p-3 text-xs leading-5 text-[#666]">
-              Payment is controlled separately by Stripe. Design, production and fulfillment can now move independently without overwriting each other.
-            </div>
+            {workflowIssues.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                <div className="font-semibold">Complete these requirements before saving:</div>
+                <ul className="mt-1 list-disc pl-4">
+                  {workflowIssues.map((issue) => <li key={issue}>{issue}</li>)}
+                </ul>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">
+                Workflow is valid. Customer status remains synchronized automatically.
+              </div>
+            )}
           </Section>
 
           <Section title="Customer">

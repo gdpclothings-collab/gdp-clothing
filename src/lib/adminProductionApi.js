@@ -54,11 +54,9 @@ export const adminProductionApi = {
             ? "quality_control"
             : status === "packing"
               ? "packing"
-              : status === "completed"
+              : ["ready_for_pickup", "shipped", "out_for_delivery", "delivered", "completed"].includes(status)
                 ? "completed"
-                : ["ready_for_pickup", "shipped", "out_for_delivery", "delivered"].includes(status)
-                  ? "ready"
-                  : "not_started";
+                : "not_started";
 
     const fulfillmentStatus =
       status === "ready_for_pickup"
@@ -69,9 +67,7 @@ export const adminProductionApi = {
             ? "out_for_delivery"
             : status === "delivered"
               ? "delivered"
-              : status === "completed"
-                ? "fulfilled"
-                : undefined;
+              : undefined;
 
     await adminApi.updateOrder(orderId, {
       status,

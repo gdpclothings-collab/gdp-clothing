@@ -25,6 +25,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 import { privacyApi } from "@/lib/privacyApi";
+import { getCustomerWorkflow, TERMINAL_ORDER_STATUSES } from "@/lib/orderWorkflow";
 
 const STATUS_LABELS = {
   pending_payment: "Pending Payment",
@@ -189,7 +190,7 @@ export default function Account() {
   const latestOrder = orders[0];
   const pendingCustomCount = customOrders.filter((entry) => {
     const status = entry?.order?.status;
-    return status && !["delivered", "completed", "cancelled", "refunded"].includes(status);
+    return status && !TERMINAL_ORDER_STATUSES.includes(status) && status !== "delivered";
   }).length;
 
   return (
@@ -446,6 +447,9 @@ export default function Account() {
                           <InfoStat label="Items" value={trackResult.items?.length || 0} />
                           <InfoStat label="Order Total" value={formatMoney(trackResult.total)} />
                           <InfoStat label="Carrier" value={trackResult.carrier || "Not assigned yet"} />
+                        </div>
+                        <div className="px-5 pb-5">
+                          <CustomerWorkflowProgress order={trackResult} />
                         </div>
                         {trackResult.trackingNumber && (
                           <div className="px-5 pb-5 text-xs font-mono">
@@ -780,6 +784,41 @@ function StatusBadge({ status }) {
     <span className="inline-flex font-mono text-[10px] uppercase tracking-wide px-2 py-1 bg-accent/10 text-accent border border-accent/20">
       {STATUS_LABELS[status] || String(status || "Pending").replaceAll("_", " ")}
     </span>
+  );
+}
+
+function CustomerWorkflowProgress({ order }) {
+  const steps = getCustomerWorkflow(order);
+  return (
+    <div className="border-t border-border pt-5">
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-3">
+        Order progress
+      </div>
+      <ol className="grid grid-cols-2 md:grid-cols-3 gap-2" aria-label="Order progress">
+        {steps.map((step, index) => (
+          <li
+            key={step.id}
+            className={
+              "border px-3 py-3 text-xs font-semibold " +
+              (step.complete
+                ? "border-accent/35 bg-accent/5 text-foreground"
+                : "border-border text-muted-foreground")
+            }
+          >
+            <span className="font-mono text-[10px] mr-2">{step.complete ? "✓" : index + 1}</span>
+            {step.label}
+          </li>
+        ))}
+      </ol>
+      {order.fulfillmentStatus === "ready_for_pickup" && (
+        <p className="mt-3 text-sm text-muted-foreground">Your order is ready for pickup.</p>
+      )}
+      {["shipped", "out_for_delivery"].includes(order.fulfillmentStatus) && order.trackingNumber && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Shipped with {order.carrier}: <span className="font-mono text-foreground">{order.trackingNumber}</span>
+        </p>
+      )}
+    </div>
   );
 }
 

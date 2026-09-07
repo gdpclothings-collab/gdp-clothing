@@ -20,6 +20,8 @@ export const normalizeOrder = (row) => row ? ({
   customerName: row.customer_name,
   customerPhone: row.customer_phone,
   fulfillmentStatus: row.fulfillment_status,
+  designStatus: row.design_status,
+  productionStatus: row.production_status,
   shippingAddress: row.shipping_address,
   billingAddress: row.billing_address,
   shippingMethod: row.shipping_method,
@@ -33,6 +35,7 @@ export const normalizeOrder = (row) => row ? ({
   confirmationToken: row.confirmation_token,
   created_date: row.created_at,
   updated_date: row.updated_at,
+  activity: row.activity || [],
   items: (row.order_items || []).map(normalizeOrderItem),
 }) : null;
 
@@ -275,7 +278,17 @@ export const customerApi = {
       .eq("order_number", orderNumber)
       .maybeSingle();
     if (error) throw error;
-    return normalizeOrder(data);
+    if (!data) return null;
+
+    const { data: activity, error: activityError } = await supabase
+      .from("order_activity_events")
+      .select("id, activity_type, field_name, from_value, to_value, created_at")
+      .eq("order_id", data.id)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (activityError) throw activityError;
+
+    return normalizeOrder({ ...data, activity: activity || [] });
   },
 
   async createSupportTicket(payload) {
