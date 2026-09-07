@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -243,6 +243,7 @@ function checkerboardStyle() {
 
 export default function DTFGangSheet() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addItem } = useCart();
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
@@ -250,7 +251,7 @@ export default function DTFGangSheet() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
-  const [mode, setMode] = useState("build");
+  const [mode, setMode] = useState(() => (searchParams.get("mode") === "upload" ? "upload" : "build"));
   const [sheetWidth, setSheetWidth] = useState(34);
   const [sheetLength, setSheetLength] = useState(36);
   const [artworks, setArtworks] = useState([]);
