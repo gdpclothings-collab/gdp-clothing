@@ -11,6 +11,7 @@ import {
   Shirt,
   ShoppingBag,
   Sparkles,
+  RotateCcw,
   RotateCw,
   Trash2,
   Upload,
@@ -445,19 +446,59 @@ export default function DTFGangSheet() {
     setApproval(false);
   };
 
-  const removeSelected = () => {
-    if (!selectedArtwork) return;
-    const next = artworks.filter((item) => item.id !== selectedArtwork.id);
-    if (selectedArtwork.previewUrl && !next.some((item) => item.previewUrl === selectedArtwork.previewUrl)) {
-      URL.revokeObjectURL(selectedArtwork.previewUrl);
+  const removeArtwork = (artworkId) => {
+    const target = artworks.find((item) => item.id === artworkId);
+    if (!target) return;
+
+    const next = artworks.filter((item) => item.id !== artworkId);
+    if (target.previewUrl && !next.some((item) => item.previewUrl === target.previewUrl)) {
+      URL.revokeObjectURL(target.previewUrl);
     }
+
     setArtworks(next);
-    setSelectedId(next[0]?.id || "");
+    setSelectedId((current) => (current === artworkId ? next[0]?.id || "" : current));
     setApproval(false);
+    setPageError("");
     if (!next.length) {
       setArtworkReviewRequested(false);
       setNotice("");
     }
+  };
+
+  const removeSelected = () => {
+    if (!selectedArtwork) return;
+    removeArtwork(selectedArtwork.id);
+  };
+
+  const resetWorkspace = () => {
+    const hasWorkspaceChanges =
+      artworks.length > 0 ||
+      sheetWidth !== settings.defaultWidth ||
+      sheetLength !== (settings.standardMaxLength || 36) ||
+      approval ||
+      artworkReviewRequested;
+
+    if (
+      hasWorkspaceChanges &&
+      typeof window !== "undefined" &&
+      !window.confirm("Reset this DTF workspace? All uploaded artwork and layout changes will be cleared.")
+    ) {
+      return;
+    }
+
+    artworks.forEach((item) => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+
+    dragRef.current = null;
+    setSheetWidth(settings.defaultWidth);
+    setSheetLength(settings.standardMaxLength || 36);
+    setArtworks([]);
+    setSelectedId("");
+    setApproval(false);
+    setArtworkReviewRequested(false);
+    setPageError("");
+    setNotice("Workspace reset. Upload artwork to start a new gang sheet.");
   };
 
   const autoArrange = () => {
@@ -530,6 +571,8 @@ export default function DTFGangSheet() {
 
   const onPointerDown = (event, item) => {
     if (!canvasRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setSelectedId(item.id);
     const rect = canvasRef.current.getBoundingClientRect();
@@ -695,9 +738,9 @@ export default function DTFGangSheet() {
             </div>
             <div className="border border-white/20 bg-white/5 px-5 py-4">
               <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/50">Live film price</div>
-              <div className="mt-1 font-mono text-3xl font-black">${price.price.toFixed(2)}</div>
+              <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `${price.price.toFixed(2)}` : "—"}</div>
               <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-white/55">
-                {round(price.area, 1)} in² · CAD
+                {hasArtwork ? `${round(price.area, 1)} in² · CAD` : "Upload artwork to calculate"}
               </div>
             </div>
           </div>
@@ -931,6 +974,13 @@ export default function DTFGangSheet() {
                   <button type="button" onClick={fitSheet} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
                     Fit sheet to artwork
                   </button>
+                  <button
+                    type="button"
+                    onClick={resetWorkspace}
+                    className="flex items-center gap-1.5 border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white transition hover:border-red-400 hover:text-red-300"
+                  >
+                    <RotateCcw size={13} /> Reset
+                  </button>
                 </div>
               </div>
 
@@ -956,12 +1006,25 @@ export default function DTFGangSheet() {
                       const selected = item.id === selectedId;
                       const quality = getArtworkQuality(item, settings);
                       return (
-                        <button
-                          type="button"
+                        <div
+                          role="button"
+                          tabIndex={0}
                           key={item.id}
+                          draggable={false}
+                          onDragStart={(event) => event.preventDefault()}
                           onPointerDown={(event) => onPointerDown(event, item)}
                           onClick={() => setSelectedId(item.id)}
-                          className={`absolute overflow-visible border-2 bg-white/10 text-left ${selected ? "z-20 border-black shadow-[0_0_0_2px_white]" : quality.tone === "bad" ? "z-10 border-red-500" : "z-10 border-transparent hover:border-black/50"}`}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              setSelectedId(item.id);
+                            }
+                            if ((event.key === "Delete" || event.key === "Backspace") && selected) {
+                              event.preventDefault();
+                              removeArtwork(item.id);
+                            }
+                          }}
+                          className={`absolute cursor-grab select-none overflow-visible border-2 bg-white/10 text-left outline-none active:cursor-grabbing ${selected ? "z-20 border-black shadow-[0_0_0_2px_white]" : quality.tone === "bad" ? "z-10 border-red-500" : "z-10 border-transparent hover:border-black/50"}`}
                           style={{
                             left: `${(item.x / sheetWidth) * 100}%`,
                             top: `${(item.y / sheetLength) * 100}%`,
@@ -975,6 +1038,7 @@ export default function DTFGangSheet() {
                               src={item.previewUrl}
                               alt={item.name}
                               draggable="false"
+                              onDragStart={(event) => event.preventDefault()}
                               className="pointer-events-none absolute left-1/2 top-1/2 select-none object-contain"
                               style={
                                 Math.abs(Number(item.rotation || 0)) % 180 === 90
@@ -996,11 +1060,30 @@ export default function DTFGangSheet() {
                             </div>
                           )}
                           {selected && (
-                            <span className="pointer-events-none absolute -left-0.5 -top-5 bg-black px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white">
-                              {round(item.width, 1)}" × {round(item.height, 1)}"
-                            </span>
+                            <>
+                              <span className="pointer-events-none absolute -left-0.5 -top-5 bg-black px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white">
+                                {round(item.width, 1)}" × {round(item.height, 1)}"
+                              </span>
+                              <button
+                                type="button"
+                                aria-label={`Delete ${item.name}`}
+                                title="Delete selected artwork"
+                                onPointerDown={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  removeArtwork(item.id);
+                                }}
+                                className="absolute -right-3 -top-3 z-30 grid h-7 w-7 place-items-center rounded-full border border-white bg-red-600 text-white shadow-lg transition hover:bg-red-700"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                     {!artworks.length && (
