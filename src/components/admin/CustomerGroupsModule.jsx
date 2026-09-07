@@ -11,6 +11,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { adminCustomerGroupsApi } from "@/lib/adminCustomerGroupsApi";
+import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function money(value) {
   return Number(value || 0).toLocaleString("en-CA", {
@@ -446,16 +447,25 @@ function TagEditor({ tag, onClose, onSaved }) {
     try {
       await adminCustomerGroupsApi.saveTag(tag?.id || null, form);
       await onSaved(tag?.id ? "Customer tag updated." : "Customer tag created.");
+      return true;
     } catch (err) {
       console.error("Tag save failed:", err);
       window.alert(err?.message || "Could not save tag.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: tag?.name ? `Customer tag: ${tag.name}` : "Customer tag editor",
+  });
+
   return (
-    <Editor title={tag ? "Edit customer tag" : "Create customer tag"} onClose={onClose} onSave={save} saving={saving}>
+    <Editor title={tag ? "Edit customer tag" : "Create customer tag"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty}>
       <Field label="Name">
         <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />
       </Field>
@@ -542,16 +552,25 @@ function SegmentEditor({ segment, customers, members, onClose, onSaved }) {
       }
 
       await onSaved(segment?.id ? "Customer segment updated." : "Customer segment created.");
+      return true;
     } catch (err) {
       console.error("Segment save failed:", err);
       window.alert(err?.message || "Could not save segment.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: segment?.name ? `Customer segment: ${segment.name}` : "Customer segment editor",
+  });
+
   return (
-    <Editor title={segment ? "Edit customer segment" : "Create customer segment"} onClose={onClose} onSave={save} saving={saving} wide>
+    <Editor title={segment ? "Edit customer segment" : "Create customer segment"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty} wide>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Name">
           <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />
@@ -636,7 +655,7 @@ function dynamicRuleText(rules) {
   return parts.length ? parts.join(" · ") : "All customers match.";
 }
 
-function Editor({ title, onClose, onSave, saving, children, wide = false }) {
+function Editor({ title, onClose, onSave, saving, dirty, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className={`w-full ${wide ? "max-w-4xl" : "max-w-xl"} bg-white rounded-2xl shadow-2xl overflow-hidden my-6`}>
@@ -647,7 +666,7 @@ function Editor({ title, onClose, onSave, saving, children, wide = false }) {
         <div className="p-5 space-y-4">{children}</div>
         <div className="px-5 py-4 border-t border-[#e3e3e3] flex justify-end gap-2">
           <button onClick={onClose} className={secondaryButton}>Cancel</button>
-          <button onClick={onSave} disabled={saving} className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-40">
+          <button onClick={onSave} disabled={saving || !dirty} className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-40">
             <Save size={14} /> {saving ? "Saving…" : "Save"}
           </button>
         </div>
