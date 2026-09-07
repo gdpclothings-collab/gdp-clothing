@@ -40,32 +40,166 @@ const createArtworkId = () =>
     ? crypto.randomUUID()
     : `art-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-function imageMetadata(file) {
+async function imageMetadata(file) {
   if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
-    return Promise.resolve({ pixelWidth: 0, pixelHeight: 0, aspectRatio: 1 });
+    return {
+      pixelWidth: 0,
+      pixelHeight: 0,
+      originalPixelWidth: 0,
+      originalPixelHeight: 0,
+      aspectRatio: 1,
+      previewUrl: "",
+      cropBounds: null,
+      transparentTrimmed: false,
+    };
   }
 
+  const sourceUrl = URL.createObjectURL(file);
+
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
     const image = new Image();
-    image.onload = () => {
-      const pixelWidth = Number(image.naturalWidth || 0);
-      const pixelHeight = Number(image.naturalHeight || 0);
-      URL.revokeObjectURL(url);
+
+    image.onload = async () => {
+      const originalPixelWidth = Number(image.naturalWidth || 0);
+      const originalPixelHeight = Number(image.naturalHeight || 0);
+      let pixelWidth = originalPixelWidth;
+      let pixelHeight = originalPixelHeight;
+      let aspectRatio = originalPixelHeight > 0 ? originalPixelWidth / originalPixelHeight : 1;
+      let previewUrl = sourceUrl;
+      let cropBounds = null;
+      let transparentTrimmed = false;
+
+      try {
+        if (
+          file.type === "image/png" &&
+          originalPixelWidth > 0 &&
+          originalPixelHeight > 0
+        ) {
+          const maxSampleSide = 900;
+          const sampleScale = Math.min(
+            1,
+            maxSampleSide / Math.max(originalPixelWidth, originalPixelHeight)
+          );
+          const sampleWidth = Math.max(1, Math.round(originalPixelWidth * sampleScale));
+          const sampleHeight = Math.max(1, Math.round(originalPixelHeight * sampleScale));
+          const sampleCanvas = document.createElement("canvas");
+          sampleCanvas.width = sampleWidth;
+          sampleCanvas.height = sampleHeight;
+          const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
+
+          if (sampleContext) {
+            sampleContext.clearRect(0, 0, sampleWidth, sampleHeight);
+            sampleContext.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+            const pixels = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight).data;
+            let minX = sampleWidth;
+            let minY = sampleHeight;
+            let maxX = -1;
+            let maxY = -1;
+            let hasTransparency = false;
+
+            for (let y = 0; y < sampleHeight; y += 1) {
+              for (let x = 0; x < sampleWidth; x += 1) {
+                const alpha = pixels[(y * sampleWidth + x) * 4 + 3];
+                if (alpha < 250) hasTransparency = true;
+                if (alpha > 8) {
+                  minX = Math.min(minX, x);
+                  minY = Math.min(minY, y);
+                  maxX = Math.max(maxX, x);
+                  maxY = Math.max(maxY, y);
+                }
+              }
+            }
+
+            if (hasTransparency && maxX >= minX && maxY >= minY) {
+              const pad = 1;
+              minX = Math.max(0, minX - pad);
+              minY = Math.max(0, minY - pad);
+              maxX = Math.min(sampleWidth - 1, maxX + pad);
+              maxY = Math.min(sampleHeight - 1, maxY + pad);
+
+              const left = minX / sampleWidth;
+              const top = minY / sampleHeight;
+              const right = (maxX + 1) / sampleWidth;
+              const bottom = (maxY + 1) / sampleHeight;
+              const visibleWidthRatio = Math.max(0.001, right - left);
+              const visibleHeightRatio = Math.max(0.001, bottom - top);
+              const trimRatio = 1 - visibleWidthRatio * visibleHeightRatio;
+
+              if (trimRatio >= 0.01) {
+                cropBounds = { left, top, right, bottom };
+                transparentTrimmed = true;
+                pixelWidth = Math.max(1, Math.round(originalPixelWidth * visibleWidthRatio));
+                pixelHeight = Math.max(1, Math.round(originalPixelHeight * visibleHeightRatio));
+                aspectRatio = pixelWidth / Math.max(1, pixelHeight);
+
+                const maxPreviewSide = 1200;
+                const previewScale = Math.min(1, maxPreviewSide / Math.max(pixelWidth, pixelHeight));
+                const previewWidth = Math.max(1, Math.round(pixelWidth * previewScale));
+                const previewHeight = Math.max(1, Math.round(pixelHeight * previewScale));
+                const previewCanvas = document.createElement("canvas");
+                previewCanvas.width = previewWidth;
+                previewCanvas.height = previewHeight;
+                const previewContext = previewCanvas.getContext("2d");
+
+                if (previewContext) {
+                  previewContext.clearRect(0, 0, previewWidth, previewHeight);
+                  previewContext.drawImage(
+                    image,
+                    left * originalPixelWidth,
+                    top * originalPixelHeight,
+                    visibleWidthRatio * originalPixelWidth,
+                    visibleHeightRatio * originalPixelHeight,
+                    0,
+                    0,
+                    previewWidth,
+                    previewHeight
+                  );
+
+                  const previewBlob = await new Promise((blobResolve) =>
+                    previewCanvas.toBlob(blobResolve, "image/png")
+                  );
+                  if (previewBlob) {
+                    previewUrl = URL.createObjectURL(previewBlob);
+                    URL.revokeObjectURL(sourceUrl);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (analysisError) {
+        console.debug("Transparent PNG analysis fallback:", analysisError);
+      }
+
       resolve({
         pixelWidth,
         pixelHeight,
-        aspectRatio: pixelHeight > 0 ? pixelWidth / pixelHeight : 1,
+        originalPixelWidth,
+        originalPixelHeight,
+        aspectRatio,
+        previewUrl,
+        cropBounds,
+        transparentTrimmed,
       });
     };
+
     image.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ pixelWidth: 0, pixelHeight: 0, aspectRatio: 1 });
+      URL.revokeObjectURL(sourceUrl);
+      resolve({
+        pixelWidth: 0,
+        pixelHeight: 0,
+        originalPixelWidth: 0,
+        originalPixelHeight: 0,
+        aspectRatio: 1,
+        previewUrl: "",
+        cropBounds: null,
+        transparentTrimmed: false,
+      });
     };
-    image.src = url;
+
+    image.src = sourceUrl;
   });
 }
-
 function checkerboardStyle() {
   return {
     backgroundColor: "#f7f7f7",
@@ -243,9 +377,15 @@ export default function DTFGangSheet() {
         name: file.name,
         type: file.type,
         size: file.size,
-        previewUrl: String(file.type || "").startsWith("image/") ? URL.createObjectURL(file) : "",
+        previewUrl:
+          metadata.previewUrl ||
+          (String(file.type || "").startsWith("image/") ? URL.createObjectURL(file) : ""),
         pixelWidth: metadata.pixelWidth,
         pixelHeight: metadata.pixelHeight,
+        originalPixelWidth: metadata.originalPixelWidth || metadata.pixelWidth,
+        originalPixelHeight: metadata.originalPixelHeight || metadata.pixelHeight,
+        cropBounds: metadata.cropBounds,
+        transparentTrimmed: metadata.transparentTrimmed === true,
         aspectRatio: metadata.aspectRatio || 1,
         isVector,
         x: settings.spacing,
@@ -454,6 +594,10 @@ export default function DTFGangSheet() {
         rotation: Number(item.rotation || 0),
         pixelWidth: Number(item.pixelWidth || 0),
         pixelHeight: Number(item.pixelHeight || 0),
+        originalPixelWidth: Number(item.originalPixelWidth || item.pixelWidth || 0),
+        originalPixelHeight: Number(item.originalPixelHeight || item.pixelHeight || 0),
+        cropBounds: item.cropBounds || null,
+        transparentTrimmed: item.transparentTrimmed === true,
       }));
 
       const reviewFee = artworkReviewRequested && settings.artworkReviewEnabled
@@ -717,6 +861,7 @@ export default function DTFGangSheet() {
                           <div className="truncate text-[11px] font-semibold">{index + 1}. {item.name}</div>
                           <div className={`mt-0.5 font-mono text-[9px] ${selectedId === item.id ? "text-white/60" : "text-black/45"}`}>
                             {round(item.width, 2)}" × {round(item.height, 2)}" · {quality.dpi ? `${Math.round(quality.dpi)} DPI` : quality.label}
+                            {item.transparentTrimmed ? " · Transparent edges trimmed" : ""}
                           </div>
                         </div>
                       </button>
