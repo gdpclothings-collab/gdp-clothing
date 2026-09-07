@@ -45,6 +45,7 @@ import {
   ShoppingCart,
   ArrowRightLeft,
   UsersRound,
+  FileImage,
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
 import OrdersModule from "@/components/admin/OrdersModule";
@@ -61,6 +62,7 @@ import CollectionsModule from "@/components/admin/CollectionsModule";
 import ReviewsModule from "@/components/admin/ReviewsModule";
 import DiscountsModule from "@/components/admin/DiscountsModule";
 import CustomStudioAdminModule from "@/components/admin/CustomStudioAdminModule";
+import DTFGangSheetAdminModule from "@/components/admin/DTFGangSheetAdminModule";
 import ProductionModule from "@/components/admin/ProductionModule";
 import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import FinanceModule from "@/components/admin/FinanceModule";
@@ -117,6 +119,7 @@ const NAV_GROUPS = [
     label: "GDP Operations",
     items: [
       { id: "custom-studio", label: "Custom Studio", icon: Sparkles },
+      { id: "dtf-gang-sheet", label: "DTF Gang Sheets", icon: FileImage },
       { id: "production", label: "Production", icon: Factory },
     ],
   },
@@ -140,6 +143,11 @@ const MODULE_COPY = {
     title: "Products",
     description: "Create and manage products, variants, collections, media, merchandising and SEO.",
     items: ["Products", "Variants", "Collections", "Categories", "Gift cards"],
+  },
+  "dtf-gang-sheet": {
+    title: "DTF Gang Sheets",
+    description: "Manage film width, pricing, artwork quality rules and incoming DTF transfer orders.",
+    items: ["Film settings", "Pricing", "Artwork preflight", "Order queue"],
   },
   collections: {
     title: "Collections",
@@ -455,6 +463,15 @@ export default function AdminV2() {
                 description="Create promotion codes, eligibility rules, usage limits and campaign schedules."
               />
               <DiscountsModule />
+            </div>
+          ) : section === "dtf-gang-sheet" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="DTF Gang Sheets"
+                description="Manage film pricing, maximum width, artwork preflight rules and DTF order intake."
+              />
+              <DTFGangSheetAdminModule />
             </div>
           ) : section === "custom-studio" ? (
             <div>
@@ -892,6 +909,7 @@ function ModuleLanding({ module, section, onOpen }) {
     finance: WalletCards,
     analytics: BarChart3,
     "custom-studio": Sparkles,
+    "dtf-gang-sheet": FileImage,
     production: Factory,
     "online-store": Store,
     apps: Blocks,
