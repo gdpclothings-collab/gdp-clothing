@@ -454,6 +454,83 @@ Deno.serve(async (req: Request) => {
       return respond(req, { configured: true, ...rules });
     }
 
+
+    if (action === "recordMarketingConsent") {
+      const user = await optionalUser(req, supabaseUrl, anonKey);
+      const email = String(body?.email || user?.email || "").trim().toLowerCase();
+      const source = String(body?.source || "account").trim().toLowerCase();
+      const allowedSources = new Set(["footer", "checkout", "register", "account"]);
+
+      if (!email || !email.includes("@") || email.length > 254) {
+        return respond(req, { error: true, message: "Enter a valid email address." }, 400);
+      }
+      if (!allowedSources.has(source)) {
+        return respond(req, { error: true, message: "Invalid consent source." }, 400);
+      }
+
+      const status = body?.consent === true ? "subscribed" : "unsubscribed";
+      const { error: consentError } = await service.from("marketing_consents").insert({
+        user_id: user?.id || null,
+        email,
+        status,
+        source,
+        consent_text_version: "2026-09-07",
+        policy_version: "2026-09-07",
+      });
+      if (consentError) throw consentError;
+
+      return respond(req, { success: true, status });
+    }
+
+    if (action === "recordRegistrationAcceptance") {
+      const userId = String(body?.userId || "").trim();
+      const email = String(body?.email || "").trim().toLowerCase();
+
+      if (!uuidRe.test(userId) || !email || !email.includes("@") || email.length > 254) {
+        return respond(req, { error: true, message: "Invalid registration acceptance request." }, 400);
+      }
+
+      const { data: authUserData, error: authUserError } = await service.auth.admin.getUserById(userId);
+      if (authUserError || !authUserData?.user || String(authUserData.user.email || "").toLowerCase() !== email) {
+        return respond(req, { error: true, message: "Registration acceptance could not be verified." }, 403);
+      }
+
+      const acceptedAt = new Date().toISOString();
+      const { error: acceptanceError } = await service.from("policy_acceptances").insert([
+        {
+          user_id: userId,
+          email,
+          policy_key: "terms_conditions",
+          policy_version: "2026-09-07",
+          source: "register",
+          accepted_at: acceptedAt,
+        },
+        {
+          user_id: userId,
+          email,
+          policy_key: "privacy_policy",
+          policy_version: "2026-09-07",
+          source: "register",
+          accepted_at: acceptedAt,
+        },
+      ]);
+      if (acceptanceError) throw acceptanceError;
+
+      if (body?.marketingConsent === true) {
+        const { error: marketingError } = await service.from("marketing_consents").insert({
+          user_id: userId,
+          email,
+          status: "subscribed",
+          source: "register",
+          consent_text_version: "2026-09-07",
+          policy_version: "2026-09-07",
+        });
+        if (marketingError) throw marketingError;
+      }
+
+      return respond(req, { success: true });
+    }
+
     if (action === "getOrder") {
       const orderNumber = String(body?.orderNumber || "").trim();
       const token = String(body?.token || "").trim();
@@ -587,6 +664,10 @@ Deno.serve(async (req: Request) => {
     }
     if (!postalCode) {
       return respond(req, { error: true, message: "Enter a valid Canadian postal code in the format A1A 1A1." }, 400);
+    }
+
+    if (customer.termsAccepted !== true) {
+      return respond(req, { error: true, message: "Accept the Terms & Conditions and Privacy Policy before checkout." }, 400);
     }
 
     customer.email = customerEmail.toLowerCase();
@@ -755,6 +836,9 @@ Deno.serve(async (req: Request) => {
         if (spec.approvalAcknowledged !== true) {
           return respond(req, { error: true, message: "Approve the DTF film layout before checkout." }, 400);
         }
+        if (spec.rightsConfirmed !== true) {
+          return respond(req, { error: true, message: "Confirm that you own or have permission to reproduce the DTF artwork." }, 400);
+        }
         if (!layout.length || (mode === "upload" && layout.length !== 1)) {
           return respond(req, { error: true, message: mode === "upload" ? "Upload one print-ready gang sheet." : "Add artwork to the DTF film." }, 400);
         }
@@ -845,6 +929,8 @@ Deno.serve(async (req: Request) => {
           standardRate: dtfSettings.standardRate,
           volumeRate: dtfSettings.volumeRate,
           artworkReviewRequested: reviewRequested,
+          rightsConfirmed: true,
+          rightsTimestamp: String(spec.rightsTimestamp || new Date().toISOString()),
           approvalAcknowledged: true,
           approvalTimestamp: String(spec.approvalTimestamp || new Date().toISOString()),
           utilization: Math.max(0, Math.min(100, Number(spec.utilization || 0))),
@@ -956,6 +1042,45 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (orderError) throw orderError;
+
+    const acceptedAt = new Date().toISOString();
+    const { error: policyAcceptanceError } = await service.from("policy_acceptances").insert([
+      {
+        user_id: user?.id || null,
+        email: user?.email || customer.email,
+        order_id: order.id,
+        policy_key: "terms_conditions",
+        policy_version: "2026-09-07",
+        source: "checkout",
+        accepted_at: acceptedAt,
+      },
+      {
+        user_id: user?.id || null,
+        email: user?.email || customer.email,
+        order_id: order.id,
+        policy_key: "privacy_policy",
+        policy_version: "2026-09-07",
+        source: "checkout",
+        accepted_at: acceptedAt,
+      },
+    ]);
+    if (policyAcceptanceError) {
+      console.error("checkout policy acceptance audit failed", policyAcceptanceError);
+    }
+
+    if (customer.marketingConsent === true) {
+      const { error: marketingConsentError } = await service.from("marketing_consents").insert({
+        user_id: user?.id || null,
+        email: user?.email || customer.email,
+        status: "subscribed",
+        source: "checkout",
+        consent_text_version: "2026-09-07",
+        policy_version: "2026-09-07",
+      });
+      if (marketingConsentError) {
+        console.error("checkout marketing consent audit failed", marketingConsentError);
+      }
+    }
 
     const orderItems = normalizedItems.map(({ product, design, variantRow, quantity, unitPrice, size, color, variant, customData }) => ({
       order_id: order.id,
