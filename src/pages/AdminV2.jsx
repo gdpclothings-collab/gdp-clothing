@@ -55,6 +55,7 @@ import ProductsModule from "@/components/admin/ProductsModule";
 import InventoryModule from "@/components/admin/InventoryModule";
 import InventoryOperationsModule from "@/components/admin/InventoryOperationsModule";
 import CustomersModule from "@/components/admin/CustomersModule";
+import SupportTicketsModule from "@/components/admin/SupportTicketsModule";
 import CustomerGroupsModule from "@/components/admin/CustomerGroupsModule";
 import CollectionsModule from "@/components/admin/CollectionsModule";
 import ReviewsModule from "@/components/admin/ReviewsModule";
@@ -90,6 +91,7 @@ const NAV_GROUPS = [
       { id: "inventory", label: "Inventory", icon: Boxes },
       { id: "inventory-operations", label: "Locations & transfers", icon: ArrowRightLeft },
       { id: "customers", label: "Customers", icon: Users },
+      { id: "support", label: "Support", icon: LifeBuoy },
       { id: "customer-groups", label: "Segments & tags", icon: UsersRound },
     ],
   },
@@ -153,6 +155,11 @@ const MODULE_COPY = {
     title: "Customers",
     description: "Build customer profiles, segments and complete purchase histories.",
     items: ["Customer profiles", "Segments", "Tags", "Addresses", "Purchase history"],
+  },
+  support: {
+    title: "Support",
+    description: "Handle contact-page requests, order questions and customer follow-up from one queue.",
+    items: ["Support inbox", "Order questions", "Custom requests", "Priority", "Resolution status"],
   },
   growth: {
     title: "Growth",
@@ -430,6 +437,15 @@ export default function AdminV2() {
                 description="Understand customer value, order history, repeat business and account status."
               />
               <CustomersModule />
+            </div>
+          ) : section === "support" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Support"
+                description="Manage contact requests, order questions, priorities and customer follow-up."
+              />
+              <SupportTicketsModule />
             </div>
           ) : section === "discounts" ? (
             <div>
@@ -817,7 +833,7 @@ function HomeModule({ data, loading, error, onRetry, onOpen }) {
                 icon={LifeBuoy}
                 label="Open support tickets"
                 value={loading ? "—" : metrics.openTickets || 0}
-                onClick={() => onOpen("customers")}
+                onClick={() => onOpen("support")}
               />
             </Panel>
 
@@ -867,6 +883,7 @@ function ModuleLanding({ module, section, onOpen }) {
     products: Package,
     inventory: Boxes,
     customers: Users,
+    support: LifeBuoy,
     growth: TrendingUp,
     marketing: Megaphone,
     discounts: BadgePercent,
