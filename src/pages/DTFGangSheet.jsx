@@ -6,6 +6,7 @@ import {
   Copy,
   FileCheck,
   Layers3,
+  Maximize2,
   Move,
   Ruler,
   Shirt,
@@ -40,6 +41,35 @@ const createArtworkId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : `art-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const formatFileSize = (bytes = 0) => {
+  const size = Math.max(0, Number(bytes || 0));
+  if (size >= 1024 * 1024) return `${round(size / (1024 * 1024), 2)} MB`;
+  if (size >= 1024) return `${round(size / 1024, 1)} KB`;
+  return `${Math.round(size)} B`;
+};
+
+function sourceDefaultPrintSize(metadata, settings, sheetWidth, sheetLength) {
+  const minimum = 0.1;
+  const maxWidth = Math.max(minimum, sheetWidth - settings.spacing * 2);
+  const maxHeight = Math.max(minimum, sheetLength - settings.spacing * 2);
+  const sourceDpi = Math.max(1, Number(settings.recommendedDpi || 300));
+
+  let width = metadata.pixelWidth > 0 ? metadata.pixelWidth / sourceDpi : Math.min(10, maxWidth);
+  let height = metadata.pixelHeight > 0
+    ? metadata.pixelHeight / sourceDpi
+    : width / Math.max(0.01, metadata.aspectRatio || 1);
+
+  width = Math.max(minimum, width);
+  height = Math.max(minimum, height);
+  const scale = Math.min(1, maxWidth / width, maxHeight / height);
+
+  return {
+    width: width * scale,
+    height: height * scale,
+    sourceDpi,
+  };
+}
 
 async function imageMetadata(file) {
   if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
@@ -366,11 +396,15 @@ export default function DTFGangSheet() {
     for (const file of chosen) {
       const metadata = await imageMetadata(file);
       const isVector = file.type === "image/svg+xml" || file.type === "application/pdf";
-      const defaultWidth =
-        mode === "upload"
-          ? Math.max(0.5, sheetWidth - settings.spacing * 2)
-          : Math.min(10, Math.max(0.5, sheetWidth - settings.spacing * 2));
-      const height = Math.max(0.5, defaultWidth / Math.max(0.01, metadata.aspectRatio || 1));
+      const sourceSize = sourceDefaultPrintSize(metadata, settings, sheetWidth, sheetLength);
+      const defaultWidth = isVector
+        ? mode === "upload"
+          ? Math.max(0.1, sheetWidth - settings.spacing * 2)
+          : Math.min(10, Math.max(0.1, sheetWidth - settings.spacing * 2))
+        : sourceSize.width;
+      const height = isVector
+        ? Math.max(0.1, defaultWidth / Math.max(0.01, metadata.aspectRatio || 1))
+        : sourceSize.height;
 
       nextItems.push({
         id: createArtworkId(),
@@ -394,6 +428,9 @@ export default function DTFGangSheet() {
         y: settings.spacing,
         width: defaultWidth,
         height,
+        defaultWidth,
+        defaultHeight: height,
+        sourceDpi: isVector ? null : sourceSize.sourceDpi,
         rotation: 0,
       });
     }
@@ -409,26 +446,78 @@ export default function DTFGangSheet() {
 
   const updateSelected = (patch) => {
     if (!selectedId) return;
+    const minimum = 0.1;
     setArtworks((current) =>
       current.map((item) => {
         if (item.id !== selectedId) return item;
         const next = { ...item, ...patch };
+        const rotated = Math.abs(Number(item.rotation || 0)) % 180 === 90;
+        const ratio = Math.max(0.01, item.aspectRatio || 1);
+        const maxWidth = Math.max(minimum, sheetWidth - item.x);
+        const maxHeight = Math.max(minimum, sheetLength - item.y);
+
         if (patch.width != null) {
-          const width = Math.max(0.5, Math.min(Number(patch.width || 0.5), sheetWidth - settings.spacing * 2));
-          const rotated = Math.abs(Number(item.rotation || 0)) % 180 === 90;
-          next.width = width;
-          next.height = Math.max(
-            0.5,
-            rotated
-              ? width * Math.max(0.01, item.aspectRatio || 1)
-              : width / Math.max(0.01, item.aspectRatio || 1)
-          );
-          next.x = Math.min(next.x, Math.max(0, sheetWidth - next.width));
+          let width = Math.max(minimum, Math.min(Number(patch.width || minimum), maxWidth));
+          let height = rotated ? width * ratio : width / ratio;
+          if (height > maxHeight) {
+            height = maxHeight;
+            width = rotated ? height / ratio : height * ratio;
+          }
+          next.width = Math.max(minimum, width);
+          next.height = Math.max(minimum, height);
+        } else if (patch.height != null) {
+          let height = Math.max(minimum, Math.min(Number(patch.height || minimum), maxHeight));
+          let width = rotated ? height / ratio : height * ratio;
+          if (width > maxWidth) {
+            width = maxWidth;
+            height = rotated ? width * ratio : width / ratio;
+          }
+          next.width = Math.max(minimum, width);
+          next.height = Math.max(minimum, height);
         }
+
+        next.x = Math.max(0, Math.min(next.x, sheetWidth - next.width));
+        next.y = Math.max(0, Math.min(next.y, sheetLength - next.height));
         return next;
       })
     );
     setApproval(false);
+    setPageError("");
+  };
+
+  const commitSelectedDimension = (axis, rawValue, input) => {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value <= 0) {
+      if (input && selectedArtwork) {
+        input.value = String(round(axis === "height" ? selectedArtwork.height : selectedArtwork.width, 2));
+      }
+      return;
+    }
+    updateSelected({ [axis]: value });
+  };
+
+  const resetSelectedArtworkSize = () => {
+    if (!selectedArtwork) return;
+    const minimum = 0.1;
+    const ratio = Math.max(0.01, selectedArtwork.aspectRatio || 1);
+    let width = Math.max(minimum, Number(selectedArtwork.defaultWidth || selectedArtwork.width));
+    let height = Math.max(minimum, Number(selectedArtwork.defaultHeight || width / ratio));
+    const maxWidth = Math.max(minimum, sheetWidth - selectedArtwork.x);
+    const maxHeight = Math.max(minimum, sheetLength - selectedArtwork.y);
+    const scale = Math.min(1, maxWidth / width, maxHeight / height);
+    width *= scale;
+    height *= scale;
+
+    setArtworks((current) =>
+      current.map((item) =>
+        item.id === selectedArtwork.id
+          ? { ...item, width, height, rotation: 0 }
+          : item
+      )
+    );
+    setApproval(false);
+    setPageError("");
+    setNotice(`Artwork size reset to ${round(width, 2)}" × ${round(height, 2)}".`);
   };
 
   const duplicateSelected = () => {
@@ -577,10 +666,24 @@ export default function DTFGangSheet() {
     setSelectedId(item.id);
     const rect = canvasRef.current.getBoundingClientRect();
     dragRef.current = {
+      type: "move",
       id: item.id,
       pointerId: event.pointerId,
       offsetX: event.clientX - rect.left - (item.x / sheetWidth) * rect.width,
       offsetY: event.clientY - rect.top - (item.y / sheetLength) * rect.height,
+    };
+  };
+
+  const onResizePointerDown = (event, item) => {
+    if (!canvasRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setSelectedId(item.id);
+    dragRef.current = {
+      type: "resize",
+      id: item.id,
+      pointerId: event.pointerId,
     };
   };
 
@@ -589,9 +692,32 @@ export default function DTFGangSheet() {
     const canvas = canvasRef.current;
     if (!drag || !canvas) return;
 
+    event.preventDefault();
     const item = artworks.find((entry) => entry.id === drag.id);
     if (!item) return;
     const rect = canvas.getBoundingClientRect();
+
+    if (drag.type === "resize") {
+      const pointerX = ((event.clientX - rect.left) / rect.width) * sheetWidth;
+      const minimum = 0.1;
+      const rotated = Math.abs(Number(item.rotation || 0)) % 180 === 90;
+      const ratio = Math.max(0.01, item.aspectRatio || 1);
+      const maxWidthByFilm = Math.max(minimum, sheetWidth - item.x);
+      const maxHeightByFilm = Math.max(minimum, sheetLength - item.y);
+      const maxWidthByHeight = rotated ? maxHeightByFilm / ratio : maxHeightByFilm * ratio;
+      const width = Math.max(minimum, Math.min(pointerX - item.x, maxWidthByFilm, maxWidthByHeight));
+      const height = rotated ? width * ratio : width / ratio;
+
+      setArtworks((current) =>
+        current.map((entry) =>
+          entry.id === drag.id ? { ...entry, width, height } : entry
+        )
+      );
+      setApproval(false);
+      setPageError("");
+      return;
+    }
+
     const x = ((event.clientX - rect.left - drag.offsetX) / rect.width) * sheetWidth;
     const y = ((event.clientY - rect.top - drag.offsetY) / rect.height) * sheetLength;
     const clampedX = Math.max(0, Math.min(sheetWidth - item.width, x));
@@ -646,6 +772,9 @@ export default function DTFGangSheet() {
         originalPixelHeight: Number(item.originalPixelHeight || item.pixelHeight || 0),
         cropBounds: item.cropBounds || null,
         transparentTrimmed: item.transparentTrimmed === true,
+        defaultWidth: round(item.defaultWidth || item.width, 3),
+        defaultHeight: round(item.defaultHeight || item.height, 3),
+        sourceDpi: item.sourceDpi || null,
       }));
 
       const reviewFee = artworkReviewRequested && settings.artworkReviewEnabled
@@ -908,8 +1037,11 @@ export default function DTFGangSheet() {
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[11px] font-semibold">{index + 1}. {item.name}</div>
                           <div className={`mt-0.5 font-mono text-[9px] ${selectedId === item.id ? "text-white/60" : "text-black/45"}`}>
-                            {round(item.width, 2)}" × {round(item.height, 2)}" · {quality.dpi ? `${Math.round(quality.dpi)} DPI` : quality.label}
-                            {item.transparentTrimmed ? " · Transparent edges trimmed" : ""}
+                            {item.pixelWidth > 0 && item.pixelHeight > 0 ? `${item.pixelWidth} × ${item.pixelHeight}px · ` : ""}{formatFileSize(item.size)}
+                          </div>
+                          <div className={`mt-0.5 font-mono text-[9px] ${selectedId === item.id ? "text-white/60" : "text-black/45"}`}>
+                            Print {round(item.width, 2)}" × {round(item.height, 2)}" · {quality.dpi ? `${Math.round(quality.dpi)} DPI` : quality.label}
+                            {item.transparentTrimmed ? " · transparent edges ignored" : ""}
                           </div>
                         </div>
                       </button>
@@ -921,20 +1053,53 @@ export default function DTFGangSheet() {
 
             {selectedArtwork && (
               <Panel title="3 / Selected design" icon={Move}>
-                <Field label="Print width">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0.5"
-                      max={sheetWidth}
-                      step="0.1"
-                      value={round(selectedArtwork.width, 2)}
-                      onChange={(event) => updateSelected({ width: Number(event.target.value || 0.5) })}
-                      className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
-                    />
-                    <span className="font-mono text-xs">in</span>
-                  </div>
-                </Field>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Print width">
+                    <div className="flex items-center gap-2">
+                      <input
+                        key={`width-${selectedArtwork.id}-${round(selectedArtwork.width, 3)}`}
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        defaultValue={round(selectedArtwork.width, 2)}
+                        onBlur={(event) => commitSelectedDimension("width", event.target.value, event.target)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.currentTarget.blur();
+                        }}
+                        className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
+                      />
+                      <span className="font-mono text-xs">in</span>
+                    </div>
+                  </Field>
+                  <Field label="Print height">
+                    <div className="flex items-center gap-2">
+                      <input
+                        key={`height-${selectedArtwork.id}-${round(selectedArtwork.height, 3)}`}
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        defaultValue={round(selectedArtwork.height, 2)}
+                        onBlur={(event) => commitSelectedDimension("height", event.target.value, event.target)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.currentTarget.blur();
+                        }}
+                        className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
+                      />
+                      <span className="font-mono text-xs">in</span>
+                    </div>
+                  </Field>
+                </div>
+                <div className="mb-3 text-[10px] leading-4 text-black/45">
+                  Aspect ratio is locked so the artwork cannot be stretched or distorted.
+                </div>
+                <div className="mb-3 border border-black/10 bg-white p-3 font-mono text-[9px] leading-5 text-black/55">
+                  <div>Source: {selectedArtwork.originalPixelWidth > 0 ? `${selectedArtwork.originalPixelWidth} × ${selectedArtwork.originalPixelHeight}px` : "Vector / PDF"}</div>
+                  {selectedArtwork.transparentTrimmed && selectedArtwork.pixelWidth > 0 && (
+                    <div>Visible artwork: {selectedArtwork.pixelWidth} × {selectedArtwork.pixelHeight}px</div>
+                  )}
+                  <div>File: {formatFileSize(selectedArtwork.size)}{selectedArtwork.sourceDpi ? ` · default print size based on ${selectedArtwork.sourceDpi} DPI` : ""}</div>
+                  <div>Default: {round(selectedArtwork.defaultWidth, 2)}" × {round(selectedArtwork.defaultHeight, 2)}"</div>
+                </div>
                 <div className={`border p-3 text-xs ${selectedQuality.tone === "bad" ? "border-red-200 bg-red-50" : selectedQuality.tone === "warning" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
                   <div className="font-semibold">{selectedQuality.label}</div>
                   <div className="mt-1 text-[11px] opacity-70">
@@ -943,7 +1108,10 @@ export default function DTFGangSheet() {
                       : "Vector/PDF artwork is not limited by raster DPI in this preview."}
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={resetSelectedArtworkSize} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase">
+                    <RotateCcw size={13} /> Reset size
+                  </button>
                   <button type="button" onClick={rotateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
                     <RotateCw size={13} /> Rotate
                   </button>
@@ -1024,7 +1192,7 @@ export default function DTFGangSheet() {
                               removeArtwork(item.id);
                             }
                           }}
-                          className={`absolute cursor-grab select-none overflow-visible border-2 bg-white/10 text-left outline-none active:cursor-grabbing ${selected ? "z-20 border-black shadow-[0_0_0_2px_white]" : quality.tone === "bad" ? "z-10 border-red-500" : "z-10 border-transparent hover:border-black/50"}`}
+                          className={`absolute cursor-grab select-none overflow-visible bg-transparent text-left outline-none active:cursor-grabbing ${selected ? "z-20" : "z-10"}`}
                           style={{
                             left: `${(item.x / sheetWidth) * 100}%`,
                             top: `${(item.y / sheetLength) * 100}%`,
@@ -1080,6 +1248,15 @@ export default function DTFGangSheet() {
                                 className="absolute -right-3 -top-3 z-30 grid h-7 w-7 place-items-center rounded-full border border-white bg-red-600 text-white shadow-lg transition hover:bg-red-700"
                               >
                                 <Trash2 size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Resize ${item.name}`}
+                                title="Drag to resize artwork"
+                                onPointerDown={(event) => onResizePointerDown(event, item)}
+                                className="absolute -bottom-3 -right-3 z-30 grid h-7 w-7 cursor-nwse-resize place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg"
+                              >
+                                <Maximize2 size={13} />
                               </button>
                             </>
                           )}
