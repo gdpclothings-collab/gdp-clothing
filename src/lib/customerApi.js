@@ -67,7 +67,7 @@ const normalizeCustomDesign = (row) => ({
 
 async function requireUser() {
   const { data, error } = await supabase.auth.getUser();
-  if (error || !data?.user) {
+  if (error || !data?.user || data.user.is_anonymous === true) {
     const authError = Object.assign(
       new Error("Please sign in before uploading private artwork or saving a custom design."),
       { code: "AUTH_REQUIRED" }
@@ -75,6 +75,56 @@ async function requireUser() {
     throw authError;
   }
   return data.user;
+}
+
+async function optionalAccountUser() {
+  const { data } = await supabase.auth.getUser();
+  return data?.user && data.user.is_anonymous !== true ? data.user : null;
+}
+
+function customDesignPayload(data, userId = null) {
+  const productId = uuidPattern.test(String(data.productId || "")) ? data.productId : null;
+  const photoAssets = (data.photoAssets || []).map((asset) => ({
+    path: asset.path || asset.storage_path || null,
+    name: asset.name || "",
+    width: asset.width || null,
+    height: asset.height || null,
+    quality: asset.quality || null,
+    isPrimary: Boolean(asset.isPrimary),
+  }));
+  const photoPaths = photoAssets.map((asset) => asset.path).filter(Boolean);
+  const primary = photoAssets[data.primaryPhotoIndex || 0];
+
+  return {
+    ...(userId ? { user_id: userId } : {}),
+    ...(data.seasonalArtworkId ? { seasonal_artwork_id: data.seasonalArtworkId, seasonal_configuration: data.seasonalConfiguration } : {}),
+    product_id: productId,
+    product_name: data.productName,
+    name: data.name || null,
+    design_style: data.designStyle || null,
+    photos: photoPaths,
+    personalization: data.personalization || {},
+    placement: data.placement || "front",
+    color: data.color || null,
+    size: data.size || null,
+    preview_url: primary?.path || photoPaths[0] || null,
+    photo_assets: photoAssets,
+    occasion: data.occasion || null,
+    recipient_type: data.recipientType || null,
+    design_mood: data.designMood || null,
+    story: data.story || null,
+    design_intensity: Number(data.designIntensity || 3),
+    garment_tier: data.garmentTier || "classic",
+    need_by_date: data.needByDate || null,
+    priority: data.priority || "standard",
+    proof_required: data.proofRequired !== false,
+    revision_allowance: Number(data.revisionAllowance ?? 2),
+    primary_photo_index: Number(data.primaryPhotoIndex || 0),
+    customer_confirmed_rights: Boolean(data.customerConfirmedRights),
+    approval_policy_acknowledged: Boolean(data.approvalPolicyAcknowledged),
+    additional_garments: data.additionalGarments || [],
+    status: data.status || "draft",
+  };
 }
 
 async function signedCustomerUpload(path, expiresIn = 3600) {
@@ -150,10 +200,24 @@ export const customerApi = {
   },
 
   async uploadArtwork(file) {
-    const user = await requireUser();
+    const user = await optionalAccountUser();
     const safeName = String(file.name || "artwork")
       .replace(/[^a-zA-Z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "");
+    if (!user) {
+      const { data, error } = await supabase.functions.invoke("checkout", {
+        body: { action: "createGuestCustomUpload", files: [{ name: safeName, type: file.type, size: file.size }] },
+      });
+      if (error) throw error;
+      if (data?.error || !data?.uploads?.[0]) throw new Error(data?.message || "Could not prepare guest artwork upload.");
+      const upload = data.uploads[0];
+      const { error: uploadError } = await supabase.storage
+        .from("customer-uploads")
+        .uploadToSignedUrl(upload.path, upload.token, file, { contentType: file.type || undefined });
+      if (uploadError) throw uploadError;
+      return { file_url: upload.signedUrl || upload.path, storage_path: upload.path };
+    }
+
     const path = `${user.id}/${crypto.randomUUID()}-${safeName}`;
 
     const { error } = await supabase.storage
@@ -169,49 +233,19 @@ export const customerApi = {
   },
 
   async createCustomDesign(data) {
-    const user = await requireUser();
-    const productId = uuidPattern.test(String(data.productId || "")) ? data.productId : null;
-    const photoAssets = (data.photoAssets || []).map((asset) => ({
-      path: asset.path || asset.storage_path || null,
-      name: asset.name || "",
-      width: asset.width || null,
-      height: asset.height || null,
-      quality: asset.quality || null,
-      isPrimary: Boolean(asset.isPrimary),
-    }));
-    const photoPaths = photoAssets.map((asset) => asset.path).filter(Boolean);
-    const primary = photoAssets[data.primaryPhotoIndex || 0];
+    const user = await optionalAccountUser();
+    const payload = customDesignPayload(data, user?.id);
 
-    const payload = {
-      user_id: user.id,
-      ...(data.seasonalArtworkId ? {seasonal_artwork_id:data.seasonalArtworkId,seasonal_configuration:data.seasonalConfiguration} : {}),
-      product_id: productId,
-      product_name: data.productName,
-      name: data.name || null,
-      design_style: data.designStyle || null,
-      photos: photoPaths,
-      personalization: data.personalization || {},
-      placement: data.placement || "front",
-      color: data.color || null,
-      size: data.size || null,
-      preview_url: primary?.path || photoPaths[0] || null,
-      photo_assets: photoAssets,
-      occasion: data.occasion || null,
-      recipient_type: data.recipientType || null,
-      design_mood: data.designMood || null,
-      story: data.story || null,
-      design_intensity: Number(data.designIntensity || 3),
-      garment_tier: data.garmentTier || "classic",
-      need_by_date: data.needByDate || null,
-      priority: data.priority || "standard",
-      proof_required: data.proofRequired !== false,
-      revision_allowance: Number(data.revisionAllowance ?? 2),
-      primary_photo_index: Number(data.primaryPhotoIndex || 0),
-      customer_confirmed_rights: Boolean(data.customerConfirmedRights),
-      approval_policy_acknowledged: Boolean(data.approvalPolicyAcknowledged),
-      additional_garments: data.additionalGarments || [],
-      status: data.status || "draft",
-    };
+    if (!user) {
+      const { data: response, error } = await supabase.functions.invoke("checkout", {
+        body: { action: "createGuestCustomDesign", design: payload },
+      });
+      if (error) throw error;
+      if (response?.error || !response?.design?.id || !response?.guestToken) {
+        throw new Error(response?.message || "Could not save the guest custom design.");
+      }
+      return { ...normalizeCustomDesign(response.design), guestDesignToken: response.guestToken };
+    }
 
     const { data: created, error } = await supabase
       .from("custom_designs")

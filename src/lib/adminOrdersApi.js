@@ -38,7 +38,7 @@ const ATTENTION_STATUSES = [
 ];
 
 const ORDER_SELECT =
-  "id, order_number, customer_name, customer_email, customer_phone, subtotal, discount, shipping, tax, total, status, design_status, production_status, fulfillment_status, payment_status, tracking_number, carrier, shipping_method, need_by_date, priority, notes, created_at, updated_at, order_items(id, name, image, variant, size, color, quantity, unit_price, fulfillment_mode, is_custom, custom_design_id)";
+  "id, order_number, customer_name, customer_email, customer_phone, is_guest, subtotal, discount, shipping, tax, total, status, design_status, production_status, fulfillment_status, payment_status, tracking_number, carrier, shipping_method, need_by_date, priority, notes, created_at, updated_at, order_items(id, name, image, variant, size, color, quantity, unit_price, fulfillment_mode, is_custom, custom_design_id)";
 
 const cleanIds = (orderIds) =>
   [...new Set((orderIds || []).filter(Boolean).map(String))];
@@ -53,6 +53,7 @@ export const adminOrdersApi = {
     fulfillmentStatus = "all",
     designStatus = "all",
     productionStatus = "all",
+    customerType = "all",
     dateFrom = "",
     dateTo = "",
     attentionOnly = false,
@@ -103,6 +104,8 @@ export const adminOrdersApi = {
     if (fulfillmentStatus !== "all") query = query.eq("fulfillment_status", fulfillmentStatus);
     if (designStatus !== "all") query = query.eq("design_status", designStatus);
     if (productionStatus !== "all") query = query.eq("production_status", productionStatus);
+    if (customerType === "guest") query = query.eq("is_guest", true);
+    if (customerType === "account") query = query.eq("is_guest", false);
 
     if (dateFrom) query = query.gte("created_at", `${dateFrom}T00:00:00`);
     if (dateTo) query = query.lte("created_at", `${dateTo}T23:59:59.999`);

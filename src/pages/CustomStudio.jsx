@@ -1175,6 +1175,7 @@ export default function CustomStudio() {
         image: product?.images?.[0] || photos[primaryIndex]?.url || "",
         isCustom: true,
         customDesignId: design.id,
+        ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
         fulfillmentMode: product?.fulfillmentMode || "in_house",
         designStyle,
         occasion,
