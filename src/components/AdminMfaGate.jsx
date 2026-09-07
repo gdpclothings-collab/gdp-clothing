@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { adminMfaSecurityApi } from "@/lib/adminMfaSecurityApi";
 import { useAuth } from "@/lib/AuthContext";
 
 const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -81,7 +82,7 @@ export default function AdminMfaGate() {
       if (aalResult.data?.currentLevel === "aal2") {
         setAal2(true);
         clearReminder(user?.id);
-        supabase.rpc("record_admin_mfa_verified").then(() => {});
+        adminMfaSecurityApi.recordVerified().catch(() => {});
         return;
       }
 
@@ -95,8 +96,10 @@ export default function AdminMfaGate() {
         return;
       }
 
-      const graceResult = await supabase.rpc("get_or_create_admin_mfa_state");
-      if (graceResult.error) {
+      let nextGrace = null;
+      try {
+        nextGrace = await adminMfaSecurityApi.getState();
+      } catch {
         setGrace(null);
         setMode("intro");
         setError(
@@ -104,8 +107,6 @@ export default function AdminMfaGate() {
         );
         return;
       }
-
-      const nextGrace = graceResult.data || null;
       setGrace(nextGrace);
       setMode("intro");
 
@@ -161,10 +162,7 @@ export default function AdminMfaGate() {
     setCode("");
 
     try {
-      const cleanupResult = await supabase.rpc(
-        "clear_my_unverified_admin_mfa_factors"
-      );
-      if (cleanupResult.error) throw cleanupResult.error;
+      await adminMfaSecurityApi.clearUnverifiedTotp();
 
       const enrollResult = await supabase.auth.mfa.enroll({
         factorType: "totp",
@@ -253,7 +251,7 @@ export default function AdminMfaGate() {
         throw new Error("MFA verification did not elevate this session.");
       }
 
-      await supabase.rpc("record_admin_mfa_verified");
+      await adminMfaSecurityApi.recordVerified();
 
       clearReminder(user?.id);
       setAal2(true);
