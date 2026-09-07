@@ -11,13 +11,13 @@ import {
   Shirt,
   ShoppingBag,
   Sparkles,
+  RotateCw,
   Trash2,
   Upload,
 } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import {
   artworkOverlaps,
-  autoArrangeArtwork,
   calculateDtfPrice,
   calculateUtilization,
   createDtfConfigId,
@@ -27,6 +27,7 @@ import {
   usedArtworkLength,
 } from "@/lib/dtfGangSheet";
 import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
+import { advancedNestArtwork } from "@/lib/dtfNesting";
 
 const round = (value, decimals = 2) => {
   const power = 10 ** decimals;
@@ -225,9 +226,17 @@ export default function DTFGangSheet() {
     }
 
     const merged = mode === "upload" ? nextItems : [...artworks, ...nextItems];
-    const arranged = autoArrangeArtwork(merged, sheetWidth, sheetLength, settings.spacing);
-    setArtworks(arranged);
-    setSelectedId(arranged[arranged.length - 1]?.id || "");
+    const nested = advancedNestArtwork(
+      merged,
+      sheetWidth,
+      sheetLength,
+      settings.spacing,
+      { allowRotation: true, minLength: settings.minLength }
+    );
+    const nextLength = Math.max(sheetLength, nested.recommendedLength);
+    setSheetLength(nextLength);
+    setArtworks(nested.items);
+    setSelectedId(nested.items[nested.items.length - 1]?.id || "");
     setApproval(false);
   };
 
@@ -239,8 +248,14 @@ export default function DTFGangSheet() {
         const next = { ...item, ...patch };
         if (patch.width != null) {
           const width = Math.max(0.5, Math.min(Number(patch.width || 0.5), sheetWidth - settings.spacing * 2));
+          const rotated = Math.abs(Number(item.rotation || 0)) % 180 === 90;
           next.width = width;
-          next.height = Math.max(0.5, width / Math.max(0.01, item.aspectRatio || 1));
+          next.height = Math.max(
+            0.5,
+            rotated
+              ? width * Math.max(0.01, item.aspectRatio || 1)
+              : width / Math.max(0.01, item.aspectRatio || 1)
+          );
           next.x = Math.min(next.x, Math.max(0, sheetWidth - next.width));
         }
         return next;
@@ -257,8 +272,15 @@ export default function DTFGangSheet() {
       x: Math.min(sheetWidth - selectedArtwork.width, selectedArtwork.x + settings.spacing * 2),
       y: Math.min(sheetLength - selectedArtwork.height, selectedArtwork.y + settings.spacing * 2),
     };
-    const arranged = autoArrangeArtwork([...artworks, copy], sheetWidth, sheetLength, settings.spacing);
-    setArtworks(arranged);
+    const nested = advancedNestArtwork(
+      [...artworks, copy],
+      sheetWidth,
+      sheetLength,
+      settings.spacing,
+      { allowRotation: true, minLength: settings.minLength }
+    );
+    setSheetLength(Math.max(sheetLength, nested.recommendedLength));
+    setArtworks(nested.items);
     setSelectedId(copy.id);
     setApproval(false);
   };
@@ -275,18 +297,77 @@ export default function DTFGangSheet() {
   };
 
   const autoArrange = () => {
-    const next = autoArrangeArtwork(artworks, sheetWidth, sheetLength, settings.spacing);
-    setArtworks(next);
+    const beforeLength = fitLengthToArtwork(artworks, settings);
+    const nested = advancedNestArtwork(
+      artworks,
+      sheetWidth,
+      sheetLength,
+      settings.spacing,
+      { allowRotation: true, minLength: settings.minLength }
+    );
+
+    if (nested.unpacked.length) {
+      setPageError(`${nested.unpacked.length} artwork item${nested.unpacked.length === 1 ? "" : "s"} could not fit within the ${sheetWidth}" film width.`);
+      return;
+    }
+
+    const previousLength = sheetLength;
+    setSheetLength(nested.recommendedLength);
+    setArtworks(nested.items);
     setApproval(false);
-    setNotice("Artwork arranged automatically.");
+    setPageError("");
+
+    const saved = Math.max(0, previousLength - nested.recommendedLength);
+    const detail = [
+      `${nested.passes} packing passes`,
+      `${nested.rotatedCount} auto-rotated`,
+      `${nested.efficiency.toFixed(1)}% packing efficiency`,
+    ].join(" · ");
+
+    setNotice(
+      saved >= 0.25
+        ? `Advanced nesting saved about ${saved.toFixed(2)}" of film. ${detail}.`
+        : beforeLength > nested.recommendedLength + 0.01
+          ? `Advanced nesting tightened the layout to ${nested.recommendedLength}". ${detail}.`
+          : `Advanced nesting optimized the current layout. ${detail}.`
+    );
   };
 
   const fitSheet = () => {
     const nextLength = Math.max(settings.minLength, fitLength);
     setSheetLength(nextLength);
-    setArtworks((current) => autoArrangeArtwork(current, sheetWidth, nextLength, settings.spacing));
     setApproval(false);
     setNotice(`Film length fitted to ${nextLength}".`);
+  };
+
+  const rotateSelected = () => {
+    if (!selectedArtwork || mode === "upload") return;
+
+    const nextRotation = (Number(selectedArtwork.rotation || 0) + 90) % 180;
+    const nextWidth = selectedArtwork.height;
+    const nextHeight = selectedArtwork.width;
+
+    if (nextWidth > sheetWidth - settings.spacing * 2) {
+      setPageError(`This design is too wide to rotate inside the ${sheetWidth}" film.`);
+      return;
+    }
+
+    setArtworks((current) =>
+      current.map((item) =>
+        item.id === selectedArtwork.id
+          ? {
+              ...item,
+              rotation: nextRotation,
+              width: nextWidth,
+              height: nextHeight,
+              x: Math.min(item.x, Math.max(0, sheetWidth - nextWidth)),
+              y: Math.min(item.y, Math.max(0, sheetLength - nextHeight)),
+            }
+          : item
+      )
+    );
+    setApproval(false);
+    setPageError("");
   };
 
   const onPointerDown = (event, item) => {
@@ -656,12 +737,15 @@ export default function DTFGangSheet() {
                       : "Vector/PDF artwork is not limited by raster DPI in this preview."}
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={duplicateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-2 border border-black/15 bg-white text-[10px] font-black uppercase disabled:opacity-35">
-                    <Copy size={14} /> Duplicate
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <button type="button" onClick={rotateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
+                    <RotateCw size={13} /> Rotate
                   </button>
-                  <button type="button" onClick={removeSelected} className="flex min-h-10 items-center justify-center gap-2 border border-black/15 bg-white text-[10px] font-black uppercase hover:border-red-400 hover:text-red-700">
-                    <Trash2 size={14} /> Remove
+                  <button type="button" onClick={duplicateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
+                    <Copy size={13} /> Duplicate
+                  </button>
+                  <button type="button" onClick={removeSelected} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase hover:border-red-400 hover:text-red-700">
+                    <Trash2 size={13} /> Remove
                   </button>
                 </div>
               </Panel>
@@ -678,7 +762,7 @@ export default function DTFGangSheet() {
                 <div className="flex flex-wrap gap-2">
                   {mode === "build" && (
                     <button type="button" onClick={autoArrange} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
-                      Auto arrange
+                      Advanced Nest
                     </button>
                   )}
                   <button type="button" onClick={fitSheet} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
@@ -725,7 +809,25 @@ export default function DTFGangSheet() {
                           title={item.name}
                         >
                           {item.previewUrl ? (
-                            <img src={item.previewUrl} alt={item.name} draggable="false" className="pointer-events-none h-full w-full select-none object-contain" />
+                            <img
+                              src={item.previewUrl}
+                              alt={item.name}
+                              draggable="false"
+                              className="pointer-events-none absolute left-1/2 top-1/2 select-none object-contain"
+                              style={
+                                Math.abs(Number(item.rotation || 0)) % 180 === 90
+                                  ? {
+                                      width: `${(item.height / Math.max(0.01, item.width)) * 100}%`,
+                                      height: `${(item.width / Math.max(0.01, item.height)) * 100}%`,
+                                      transform: "translate(-50%, -50%) rotate(90deg)",
+                                    }
+                                  : {
+                                      width: "100%",
+                                      height: "100%",
+                                      transform: "translate(-50%, -50%)",
+                                    }
+                              }
+                            />
                           ) : (
                             <div className="flex h-full min-h-10 items-center justify-center bg-white/85 px-2 text-center font-mono text-[8px] font-bold uppercase">
                               PDF artwork
