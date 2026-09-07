@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import {
+  artworkOverlaps,
   autoArrangeArtwork,
   calculateDtfPrice,
   calculateUtilization,
@@ -121,6 +122,7 @@ export default function DTFGangSheet() {
   );
   const selectedArtwork = artworks.find((item) => item.id === selectedId) || null;
   const selectedQuality = getArtworkQuality(selectedArtwork, settings);
+  const overlaps = artworkOverlaps(artworks);
   const utilization = calculateUtilization(artworks, sheetWidth, sheetLength);
   const usedLength = usedArtworkLength(artworks, settings.spacing);
   const fitLength = fitLengthToArtwork(artworks, settings);
@@ -139,6 +141,9 @@ export default function DTFGangSheet() {
     if (usedLength > sheetLength + 0.01) {
       errors.push("Artwork extends beyond the selected film length.");
     }
+    if (overlaps.length) {
+      errors.push("Two or more artwork items overlap. Move or auto-arrange them before checkout.");
+    }
 
     artworks.forEach((item) => {
       const quality = getArtworkQuality(item, settings);
@@ -147,7 +152,7 @@ export default function DTFGangSheet() {
     });
 
     return { errors, warnings };
-  }, [artworks, sheetWidth, sheetLength, settings, usedLength]);
+  }, [artworks, sheetWidth, sheetLength, settings, usedLength, overlaps.length]);
 
   const setWidth = (value) => {
     const next = Math.max(1, Math.min(settings.maxWidth, Number(value || 1)));
@@ -260,8 +265,10 @@ export default function DTFGangSheet() {
 
   const removeSelected = () => {
     if (!selectedArtwork) return;
-    if (selectedArtwork.previewUrl) URL.revokeObjectURL(selectedArtwork.previewUrl);
     const next = artworks.filter((item) => item.id !== selectedArtwork.id);
+    if (selectedArtwork.previewUrl && !next.some((item) => item.previewUrl === selectedArtwork.previewUrl)) {
+      URL.revokeObjectURL(selectedArtwork.previewUrl);
+    }
     setArtworks(next);
     setSelectedId(next[0]?.id || "");
     setApproval(false);
@@ -788,6 +795,7 @@ export default function DTFGangSheet() {
               <StatusLine good={artworks.length > 0} text={artworks.length ? `${artworks.length} artwork item${artworks.length === 1 ? "" : "s"} loaded` : "Artwork required"} />
               <StatusLine good={sheetWidth <= settings.maxWidth} text={`Width within ${settings.maxWidth}" maximum`} />
               <StatusLine good={usedLength <= sheetLength + 0.01} text={usedLength <= sheetLength + 0.01 ? "Artwork fits selected length" : "Artwork extends past film"} />
+              <StatusLine good={!overlaps.length} text={!overlaps.length ? "No artwork overlaps detected" : `${overlaps.length} overlap${overlaps.length === 1 ? "" : "s"} must be fixed`} />
               {validation.warnings.slice(0, 4).map((warning) => (
                 <div key={warning} className="mt-2 flex items-start gap-2 text-[11px] leading-4 text-amber-800">
                   <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {warning}
