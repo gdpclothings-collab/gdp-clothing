@@ -67,6 +67,12 @@ export default function ProductDetail() {
     };
   }, [id, slug]);
 
+  useEffect(() => {
+    if (product?.slug === "dtf-gang-sheet") {
+      navigate("/products/dtf-gang-sheet", { replace: true });
+    }
+  }, [product, navigate]);
+
   if (loading) {
     return (
       <div className="bg-[#f7f6f1] text-black">
