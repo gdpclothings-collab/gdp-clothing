@@ -9,6 +9,7 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { PASSWORD_POLICY_HINT, validatePassword } from "@/lib/passwordPolicy";
+import { privacyApi } from "@/lib/privacyApi";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -17,6 +18,8 @@ export default function Register() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,16 +33,41 @@ export default function Register() {
       setError("Passwords do not match");
       return;
     }
+    if (!termsAccepted) {
+      setError("Accept the Terms & Conditions and Privacy Policy to create an account.");
+      return;
+    }
     setLoading(true);
     try {
       const returnTo = safeReturnTo();
       const emailRedirectTo = new URL(returnTo, window.location.origin).toString();
+      const acceptedAt = new Date().toISOString();
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo },
+        options: {
+          emailRedirectTo,
+          data: {
+            terms_accepted_at: acceptedAt,
+            privacy_acknowledged_at: acceptedAt,
+            policy_version: "2026-09-07",
+            marketing_consent: marketingConsent,
+          },
+        },
       });
       if (signUpError) throw signUpError;
+
+      if (data?.user?.id) {
+        try {
+          await privacyApi.recordRegistrationAcceptance({
+            userId: data.user.id,
+            email,
+            marketingConsent,
+          });
+        } catch (auditError) {
+          console.error("Registration policy acceptance audit failed:", auditError);
+        }
+      }
       if (data?.session) {
         window.location.href = returnTo;
         return;
@@ -167,6 +195,31 @@ export default function Register() {
               required
             />
           </div>
+        </div>
+        <div className="space-y-3 rounded-lg border border-border bg-secondary/35 p-3">
+          <label className="flex items-start gap-2 text-xs leading-5">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-1"
+              required
+            />
+            <span>
+              I agree to the <Link to="/pages/terms" target="_blank" className="font-semibold text-primary hover:underline">Terms & Conditions</Link> and acknowledge the <Link to="/pages/privacy" target="_blank" className="font-semibold text-primary hover:underline">Privacy Policy</Link>.
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={marketingConsent}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              Email me GDP Clothing news, drops and special offers. This is optional and I can unsubscribe anytime. <Link to="/pages/marketing-consent" target="_blank" className="underline hover:text-foreground">Details</Link>
+            </span>
+          </label>
         </div>
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
