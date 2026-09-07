@@ -158,7 +158,7 @@ values (
   false,
   true,
   true,
-  34.27,
+  11.42,
   array['/images/dtf-gang-sheet.svg']::text[],
   '{}'::text[],
   '{}'::text[],
