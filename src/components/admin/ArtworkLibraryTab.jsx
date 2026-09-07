@@ -10,9 +10,9 @@ export default function ArtworkLibraryTab() {
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    supabase.from("artwork_library")
+    Promise.resolve(supabase.from("artwork_library")
       .select("*")
-      .order("title").then(({ data, error: failure }) => {
+      .order("title")).then(({ data, error: failure }) => {
         if (!active) return;
         if (failure) setError("The artwork library is not available yet. Its database setup may still be pending.");
         else setRows(data || []);
@@ -60,4 +60,5 @@ export default function ArtworkLibraryTab() {
     </div>
   </section>;
 }
+
 
