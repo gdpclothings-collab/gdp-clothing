@@ -1613,7 +1613,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
   return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
-    {showMeasurements && !blankBack && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
+    {showMeasurements && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
       <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">{side === "back" ? "Back print guide" : "Front print guide"} · {size || "—"}</div>
       <div className="mt-1 text-[10px] font-bold text-[#292621]">Recommended · {measurementPair(profile.widthIn, profile.heightIn)}</div>
       <div className="mt-1 text-[8px] font-semibold text-[#6f6a63]">Maximum safe area · {measurementPair(profile.maxWidthIn, profile.maxHeightIn)}</div>
@@ -1639,7 +1639,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
           <GarmentShape type={garment?.previewType || garment?.type || "T-Shirt"} color={color} side={side} />
         )}
 
-        {showMeasurements && !blankBack && <div className="absolute inset-0 z-20 pointer-events-none select-none">
+        {showMeasurements && <div className="absolute inset-0 z-20 pointer-events-none select-none">
           <div className="absolute w-px bg-accent/65" style={{ left: "50%", top: collarAnchor + "%", height: collarGuideHeight + "%" }}>
             <span className="absolute -left-1 top-0 h-px w-2 bg-accent/70" />
             <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
