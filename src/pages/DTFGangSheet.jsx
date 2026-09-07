@@ -233,7 +233,7 @@ async function imageMetadata(file) {
     image.src = sourceUrl;
   });
 }
-async function removeLightBackground(file, threshold = 245) {
+async function removeLightBackground(file, threshold = 230) {
   if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
     throw new Error("Background cleanup is available for PNG, JPG and WEBP artwork.");
   }
@@ -698,7 +698,7 @@ export default function DTFGangSheet() {
     const minimum = 0.1;
     const ratio = Math.max(0.01, selectedArtwork.aspectRatio || 1);
     let width = Math.max(minimum, Number(selectedArtwork.defaultWidth || selectedArtwork.width));
-    let height = Math.max(minimum, Number(selectedArtwork.defaultHeight || width / ratio));
+    let height = Math.max(minimum, width / ratio);
     let candidate = { ...selectedArtwork, width, height };
     let bounds = getArtworkRotatedBounds(candidate);
     if (bounds.width > sheetWidth || bounds.height > sheetLength) {
@@ -727,13 +727,51 @@ export default function DTFGangSheet() {
     if (!selectedArtwork || !file) return;
     const targetId = selectedArtwork.id;
     const metadata = await imageMetadata(file);
-    const sourceSize = sourceDefaultPrintSize(metadata, settings, sheetWidth, sheetLength);
-    const maxWidth = Math.max(0.1, sheetWidth - selectedArtwork.x);
-    const maxHeight = Math.max(0.1, sheetLength - selectedArtwork.y);
-    const scale = Math.min(1, maxWidth / sourceSize.width, maxHeight / sourceSize.height);
-    const width = Math.max(0.1, sourceSize.width * scale);
-    const height = Math.max(0.1, sourceSize.height * scale);
+    const nextAspectRatio = Math.max(0.01, Number(metadata.aspectRatio || selectedArtwork.aspectRatio || 1));
     const previousPreviewUrl = selectedArtwork.previewUrl;
+    const nextPreviewUrl = metadata.previewUrl || URL.createObjectURL(file);
+
+    const currentCenterX = selectedArtwork.x + selectedArtwork.width / 2;
+    const currentCenterY = selectedArtwork.y + selectedArtwork.height / 2;
+    let width = Math.max(0.1, Number(selectedArtwork.width || 0.1));
+    let height = Math.max(0.1, width / nextAspectRatio);
+    let x = currentCenterX - width / 2;
+    let y = currentCenterY - height / 2;
+
+    let candidate = {
+      ...selectedArtwork,
+      x,
+      y,
+      width,
+      height,
+      aspectRatio: nextAspectRatio,
+      rotation: normalizeArtworkRotation(selectedArtwork.rotation),
+    };
+
+    let bounds = getArtworkRotatedBounds(candidate);
+    if (bounds.width > sheetWidth + 0.001 || bounds.height > sheetLength + 0.001) {
+      const fitScale = Math.min(
+        sheetWidth / Math.max(0.001, bounds.width),
+        sheetLength / Math.max(0.001, bounds.height)
+      );
+      width = Math.max(0.1, width * fitScale);
+      height = Math.max(0.1, height * fitScale);
+      x = currentCenterX - width / 2;
+      y = currentCenterY - height / 2;
+      candidate = { ...candidate, x, y, width, height };
+    }
+
+    const clamped = clampArtworkPosition(candidate, x, y, candidate.rotation);
+    if (clamped) {
+      x = clamped.x;
+      y = clamped.y;
+    }
+
+    const defaultWidth = Math.max(
+      0.1,
+      Number(selectedArtwork.defaultWidth || selectedArtwork.width || width)
+    );
+    const defaultHeight = Math.max(0.1, defaultWidth / nextAspectRatio);
 
     setArtworks((current) =>
       current.map((item) =>
@@ -744,22 +782,29 @@ export default function DTFGangSheet() {
               name: item.originalName || item.name,
               type: file.type,
               size: file.size,
-              previewUrl: metadata.previewUrl || URL.createObjectURL(file),
+              previewUrl: nextPreviewUrl,
               pixelWidth: metadata.pixelWidth,
               pixelHeight: metadata.pixelHeight,
-              originalPixelWidth: metadata.originalPixelWidth || metadata.pixelWidth,
-              originalPixelHeight: metadata.originalPixelHeight || metadata.pixelHeight,
+              originalPixelWidth: Number(
+                item.originalPixelWidth || metadata.originalPixelWidth || metadata.pixelWidth || 0
+              ),
+              originalPixelHeight: Number(
+                item.originalPixelHeight || metadata.originalPixelHeight || metadata.pixelHeight || 0
+              ),
               cropBounds: metadata.cropBounds,
               transparentTrimmed: metadata.transparentTrimmed === true,
-              aspectRatio: metadata.aspectRatio || 1,
+              aspectRatio: nextAspectRatio,
               isVector: false,
+              x,
+              y,
               width,
               height,
-              defaultWidth: sourceSize.width,
-              defaultHeight: sourceSize.height,
-              sourceDpi: sourceSize.sourceDpi,
-              rotation: 0,
+              defaultWidth,
+              defaultHeight,
+              sourceDpi: item.sourceDpi || settings.recommendedDpi,
+              rotation: normalizeArtworkRotation(item.rotation),
               backgroundRemoved,
+              backgroundCleanupThreshold: backgroundRemoved ? backgroundThreshold : null,
             }
           : item
       )
@@ -768,9 +813,10 @@ export default function DTFGangSheet() {
     const previewIsShared = artworks.some(
       (item) => item.id !== targetId && item.previewUrl === previousPreviewUrl
     );
-    if (previousPreviewUrl && previousPreviewUrl !== metadata.previewUrl && !previewIsShared) {
+    if (previousPreviewUrl && previousPreviewUrl !== nextPreviewUrl && !previewIsShared) {
       URL.revokeObjectURL(previousPreviewUrl);
     }
+
     setApproval(false);
     setPageError("");
     setNotice(message);
@@ -786,7 +832,7 @@ export default function DTFGangSheet() {
       await replaceSelectedArtworkFile(
         cleaned,
         true,
-        `Background removed. Print size recalculated from the cleaned artwork at ${settings.recommendedDpi} DPI.`
+        "Background removed. Print size, center position and rotation were preserved. DPI was recalculated from the cleaned artwork pixels."
       );
     } catch (error) {
       setPageError(error?.message || "Could not remove this artwork background.");
@@ -800,7 +846,11 @@ export default function DTFGangSheet() {
     setEditingArtwork(true);
     setPageError("");
     try {
-      await replaceSelectedArtworkFile(selectedArtwork.originalFile, false, "Original artwork background restored.");
+      await replaceSelectedArtworkFile(
+        selectedArtwork.originalFile,
+        false,
+        "Original artwork restored. Print size, center position and rotation were preserved."
+      );
     } catch (error) {
       setPageError(error?.message || "Could not restore the original artwork.");
     } finally {
@@ -1138,6 +1188,10 @@ export default function DTFGangSheet() {
         defaultWidth: round(item.defaultWidth || item.width, 3),
         defaultHeight: round(item.defaultHeight || item.height, 3),
         sourceDpi: item.sourceDpi || null,
+        backgroundRemoved: item.backgroundRemoved === true,
+        backgroundCleanupThreshold: item.backgroundRemoved
+          ? Number(item.backgroundCleanupThreshold || backgroundThreshold)
+          : null,
       }));
 
       const reviewFee = artworkReviewRequested && settings.artworkReviewEnabled
