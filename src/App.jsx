@@ -62,33 +62,33 @@ const AuthenticatedApp = () => {
       }
     >
       <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
-      <Route element={<StoreLayout />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/shop" element={<Shop />} />
-        <Route path="/products/:slug" element={<ProductDetail />} />
-        <Route path="/product/:id" element={<ProductDetail />} />
-        <Route path="/custom-studio" element={<CustomStudio />} />
-        <Route path="/design" element={<CustomStudio />} />
-        <Route path="/cart" element={<Cart />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/order/:orderNumber" element={<OrderConfirmation />} />
-        <Route path="/faq" element={<FAQ />} />
-        <Route path="/pages/:slug" element={<ContentPage />} />
-      </Route>
+        <Route element={<StoreLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/shop" element={<Shop />} />
+          <Route path="/products/:slug" element={<ProductDetail />} />
+          <Route path="/product/:id" element={<ProductDetail />} />
+          <Route path="/custom-studio" element={<CustomStudio />} />
+          <Route path="/design" element={<CustomStudio />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/order/:orderNumber" element={<OrderConfirmation />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/pages/:slug" element={<ContentPage />} />
 
-      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
-        <Route path="/account" element={<Account />} />
-      </Route>
+          <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+            <Route path="/account" element={<Account />} />
+          </Route>
+        </Route>
 
-      <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}>
-        <Route path="/admin/legacy" element={<Admin />} />
-        <Route path="/admin/*" element={<AdminV2 />} />
-      </Route>
+        <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}>
+          <Route path="/admin/legacy" element={<Admin />} />
+          <Route path="/admin/*" element={<AdminV2 />} />
+        </Route>
 
         <Route path="*" element={<PageNotFound />} />
       </Routes>
