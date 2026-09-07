@@ -32,7 +32,10 @@ export function resolveMockupNormalization(previewConfig = {}, side = "front") {
   };
 }
 
-export function getMockupLayerStyle(normalization = DEFAULT_NORMALIZATION) {
+/**
+ * @param {{ scale?: number, offsetX?: number, offsetY?: number }} [normalization]
+ */
+export function getMockupLayerStyle(normalization = {}) {
   const scale = clamp(normalization.scale, 0.7, 1.3, DEFAULT_NORMALIZATION.scale);
   const offsetX = clamp(normalization.offsetX, -20, 20, DEFAULT_NORMALIZATION.offsetX);
   const offsetY = clamp(normalization.offsetY, -20, 20, DEFAULT_NORMALIZATION.offsetY);
