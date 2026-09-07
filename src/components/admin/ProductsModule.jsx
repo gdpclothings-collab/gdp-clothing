@@ -18,6 +18,9 @@ import {
   RefreshCw,
   Upload,
   GripVertical,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from "lucide-react";
 import { adminProductsApi } from "@/lib/adminProductsApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
@@ -678,6 +681,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const [imageUrlDraft, setImageUrlDraft] = useState("");
   const [draggedImageIndex, setDraggedImageIndex] = useState(null);
   const [dragOverImageIndex, setDragOverImageIndex] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
+  const [mediaPreviewScale, setMediaPreviewScale] = useState(1);
   const [form, setForm] = useState(() => ({
     name: product?.name || "",
     slug: product?.slug || "",
@@ -786,6 +791,64 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     const node = editorScrollRef.current;
     if (node) pendingEditorScrollTopRef.current = node.scrollTop;
   };
+
+  const openMediaPreview = (url) => {
+    if (!url) return;
+    setMediaPreview(url);
+    setMediaPreviewScale(1);
+  };
+
+  const closeMediaPreview = () => {
+    setMediaPreview(null);
+    setMediaPreviewScale(1);
+  };
+
+  const stepMediaPreview = (direction) => {
+    setMediaPreview((current) => {
+      const images = form.images.filter(Boolean);
+      if (!current || images.length < 2) return current;
+      const currentIndex = images.indexOf(current);
+      const nextIndex = currentIndex < 0
+        ? 0
+        : (currentIndex + direction + images.length) % images.length;
+      return images[nextIndex];
+    });
+    setMediaPreviewScale(1);
+  };
+
+  useEffect(() => {
+    if (!mediaPreview) return undefined;
+
+    const handlePreviewKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMediaPreview();
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        stepMediaPreview(-1);
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        stepMediaPreview(1);
+        return;
+      }
+      if (!event.ctrlKey && !event.metaKey && (event.key === "+" || event.key === "=")) {
+        event.preventDefault();
+        setMediaPreviewScale((current) => Math.min(4, current + 0.25));
+        return;
+      }
+      if (!event.ctrlKey && !event.metaKey && event.key === "-") {
+        event.preventDefault();
+        setMediaPreviewScale((current) => Math.max(0.5, current - 0.25));
+      }
+    };
+
+    window.addEventListener("keydown", handlePreviewKeyDown);
+    return () => window.removeEventListener("keydown", handlePreviewKeyDown);
+  }, [mediaPreview, form.images]);
 
   useLayoutEffect(() => {
     if (pendingEditorScrollTopRef.current === null) return;
@@ -1788,8 +1851,113 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     sortBy: "color_size",
   });
 
+  const previewImages = form.images.filter(Boolean);
+  const previewIndex = mediaPreview ? previewImages.indexOf(mediaPreview) : -1;
+  const previewMeta = mediaPreview ? form.customization?.media?.[mediaPreview] || {} : {};
+
   return (
     <div ref={editorScrollRef} data-editor-scroll-root className="fixed inset-0 z-[70] bg-[#f4f4f4] overflow-y-auto">
+      {mediaPreview && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Product media preview"
+          className="fixed inset-0 z-[120] flex flex-col bg-black/90 p-3 md:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeMediaPreview();
+          }}
+        >
+          <div className="mx-auto mb-3 flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 rounded-xl border border-white/15 bg-[#171717] px-3 py-2 text-white shadow-2xl">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold truncate max-w-[60vw] md:max-w-[520px]">
+                {previewMeta.alt || form.name || "Product media"}
+              </div>
+              <div className="mt-0.5 text-[10px] text-white/55">
+                {previewIndex >= 0 ? `Image ${previewIndex + 1} of ${previewImages.length}` : "Image preview"} · {Math.round(mediaPreviewScale * 100)}%
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMediaPreviewScale((current) => Math.max(0.5, current - 0.25))}
+                disabled={mediaPreviewScale <= 0.5}
+                className="h-9 w-9 rounded-lg border border-white/15 grid place-items-center hover:bg-white/10 disabled:opacity-35"
+                aria-label="Zoom out"
+                title="Zoom out"
+              >
+                <ZoomOut size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaPreviewScale(1)}
+                className="h-9 px-2.5 rounded-lg border border-white/15 inline-flex items-center gap-1.5 text-[11px] font-semibold hover:bg-white/10"
+                aria-label="Reset zoom"
+                title="Reset zoom"
+              >
+                <RotateCcw size={14} /> 100%
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaPreviewScale((current) => Math.min(4, current + 0.25))}
+                disabled={mediaPreviewScale >= 4}
+                className="h-9 w-9 rounded-lg border border-white/15 grid place-items-center hover:bg-white/10 disabled:opacity-35"
+                aria-label="Zoom in"
+                title="Zoom in"
+              >
+                <ZoomIn size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={closeMediaPreview}
+                className="h-9 w-9 rounded-lg border border-white/15 grid place-items-center hover:bg-white/10"
+                aria-label="Close image preview"
+                title="Close preview (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="relative mx-auto flex min-h-0 w-full max-w-6xl flex-1 items-center justify-center overflow-auto rounded-xl border border-white/10 bg-[#101010] p-5 md:p-10 shadow-2xl">
+            <img
+              src={mediaPreview}
+              alt={previewMeta.alt || form.name || "Product media preview"}
+              draggable={false}
+              className="max-h-full max-w-full select-none object-contain transition-transform duration-150 ease-out"
+              style={{ transform: `scale(${mediaPreviewScale})`, transformOrigin: "center center" }}
+              onDoubleClick={() => setMediaPreviewScale((current) => current === 1 ? 2 : 1)}
+            />
+
+            {previewImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => stepMediaPreview(-1)}
+                  className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full border border-white/20 bg-black/55 text-white grid place-items-center hover:bg-black/75"
+                  aria-label="Previous image"
+                  title="Previous image (Left arrow)"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => stepMediaPreview(1)}
+                  className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full border border-white/20 bg-black/55 text-white grid place-items-center hover:bg-black/75"
+                  aria-label="Next image"
+                  title="Next image (Right arrow)"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="mx-auto mt-2 w-full max-w-6xl text-center text-[10px] text-white/55">
+            Click a thumbnail to preview · +/- to zoom · double-click image to toggle 100%/200% · Esc to close
+          </div>
+        </div>
+      )}
+
       <form onSubmit={submit} className="min-h-full">
         <div className="sticky top-0 z-30 border-b border-[#dcdcdc] bg-[#111] text-white shadow-sm">
           <div className="max-w-[1240px] mx-auto min-h-16 px-4 md:px-6 flex items-center justify-between gap-4">
@@ -2149,9 +2317,18 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                                 <div className="h-9 flex items-center">
                                   <input type="checkbox" checked={selectedMedia.includes(row.image)} onChange={() => toggleMediaSelection(row.image)} aria-label={`Select media ${row.index + 1}`} />
                                 </div>
-                                <div className="h-12 w-12 rounded-lg border border-[#e1e1e1] bg-[#fafafa] overflow-hidden grid place-items-center">
-                                  <img src={row.image} alt="" className="h-full w-full object-contain" />
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => openMediaPreview(row.image)}
+                                  className="group relative h-12 w-12 rounded-lg border border-[#e1e1e1] bg-[#fafafa] overflow-hidden grid place-items-center focus:outline-none focus:ring-2 focus:ring-black/20"
+                                  aria-label={`Preview media ${row.index + 1}`}
+                                  title="Preview image"
+                                >
+                                  <img src={row.image} alt="" className="h-full w-full object-contain transition-transform group-hover:scale-105" />
+                                  <span className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100 group-focus:bg-black/35 group-focus:opacity-100">
+                                    <ZoomIn size={15} />
+                                  </span>
+                                </button>
                                 <TinyField label="View">
                                   <select value={meta.view || ""} onChange={(event) => setMediaMeta(row.image, "view", event.target.value)} className={tinyInputClass}>
                                     <option value="">Unassigned</option>
