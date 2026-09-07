@@ -592,65 +592,41 @@ const MOOD_PREVIEW_TREATMENTS = {
     description: "Brighter, playful color with extra pop.",
     photoFilter: "saturate(1.2) contrast(1.04) brightness(1.03)",
     templateFilter: "saturate(1.25) contrast(1.04)",
-    wash: "radial-gradient(circle at 30% 22%, rgba(255,226,64,.24), transparent 38%), radial-gradient(circle at 78% 72%, rgba(255,55,145,.17), transparent 36%)",
-    washOpacity: 0.5,
-    blendMode: "screen",
   },
   Emotional: {
     description: "Softer contrast and warmer, more sentimental tones.",
     photoFilter: "saturate(.82) sepia(.12) contrast(.96) brightness(1.04)",
     templateFilter: "saturate(.9) brightness(1.03)",
-    wash: "linear-gradient(180deg, rgba(255,231,218,.18), rgba(92,54,66,.12))",
-    washOpacity: 0.52,
-    blendMode: "soft-light",
   },
   Cool: {
     description: "Clean contrast with a cooler chrome-forward finish.",
     photoFilter: "saturate(.96) contrast(1.07) hue-rotate(3deg)",
     templateFilter: "saturate(1.06) contrast(1.05)",
-    wash: "linear-gradient(145deg, rgba(83,169,219,.13), transparent 52%, rgba(20,49,77,.1))",
-    washOpacity: 0.52,
-    blendMode: "screen",
   },
   Romantic: {
     description: "Warm rose, soft glow and richer skin-tone warmth.",
     photoFilter: "saturate(1.04) sepia(.08) brightness(1.03)",
     templateFilter: "saturate(1.12) sepia(.05)",
-    wash: "radial-gradient(circle at 50% 38%, rgba(255,205,214,.2), transparent 52%), linear-gradient(180deg, rgba(160,28,62,.08), transparent)",
-    washOpacity: 0.56,
-    blendMode: "soft-light",
   },
   Loud: {
     description: "Maximum color punch, stronger contrast and high-energy impact.",
     photoFilter: "saturate(1.34) contrast(1.12) brightness(1.02)",
     templateFilter: "saturate(1.35) contrast(1.1)",
-    wash: "linear-gradient(135deg, rgba(255,25,81,.13), transparent 44%, rgba(0,198,220,.14))",
-    washOpacity: 0.62,
-    blendMode: "screen",
   },
   Vintage: {
     description: "Faded color, warm wash and distressed old-photo character.",
     photoFilter: "sepia(.34) saturate(.72) contrast(.94) brightness(.98)",
     templateFilter: "sepia(.22) saturate(.78) contrast(.96)",
-    wash: "linear-gradient(180deg, rgba(126,87,49,.18), rgba(237,215,174,.08))",
-    washOpacity: 0.58,
-    blendMode: "multiply",
   },
   Elegant: {
     description: "Restrained saturation with clean black, cream and gold polish.",
     photoFilter: "saturate(.72) contrast(1.04) brightness(1.03)",
     templateFilter: "saturate(.78) contrast(1.04) brightness(1.02)",
-    wash: "linear-gradient(145deg, rgba(238,217,168,.12), transparent 55%, rgba(28,24,20,.08))",
-    washOpacity: 0.48,
-    blendMode: "soft-light",
   },
   "Designer's choice": {
     description: "No forced filter — the GDP designer can choose the final treatment.",
     photoFilter: "none",
     templateFilter: "none",
-    wash: "none",
-    washOpacity: 0,
-    blendMode: "normal",
   },
 };
 
@@ -2119,17 +2095,6 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
                   </div>
                 )}
               </div>
-
-              {moodTreatment.wash !== "none" && (
-                <div
-                  className="absolute inset-0 z-[15] pointer-events-none transition-opacity duration-200"
-                  style={{
-                    background: moodTreatment.wash,
-                    opacity: moodTreatment.washOpacity,
-                    mixBlendMode: moodTreatment.blendMode,
-                  }}
-                />
-              )}
 
               {template?.assetUrl && (
                 <img
