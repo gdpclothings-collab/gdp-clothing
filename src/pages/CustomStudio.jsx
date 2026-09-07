@@ -146,8 +146,6 @@ function defaultArtworkStates(template) {
   };
 }
 
-const STYLES = GDP_STYLE_TEMPLATES.map((style) => [style.name, style.description]);
-
 const FALLBACK_GARMENT = {
   type: "T-Shirt",
   label: "Classic Tee",
@@ -2029,7 +2027,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
                   src={template.assetUrl}
                   alt=""
                   draggable="false"
-                  className="absolute inset-0 z-20 h-full w-full object-contain pointer-events-none"
+                  className="absolute inset-0 z-20 h-full w-full object-fill pointer-events-none"
                 />
               )}
 
