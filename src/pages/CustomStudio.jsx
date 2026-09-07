@@ -268,6 +268,15 @@ function hasStrictGarmentPreviewType(type) {
 }
 
 function studioCardImage(product) {
+  // A Studio card image is an explicit UI asset and is intentionally separate
+  // from production front/back mockups. This lets us recover a missing catalog
+  // thumbnail without ever substituting a different garment model.
+  const configuredCardImage =
+    product?.customization?.preview?.cardImageUrl ||
+    product?.customization?.cardImageUrl ||
+    "";
+  if (configuredCardImage) return configuredCardImage;
+
   const images = uniqueValues(product?.images || []);
   if (!images.length) return "";
   const type = [product?.name, product?.type].filter(Boolean).join(" ");
@@ -1300,7 +1309,13 @@ export default function CustomStudio() {
                   <div className="aspect-[2/1] sm:aspect-[16/10] bg-[#f1ede6] overflow-hidden grid place-items-center">
                     {optionImage
                       ? <img src={optionImage} alt="" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]" />
-                      : <Shirt size={48} className="text-[#aaa39a]" />}
+                      : <div className="h-[88%] aspect-[360/430]" aria-hidden="true">
+                          <GarmentShape
+                            type={optionGarment.previewType || optionGarment.type}
+                            color={option?.colors?.[0] || "Black"}
+                            side="front"
+                          />
+                        </div>}
                   </div>
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -2002,6 +2017,7 @@ function GarmentShape({ type, color, side }) {
 
 function garmentPalette(color) {
   const key = String(color || "Black").toLowerCase();
+  if (key.includes("black")) return { base: "#171717", stroke: "#050505", seam: "#4f4f4f", highlight: "#6a6a6a" };
   if (key.includes("white")) return { base: "#f4f1eb", stroke: "#c8c2b8", seam: "#aaa49a", highlight: "#ffffff" };
   if (key.includes("sport grey") || key.includes("sport gray") || key === "grey" || key === "gray") return { base: "#b8b9b5", stroke: "#858682", seam: "#777874", highlight: "#ddddda" };
   if (key.includes("sand")) return { base: "#c8b79b", stroke: "#958166", seam: "#8f7a5f", highlight: "#f0e1c8" };
@@ -2009,7 +2025,7 @@ function garmentPalette(color) {
   if (key.includes("royal")) return { base: "#2857a6", stroke: "#17376f", seam: "#6f91cd", highlight: "#7aa0df" };
   if (key.includes("red")) return { base: "#ad2735", stroke: "#68151e", seam: "#ce6873", highlight: "#df7d87" };
   if (key.includes("pink")) return { base: "#e9afc3", stroke: "#b6788d", seam: "#d38fa6", highlight: "#f8d6e1" };
-  if (key.includes("forest")) return { base: "#29463b", stroke: "#10231c", seam: "#72877f", highlight: "#6f9385" };
+  if (key.includes("forest") || key.includes("green")) return { base: "#29463b", stroke: "#10231c", seam: "#72877f", highlight: "#6f9385" };
   if (key.includes("charcoal") || key.includes("heather")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
   if (key.includes("vintage")) return { base: "#272422", stroke: "#101010", seam: "#595553", highlight: "#68615e" };
   return { base: "#17324D", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
