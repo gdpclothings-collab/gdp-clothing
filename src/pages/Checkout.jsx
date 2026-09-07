@@ -447,8 +447,11 @@ export default function Checkout() {
           <h2 className="font-display text-3xl mb-4">YOUR ORDER</h2>
           <div className="space-y-3 max-h-72 overflow-y-auto mb-4">
             {items.map(i => (
-              <div key={i.key} className="flex justify-between text-sm">
-                <span className="pr-2">
+              <div key={i.key} className="flex justify-between gap-2 text-sm">
+                {i.isDtf && i.image && (
+                  <img src={i.image} alt={`${i.name} layout preview`} className="h-14 w-12 shrink-0 border border-border bg-white object-contain" />
+                )}
+                <span className="min-w-0 flex-1 pr-2">
                   {i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span>
                   {i.isCustom && <span className="block text-[10px] font-mono uppercase text-accent">{i.occasion || "Custom"} · {i.proofRequired === false ? "Proof skipped" : "Proof before print"}</span>}
                   {i.isDtf && i.dtfSpec && (

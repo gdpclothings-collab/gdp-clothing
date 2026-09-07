@@ -38,7 +38,11 @@ export default function Cart() {
           {items.map(item => (
             <div key={item.key} className="flex gap-4 border border-border p-4 bg-card">
               <div className="w-24 h-24 bg-secondary shrink-0 overflow-hidden">
-                <Image src={item.image} alt={item.name} fittingType="fill" className="w-full h-full object-cover" />
+                {item.isDtf ? (
+                  <img src={item.image} alt={`${item.name} layout preview`} className="h-full w-full bg-white object-contain" />
+                ) : (
+                  <Image src={item.image} alt={item.name} fittingType="fill" className="w-full h-full object-cover" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between gap-2">
