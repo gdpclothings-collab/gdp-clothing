@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Info } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
+import { resolveColorSwatch } from "@/lib/colorSwatches";
 
 const OCCASIONS = [
   { id: "love", label: "Love & Relationships", icon: Heart, options: ["Anniversary","Boyfriend","Girlfriend","Husband","Wife","Valentine's","Couple"] },
@@ -75,22 +76,6 @@ const FALLBACK_GARMENT = {
   desc: "Traditional everyday fit."
 };
 
-const DEFAULT_COLOR_SWATCHES = {
-  "Black": "#17324D",
-  "Vintage Black": "#292929",
-  "White": "#f7f6f1",
-  "Sport Grey": "#b7b8b3",
-  "Charcoal": "#4b4c4e",
-  "Dark Heather": "#414347",
-  "Navy": "#17243b",
-  "Red": "#b52332",
-  "Royal": "#2857a6",
-  "Sand": "#d5c1a0",
-  "Forest": "#294a39",
-  "Pink": "#eeb1c8",
-  "Full Color": "#dadada"
-};
-
 function uniqueValues(values = []) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
@@ -148,9 +133,7 @@ function garmentFromProduct(product) {
 }
 
 function swatchFor(product, color) {
-  return product?.customization?.preview?.colorSwatches?.[color] ||
-    DEFAULT_COLOR_SWATCHES[color] ||
-    "#8b8b8b";
+  return resolveColorSwatch(product?.customization?.preview?.colorSwatches, color);
 }
 
 function normalizePreviewToken(value) {
