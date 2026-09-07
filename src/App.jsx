@@ -11,6 +11,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import StoreLayout from '@/components/storefront/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import AdminMfaGate from '@/components/AdminMfaGate';
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
 const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
@@ -91,8 +92,10 @@ const AuthenticatedApp = () => {
         </Route>
 
         <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}>
-          <Route path="/admin/legacy" element={<Admin />} />
-          <Route path="/admin/*" element={<AdminV2 />} />
+          <Route element={<AdminMfaGate />}>
+            <Route path="/admin/legacy" element={<Admin />} />
+            <Route path="/admin/*" element={<AdminV2 />} />
+          </Route>
         </Route>
 
         <Route path="*" element={<PageNotFound />} />
