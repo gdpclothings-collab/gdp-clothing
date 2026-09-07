@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
+import { findProductVariant, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
 
@@ -110,13 +111,12 @@ export default function ProductDetail() {
   const variantColors = uniqueValues(variants.map((variant) => variant.color));
   const variantSizes = uniqueValues(variants.map((variant) => variant.size));
   const colors = productColors.length ? productColors : variantColors.length ? variantColors : ["Black"];
-  const sizes = productSizes.length ? productSizes : variantSizes.length ? variantSizes : SIZES;
-  const selectedVariant =
-    variants.find((variant) => (!variant.color || variant.color === color) && (!variant.size || variant.size === size)) || null;
+  const sizes = sortApparelSizes(productSizes.length ? productSizes : variantSizes.length ? variantSizes : SIZES);
+  const selectedVariant = findProductVariant(product, color, size);
   const selectionComplete = Boolean(color) && Boolean(size);
   const validCombination = !variants.length || Boolean(selectedVariant);
   const displayPrice = selectedVariant?.price == null ? Number(product.price || 0) : Number(selectedVariant.price);
-  const inStock = !product.trackInventory || !variants.length || Boolean(selectedVariant && Number(selectedVariant.stock || 0) > 0);
+  const inStock = isProductVariantAvailable(product, selectedVariant);
   const canAddToCart = selectionComplete && validCombination && inStock;
   const maxQty = product.trackInventory && selectedVariant ? Math.max(0, Number(selectedVariant.stock || 0)) : 99;
   const wished = wishlist.includes(product.id);

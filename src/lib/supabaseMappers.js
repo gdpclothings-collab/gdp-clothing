@@ -5,6 +5,7 @@ export function normalizeProduct(row) {
     compareAtPrice: row.compare_at_price,
     costPerItem: row.cost_per_item,
     trackInventory: row.track_inventory,
+    sellWhenOutOfStock: row.sell_when_out_of_stock,
     requiresShipping: row.requires_shipping,
     weightUnit: row.weight_unit,
     fulfillmentMode: row.fulfillment_mode,
