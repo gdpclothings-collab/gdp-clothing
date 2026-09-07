@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Info } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import { customerApi } from "@/lib/customerApi";
@@ -728,6 +728,7 @@ async function uploadWithRetry(file, attempts = 2) {
 
 export default function CustomStudio() {
   const [params] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [step, setStep] = useState(1);
@@ -852,6 +853,7 @@ export default function CustomStudio() {
         setColor(initialColor);
         setSize(initialSize);
         setProofRequired(p?.customization?.proofRequired !== false);
+        if (location.state?.seasonalDraft) setSeasonalMode(true);
       } catch (error) {
         if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
       }
@@ -1218,6 +1220,7 @@ export default function CustomStudio() {
     catalog={catalog} availableColors={availableColors} availableSizes={availableSizes}
     onProductChange={chooseProduct} onColorChange={chooseColor} onSizeChange={setSize}
     colorSwatch={(value) => swatchFor(product, value)} priceVisibility={priceVisibility}
+    initialDraft={location.state?.seasonalDraft || null} editCartKey={location.state?.editCartKey || ""}
     onBack={() => {setSeasonalMode(false);setStep(1);window.scrollTo({top:0,behavior:'instant'});}} />;
 
 
