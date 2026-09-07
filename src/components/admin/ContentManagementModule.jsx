@@ -15,6 +15,7 @@ import {
 import { adminContentManagementApi } from "@/lib/adminContentManagementApi";
 import AboutPageEditorFields from "@/components/admin/AboutPageEditorFields";
 import { mergeAboutPageBody } from "@/lib/aboutPageDefaults";
+import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function slugify(value) {
   return String(value || "")
@@ -419,16 +420,25 @@ function PageEditor({ page, onClose, onSaved }) {
         publishedAt: page?.published_at || null,
       });
       await onSaved(page?.id ? "Page updated." : "Page created.");
+      return true;
     } catch (err) {
       console.error("Page save failed:", err);
       window.alert(err?.message || "Could not save page.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: page?.title ? `Page: ${page.title}` : "Content page editor",
+  });
+
   return (
-    <Editor title={page ? "Edit page" : "Create page"} onClose={onClose} onSave={save} saving={saving} wide>
+    <Editor title={page ? "Edit page" : "Create page"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty} wide>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Title">
           <input
@@ -561,16 +571,25 @@ function MenuEditor({ menu, pages, products, collections, onClose, onSaved }) {
       );
 
       await onSaved(menu?.id ? "Navigation menu updated." : "Navigation menu created.");
+      return true;
     } catch (err) {
       console.error("Navigation save failed:", err);
       window.alert(err?.message || "Could not save navigation.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: menu?.name ? `Navigation: ${menu.name}` : "Navigation menu editor",
+  });
+
   return (
-    <Editor title={menu ? "Edit navigation menu" : "Create navigation menu"} onClose={onClose} onSave={save} saving={saving} wide>
+    <Editor title={menu ? "Edit navigation menu" : "Create navigation menu"} onClose={requestClose} onSave={save} saving={saving} dirty={isDirty} wide>
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Menu name">
           <input
@@ -664,7 +683,7 @@ function MenuEditor({ menu, pages, products, collections, onClose, onSaved }) {
   );
 }
 
-function Editor({ title, onClose, onSave, saving, children, wide = false }) {
+function Editor({ title, onClose, onSave, saving, dirty, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
       <div className={`w-full ${wide ? "max-w-4xl" : "max-w-2xl"} bg-white rounded-2xl shadow-2xl overflow-hidden my-6`}>
@@ -675,7 +694,7 @@ function Editor({ title, onClose, onSave, saving, children, wide = false }) {
         <div className="p-5 space-y-4">{children}</div>
         <div className="px-5 py-4 border-t border-[#e3e3e3] flex justify-end gap-2">
           <button onClick={onClose} className={secondaryButton}>Cancel</button>
-          <button onClick={onSave} disabled={saving} className={primaryButton}>
+          <button onClick={onSave} disabled={saving || !dirty} className={primaryButton}>
             <Save size={14} /> {saving ? "Saving…" : "Save"}
           </button>
         </div>
