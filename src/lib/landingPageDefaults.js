@@ -84,7 +84,7 @@ export const DEFAULT_LANDING_PAGE = {
     ctaLabel: "OPEN CUSTOM STUDIO",
     ctaUrl: "/custom-studio",
     secondaryLabel: "HOW CUSTOM ORDERS WORK",
-    secondaryUrl: "/custom-studio#how-it-works",
+    secondaryUrl: "/#how-it-works",
   },
   bestSellers: {
     eyebrow: "",
