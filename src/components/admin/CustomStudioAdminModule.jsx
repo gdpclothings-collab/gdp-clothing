@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { adminCustomStudioApi } from "@/lib/adminCustomStudioApi";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
+import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 function prettify(value) {
   return String(value || "—").replaceAll("_", " ");
@@ -84,6 +85,7 @@ export default function CustomStudioAdminModule() {
   const [data, setData] = useState({ orders: [], designs: [], proofs: [] });
   const [selectedProof, setSelectedProof] = useState(null);
   const [studioSettings, setStudioSettings] = useState(() => normalizeStudioSettings(DEFAULT_STUDIO_SETTINGS));
+  const [savedStudioSettings, setSavedStudioSettings] = useState(() => normalizeStudioSettings(DEFAULT_STUDIO_SETTINGS));
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,9 @@ export default function CustomStudioAdminModule() {
     setSettingsLoading(true);
     try {
       const settings = await adminSettingsApi.loadCustomStudioSettings();
-      setStudioSettings(normalizeStudioSettings(settings));
+      const normalized = normalizeStudioSettings(settings);
+      setStudioSettings(normalized);
+      setSavedStudioSettings(normalized);
     } catch (err) {
       console.error("Custom Studio settings load failed:", err);
       setError(err?.message || "Could not load Custom Studio settings.");
@@ -127,10 +131,13 @@ export default function CustomStudioAdminModule() {
       const normalized = normalizeStudioSettings(studioSettings);
       await adminSettingsApi.saveCustomStudioSettings(normalized);
       setStudioSettings(normalized);
+      setSavedStudioSettings(normalized);
       showNotice("Custom Studio settings saved.");
+      return true;
     } catch (err) {
       console.error("Custom Studio settings save failed:", err);
       window.alert(err?.message || "Could not save Custom Studio settings.");
+      return false;
     } finally {
       setSettingsSaving(false);
     }
@@ -151,6 +158,7 @@ export default function CustomStudioAdminModule() {
     setStudioSettings(next);
     try {
       await adminSettingsApi.saveCustomStudioSettings(next);
+      setSavedStudioSettings(next);
       showNotice(`${level}/5 intensity example updated.`);
     } catch (err) {
       console.error("Intensity example save failed:", err);
@@ -158,6 +166,17 @@ export default function CustomStudioAdminModule() {
       window.alert(err?.message || "Could not save the intensity example.");
     }
   };
+
+  const hasUnsavedStudioSettings = useMemo(
+    () => JSON.stringify(studioSettings) !== JSON.stringify(savedStudioSettings),
+    [studioSettings, savedStudioSettings]
+  );
+
+  useUnsavedChangesGuard({
+    isDirty: hasUnsavedStudioSettings,
+    onSave: saveStudioSettings,
+    label: "Custom Studio settings",
+  });
 
   const showNotice = (message) => {
     setNotice(message);
@@ -248,6 +267,7 @@ export default function CustomStudioAdminModule() {
           settings={studioSettings}
           loading={settingsLoading}
           saving={settingsSaving}
+          dirty={hasUnsavedStudioSettings}
           onChange={setStudioSetting}
           onSave={saveStudioSettings}
           onIntensityImageChange={updateIntensityExample}
@@ -403,7 +423,7 @@ export default function CustomStudioAdminModule() {
   );
 }
 
-function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave, onIntensityImageChange }) {
+function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange, onSave, onIntensityImageChange }) {
   const [uploadingLevel, setUploadingLevel] = useState(null);
 
   if (loading) {
@@ -537,7 +557,7 @@ function CustomStudioSettingsPanel({ settings, loading, saving, onChange, onSave
             <button
               type="button"
               onClick={onSave}
-              disabled={saving}
+              disabled={saving || !dirty}
               className="h-10 px-4 rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
             >
               <Save size={14} /> {saving ? "Saving…" : "Save Studio settings"}
