@@ -62,6 +62,25 @@ verifyLayout(rotatedResult, 34);
 assert.ok(rotatedResult.rotatedCount >= 1, "rotation-aware nesting should rotate tall artwork when beneficial");
 assert.ok(rotatedResult.recommendedLength < 30, "rotation should materially reduce film length in the tall-artwork case");
 
+const constrained = advancedNestArtwork(
+  [
+    { id: "c1", width: 30, height: 8, rotation: 0 },
+    { id: "c2", width: 30, height: 8, rotation: 0 },
+  ],
+  34,
+  10,
+  0.25,
+  {
+    allowRotation: false,
+    minLength: 6,
+    maxLength: 10,
+  }
+);
+assert.ok(constrained.unpacked.length >= 1, "hard film length should leave impossible artwork unpacked");
+for (const item of constrained.items) {
+  assert.ok(item.y + item.height <= 10 + EPSILON, "constrained nesting must stay inside selected film length");
+}
+
 const noRotateResult = advancedNestArtwork(tall, 34, 72, 0.25, {
   allowRotation: false,
   minLength: 6,
