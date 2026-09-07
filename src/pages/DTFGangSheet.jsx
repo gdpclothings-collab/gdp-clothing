@@ -18,6 +18,7 @@ import {
 import { useCart } from "@/lib/CartContext";
 import {
   artworkOverlaps,
+  autoArrangeArtwork,
   calculateDtfPrice,
   calculateUtilization,
   createDtfConfigId,
@@ -116,6 +117,36 @@ export default function DTFGangSheet() {
       active = false;
     };
   }, []);
+
+  const runNesting = (items, currentLength = sheetLength) => {
+    if (!settings.advancedNestingEnabled) {
+      const arranged = autoArrangeArtwork(items, sheetWidth, currentLength, settings.spacing);
+      return {
+        items: arranged,
+        usedLength: usedArtworkLength(arranged, settings.spacing),
+        recommendedLength: Math.max(
+          settings.minLength,
+          Math.ceil(usedArtworkLength(arranged, settings.spacing) * 4) / 4
+        ),
+        efficiency: calculateUtilization(arranged, sheetWidth, Math.max(currentLength, 0.01)),
+        rotatedCount: 0,
+        unpacked: [],
+        passes: 1,
+        algorithm: "row-pack-fallback",
+      };
+    }
+
+    return advancedNestArtwork(
+      items,
+      sheetWidth,
+      currentLength,
+      settings.spacing,
+      {
+        allowRotation: settings.autoRotateEnabled !== false,
+        minLength: settings.minLength,
+      }
+    );
+  };
 
   const price = useMemo(
     () => calculateDtfPrice(sheetWidth, sheetLength, settings),
@@ -226,13 +257,7 @@ export default function DTFGangSheet() {
     }
 
     const merged = mode === "upload" ? nextItems : [...artworks, ...nextItems];
-    const nested = advancedNestArtwork(
-      merged,
-      sheetWidth,
-      sheetLength,
-      settings.spacing,
-      { allowRotation: true, minLength: settings.minLength }
-    );
+    const nested = runNesting(merged, sheetLength);
     const nextLength = Math.max(sheetLength, nested.recommendedLength);
     setSheetLength(nextLength);
     setArtworks(nested.items);
@@ -272,13 +297,7 @@ export default function DTFGangSheet() {
       x: Math.min(sheetWidth - selectedArtwork.width, selectedArtwork.x + settings.spacing * 2),
       y: Math.min(sheetLength - selectedArtwork.height, selectedArtwork.y + settings.spacing * 2),
     };
-    const nested = advancedNestArtwork(
-      [...artworks, copy],
-      sheetWidth,
-      sheetLength,
-      settings.spacing,
-      { allowRotation: true, minLength: settings.minLength }
-    );
+    const nested = runNesting([...artworks, copy], sheetLength);
     setSheetLength(Math.max(sheetLength, nested.recommendedLength));
     setArtworks(nested.items);
     setSelectedId(copy.id);
@@ -298,13 +317,7 @@ export default function DTFGangSheet() {
 
   const autoArrange = () => {
     const beforeLength = fitLengthToArtwork(artworks, settings);
-    const nested = advancedNestArtwork(
-      artworks,
-      sheetWidth,
-      sheetLength,
-      settings.spacing,
-      { allowRotation: true, minLength: settings.minLength }
-    );
+    const nested = runNesting(artworks, sheetLength);
 
     if (nested.unpacked.length) {
       setPageError(`${nested.unpacked.length} artwork item${nested.unpacked.length === 1 ? "" : "s"} could not fit within the ${sheetWidth}" film width.`);
@@ -762,7 +775,7 @@ export default function DTFGangSheet() {
                 <div className="flex flex-wrap gap-2">
                   {mode === "build" && (
                     <button type="button" onClick={autoArrange} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
-                      Advanced Nest
+                      {settings.advancedNestingEnabled ? "Advanced Nest" : "Auto Arrange"}
                     </button>
                   )}
                   <button type="button" onClick={fitSheet} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
@@ -804,7 +817,6 @@ export default function DTFGangSheet() {
                             top: `${(item.y / sheetLength) * 100}%`,
                             width: `${(item.width / sheetWidth) * 100}%`,
                             height: `${(item.height / sheetLength) * 100}%`,
-                            transform: `rotate(${Number(item.rotation || 0)}deg)`,
                           }}
                           title={item.name}
                         >
