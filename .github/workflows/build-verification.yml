@@ -39,5 +39,8 @@ jobs:
       - name: Verify DTF nesting algorithm
         run: npm run test:dtf-nesting
 
+      - name: Verify fresh customer sessions
+        run: npm run test:fresh-session
+
       - name: Build production app
         run: npm run build
