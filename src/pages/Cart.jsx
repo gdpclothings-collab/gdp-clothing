@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Heart } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Heart, Pencil } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 import { calculateCartQuantityDiscount } from "@/lib/cartPricing";
@@ -61,6 +61,7 @@ export default function Cart() {
                       <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
                         {item.occasion && <div>Occasion: <span className="text-foreground">{item.occasion}</span></div>}
                         {item.designStyle && <div>Style: <span className="text-foreground">{item.designStyle}</span></div>}
+                        {item.fabric && <div>Fabric: <span className="text-foreground">{item.fabric}</span></div>}
                         <div>Proof: <span className="text-foreground">{item.proofRequired === false ? "Skipped" : "Required before print"}</span></div>
                         {item.needByDate && <div>Need by: <span className="text-foreground">{item.needByDate}</span></div>}
                         <div className="font-mono text-[10px]">Design ID: {item.customDesignId}</div>
@@ -76,6 +77,7 @@ export default function Cart() {
                     <button onClick={() => updateQty(item.key, item.quantity + 1)} className="px-2 py-1 hover:text-accent" aria-label="Increase"><Plus size={14} /></button>
                   </div>
                   <button onClick={() => removeItem(item.key)} className="text-muted-foreground hover:text-destructive" aria-label="Remove"><Trash2 size={16} /></button>
+                  {item.seasonalDraft && <Link to={`/custom-studio?product=${encodeURIComponent(item.productId)}&color=${encodeURIComponent(item.color || "")}&size=${encodeURIComponent(item.size || "")}`} state={{seasonalDraft:item.seasonalDraft,editCartKey:item.key}} className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"><Pencil size={13}/> Edit design</Link>}
                 </div>
               </div>
             </div>
