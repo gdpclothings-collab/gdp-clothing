@@ -346,7 +346,10 @@ export function advancedNestArtwork(
     (sum, item) => sum + Math.max(0.5, n(item.height, 1)) + gap,
     gap * 2
   );
-  const generousHeight = Math.max(current, totalHeight, 120);
+  const hardMaxLength = Math.max(0, n(options.maxLength, 0));
+  const generousHeight = hardMaxLength > 0
+    ? hardMaxLength
+    : Math.max(current, totalHeight, 120);
 
   let best = null;
   let bestMetric = null;
