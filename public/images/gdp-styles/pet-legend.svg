@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="GDP Pet Legend artwork overlay">
+<defs>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity=".28"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g filter="url(#shadow)">
+ <circle cx="540" cy="380" r="305" fill="none" stroke="#e1a61a" stroke-width="28"/>
+ <path d="M420 95l35-78 49 49 36-66 42 66 49-49 35 78-48 42H468Z" fill="#f4c42f" stroke="#161616" stroke-width="12"/>
+ <g fill="#151515" stroke="#e3ae25" stroke-width="12">
+  <circle cx="160" cy="390" r="36"/><circle cx="218" cy="350" r="34"/><circle cx="276" cy="390" r="36"/><ellipse cx="220" cy="465" rx="88" ry="72"/>
+  <circle cx="920" cy="390" r="36"/><circle cx="862" cy="350" r="34"/><circle cx="804" cy="390" r="36"/><ellipse cx="860" cy="465" rx="88" ry="72"/>
+ </g>
+ <g fill="#ef3340"><path d="M138 575c-38-46-106-10-106 45 0 71 106 126 106 126s106-55 106-126c0-55-68-91-106-45Z"/><path d="M942 575c38-46 106-10 106 45 0 71-106 126-106 126s-106-55-106-126c0-55 68-91 106-45Z"/></g>
+ <path d="M360 710c55-58 305-58 360 0l-65 102H425Z" fill="#fff" stroke="#151515" stroke-width="16"/>
+ <circle cx="540" cy="730" r="24" fill="#e3ae25"/>
+ <text x="540" y="890" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-style="italic" font-size="128" fill="#e3ae25" stroke="#111" stroke-width="10" paint-order="stroke">GDP</text>
+ <text x="540" y="956" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="42" fill="#fff" stroke="#111" stroke-width="7" paint-order="stroke">GOOD PEOPLE DOPE CLOTHES</text>
+</g></svg>
