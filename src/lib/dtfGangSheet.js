@@ -10,8 +10,8 @@ export const DEFAULT_DTF_SETTINGS = {
   minLength: 6,
   standardMaxLength: 36,
   pricingMode: "graduated",
-  standardRate: 0.028,
-  volumeRate: 0.025,
+  standardRate: 0.049,
+  volumeRate: 0.04375,
   breakpointArea: 1224,
   popularLengths: [12, 24, 36, 48, 60, 72, 96, 120],
   spacing: 0.25,
@@ -40,8 +40,8 @@ export function normalizeDtfSettings(raw = {}) {
   next.defaultWidth = Math.min(next.maxWidth, Math.max(1, numberOr(next.defaultWidth, next.maxWidth)));
   next.minLength = Math.max(1, numberOr(next.minLength, 6));
   next.standardMaxLength = Math.max(next.minLength, numberOr(next.standardMaxLength, 36));
-  next.standardRate = Math.max(0, numberOr(next.standardRate, 0.028));
-  next.volumeRate = Math.max(0, numberOr(next.volumeRate, 0.025));
+  next.standardRate = Math.max(0, numberOr(next.standardRate, 0.049));
+  next.volumeRate = Math.max(0, numberOr(next.volumeRate, 0.04375));
   next.breakpointArea = Math.max(1, numberOr(next.breakpointArea, next.maxWidth * next.standardMaxLength));
   next.spacing = Math.max(0, numberOr(next.spacing, 0.25));
   next.minimumDpi = Math.max(1, numberOr(next.minimumDpi, 200));

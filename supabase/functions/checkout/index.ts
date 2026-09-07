@@ -24,8 +24,8 @@ const defaultDtfSettings = {
   minLength: 6,
   standardMaxLength: 36,
   pricingMode: "graduated",
-  standardRate: 0.028,
-  volumeRate: 0.025,
+  standardRate: 0.049,
+  volumeRate: 0.04375,
   breakpointArea: 1224,
   spacing: 0.25,
   minimumDpi: 200,
@@ -52,8 +52,8 @@ function normalizeDtfSettings(raw: any = {}) {
   next.maxWidth = Math.max(1, numberOr(next.maxWidth, 34));
   next.defaultWidth = Math.min(next.maxWidth, Math.max(1, numberOr(next.defaultWidth, next.maxWidth)));
   next.minLength = Math.max(1, numberOr(next.minLength, 6));
-  next.standardRate = Math.max(0, numberOr(next.standardRate, 0.028));
-  next.volumeRate = Math.max(0, numberOr(next.volumeRate, 0.025));
+  next.standardRate = Math.max(0, numberOr(next.standardRate, 0.049));
+  next.volumeRate = Math.max(0, numberOr(next.volumeRate, 0.04375));
   next.breakpointArea = Math.max(1, numberOr(next.breakpointArea, 1224));
   next.spacing = Math.max(0, numberOr(next.spacing, 0.25));
   next.artworkReviewPrice = Math.max(0, numberOr(next.artworkReviewPrice, 0));
