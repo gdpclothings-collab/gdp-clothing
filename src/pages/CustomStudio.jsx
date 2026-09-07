@@ -867,7 +867,7 @@ export default function CustomStudio() {
     const colors = productColors(nextProduct);
     const nextColor = color && colors.includes(color) ? color : colors[0] || "";
     const sizes = productSizes(nextProduct, nextColor);
-    const nextSize = size && sizes.includes(size) ? size : "";
+    const nextSize = size && sizes.includes(size) ? size : (seasonalMode ? sizes[0] || "" : "");
     setProduct(nextProduct);
     setGarment(garmentFromProduct(nextProduct));
     setColor(nextColor);
@@ -881,6 +881,12 @@ export default function CustomStudio() {
       setArtworkStates(defaultArtworkStates());
     }
     setPreviewSide("front");
+  };
+
+  const chooseColor = (nextColor) => {
+    setColor(nextColor);
+    const sizes = productSizes(product, nextColor);
+    if (!sizes.includes(size)) setSize(seasonalMode ? sizes[0] || "" : "");
   };
 
   const config = product?.customization || {};
@@ -1209,6 +1215,9 @@ export default function CustomStudio() {
   if (seasonalMode && product && color && size) return <SeasonalStudio
     product={product} garment={garment} color={color} size={size} variant={selectedVariant}
     quantity={qty} unitPrice={Number(selectedVariant?.price ?? product.price ?? 0)} Preview={StudioPreview}
+    catalog={catalog} availableColors={availableColors} availableSizes={availableSizes}
+    onProductChange={chooseProduct} onColorChange={chooseColor} onSizeChange={setSize}
+    colorSwatch={(value) => swatchFor(product, value)} priceVisibility={priceVisibility}
     onBack={() => {setSeasonalMode(false);setStep(1);window.scrollTo({top:0,behavior:'instant'});}} />;
 
 
@@ -1472,7 +1481,7 @@ export default function CustomStudio() {
                     <button
                       type="button"
                       key={optionColor}
-                      onClick={() => setColor(optionColor)}
+                      onClick={() => chooseColor(optionColor)}
                       className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
                     >
                       <span
