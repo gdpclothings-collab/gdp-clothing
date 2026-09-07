@@ -20,13 +20,6 @@ import {
   Clock3,
   Save,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { adminOrdersApi } from "@/lib/adminOrdersApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
@@ -935,47 +928,65 @@ function QuickSelect({ value, options, onChange, disabled, ariaLabel }) {
 function OrderActions({ order, busy, onView, onCopy, onComplete, onCancel }) {
   return (
     <div onClick={(event) => event.stopPropagation()} className="inline-flex">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            disabled={busy}
-            className="h-8 w-8 rounded-lg border border-[#d5d5d5] inline-grid place-items-center hover:bg-[#f5f5f5] disabled:opacity-40"
-            aria-label={"Actions for " + order.order_number}
-          >
-            <MoreHorizontal size={16} />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[210px]">
-          <DropdownMenuItem onSelect={onView}>
+      <details className="relative">
+        <summary
+          className={
+            "list-none h-8 w-8 rounded-lg border border-[#d5d5d5] inline-grid place-items-center hover:bg-[#f5f5f5] " +
+            (busy ? "pointer-events-none opacity-40" : "cursor-pointer")
+          }
+          aria-label={"Actions for " + order.order_number}
+        >
+          <MoreHorizontal size={16} />
+        </summary>
+        <div className="absolute right-0 z-50 mt-1 min-w-[210px] rounded-lg border border-[#dedede] bg-white p-1 shadow-xl text-left">
+          <ActionMenuButton onClick={onView}>
             <ShoppingBag size={14} /> View order
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onCopy}>
+          </ActionMenuButton>
+          <ActionMenuButton onClick={onCopy}>
             <Copy size={14} /> Copy order number
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
+          </ActionMenuButton>
+          <div className="my-1 h-px bg-[#ececec]" />
+          <ActionMenuButton
             disabled={order.status === "completed"}
-            onSelect={onComplete}
+            onClick={onComplete}
           >
             <CheckCircle2 size={14} /> Mark completed
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => window.location.assign("/admin/returns")}
-          >
+          </ActionMenuButton>
+          <ActionMenuButton onClick={() => window.location.assign("/admin/returns")}>
             <RotateCcw size={14} /> Returns & refunds
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
+          </ActionMenuButton>
+          <div className="my-1 h-px bg-[#ececec]" />
+          <ActionMenuButton
             disabled={order.status === "cancelled"}
-            onSelect={onCancel}
-            className="text-red-600 focus:text-red-700"
+            onClick={onCancel}
+            danger
           >
             <Ban size={14} /> Cancel order
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </ActionMenuButton>
+        </div>
+      </details>
     </div>
+  );
+}
+
+function ActionMenuButton({ children, onClick, disabled = false, danger = false }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.();
+        const details = event.currentTarget.closest("details");
+        if (details) details.open = false;
+      }}
+      className={
+        "w-full rounded-md px-2 py-2 text-sm inline-flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none " +
+        (danger ? "text-red-600 hover:bg-red-50" : "text-[#333] hover:bg-[#f5f5f5]")
+      }
+    >
+      {children}
+    </button>
   );
 }
 
