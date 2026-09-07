@@ -1,34 +1,20 @@
 import assert from "node:assert/strict";
 import { advancedNestArtwork } from "../src/lib/dtfNesting.js";
+import { artworkOverlaps, getArtworkRotatedBounds } from "../src/lib/dtfGangSheet.js";
 
 const EPSILON = 0.001;
 
-function overlaps(a, b) {
-  return (
-    a.x < b.x + b.width - EPSILON &&
-    a.x + a.width > b.x + EPSILON &&
-    a.y < b.y + b.height - EPSILON &&
-    a.y + a.height > b.y + EPSILON
-  );
-}
-
-function verifyLayout(result, sheetWidth) {
+function verifyLayout(result, sheetWidth, sheetLength = Infinity) {
   assert.equal(result.unpacked.length, 0, "all test artwork should be packed");
   for (const item of result.items) {
-    assert.ok(item.x >= -EPSILON, "artwork x must stay on film");
-    assert.ok(item.y >= -EPSILON, "artwork y must stay on film");
-    assert.ok(item.x + item.width <= sheetWidth + EPSILON, "artwork must stay within film width");
+    const bounds = getArtworkRotatedBounds(item);
+    assert.ok(bounds.left >= -EPSILON, "rotated artwork must stay inside the left film edge");
+    assert.ok(bounds.top >= -EPSILON, "rotated artwork must stay inside the top film edge");
+    assert.ok(bounds.right <= sheetWidth + EPSILON, "rotated artwork must stay within film width");
+    assert.ok(bounds.bottom <= sheetLength + EPSILON, "rotated artwork must stay within film length");
   }
 
-  for (let i = 0; i < result.items.length; i += 1) {
-    for (let j = i + 1; j < result.items.length; j += 1) {
-      assert.equal(
-        overlaps(result.items[i], result.items[j]),
-        false,
-        `artwork ${result.items[i].id} and ${result.items[j].id} must not overlap`
-      );
-    }
-  }
+  assert.deepEqual(artworkOverlaps(result.items), [], "packed rotated artwork must not overlap");
 }
 
 const mixed = [
@@ -78,8 +64,24 @@ const constrained = advancedNestArtwork(
 );
 assert.ok(constrained.unpacked.length >= 1, "hard film length should leave impossible artwork unpacked");
 for (const item of constrained.items) {
-  assert.ok(item.y + item.height <= 10 + EPSILON, "constrained nesting must stay inside selected film length");
+  assert.ok(getArtworkRotatedBounds(item).bottom <= 10 + EPSILON, "constrained nesting must stay inside selected film length");
 }
+
+const angled = [
+  { id: "a37", width: 8, height: 4, rotation: 37 },
+  { id: "b18", width: 6, height: 5, rotation: 18 },
+  { id: "c0", width: 7, height: 3, rotation: 0 },
+];
+const angledResult = advancedNestArtwork(angled, 34, 36, 0.25, {
+  allowRotation: true,
+  minLength: 6,
+  maxLength: 36,
+});
+verifyLayout(angledResult, 34, 36);
+assert.ok(
+  angledResult.items.some((item) => Math.abs(item.rotation % 90) > EPSILON),
+  "advanced nesting should preserve arbitrary source rotation when it is selected"
+);
 
 const noRotateResult = advancedNestArtwork(tall, 34, 72, 0.25, {
   allowRotation: false,
