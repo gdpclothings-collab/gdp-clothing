@@ -11,10 +11,11 @@ export function fitSeasonalArtwork(artwork, area, requestedWidth, x = 0, y = 0) 
   return { width, height, x: Math.max(0, Math.min(Number(x) || 0, area.width - width)), y: Math.max(0, Math.min(Number(y) || 0, area.height - height)), maxWidth: limit };
 }
 
-export function seasonalSelection(artwork, layout, text, area) {
+export function seasonalSelection(artwork, layout, text, area, rotation = 0) {
   if (!artwork || !layout) throw new Error('Choose an available artwork.');
   return { version: 1, artwork_id: artwork.id, source_sha256: artwork.source_sha256,
     placement: 'front', width: layout.width, height: layout.height, x: layout.x, y: layout.y,
+    rotation: Math.max(-180, Math.min(180, Number(rotation) || 0)),
     area_width: area.width, area_height: area.height,
     name: artwork.customizable ? String(text.name || '').trim().slice(0, 32) : '',
     message: artwork.customizable ? String(text.message || '').trim().slice(0, 60) : '',
