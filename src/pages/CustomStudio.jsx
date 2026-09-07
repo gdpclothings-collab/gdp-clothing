@@ -812,6 +812,10 @@ export default function CustomStudio() {
     (async () => {
       try {
         const productId = params.get("product");
+        const requestedOccasionGroup = String(params.get("occasion") || "").toLowerCase();
+        if (requestedOccasionGroup && OCCASIONS.some((group) => group.id === requestedOccasionGroup)) {
+          setOccasionGroup(requestedOccasionGroup);
+        }
         const [studioCatalog, loadedStudioSettings] = await Promise.all([
           customerApi.getStudioCatalog(),
           customerApi.getCustomStudioSettings().catch(() => ({})),

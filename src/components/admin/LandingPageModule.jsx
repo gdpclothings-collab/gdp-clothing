@@ -23,8 +23,16 @@ const textAreaClass = "w-full rounded-lg border border-[#d4d4d4] bg-white px-3 p
 const SECTION_LABELS = {
   trustBar: "Trust bar",
   categories: "Shop category cards",
+  customStudio: "Custom Studio feature",
   bestSellers: "Best sellers",
+  dtfSpotlight: "DTF printing spotlight",
+  occasions: "Shop by occasion",
+  howItWorks: "How custom orders work",
+  reviews: "Customer reviews",
   promos: "Promotional panels",
+  localFulfillment: "Local pickup & shipping",
+  faq: "Homepage FAQ",
+  finalCta: "Final call to action",
 };
 
 function formatDate(value) {
@@ -292,6 +300,10 @@ export default function LandingPageModule() {
     ...current,
     hero: { ...current.hero, ...patch },
   }));
+  const setFeature = (key, patch) => setForm((current) => ({
+    ...current,
+    [key]: { ...current[key], ...patch },
+  }));
   const setTrust = (index, patch) => setForm((current) => ({
     ...current,
     trustBar: current.trustBar.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
@@ -499,6 +511,80 @@ export default function LandingPageModule() {
             <Field label="Side copy"><input value={form.hero.sideCopy || ""} onChange={(event) => setHero({ sideCopy: event.target.value })} className={inputClass} /></Field>
             <Field label="Button label"><input value={form.hero.ctaLabel || ""} onChange={(event) => setHero({ ctaLabel: event.target.value })} className={inputClass} /></Field>
             <Field label="Button URL"><input value={form.hero.ctaUrl || ""} onChange={(event) => setHero({ ctaUrl: event.target.value })} className={inputClass} /></Field>
+            <Field label="Secondary button"><input value={form.hero.secondaryCtaLabel || ""} onChange={(event) => setHero({ secondaryCtaLabel: event.target.value })} className={inputClass} /></Field>
+            <Field label="Secondary URL"><input value={form.hero.secondaryCtaUrl || ""} onChange={(event) => setHero({ secondaryCtaUrl: event.target.value })} className={inputClass} /></Field>
+            <Field label="DTF link label"><input value={form.hero.tertiaryCtaLabel || ""} onChange={(event) => setHero({ tertiaryCtaLabel: event.target.value })} className={inputClass} /></Field>
+            <Field label="DTF link URL"><input value={form.hero.tertiaryCtaUrl || ""} onChange={(event) => setHero({ tertiaryCtaUrl: event.target.value })} className={inputClass} /></Field>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Homepage feature content"
+        description="Edit the main conversion sections added to the GDP landing page. Visibility and position are controlled separately below."
+      >
+        <div className="grid gap-5 xl:grid-cols-2">
+          <div className="space-y-3 rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
+            <div className="text-sm font-semibold">Custom Studio feature</div>
+            <MediaField
+              label="Feature image"
+              value={form.customStudio.imageUrl || ""}
+              onChange={(imageUrl) => setFeature("customStudio", { imageUrl })}
+              folder="home/custom-studio"
+              recommendation="Use a finished custom garment or photo-to-garment example"
+            />
+            <Field label="Eyebrow"><input value={form.customStudio.eyebrow || ""} onChange={(event) => setFeature("customStudio", { eyebrow: event.target.value })} className={inputClass} /></Field>
+            <Field label="Title"><input value={form.customStudio.title || ""} onChange={(event) => setFeature("customStudio", { title: event.target.value })} className={inputClass} /></Field>
+            <Field label="Description"><textarea value={form.customStudio.subtitle || ""} onChange={(event) => setFeature("customStudio", { subtitle: event.target.value })} className={textAreaClass} rows={3} /></Field>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Field label="Primary button"><input value={form.customStudio.ctaLabel || ""} onChange={(event) => setFeature("customStudio", { ctaLabel: event.target.value })} className={inputClass} /></Field>
+              <Field label="Primary URL"><input value={form.customStudio.ctaUrl || ""} onChange={(event) => setFeature("customStudio", { ctaUrl: event.target.value })} className={inputClass} /></Field>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
+            <div className="text-sm font-semibold">DTF printing spotlight</div>
+            <MediaField
+              label="DTF image"
+              value={form.dtfSpotlight.imageUrl || ""}
+              onChange={(imageUrl) => setFeature("dtfSpotlight", { imageUrl })}
+              folder="home/dtf"
+              recommendation="Gang sheet or transfer-film image"
+              contain
+            />
+            <Field label="Eyebrow"><input value={form.dtfSpotlight.eyebrow || ""} onChange={(event) => setFeature("dtfSpotlight", { eyebrow: event.target.value })} className={inputClass} /></Field>
+            <Field label="Title"><input value={form.dtfSpotlight.title || ""} onChange={(event) => setFeature("dtfSpotlight", { title: event.target.value })} className={inputClass} /></Field>
+            <Field label="Description"><textarea value={form.dtfSpotlight.subtitle || ""} onChange={(event) => setFeature("dtfSpotlight", { subtitle: event.target.value })} className={textAreaClass} rows={3} /></Field>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Field label="Primary button"><input value={form.dtfSpotlight.primaryLabel || ""} onChange={(event) => setFeature("dtfSpotlight", { primaryLabel: event.target.value })} className={inputClass} /></Field>
+              <Field label="Primary URL"><input value={form.dtfSpotlight.primaryUrl || ""} onChange={(event) => setFeature("dtfSpotlight", { primaryUrl: event.target.value })} className={inputClass} /></Field>
+              <Field label="Builder button"><input value={form.dtfSpotlight.secondaryLabel || ""} onChange={(event) => setFeature("dtfSpotlight", { secondaryLabel: event.target.value })} className={inputClass} /></Field>
+              <Field label="Builder URL"><input value={form.dtfSpotlight.secondaryUrl || ""} onChange={(event) => setFeature("dtfSpotlight", { secondaryUrl: event.target.value })} className={inputClass} /></Field>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
+            <div className="text-sm font-semibold">Supporting sections</div>
+            <Field label="Occasions title"><input value={form.occasions.title || ""} onChange={(event) => setFeature("occasions", { title: event.target.value })} className={inputClass} /></Field>
+            <Field label="Occasions description"><textarea value={form.occasions.subtitle || ""} onChange={(event) => setFeature("occasions", { subtitle: event.target.value })} className={textAreaClass} rows={2} /></Field>
+            <Field label="How it works title"><input value={form.howItWorks.title || ""} onChange={(event) => setFeature("howItWorks", { title: event.target.value })} className={inputClass} /></Field>
+            <Field label="Reviews title"><input value={form.reviews.title || ""} onChange={(event) => setFeature("reviews", { title: event.target.value })} className={inputClass} /></Field>
+            <Field label="Review limit"><input type="number" min="1" max="12" value={form.reviews.limit || 6} onChange={(event) => setFeature("reviews", { limit: Math.max(1, Math.min(12, Number(event.target.value || 6))) })} className={inputClass} /></Field>
+            <Field label="FAQ title"><input value={form.faq.title || ""} onChange={(event) => setFeature("faq", { title: event.target.value })} className={inputClass} /></Field>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
+            <div className="text-sm font-semibold">Local fulfillment & final CTA</div>
+            <Field label="Local section title"><input value={form.localFulfillment.title || ""} onChange={(event) => setFeature("localFulfillment", { title: event.target.value })} className={inputClass} /></Field>
+            <Field label="Local section description"><textarea value={form.localFulfillment.subtitle || ""} onChange={(event) => setFeature("localFulfillment", { subtitle: event.target.value })} className={textAreaClass} rows={3} /></Field>
+            <Field label="Final CTA title"><input value={form.finalCta.title || ""} onChange={(event) => setFeature("finalCta", { title: event.target.value })} className={inputClass} /></Field>
+            <Field label="Final CTA description"><textarea value={form.finalCta.subtitle || ""} onChange={(event) => setFeature("finalCta", { subtitle: event.target.value })} className={textAreaClass} rows={2} /></Field>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Field label="Primary button"><input value={form.finalCta.primaryLabel || ""} onChange={(event) => setFeature("finalCta", { primaryLabel: event.target.value })} className={inputClass} /></Field>
+              <Field label="Primary URL"><input value={form.finalCta.primaryUrl || ""} onChange={(event) => setFeature("finalCta", { primaryUrl: event.target.value })} className={inputClass} /></Field>
+              <Field label="Secondary button"><input value={form.finalCta.secondaryLabel || ""} onChange={(event) => setFeature("finalCta", { secondaryLabel: event.target.value })} className={inputClass} /></Field>
+              <Field label="Secondary URL"><input value={form.finalCta.secondaryUrl || ""} onChange={(event) => setFeature("finalCta", { secondaryUrl: event.target.value })} className={inputClass} /></Field>
+            </div>
           </div>
         </div>
       </SectionCard>
