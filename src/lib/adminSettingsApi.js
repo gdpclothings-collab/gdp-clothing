@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { adminApi } from "@/lib/adminApi";
-import { normalizeDtfSettings } from "@/lib/dtfGangSheet";
+import { calculateDtfPrice, normalizeDtfSettings } from "@/lib/dtfGangSheet";
 
 const mapSettings = (row) =>
   row
@@ -61,15 +61,32 @@ export const adminSettingsApi = {
 
   async saveDtfSettings(settings) {
     const normalized = normalizeDtfSettings(settings);
-    const { error } = await supabase
-      .from("store_settings")
-      .update({
-        dtf_settings: normalized,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", 1);
+    const startingLength = normalized.popularLengths?.[0] || normalized.minLength;
+    const startingPrice = calculateDtfPrice(
+      normalized.defaultWidth,
+      startingLength,
+      normalized
+    ).price;
 
-    if (error) throw error;
+    const [settingsResult, productResult] = await Promise.all([
+      supabase
+        .from("store_settings")
+        .update({
+          dtf_settings: normalized,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", 1),
+      supabase
+        .from("products")
+        .update({
+          price: startingPrice,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("slug", "dtf-gang-sheet"),
+    ]);
+
+    if (settingsResult.error) throw settingsResult.error;
+    if (productResult.error) throw productResult.error;
     return normalized;
   },
 
