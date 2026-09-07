@@ -285,7 +285,7 @@ export default function AdminMfaGate() {
   if (!verifiedFactor && graceBypass && graceStatus.active) {
     return (
       <div className="min-h-screen bg-[#f6f6f7]">
-        <div className="sticky top-0 z-[100] border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-amber-950 shadow-sm">
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-amber-950 shadow-sm">
           <div className="mx-auto flex max-w-[1500px] flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-2 text-xs sm:items-center">
               <Clock3 size={15} className="mt-0.5 shrink-0 sm:mt-0" />
