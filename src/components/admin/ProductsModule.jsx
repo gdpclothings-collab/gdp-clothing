@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { adminProductsApi } from "@/lib/adminProductsApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
+import { resolveColorSwatch } from "@/lib/colorSwatches";
 
 const PAGE_SIZE = 25;
 
@@ -2665,13 +2666,13 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       <div className="divide-y divide-[#eeeeee]">
                         {customStudioColors.map((studioColor) => {
                           const colorPreview = form.customization?.preview?.colorMockups?.[studioColor] || {};
-                          const swatch = form.customization?.preview?.colorSwatches?.[studioColor] || "#888888";
+                          const swatch = resolveColorSwatch(form.customization?.preview?.colorSwatches, studioColor);
                           return (
                             <div key={studioColor} className="p-3">
                               <div className="flex items-center gap-2 mb-2">
                                 <input
                                   type="color"
-                                  value={/^#[0-9a-f]{6}$/i.test(swatch) ? swatch : "#888888"}
+                                  value={swatch}
                                   onChange={(event) => setColorSwatch(studioColor, event.target.value)}
                                   className="h-8 w-10 rounded border border-[#d5d5d5] bg-white p-1"
                                   aria-label={studioColor + " swatch"}
