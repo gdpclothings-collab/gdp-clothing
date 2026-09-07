@@ -41,6 +41,8 @@ const mapOrder = (row) => ({
   customerName: row.customer_name,
   customerPhone: row.customer_phone,
   fulfillmentStatus: row.fulfillment_status,
+  designStatus: row.design_status,
+  productionStatus: row.production_status,
   shippingAddress: row.shipping_address,
   billingAddress: row.billing_address,
   shippingMethod: row.shipping_method,
@@ -254,6 +256,8 @@ export const adminApi = {
     const payload = {};
     if ("status" in data) payload.status = data.status;
     if ("fulfillmentStatus" in data) payload.fulfillment_status = data.fulfillmentStatus;
+    if ("designStatus" in data) payload.design_status = data.designStatus;
+    if ("productionStatus" in data) payload.production_status = data.productionStatus;
     if ("productionChecklist" in data) payload.production_checklist = data.productionChecklist;
     if ("trackingNumber" in data) payload.tracking_number = data.trackingNumber;
     if ("carrier" in data) payload.carrier = data.carrier;
@@ -314,7 +318,7 @@ export const adminApi = {
     if (proof.orderId) {
       await this.updateOrder(proof.orderId, {
         status: "awaiting_approval",
-        fulfillmentStatus: "awaiting_approval",
+        designStatus: "awaiting_approval",
       });
     }
   },
