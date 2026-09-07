@@ -209,7 +209,8 @@ function garmentFromProduct(product) {
     price: Number(product.price || 0),
     desc: product.description || "Choose your blank, color and size.",
     image: product.images?.[0] || "",
-    images: product.images || []
+    images: product.images || [],
+    defaultColor: product.colors?.[0] || ""
   };
 }
 
@@ -1818,6 +1819,11 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
   const frontMockupUrl =
     colorPreview.frontUrl ||
+    (
+      color === garment?.defaultColor
+        ? (previewSettings.cardImageUrl || "")
+        : ""
+    ) ||
     previewSettings.frontMockupUrl ||
     previewImageForGarment(garment, color, "front");
   const backMockupUrl =
