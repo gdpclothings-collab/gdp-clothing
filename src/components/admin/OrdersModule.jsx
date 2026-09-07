@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { adminOrdersApi } from "@/lib/adminOrdersApi";
+import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 const PAGE_SIZE = 25;
 
@@ -152,9 +153,11 @@ export default function OrdersModule() {
       await adminOrdersApi.updateStatus(order.id, status);
       showNotice(`${order.order_number} moved to ${prettify(status)}.`);
       await Promise.all([loadOrders(), loadSummary()]);
+      return true;
     } catch (err) {
       console.error("Order status update failed:", err);
       showNotice(err?.message || "Order update failed.");
+      return false;
     }
   };
 
@@ -163,9 +166,11 @@ export default function OrdersModule() {
       await adminOrdersApi.updateTracking(order.id, tracking);
       showNotice(`${order.order_number} tracking updated.`);
       await loadOrders();
+      return true;
     } catch (err) {
       console.error("Tracking update failed:", err);
       showNotice(err?.message || "Tracking update failed.");
+      return false;
     }
   };
 
@@ -381,6 +386,11 @@ function OrderDrawer({ order, onClose, onStatus, onTracking }) {
   const [status, setStatus] = useState(order.status || "pending_payment");
   const [trackingNumber, setTrackingNumber] = useState(order.tracking_number || "");
   const [carrier, setCarrier] = useState(order.carrier || "");
+  const [savedValues, setSavedValues] = useState(() => ({
+    status: order.status || "pending_payment",
+    trackingNumber: order.tracking_number || "",
+    carrier: order.carrier || "",
+  }));
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingTracking, setSavingTracking] = useState(false);
 
@@ -388,13 +398,22 @@ function OrderDrawer({ order, onClose, onStatus, onTracking }) {
     setStatus(order.status || "pending_payment");
     setTrackingNumber(order.tracking_number || "");
     setCarrier(order.carrier || "");
+    setSavedValues({
+      status: order.status || "pending_payment",
+      trackingNumber: order.tracking_number || "",
+      carrier: order.carrier || "",
+    });
   }, [order.id, order.status, order.tracking_number, order.carrier]);
 
   const saveStatus = async () => {
     if (status === order.status) return;
     setSavingStatus(true);
     try {
-      await onStatus(order, status);
+      const ok = await onStatus(order, status);
+      if (ok !== false) {
+        setSavedValues((current) => ({ ...current, status }));
+      }
+      return ok !== false;
     } finally {
       setSavingStatus(false);
     }
@@ -403,11 +422,48 @@ function OrderDrawer({ order, onClose, onStatus, onTracking }) {
   const saveTracking = async () => {
     setSavingTracking(true);
     try {
-      await onTracking(order, { trackingNumber, carrier });
+      const ok = await onTracking(order, { trackingNumber, carrier });
+      if (ok !== false) {
+        setSavedValues((current) => ({ ...current, trackingNumber, carrier }));
+      }
+      return ok !== false;
     } finally {
       setSavingTracking(false);
     }
   };
+
+  const hasUnsavedChanges =
+    status !== savedValues.status ||
+    trackingNumber !== savedValues.trackingNumber ||
+    carrier !== savedValues.carrier;
+
+  const saveAll = async () => {
+    if (status !== savedValues.status) {
+      const statusSaved = await onStatus(order, status);
+      if (statusSaved === false) return false;
+    }
+    if (
+      trackingNumber !== savedValues.trackingNumber ||
+      carrier !== savedValues.carrier
+    ) {
+      const trackingSaved = await onTracking(order, { trackingNumber, carrier });
+      if (trackingSaved === false) return false;
+    }
+    setSavedValues({ status, trackingNumber, carrier });
+    return true;
+  };
+
+  const { requestAction: requestOrderAction } = useUnsavedChangesGuard({
+    isDirty: hasUnsavedChanges,
+    onSave: saveAll,
+    label: `Order: ${order.order_number}`,
+  });
+
+  const requestClose = () =>
+    requestOrderAction(onClose, {
+      title: "Unsaved order changes",
+      description: "Save the order changes before closing, discard them, or keep editing.",
+    });
 
   const itemCount = (order.order_items || []).reduce(
     (sum, item) => sum + Number(item.quantity || 0),
@@ -419,7 +475,7 @@ function OrderDrawer({ order, onClose, onStatus, onTracking }) {
       <button
         type="button"
         className="absolute inset-0 bg-black/35"
-        onClick={onClose}
+        onClick={requestClose}
         aria-label="Close order details"
       />
       <aside className="absolute right-0 top-0 h-full w-full max-w-[620px] bg-white shadow-2xl overflow-y-auto">
@@ -428,7 +484,7 @@ function OrderDrawer({ order, onClose, onStatus, onTracking }) {
             <div className="font-semibold">{order.order_number}</div>
             <div className="text-xs text-[#777]">{dateTime(order.created_at)}</div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]" aria-label="Close">
+          <button onClick={requestClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]" aria-label="Close">
             <X size={18} />
           </button>
         </div>
