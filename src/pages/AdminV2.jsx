@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useUnsavedChanges } from "@/lib/UnsavedChangesContext";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -251,6 +252,7 @@ function resolveSection(pathname) {
 export default function AdminV2() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { requestAction } = useUnsavedChanges();
   const { user } = useAuth();
   const section = resolveSection(location.pathname);
 
@@ -262,8 +264,10 @@ export default function AdminV2() {
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
 
   const openSection = (id) => {
-    navigate(id === "home" ? "/admin" : `/admin/${id}`);
-    setSidebarOpen(false);
+    requestAction(() => {
+      navigate(id === "home" ? "/admin" : `/admin/${id}`);
+      setSidebarOpen(false);
+    });
   };
 
   const loadHome = async () => {
