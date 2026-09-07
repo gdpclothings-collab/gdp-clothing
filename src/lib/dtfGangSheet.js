@@ -127,9 +127,8 @@ export function calculateUtilization(items = [], sheetWidth = 34, sheetLength = 
   return Math.max(0, Math.min(100, (artArea / sheetArea) * 100));
 }
 
-export function autoArrangeArtwork(items = [], sheetWidth = 34, sheetLength = 36, spacing = 0.25) {
+export function autoArrangeArtwork(items = [], sheetWidth = 34, _sheetLength = 36, spacing = 0.25) {
   const maxWidth = Math.max(1, numberOr(sheetWidth, 34));
-  const maxLength = Math.max(1, numberOr(sheetLength, 36));
   const gap = Math.max(0, numberOr(spacing, 0.25));
   let x = gap;
   let y = gap;
