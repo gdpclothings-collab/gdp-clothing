@@ -33,6 +33,17 @@ const STATUS_CREDIT = {
   not_applicable: null,
 };
 
+const EMPTY_SNAPSHOT = {
+  checked_at: null,
+  public_table_count: 0,
+  rls_enabled_count: 0,
+  rls_missing_count: 0,
+  anon_security_definer_count: 0,
+  customer_upload_policy_count: 0,
+  checkout_rate_limit_private: false,
+  public_view_count: 0,
+};
+
 function formatCheckedAt(value) {
   if (!value) return "Not checked";
   try {
@@ -177,7 +188,7 @@ function ControlRow({ control, saving, onSave }) {
 }
 
 export default function SecurityComplianceModule() {
-  const [snapshot, setSnapshot] = useState({});
+  const [snapshot, setSnapshot] = useState(EMPTY_SNAPSHOT);
   const [controls, setControls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -190,7 +201,7 @@ export default function SecurityComplianceModule() {
     setError("");
     try {
       const data = await securityComplianceApi.load();
-      setSnapshot(data.snapshot || {});
+      setSnapshot({ ...EMPTY_SNAPSHOT, ...(data.snapshot || {}) });
       setControls(data.controls || []);
     } catch (loadError) {
       console.error("Security compliance load failed:", loadError);
@@ -348,11 +359,11 @@ export default function SecurityComplianceModule() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Critical open", criticalOpen, AlertTriangle],
-          ["Manual controls verified", verified, FileCheck2],
-          ["Live checks passed", `${livePassed}/${systemChecks.length}`, Database],
-          ["Admin-only registry", "Protected", LockKeyhole],
-        ].map(([label, value, Icon]) => (
+          { label: "Critical open", value: criticalOpen, Icon: AlertTriangle },
+          { label: "Manual controls verified", value: verified, Icon: FileCheck2 },
+          { label: "Live checks passed", value: `${livePassed}/${systemChecks.length}`, Icon: Database },
+          { label: "Admin-only registry", value: "Protected", Icon: LockKeyhole },
+        ].map(({ label, value, Icon }) => (
           <div key={label} className="rounded-xl border border-[#dedede] bg-white p-4">
             <div className="flex items-center justify-between">
               <div className="text-xs font-medium text-[#777]">{label}</div>
