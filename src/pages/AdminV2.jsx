@@ -68,6 +68,7 @@ import AnalyticsModule from "@/components/admin/AnalyticsModule";
 import FinanceModule from "@/components/admin/FinanceModule";
 import SettingsModule from "@/components/admin/SettingsModule";
 import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
+import SecurityComplianceModule from "@/components/admin/SecurityComplianceModule";
 import MarketsManagementModule from "@/components/admin/MarketsManagementModule";
 import ContentManagementModule from "@/components/admin/ContentManagementModule";
 import LandingPageModule from "@/components/admin/LandingPageModule";
@@ -129,6 +130,12 @@ const NAV_GROUPS = [
       { id: "landing-page", label: "Landing page", icon: Palette },
       { id: "online-store", label: "Online Store", icon: Store },
       { id: "apps", label: "Apps & integrations", icon: Blocks },
+    ],
+  },
+  {
+    label: "Governance",
+    items: [
+      { id: "security", label: "Security & compliance", icon: ShieldCheck },
     ],
   },
 ];
@@ -599,6 +606,15 @@ export default function AdminV2() {
               />
               <AppsModule />
               <AdvancedSettingsModule visibleTabs={["integrations"]} initialTab="integrations" />
+            </div>
+          ) : section === "security" ? (
+            <div>
+              <PageHeader
+                eyebrow="GDP Commerce Admin"
+                title="Security & Compliance"
+                description="Track GDP Clothing's production security posture, privacy controls, payment scope, access safeguards and incident readiness."
+              />
+              <SecurityComplianceModule />
             </div>
           ) : (
             <ModuleLanding
