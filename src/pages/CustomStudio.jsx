@@ -16,7 +16,6 @@ import {
 } from "@/lib/customStudioStyleTemplates";
 import {
   findProductVariant,
-  isProductVariantAvailable,
   normalizeVariantValue,
   sortApparelSizes,
 } from "@/lib/productVariants";
@@ -190,7 +189,9 @@ function variantFor(product, color, size) {
 }
 
 function variantAvailable(product, variant) {
-  return isProductVariantAvailable(product, variant);
+  // Custom Studio must allow the shopper to choose every configured blank
+  // variant. Checkout remains the authority for reserving tracked inventory.
+  return !product?.variants?.length || Boolean(variant && variant.active !== false);
 }
 
 function garmentFromProduct(product) {
