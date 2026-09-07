@@ -5,6 +5,27 @@ const n = (value, fallback = 0) => {
 
 const rectArea = (rect) => Math.max(0, rect.width) * Math.max(0, rect.height);
 
+const normalizeAngle = (value = 0) => {
+  const angle = n(value, 0) % 360;
+  return angle < 0 ? angle + 360 : angle;
+};
+
+function rotatedSize(width, height, rotation = 0) {
+  const radians = (normalizeAngle(rotation) * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(radians));
+  const sin = Math.abs(Math.sin(radians));
+  return {
+    width: width * cos + height * sin,
+    height: width * sin + height * cos,
+  };
+}
+
+function rotatedBottom(item) {
+  const size = rotatedSize(item.width, item.height, item.rotation);
+  const centerY = item.y + item.height / 2;
+  return centerY + size.height / 2;
+}
+
 function intersects(a, b) {
   return !(
     b.x >= a.x + a.width ||
@@ -165,16 +186,24 @@ function scoreLess(a, b) {
 function placeRect(freeRects, usedRects, item, heuristic, binWidth, allowRotation) {
   let best = null;
   let bestScore = null;
-  const orientations = [{ rotated: false, width: item.packWidth, height: item.packHeight }];
+  const orientations = [{
+    rotated: false,
+    width: item.packWidth,
+    height: item.packHeight,
+    artBoundsWidth: item.boundsWidth,
+    artBoundsHeight: item.boundsHeight,
+  }];
 
   if (
     allowRotation &&
-    Math.abs(item.packWidth - item.packHeight) > 0.001
+    Math.abs(item.rotatedPackWidth - item.packWidth) + Math.abs(item.rotatedPackHeight - item.packHeight) > 0.001
   ) {
     orientations.push({
       rotated: true,
-      width: item.packHeight,
-      height: item.packWidth,
+      width: item.rotatedPackWidth,
+      height: item.rotatedPackHeight,
+      artBoundsWidth: item.rotatedBoundsWidth,
+      artBoundsHeight: item.rotatedBoundsHeight,
     });
   }
 
@@ -193,6 +222,8 @@ function placeRect(freeRects, usedRects, item, heuristic, binWidth, allowRotatio
         width: orientation.width,
         height: orientation.height,
         rotated: orientation.rotated,
+        artBoundsWidth: orientation.artBoundsWidth,
+        artBoundsHeight: orientation.artBoundsHeight,
       };
       const score = scoreCandidate(candidate, free, heuristic, usedRects, binWidth);
 
@@ -242,16 +273,28 @@ function packPass(items, binWidth, binHeight, spacing, heuristic, sorter, allowR
   const normalized = items.map((item, index) => {
     const width = Math.max(0.5, n(item.width, 1));
     const height = Math.max(0.5, n(item.height, 1));
+    const rotation = normalizeAngle(item.rotation);
+    const baseBounds = rotatedSize(width, height, rotation);
+    const quarterRotation = normalizeAngle(rotation + 90);
+    const quarterBounds = rotatedSize(width, height, quarterRotation);
     return {
       source: item,
       index,
       width,
       height,
-      packWidth: width + gap,
-      packHeight: height + gap,
+      rotation,
+      quarterRotation,
+      boundsWidth: baseBounds.width,
+      boundsHeight: baseBounds.height,
+      rotatedBoundsWidth: quarterBounds.width,
+      rotatedBoundsHeight: quarterBounds.height,
+      packWidth: baseBounds.width + gap,
+      packHeight: baseBounds.height + gap,
+      rotatedPackWidth: quarterBounds.width + gap,
+      rotatedPackHeight: quarterBounds.height + gap,
       area: width * height,
-      maxSide: Math.max(width, height),
-      minSide: Math.min(width, height),
+      maxSide: Math.max(baseBounds.width, baseBounds.height),
+      minSide: Math.min(baseBounds.width, baseBounds.height),
     };
   });
 
@@ -280,24 +323,23 @@ function packPass(items, binWidth, binHeight, spacing, heuristic, sorter, allowR
     freeRects = updateFreeRects(freeRects, placed);
     usedRects.push(placed);
 
-    const artWidth = placed.rotated ? item.height : item.width;
-    const artHeight = placed.rotated ? item.width : item.height;
+    const rotation = placed.rotated ? item.quarterRotation : item.rotation;
+    const boundsWidth = placed.artBoundsWidth;
+    const boundsHeight = placed.artBoundsHeight;
     placements.push({
       ...item.source,
-      x: gap + placed.x,
-      y: gap + placed.y,
-      width: artWidth,
-      height: artHeight,
-      rotation: placed.rotated
-        ? ((n(item.source.rotation, 0) + 90) % 180)
-        : (n(item.source.rotation, 0) % 180),
+      x: gap + placed.x + (boundsWidth - item.width) / 2,
+      y: gap + placed.y + (boundsHeight - item.height) / 2,
+      width: item.width,
+      height: item.height,
+      rotation,
       rotated: placed.rotated,
       artArea: item.area,
     });
   }
 
   const usedLength = placements.length
-    ? Math.max(...placements.map((item) => item.y + item.height)) + gap
+    ? Math.max(...placements.map((item) => rotatedBottom(item))) + gap
     : gap * 2;
 
   return {
