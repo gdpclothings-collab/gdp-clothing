@@ -69,6 +69,17 @@ export default function SettingsModule() {
     }
   };
 
+  const hasUnsavedSettings = useMemo(
+    () => Boolean(form && savedForm) && JSON.stringify(form) !== JSON.stringify(savedForm),
+    [form, savedForm]
+  );
+
+  const { requestAction: requestSettingsAction } = useUnsavedChangesGuard({
+    isDirty: hasUnsavedSettings,
+    onSave: save,
+    label: "Store settings",
+  });
+
   if (loading || !form) {
     return (
       <div className="max-w-[1450px] mx-auto px-4 md:px-6 lg:px-8 pb-12">
