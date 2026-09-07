@@ -91,7 +91,9 @@ Deno.serve(async (req: Request) => {
           .update({
             payment_status: "paid",
             status: nextStatus,
-            fulfillment_status: nextStatus,
+            design_status: hasCustom ? "artwork_needed" : "not_required",
+            production_status: "not_started",
+            fulfillment_status: "unfulfilled",
             stripe_payment_intent_id: session.payment_intent || null,
           })
           .eq("id", orderId);
@@ -157,7 +159,7 @@ Deno.serve(async (req: Request) => {
           .update({
             payment_status: "failed",
             status: "payment_failed",
-            fulfillment_status: "payment_failed",
+            fulfillment_status: "unfulfilled",
           })
           .eq("id", orderId)
           .eq("payment_status", "pending");
@@ -173,7 +175,7 @@ Deno.serve(async (req: Request) => {
           .update({
             payment_status: "failed",
             status: "payment_failed",
-            fulfillment_status: "payment_failed",
+            fulfillment_status: "unfulfilled",
             stripe_payment_intent_id: intent.id,
           })
           .eq("id", orderId);
