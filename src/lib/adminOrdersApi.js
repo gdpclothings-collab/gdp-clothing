@@ -76,7 +76,24 @@ export const adminOrdersApi = {
       );
     }
 
-    if (status !== "all") {
+    if (status === "custom") {
+      query = query.in("design_status", [
+        "artwork_needed",
+        "design_in_progress",
+        "proof_ready",
+        "awaiting_approval",
+        "revision_requested",
+        "approved",
+      ]);
+    } else if (status === "production") {
+      query = query.in("production_status", [
+        "queued",
+        "printing",
+        "quality_control",
+        "packing",
+        "ready",
+      ]);
+    } else if (status !== "all") {
       const group = ORDER_STATUS_GROUPS[status];
       if (group) query = query.in("status", group);
       else query = query.eq("status", status);
