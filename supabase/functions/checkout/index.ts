@@ -792,6 +792,21 @@ Deno.serve(async (req: Request) => {
           });
         }
 
+        for (let i = 0; i < cleanLayout.length; i += 1) {
+          const a = cleanLayout[i];
+          for (let j = i + 1; j < cleanLayout.length; j += 1) {
+            const b = cleanLayout[j];
+            const overlaps =
+              a.x < b.x + b.width &&
+              a.x + a.width > b.x &&
+              a.y < b.y + b.height &&
+              a.y + a.height > b.y;
+            if (overlaps) {
+              return respond(req, { error: true, message: "DTF artwork items overlap. Adjust the film layout before checkout." }, 400);
+            }
+          }
+        }
+
         const dtfPrice = calculateDtfPrice(width, length, dtfSettings);
         const reviewRequested = spec.artworkReviewRequested === true && dtfSettings.artworkReviewEnabled === true;
         unitPrice = dtfPrice.price + (reviewRequested ? dtfSettings.artworkReviewPrice : 0);
