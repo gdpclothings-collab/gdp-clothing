@@ -12,13 +12,69 @@ import {
 } from "@/lib/garmentPreviewNormalization";
 
 const OCCASIONS = [
-  { id: "love", label: "Love & Relationships", icon: Heart, options: ["Anniversary","Boyfriend","Girlfriend","Husband","Wife","Valentine's","Couple"] },
-  { id: "family", label: "Family", icon: Users, options: ["Mom","Dad","Grandma","Grandpa","Mother's Day","Father's Day","Family Reunion"] },
-  { id: "pets", label: "Pets", icon: PawPrint, options: ["Dog","Cat","Multiple Pets","Pet Memorial","Pet Mom / Dad"] },
-  { id: "sports", label: "Sports & School", icon: Trophy, options: ["Senior Night","Graduation","Football","Basketball","Volleyball","Baseball","Hockey","Dance / Cheer"] },
-  { id: "events", label: "Life Events", icon: Gift, options: ["Birthday","Wedding","Bachelorette","Retirement","Vacation","Reunion"] },
-  { id: "memorial", label: "Memorial", icon: Heart, options: ["In Loving Memory","Celebration of Life","Memorial Event"] },
-  { id: "other", label: "Just Because", icon: Sparkles, options: ["Best Friend","Inside Joke","Funny Shirt","For Myself","Designer's Choice"] }
+  {
+    id: "love",
+    label: "Love & Relationships",
+    icon: Heart,
+    summary: "Anniversaries, partners, Valentine's gifts and shared stories.",
+    image: "https://images.unsplash.com/photo-1776266100238-7cb653b62c69?auto=format&fit=crop&w=1200&q=82",
+    imagePosition: "object-center",
+    options: ["Anniversary","Boyfriend","Girlfriend","Husband","Wife","Valentine's","Couple"],
+  },
+  {
+    id: "family",
+    label: "Family",
+    icon: Users,
+    summary: "Parents, grandparents, reunions and family milestones.",
+    image: "https://images.unsplash.com/photo-1772510584577-055823ea298a?auto=format&fit=crop&w=1200&q=82",
+    imagePosition: "object-center",
+    options: ["Mom","Dad","Grandma","Grandpa","Mother's Day","Father's Day","Family Reunion"],
+  },
+  {
+    id: "pets",
+    label: "Pets",
+    icon: PawPrint,
+    summary: "Pet portraits, pet-parent gifts and meaningful memorials.",
+    image: "https://images.unsplash.com/photo-1745544377336-b95d172463be?auto=format&fit=crop&w=1200&q=82",
+    imagePosition: "object-center",
+    options: ["Dog","Cat","Multiple Pets","Pet Memorial","Pet Mom / Dad"],
+  },
+  {
+    id: "sports",
+    label: "Sports & School",
+    icon: Trophy,
+    summary: "Game day, senior night, graduation and team achievements.",
+    image: "https://images.unsplash.com/photo-1773949122578-8886f0ee48da?auto=format&fit=crop&w=1200&q=82",
+    imagePosition: "object-center",
+    options: ["Senior Night","Graduation","Football","Basketball","Volleyball","Baseball","Hockey","Dance / Cheer"],
+  },
+  {
+    id: "events",
+    label: "Life Events",
+    icon: Gift,
+    summary: "Birthdays, weddings, trips, retirements and celebrations.",
+    image: "https://images.unsplash.com/photo-1758275557764-0fc337d4b747?auto=format&fit=crop&w=1200&q=82",
+    imagePosition: "object-center",
+    options: ["Birthday","Wedding","Bachelorette","Retirement","Vacation","Reunion"],
+  },
+  {
+    id: "memorial",
+    label: "Memorial",
+    icon: Heart,
+    summary: "Respectful tribute designs that preserve a meaningful memory.",
+    image: "https://images.unsplash.com/photo-1762990006179-1d8d7c05eb89?auto=format&fit=crop&w=1200&q=82",
+    imagePosition: "object-center",
+    options: ["In Loving Memory","Celebration of Life","Memorial Event"],
+  },
+  {
+    id: "other",
+    label: "Just Because",
+    icon: Sparkles,
+    summary: "Best friends, inside jokes, personal ideas and spontaneous gifts.",
+    image: "https://images.unsplash.com/photo-1755705153160-67b29c7718ee?auto=format&fit=crop&w=1200&q=82",
+    imagePosition: "object-center",
+    options: ["Best Friend","Inside Joke","Funny Shirt","For Myself","Designer's Choice"],
+  },
 ];
 
 const DESIGN_INTENSITY_LEVELS = {
@@ -1136,19 +1192,80 @@ export default function CustomStudio() {
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
           <section className="bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
           {step === 2 && <div>
-            <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choosing the occasion helps our designer understand the emotion and visual direction." />
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choose the story first. The occasion helps us match the emotion, composition and visual direction before you upload photos." />
+
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {OCCASIONS.map(group => {
                 const Icon = group.icon;
-                return <button key={group.id} onClick={() => { setOccasionGroup(group.id); setOccasion(group.options[0]); }} className={"rounded-2xl border p-4 text-left transition-all duration-200 " + (occasionGroup === group.id ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
-                  <Icon size={20} className="mb-3" /><div className="font-bold">{group.label}</div>
+                const selected = occasionGroup === group.id;
+                return <button
+                  type="button"
+                  key={group.id}
+                  aria-pressed={selected}
+                  onClick={() => { setOccasionGroup(group.id); setOccasion(group.options[0]); }}
+                  className={"group overflow-hidden rounded-[20px] border bg-white text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 " + (selected
+                    ? "border-accent shadow-[0_16px_38px_rgba(25,22,18,.11)] -translate-y-0.5"
+                    : "border-[#ddd7ce] hover:border-[#b8aea2] hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(25,22,18,.08)]")}
+                >
+                  <div className="relative aspect-[16/10] overflow-hidden bg-[#ece7df]">
+                    <img
+                      src={group.image}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className={"h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035] " + (group.imagePosition || "")}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/5" />
+                    <span className="absolute left-3 top-3 grid h-9 w-9 place-items-center rounded-full border border-white/50 bg-white/90 text-[#1f1c18] shadow-sm backdrop-blur">
+                      <Icon size={17} strokeWidth={2.2} />
+                    </span>
+                    {selected && <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-white shadow-sm">
+                      <Check size={12} strokeWidth={3} /> Selected
+                    </span>}
+                    <div className="absolute inset-x-0 bottom-0 p-4">
+                      <div className="text-[18px] font-extrabold leading-tight text-white drop-shadow-sm">{group.label}</div>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <p className="min-h-[40px] text-[13px] font-medium leading-[1.55] text-[#6b645c]">{group.summary}</p>
+                    <div className={"mt-3 inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] " + (selected ? "text-accent" : "text-[#4e4943]")}>
+                      {selected ? "Occasion selected" : "Choose occasion"} <ArrowRight size={13} />
+                    </div>
+                  </div>
                 </button>;
               })}
             </div>
-            <div className="mt-6"><label className="font-mono text-xs uppercase text-muted-foreground">Occasion / recipient</label><div className="flex flex-wrap gap-2 mt-2">
-              {activeOccasion.options.map(option => <button key={option} onClick={() => setOccasion(option)} className={"px-3 py-2 border text-sm " + (occasion === option ? "bg-primary text-primary-foreground border-primary" : "border-border")}>{option}</button>)}
-            </div></div>
-            <Field label="Who is this for? (optional)" value={recipientType} onChange={setRecipientType} placeholder="Dad, Sarah, Coach Mike, Milo the dog…" />
+
+            <div className="mt-7 rounded-[20px] border border-[#e3ddd4] bg-[#faf8f4] p-4 md:p-5">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#756f67]">Choose a specific occasion</label>
+                  <p className="mt-1 text-sm font-semibold text-[#292621]">What best describes this {activeOccasion.label.toLowerCase()} design?</p>
+                </div>
+                <span className="text-[11px] font-semibold text-[#8a837a]">{activeOccasion.options.length} options</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {activeOccasion.options.map(option => {
+                  const selected = occasion === option;
+                  return <button
+                    type="button"
+                    key={option}
+                    aria-pressed={selected}
+                    onClick={() => setOccasion(option)}
+                    className={"rounded-full border px-3.5 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/25 " + (selected
+                      ? "border-[#1d1b18] bg-[#1d1b18] text-white shadow-sm"
+                      : "border-[#d9d2c8] bg-white text-[#4d4841] hover:border-[#a69d91] hover:bg-[#fffdfa]")}
+                  >
+                    {option}
+                  </button>;
+                })}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[20px] border border-[#e9e3db] bg-white px-4 pb-4 pt-1 md:px-5 md:pb-5">
+              <Field label="Who is this for? (optional)" value={recipientType} onChange={setRecipientType} placeholder="e.g. Dad, Sarah, Coach Mike, Milo the dog…" />
+              <p className="mt-2 text-xs leading-relaxed text-[#817a72]">A name or relationship gives the designer more context. You can add exact names, dates and wording later.</p>
+            </div>
           </div>}
 
           {step === 3 && <div>
