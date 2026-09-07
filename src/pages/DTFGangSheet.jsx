@@ -1042,7 +1042,7 @@ export default function DTFGangSheet() {
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-black/45">Film price</div>
-                    <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `${price.price.toFixed(2)}` : "—"}</div>
+                    <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `$${price.price.toFixed(2)}` : "—"}</div>
                   </div>
                   <div className="pb-1 font-mono text-[9px] uppercase text-black/40">{hasArtwork ? "CAD" : "Upload artwork"}</div>
                 </div>
@@ -1140,7 +1140,7 @@ export default function DTFGangSheet() {
               {saving
                 ? "Uploading artwork…"
                 : hasArtwork
-                  ? `Add to cart · ${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}`
+                  ? `Add to cart · $${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}`
                   : "Upload artwork to continue"}
             </button>
 
