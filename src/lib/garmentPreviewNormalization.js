@@ -40,10 +40,14 @@ export function getMockupLayerStyle(normalization = {}) {
   const offsetX = clamp(normalization.offsetX, -20, 20, DEFAULT_NORMALIZATION.offsetX);
   const offsetY = clamp(normalization.offsetY, -20, 20, DEFAULT_NORMALIZATION.offsetY);
 
+  // Avoid creating an unnecessary composited image layer for the common case.
+  // Mobile Safari can fail to paint a transparent PNG when an identity-
+  // transformed image is nested inside a transformed, sticky preview.
+  if (scale === 1 && offsetX === 0 && offsetY === 0) return {};
+
   return {
     transform: `translate(${offsetX}%, ${offsetY}%) scale(${scale})`,
     transformOrigin: "50% 50%",
-    willChange: "transform",
   };
 }
 
