@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { adminDraftOrdersApi } from "@/lib/adminDraftOrdersApi";
+import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function money(value) {
   return Number(value || 0).toLocaleString("en-CA", {
@@ -419,19 +420,28 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
     try {
       await adminDraftOrdersApi.saveDraft(draft?.id || null, form);
       await onSaved(draft?.id ? "Draft order updated." : "Draft order created.");
+      return true;
     } catch (err) {
       console.error("Draft order save failed:", err);
       window.alert(err?.message || "Could not save draft order.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const { isDirty, requestClose } = useUnsavedEditorGuard({
+    value: form,
+    onSave: save,
+    onClose,
+    label: draft?.order_number ? `Draft order: ${draft.order_number}` : "Draft order editor",
+  });
+
   return (
     <div className="fixed inset-0 z-[80]">
       <button
         className="absolute inset-0 bg-black/35"
-        onClick={onClose}
+        onClick={requestClose}
         aria-label="Close draft order"
       />
       <aside className="absolute right-0 top-0 h-full w-full max-w-[900px] bg-[#f6f6f6] shadow-2xl overflow-y-auto">
@@ -445,12 +455,12 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]">
+            <button onClick={requestClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]">
               <X size={18} />
             </button>
             <button
               onClick={save}
-              disabled={saving || !form.customerEmail || !form.items.length}
+              disabled={saving || !form.customerEmail || !form.items.length || !isDirty}
               className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-40"
             >
               <Save size={14} /> {saving ? "Saving…" : "Save draft"}
