@@ -702,7 +702,10 @@ export default function DTFGangSheet() {
       )
     );
 
-    if (previousPreviewUrl && previousPreviewUrl !== metadata.previewUrl) {
+    const previewIsShared = artworks.some(
+      (item) => item.id !== targetId && item.previewUrl === previousPreviewUrl
+    );
+    if (previousPreviewUrl && previousPreviewUrl !== metadata.previewUrl && !previewIsShared) {
       URL.revokeObjectURL(previousPreviewUrl);
     }
     setApproval(false);
