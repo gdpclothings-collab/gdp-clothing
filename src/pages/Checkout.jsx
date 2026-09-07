@@ -57,7 +57,8 @@ export default function Checkout() {
   const [form, setForm] = useState({
     email: "", phone: "", firstName: "", lastName: "",
     address: "", city: "", province: "Saskatchewan", postalCode: "", country: "Canada",
-    shippingMethod: "standard", notes: "", discountCode: ""
+    shippingMethod: "standard", notes: "", discountCode: "",
+    termsAccepted: false, marketingConsent: false
   });
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
@@ -201,6 +202,10 @@ export default function Checkout() {
     if (!checkoutActions) {
       if (!form.email || !form.firstName || !form.address || !form.city || !form.postalCode) {
         setError("Please fill in all required fields before continuing to payment.");
+        return;
+      }
+      if (!form.termsAccepted) {
+        setError("Accept the Terms & Conditions and Privacy Policy before continuing to payment.");
         return;
       }
       const normalizedPostalCode = normalizeCanadianPostalCode(form.postalCode);
@@ -347,6 +352,18 @@ export default function Checkout() {
               <Input label="Email" value={form.email} onChange={v => set("email", v)} type="email" />
               <Input label="Phone" value={form.phone} onChange={v => set("phone", v)} />
             </div>
+            <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={Boolean(form.marketingConsent)}
+                onChange={(e) => set("marketingConsent", e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                Email me GDP Clothing news, drops and special offers. This is optional and can be withdrawn at any time.{" "}
+                <Link to="/pages/marketing-consent" target="_blank" className="underline hover:text-foreground">Marketing consent details</Link>
+              </span>
+            </label>
           </Section>
 
           <Section n="02" title="Shipping Address">
@@ -447,6 +464,20 @@ export default function Checkout() {
 
           {error && <div className="mt-3 flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2"><AlertTriangle size={16} />{error}</div>}
 
+          {!checkoutActions && (
+            <label className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-secondary/35 p-3 text-xs leading-5">
+              <input
+                type="checkbox"
+                checked={Boolean(form.termsAccepted)}
+                onChange={(e) => set("termsAccepted", e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                I agree to the <Link to="/pages/terms" target="_blank" className="font-semibold text-accent hover:underline">Terms & Conditions</Link> and acknowledge the <Link to="/pages/privacy" target="_blank" className="font-semibold text-accent hover:underline">Privacy Policy</Link>.
+              </span>
+            </label>
+          )}
+
           <button
             onClick={placeOrder}
             disabled={placing || (Boolean(checkoutActions) && !paymentCanConfirm)}
@@ -458,7 +489,12 @@ export default function Checkout() {
                 ? `Pay Now · ${total.toFixed(2)}`
                 : `Continue to Payment · ${total.toFixed(2)}`}
           </button>
-          <p className="text-[11px] text-muted-foreground mt-2 text-center">By placing your order you agree to GDP Clothing's terms. DTF sheets are produced from the film layout approved in the builder.</p>
+          <p className="text-[11px] text-muted-foreground mt-2 text-center">
+            Secure payment fields are provided by Stripe. GDP Clothing does not intentionally store full card numbers or card security codes.{" "}
+            <Link to="/pages/payment-security" className="underline hover:text-foreground">Payment security</Link>
+            {" · "}
+            <Link to="/pages/returns-refunds" className="underline hover:text-foreground">Returns</Link>
+          </p>
         </aside>
       </div>
     </div>
