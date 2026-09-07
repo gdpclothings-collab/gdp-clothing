@@ -138,20 +138,36 @@ Deno.serve(async (req: Request) => {
       }
 
       const now = new Date().toISOString();
-      const { error: upsertError } = await service
+      const { data: currentState, error: currentStateError } = await service
         .from("admin_mfa_enrollment_state")
-        .upsert(
-          {
+        .select("user_id,enrolled_at")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (currentStateError) throw currentStateError;
+
+      if (currentState) {
+        const { error: updateError } = await service
+          .from("admin_mfa_enrollment_state")
+          .update({
+            enrolled_at: currentState.enrolled_at || now,
+            last_verified_at: now,
+            updated_at: now,
+          })
+          .eq("user_id", user.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await service
+          .from("admin_mfa_enrollment_state")
+          .insert({
             user_id: user.id,
             grace_started_at: now,
             grace_expires_at: now,
             enrolled_at: now,
             last_verified_at: now,
             updated_at: now,
-          },
-          { onConflict: "user_id" }
-        );
-      if (upsertError) throw upsertError;
+          });
+        if (insertError) throw insertError;
+      }
 
       return respond({ data: { verified: true, verified_at: now } });
     }
