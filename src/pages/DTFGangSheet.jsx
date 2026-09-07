@@ -26,6 +26,8 @@ import {
   createDtfConfigId,
   fitLengthToArtwork,
   getArtworkQuality,
+  getArtworkRotatedBounds,
+  normalizeArtworkRotation,
   normalizeDtfSettings,
   usedArtworkLength,
 } from "@/lib/dtfGangSheet";
@@ -462,6 +464,20 @@ export default function DTFGangSheet() {
   const fitLength = fitLengthToArtwork(artworks, settings);
   const displayHeight = Math.min(1600, Math.max(520, (sheetLength / Math.max(1, sheetWidth)) * 500));
 
+  const clampArtworkPosition = (item, x = item.x, y = item.y, rotation = item.rotation) => {
+    const candidate = { ...item, x, y, rotation: normalizeArtworkRotation(rotation) };
+    const bounds = getArtworkRotatedBounds(candidate);
+    if (bounds.width > sheetWidth + 0.001 || bounds.height > sheetLength + 0.001) return null;
+
+    let nextX = x;
+    let nextY = y;
+    if (bounds.left < 0) nextX += -bounds.left;
+    if (bounds.right > sheetWidth) nextX -= bounds.right - sheetWidth;
+    if (bounds.top < 0) nextY += -bounds.top;
+    if (bounds.bottom > sheetLength) nextY -= bounds.bottom - sheetLength;
+    return { x: nextX, y: nextY };
+  };
+
   const validation = useMemo(() => {
     const errors = [];
     const warnings = [];
@@ -481,6 +497,15 @@ export default function DTFGangSheet() {
 
     artworks.forEach((item) => {
       const quality = getArtworkQuality(item, settings);
+      const bounds = getArtworkRotatedBounds(item);
+      if (
+        bounds.left < -0.01 ||
+        bounds.top < -0.01 ||
+        bounds.right > sheetWidth + 0.01 ||
+        bounds.bottom > sheetLength + 0.01
+      ) {
+        errors.push(`${item.name} extends outside the selected film after rotation.`);
+      }
       if (quality.tone === "bad") warnings.push(`${item.name} is below ${settings.minimumDpi} DPI at its current print size.`);
       if (item.type === "image/jpeg") warnings.push(`${item.name} is a JPEG and may include a background.`);
     });
@@ -590,35 +615,30 @@ export default function DTFGangSheet() {
     setArtworks((current) =>
       current.map((item) => {
         if (item.id !== selectedId) return item;
-        const next = { ...item, ...patch };
-        const rotated = Math.abs(Number(item.rotation || 0)) % 180 === 90;
         const ratio = Math.max(0.01, item.aspectRatio || 1);
-        const maxWidth = Math.max(minimum, sheetWidth - item.x);
-        const maxHeight = Math.max(minimum, sheetLength - item.y);
+        let width = item.width;
+        let height = item.height;
 
         if (patch.width != null) {
-          let width = Math.max(minimum, Math.min(Number(patch.width || minimum), maxWidth));
-          let height = rotated ? width * ratio : width / ratio;
-          if (height > maxHeight) {
-            height = maxHeight;
-            width = rotated ? height / ratio : height * ratio;
-          }
-          next.width = Math.max(minimum, width);
-          next.height = Math.max(minimum, height);
+          width = Math.max(minimum, Number(patch.width || minimum));
+          height = Math.max(minimum, width / ratio);
         } else if (patch.height != null) {
-          let height = Math.max(minimum, Math.min(Number(patch.height || minimum), maxHeight));
-          let width = rotated ? height / ratio : height * ratio;
-          if (width > maxWidth) {
-            width = maxWidth;
-            height = rotated ? width * ratio : width / ratio;
-          }
-          next.width = Math.max(minimum, width);
-          next.height = Math.max(minimum, height);
+          height = Math.max(minimum, Number(patch.height || minimum));
+          width = Math.max(minimum, height * ratio);
         }
 
-        next.x = Math.max(0, Math.min(next.x, sheetWidth - next.width));
-        next.y = Math.max(0, Math.min(next.y, sheetLength - next.height));
-        return next;
+        let candidate = { ...item, ...patch, width, height };
+        let bounds = getArtworkRotatedBounds(candidate);
+        if (bounds.width > sheetWidth || bounds.height > sheetLength) {
+          const scale = Math.min(sheetWidth / Math.max(0.001, bounds.width), sheetLength / Math.max(0.001, bounds.height));
+          width = Math.max(minimum, width * scale);
+          height = Math.max(minimum, height * scale);
+          candidate = { ...candidate, width, height };
+          bounds = getArtworkRotatedBounds(candidate);
+        }
+
+        const clamped = clampArtworkPosition(candidate, candidate.x, candidate.y, candidate.rotation);
+        return clamped ? { ...candidate, ...clamped } : item;
       })
     );
     setApproval(false);
@@ -636,22 +656,65 @@ export default function DTFGangSheet() {
     updateSelected({ [axis]: value });
   };
 
+  const setSelectedRotation = (rawAngle, showNotice = true) => {
+    if (!selectedArtwork || mode === "upload") return false;
+    const angle = normalizeArtworkRotation(rawAngle);
+    const candidate = { ...selectedArtwork, rotation: angle };
+    const bounds = getArtworkRotatedBounds(candidate);
+    if (bounds.width > sheetWidth + 0.001 || bounds.height > sheetLength + 0.001) {
+      setPageError(
+        `This design cannot fit at ${round(angle, 1)}° inside the current ${sheetWidth}" × ${sheetLength}" film.`
+      );
+      return false;
+    }
+
+    const clamped = clampArtworkPosition(candidate, candidate.x, candidate.y, angle);
+    if (!clamped) return false;
+
+    setArtworks((current) =>
+      current.map((item) =>
+        item.id === selectedArtwork.id
+          ? { ...item, rotation: angle, ...clamped }
+          : item
+      )
+    );
+    setApproval(false);
+    setPageError("");
+    if (showNotice) setNotice(`Artwork rotated to ${round(angle, 1)}°.`);
+    return true;
+  };
+
+  const commitSelectedRotation = (rawValue, input) => {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) {
+      if (input && selectedArtwork) input.value = String(round(normalizeArtworkRotation(selectedArtwork.rotation), 1));
+      return;
+    }
+    setSelectedRotation(value);
+  };
+
   const resetSelectedArtworkSize = () => {
     if (!selectedArtwork) return;
     const minimum = 0.1;
     const ratio = Math.max(0.01, selectedArtwork.aspectRatio || 1);
     let width = Math.max(minimum, Number(selectedArtwork.defaultWidth || selectedArtwork.width));
     let height = Math.max(minimum, Number(selectedArtwork.defaultHeight || width / ratio));
-    const maxWidth = Math.max(minimum, sheetWidth - selectedArtwork.x);
-    const maxHeight = Math.max(minimum, sheetLength - selectedArtwork.y);
-    const scale = Math.min(1, maxWidth / width, maxHeight / height);
-    width *= scale;
-    height *= scale;
+    let candidate = { ...selectedArtwork, width, height };
+    let bounds = getArtworkRotatedBounds(candidate);
+    if (bounds.width > sheetWidth || bounds.height > sheetLength) {
+      const scale = Math.min(sheetWidth / Math.max(0.001, bounds.width), sheetLength / Math.max(0.001, bounds.height));
+      width *= scale;
+      height *= scale;
+      candidate = { ...candidate, width, height };
+    }
+
+    const clamped = clampArtworkPosition(candidate, candidate.x, candidate.y, candidate.rotation);
+    if (!clamped) return;
 
     setArtworks((current) =>
       current.map((item) =>
         item.id === selectedArtwork.id
-          ? { ...item, width, height, rotation: 0 }
+          ? { ...item, width, height, ...clamped }
           : item
       )
     );
@@ -870,37 +933,7 @@ export default function DTFGangSheet() {
 
   const rotateSelected = () => {
     if (!selectedArtwork || mode === "upload") return;
-
-    const nextRotation = (Number(selectedArtwork.rotation || 0) + 90) % 180;
-    const nextWidth = selectedArtwork.height;
-    const nextHeight = selectedArtwork.width;
-    const maxWidth = Math.max(0.1, sheetWidth - settings.spacing * 2);
-    const maxHeight = Math.max(0.1, sheetLength - settings.spacing * 2);
-
-    if (nextWidth > maxWidth + 0.001 || nextHeight > maxHeight + 0.001) {
-      setPageError(
-        `This design cannot rotate inside the current ${sheetWidth}" × ${sheetLength}" film. Reduce the artwork size or increase the film dimensions.`
-      );
-      return;
-    }
-
-    setArtworks((current) =>
-      current.map((item) =>
-        item.id === selectedArtwork.id
-          ? {
-              ...item,
-              rotation: nextRotation,
-              width: nextWidth,
-              height: nextHeight,
-              x: Math.max(0, Math.min(item.x, sheetWidth - nextWidth)),
-              y: Math.max(0, Math.min(item.y, sheetLength - nextHeight)),
-            }
-          : item
-      )
-    );
-    setApproval(false);
-    setPageError("");
-    setNotice(`Artwork rotated to ${nextRotation}°.`);
+    setSelectedRotation(normalizeArtworkRotation(Number(selectedArtwork.rotation || 0) + 90));
   };
 
   const onPointerDown = (event, item) => {
@@ -925,10 +958,35 @@ export default function DTFGangSheet() {
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setSelectedId(item.id);
+    const rect = canvasRef.current.getBoundingClientRect();
+    const pointerX = ((event.clientX - rect.left) / rect.width) * sheetWidth;
+    const pointerY = ((event.clientY - rect.top) / rect.height) * sheetLength;
+    const centerX = item.x + item.width / 2;
+    const centerY = item.y + item.height / 2;
     dragRef.current = {
       type: "resize",
       id: item.id,
       pointerId: event.pointerId,
+      centerX,
+      centerY,
+      startWidth: item.width,
+      startHeight: item.height,
+      startDistance: Math.max(0.001, Math.hypot(pointerX - centerX, pointerY - centerY)),
+    };
+  };
+
+  const onRotatePointerDown = (event, item) => {
+    if (!canvasRef.current || mode !== "build") return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setSelectedId(item.id);
+    dragRef.current = {
+      type: "rotate",
+      id: item.id,
+      pointerId: event.pointerId,
+      centerX: item.x + item.width / 2,
+      centerY: item.y + item.height / 2,
     };
   };
 
@@ -941,21 +999,76 @@ export default function DTFGangSheet() {
     const item = artworks.find((entry) => entry.id === drag.id);
     if (!item) return;
     const rect = canvas.getBoundingClientRect();
+    const pointerX = ((event.clientX - rect.left) / rect.width) * sheetWidth;
+    const pointerY = ((event.clientY - rect.top) / rect.height) * sheetLength;
 
-    if (drag.type === "resize") {
-      const pointerX = ((event.clientX - rect.left) / rect.width) * sheetWidth;
-      const minimum = 0.1;
-      const rotated = Math.abs(Number(item.rotation || 0)) % 180 === 90;
-      const ratio = Math.max(0.01, item.aspectRatio || 1);
-      const maxWidthByFilm = Math.max(minimum, sheetWidth - item.x);
-      const maxHeightByFilm = Math.max(minimum, sheetLength - item.y);
-      const maxWidthByHeight = rotated ? maxHeightByFilm / ratio : maxHeightByFilm * ratio;
-      const width = Math.max(minimum, Math.min(pointerX - item.x, maxWidthByFilm, maxWidthByHeight));
-      const height = rotated ? width * ratio : width / ratio;
+    if (drag.type === "rotate") {
+      let angle = normalizeArtworkRotation(
+        (Math.atan2(pointerY - drag.centerY, pointerX - drag.centerX) * 180) / Math.PI + 90
+      );
+      if (event.shiftKey) angle = normalizeArtworkRotation(Math.round(angle / 15) * 15);
+      else angle = Math.round(angle * 10) / 10;
+
+      const candidate = { ...item, rotation: angle };
+      const bounds = getArtworkRotatedBounds(candidate);
+      if (bounds.width > sheetWidth + 0.001 || bounds.height > sheetLength + 0.001) return;
+      const clamped = clampArtworkPosition(candidate, candidate.x, candidate.y, angle);
+      if (!clamped) return;
 
       setArtworks((current) =>
         current.map((entry) =>
-          entry.id === drag.id ? { ...entry, width, height } : entry
+          entry.id === drag.id ? { ...entry, rotation: angle, ...clamped } : entry
+        )
+      );
+      setApproval(false);
+      setPageError("");
+      return;
+    }
+
+    if (drag.type === "resize") {
+      const distance = Math.max(0.001, Math.hypot(pointerX - drag.centerX, pointerY - drag.centerY));
+      let scale = Math.max(0.02, distance / drag.startDistance);
+      let width = Math.max(0.1, drag.startWidth * scale);
+      let height = Math.max(0.1, drag.startHeight * scale);
+      let candidate = {
+        ...item,
+        x: drag.centerX - width / 2,
+        y: drag.centerY - height / 2,
+        width,
+        height,
+      };
+      let bounds = getArtworkRotatedBounds(candidate);
+
+      const maxBoundsWidth = Math.max(0.1, 2 * Math.min(drag.centerX, sheetWidth - drag.centerX));
+      const maxBoundsHeight = Math.max(0.1, 2 * Math.min(drag.centerY, sheetLength - drag.centerY));
+      if (bounds.width > maxBoundsWidth || bounds.height > maxBoundsHeight) {
+        const correction = Math.min(
+          maxBoundsWidth / Math.max(0.001, bounds.width),
+          maxBoundsHeight / Math.max(0.001, bounds.height)
+        );
+        scale *= correction;
+        width = Math.max(0.1, drag.startWidth * scale);
+        height = Math.max(0.1, drag.startHeight * scale);
+        candidate = {
+          ...candidate,
+          x: drag.centerX - width / 2,
+          y: drag.centerY - height / 2,
+          width,
+          height,
+        };
+        bounds = getArtworkRotatedBounds(candidate);
+      }
+
+      if (
+        bounds.left < -0.01 ||
+        bounds.top < -0.01 ||
+        bounds.right > sheetWidth + 0.01 ||
+        bounds.bottom > sheetLength + 0.01
+      ) return;
+
+      setArtworks((current) =>
+        current.map((entry) =>
+          entry.id === drag.id ? candidate : entry
         )
       );
       setApproval(false);
@@ -965,16 +1078,21 @@ export default function DTFGangSheet() {
 
     const x = ((event.clientX - rect.left - drag.offsetX) / rect.width) * sheetWidth;
     const y = ((event.clientY - rect.top - drag.offsetY) / rect.height) * sheetLength;
-    const clampedX = Math.max(0, Math.min(sheetWidth - item.width, x));
-    const clampedY = Math.max(0, Math.min(sheetLength - item.height, y));
+    const clamped = clampArtworkPosition(item, x, y, item.rotation);
+    if (!clamped) return;
 
     setArtworks((current) =>
-      current.map((entry) => (entry.id === drag.id ? { ...entry, x: clampedX, y: clampedY } : entry))
+      current.map((entry) => (entry.id === drag.id ? { ...entry, ...clamped } : entry))
     );
     setApproval(false);
   };
 
   const endDrag = () => {
+    const drag = dragRef.current;
+    if (drag?.type === "rotate") {
+      const item = artworks.find((entry) => entry.id === drag.id);
+      if (item) setNotice(`Artwork angle: ${round(normalizeArtworkRotation(item.rotation), 1)}°.`);
+    }
     dragRef.current = null;
   };
 
