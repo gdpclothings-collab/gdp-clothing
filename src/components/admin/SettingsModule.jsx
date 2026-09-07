@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Store,
   CreditCard,
@@ -15,10 +15,12 @@ import {
 } from "lucide-react";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
 import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
+import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 export default function SettingsModule() {
   const [data, setData] = useState({ settings: null, profiles: [] });
   const [form, setForm] = useState(null);
+  const [savedForm, setSavedForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -30,7 +32,9 @@ export default function SettingsModule() {
     try {
       const result = await adminSettingsApi.load();
       setData(result);
-      setForm(result.settings || defaultSettings());
+      const nextForm = result.settings || defaultSettings();
+      setForm(nextForm);
+      setSavedForm(nextForm);
     } catch (err) {
       console.error("Settings module load failed:", err);
       setError(err?.message || "Could not load settings.");
@@ -55,9 +59,11 @@ export default function SettingsModule() {
       setNotice("Store settings saved.");
       window.setTimeout(() => setNotice(""), 2500);
       await load();
+      return true;
     } catch (err) {
       console.error("Settings save failed:", err);
       window.alert(err?.message || "Settings save failed.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -84,10 +90,10 @@ export default function SettingsModule() {
           Store-wide identity and commerce defaults. Module-specific settings now live inside their owning admin modules.
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
+          <button onClick={() => requestSettingsAction(load, { title: "Reload with unsaved changes?" })} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
             <RefreshCw size={14} /> Reload
           </button>
-          <button onClick={save} disabled={saving} className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-40">
+          <button onClick={save} disabled={saving || !hasUnsavedSettings} className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center gap-2 disabled:opacity-40">
             <Save size={14} /> {saving ? "Saving…" : "Save changes"}
           </button>
         </div>
