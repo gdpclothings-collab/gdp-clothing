@@ -1904,6 +1904,7 @@ function clampPreview(value) {
 
 export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null }) {
   const dragRef = useRef(null);
+  const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
     (side === "back" && placement === "front") ||
     (side === "front" && placement === "back");
@@ -1931,6 +1932,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     previewSettings.backMockupUrl ||
     previewImageForGarment(garment, color, "back");
   const mockupUrl = side === "back" ? backMockupUrl : frontMockupUrl;
+  const showMockup = Boolean(mockupUrl && failedMockupUrl !== mockupUrl);
   const previewCanvas = resolvePreviewCanvas(previewSettings);
   const mockupNormalization = resolveMockupNormalization(previewSettings, side);
   const mockupLayerStyle = getMockupLayerStyle(mockupNormalization);
@@ -2043,18 +2045,19 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
       {profile.bottomClearanceIn && <div className="mt-1 text-[8px] font-semibold text-[#8a514b]">Keep ≥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
     </div>}
 
-    <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
+    <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={Number(zoom) === 1 ? undefined : { transform: `scale(${zoom})` }}>
       <div
         className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}
         style={{ aspectRatio: `${previewCanvas.width} / ${previewCanvas.height}` }}
       >
-        {mockupUrl ? (
+        {showMockup ? (
           <img
             src={mockupUrl}
             alt={(garment?.label || "Custom garment") + " " + side + " mockup"}
             className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]"
             style={mockupLayerStyle}
             draggable="false"
+            onError={() => setFailedMockupUrl(mockupUrl)}
           />
         ) : (
           <GarmentShape type={garment?.previewType || garment?.type || "T-Shirt"} color={color} side={side} />
