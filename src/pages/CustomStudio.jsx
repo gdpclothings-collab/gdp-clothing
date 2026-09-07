@@ -16,6 +16,7 @@ import {
 } from "@/lib/customStudioStyleTemplates";
 import {
   findProductVariant,
+  isProductVariantAvailable,
   normalizeVariantValue,
   sortApparelSizes,
 } from "@/lib/productVariants";
@@ -189,9 +190,7 @@ function variantFor(product, color, size) {
 }
 
 function variantAvailable(product, variant) {
-  // Custom Studio must allow the shopper to choose every configured blank
-  // variant. Checkout remains the authority for reserving tracked inventory.
-  return !product?.variants?.length || Boolean(variant && variant.active !== false);
+  return isProductVariantAvailable(product, variant);
 }
 
 function garmentFromProduct(product) {
@@ -842,7 +841,7 @@ export default function CustomStudio() {
 
         const colors = productColors(p);
         const requestedColor = String(params.get("color") || "");
-        const initialColor = colors.find((item) => item.toLowerCase() === requestedColor.toLowerCase()) || "";
+        const initialColor = colors.find((item) => item.toLowerCase() === requestedColor.toLowerCase()) || colors[0] || "";
         const sizes = productSizes(p, initialColor);
         const requestedSize = String(params.get("size") || "");
         const initialSize = sizes.find((item) => item.toLowerCase() === requestedSize.toLowerCase()) || "";
@@ -864,7 +863,7 @@ export default function CustomStudio() {
   const chooseProduct = (nextProduct) => {
     if (!nextProduct) return;
     const colors = productColors(nextProduct);
-    const nextColor = color && colors.includes(color) ? color : "";
+    const nextColor = color && colors.includes(color) ? color : colors[0] || "";
     const sizes = productSizes(nextProduct, nextColor);
     const nextSize = size && sizes.includes(size) ? size : "";
     setProduct(nextProduct);
