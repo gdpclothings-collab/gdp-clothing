@@ -9,7 +9,7 @@ import {
   Maximize2,
   Move,
   Ruler,
-  Shirt,
+  Scissors,
   ShoppingBag,
   Sparkles,
   RotateCcw,
@@ -231,6 +231,138 @@ async function imageMetadata(file) {
     image.src = sourceUrl;
   });
 }
+async function removeLightBackground(file, threshold = 245) {
+  if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
+    throw new Error("Background cleanup is available for PNG, JPG and WEBP artwork.");
+  }
+
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error("Could not read this artwork for background cleanup."));
+      nextImage.src = sourceUrl;
+    });
+
+    const width = Number(image.naturalWidth || 0);
+    const height = Number(image.naturalHeight || 0);
+    if (!width || !height) throw new Error("Artwork dimensions could not be detected.");
+
+    const sampleScale = Math.min(1, 1200 / Math.max(width, height));
+    const sampleWidth = Math.max(1, Math.round(width * sampleScale));
+    const sampleHeight = Math.max(1, Math.round(height * sampleScale));
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = sampleWidth;
+    sampleCanvas.height = sampleHeight;
+    const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
+    if (!sampleContext) throw new Error("Background cleanup is not supported by this browser.");
+    sampleContext.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+    const samplePixels = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight).data;
+
+    const isLightSample = (pixelIndex) => {
+      const offset = pixelIndex * 4;
+      return samplePixels[offset + 3] > 8 &&
+        samplePixels[offset] >= threshold &&
+        samplePixels[offset + 1] >= threshold &&
+        samplePixels[offset + 2] >= threshold;
+    };
+
+    const mask = new Uint8Array(sampleWidth * sampleHeight);
+    const queue = new Uint32Array(sampleWidth * sampleHeight);
+    let head = 0;
+    let tail = 0;
+    const enqueue = (index) => {
+      if (index < 0 || index >= mask.length || mask[index] || !isLightSample(index)) return;
+      mask[index] = 1;
+      queue[tail] = index;
+      tail += 1;
+    };
+
+    for (let x = 0; x < sampleWidth; x += 1) {
+      enqueue(x);
+      enqueue((sampleHeight - 1) * sampleWidth + x);
+    }
+    for (let y = 0; y < sampleHeight; y += 1) {
+      enqueue(y * sampleWidth);
+      enqueue(y * sampleWidth + sampleWidth - 1);
+    }
+
+    while (head < tail) {
+      const index = queue[head];
+      head += 1;
+      const x = index % sampleWidth;
+      const y = Math.floor(index / sampleWidth);
+      if (x > 0) enqueue(index - 1);
+      if (x + 1 < sampleWidth) enqueue(index + 1);
+      if (y > 0) enqueue(index - sampleWidth);
+      if (y + 1 < sampleHeight) enqueue(index + sampleWidth);
+    }
+
+    if (!tail) {
+      throw new Error("No light background connected to the artwork edges was detected.");
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Background cleanup is not supported by this browser.");
+    context.drawImage(image, 0, 0);
+    const imageData = context.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+    const edgeThreshold = Math.max(200, threshold - 8);
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < height; y += 1) {
+      const sampleY = Math.min(sampleHeight - 1, Math.floor((y / height) * sampleHeight));
+      for (let x = 0; x < width; x += 1) {
+        const sampleX = Math.min(sampleWidth - 1, Math.floor((x / width) * sampleWidth));
+        const offset = (y * width + x) * 4;
+        if (
+          mask[sampleY * sampleWidth + sampleX] &&
+          pixels[offset] >= edgeThreshold &&
+          pixels[offset + 1] >= edgeThreshold &&
+          pixels[offset + 2] >= edgeThreshold
+        ) {
+          pixels[offset + 3] = 0;
+        }
+
+        if (pixels[offset + 3] > 8) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+
+    if (maxX < minX || maxY < minY) {
+      throw new Error("Background cleanup removed the entire image. Try a more conservative setting.");
+    }
+
+    context.putImageData(imageData, 0, 0);
+    const cropWidth = maxX - minX + 1;
+    const cropHeight = maxY - minY + 1;
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = cropWidth;
+    outputCanvas.height = cropHeight;
+    const outputContext = outputCanvas.getContext("2d");
+    if (!outputContext) throw new Error("Could not create the cleaned artwork.");
+    outputContext.drawImage(canvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+    const blob = await new Promise((resolve) => outputCanvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Could not create the cleaned artwork.");
+    const cleanName = String(file.name || "artwork").replace(/\.[^.]+$/, "") + "-background-removed.png";
+    return new File([blob], cleanName, { type: "image/png", lastModified: Date.now() });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
 function checkerboardStyle() {
   return {
     backgroundColor: "#f7f7f7",
@@ -247,6 +379,7 @@ export default function DTFGangSheet() {
   const { addItem } = useCart();
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
+  const selectedPanelRef = useRef(null);
   const [settings, setSettings] = useState(() => normalizeDtfSettings({}));
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -260,6 +393,8 @@ export default function DTFGangSheet() {
   const [artworkReviewRequested, setArtworkReviewRequested] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [backgroundThreshold, setBackgroundThreshold] = useState(245);
+  const [editingArtwork, setEditingArtwork] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -410,6 +545,10 @@ export default function DTFGangSheet() {
       nextItems.push({
         id: createArtworkId(),
         file,
+        originalFile: file,
+        originalName: file.name,
+        originalType: file.type,
+        backgroundRemoved: false,
         storagePath: "",
         name: file.name,
         type: file.type,
@@ -521,6 +660,88 @@ export default function DTFGangSheet() {
     setNotice(`Artwork size reset to ${round(width, 2)}" × ${round(height, 2)}".`);
   };
 
+  const replaceSelectedArtworkFile = async (file, backgroundRemoved, message) => {
+    if (!selectedArtwork || !file) return;
+    const targetId = selectedArtwork.id;
+    const metadata = await imageMetadata(file);
+    const sourceSize = sourceDefaultPrintSize(metadata, settings, sheetWidth, sheetLength);
+    const maxWidth = Math.max(0.1, sheetWidth - selectedArtwork.x);
+    const maxHeight = Math.max(0.1, sheetLength - selectedArtwork.y);
+    const scale = Math.min(1, maxWidth / sourceSize.width, maxHeight / sourceSize.height);
+    const width = Math.max(0.1, sourceSize.width * scale);
+    const height = Math.max(0.1, sourceSize.height * scale);
+    const previousPreviewUrl = selectedArtwork.previewUrl;
+
+    setArtworks((current) =>
+      current.map((item) =>
+        item.id === targetId
+          ? {
+              ...item,
+              file,
+              name: item.originalName || item.name,
+              type: file.type,
+              size: file.size,
+              previewUrl: metadata.previewUrl || URL.createObjectURL(file),
+              pixelWidth: metadata.pixelWidth,
+              pixelHeight: metadata.pixelHeight,
+              originalPixelWidth: metadata.originalPixelWidth || metadata.pixelWidth,
+              originalPixelHeight: metadata.originalPixelHeight || metadata.pixelHeight,
+              cropBounds: metadata.cropBounds,
+              transparentTrimmed: metadata.transparentTrimmed === true,
+              aspectRatio: metadata.aspectRatio || 1,
+              isVector: false,
+              width,
+              height,
+              defaultWidth: sourceSize.width,
+              defaultHeight: sourceSize.height,
+              sourceDpi: sourceSize.sourceDpi,
+              rotation: 0,
+              backgroundRemoved,
+            }
+          : item
+      )
+    );
+
+    if (previousPreviewUrl && previousPreviewUrl !== metadata.previewUrl) {
+      URL.revokeObjectURL(previousPreviewUrl);
+    }
+    setApproval(false);
+    setPageError("");
+    setNotice(message);
+  };
+
+  const removeSelectedBackground = async () => {
+    if (!selectedArtwork || mode !== "build" || selectedArtwork.isVector) return;
+    setEditingArtwork(true);
+    setPageError("");
+    try {
+      const sourceFile = selectedArtwork.originalFile || selectedArtwork.file;
+      const cleaned = await removeLightBackground(sourceFile, backgroundThreshold);
+      await replaceSelectedArtworkFile(
+        cleaned,
+        true,
+        `Background removed. Print size recalculated from the cleaned artwork at ${settings.recommendedDpi} DPI.`
+      );
+    } catch (error) {
+      setPageError(error?.message || "Could not remove this artwork background.");
+    } finally {
+      setEditingArtwork(false);
+    }
+  };
+
+  const restoreSelectedBackground = async () => {
+    if (!selectedArtwork?.originalFile) return;
+    setEditingArtwork(true);
+    setPageError("");
+    try {
+      await replaceSelectedArtworkFile(selectedArtwork.originalFile, false, "Original artwork background restored.");
+    } catch (error) {
+      setPageError(error?.message || "Could not restore the original artwork.");
+    } finally {
+      setEditingArtwork(false);
+    }
+  };
+
   const duplicateSelected = () => {
     if (!selectedArtwork || mode === "upload") return;
     const copy = {
@@ -592,21 +813,38 @@ export default function DTFGangSheet() {
   };
 
   const autoArrange = () => {
-    const beforeLength = fitLengthToArtwork(artworks, settings);
-    const nested = runNesting(artworks, sheetLength);
-
-    if (nested.unpacked.length) {
-      setPageError(`${nested.unpacked.length} artwork item${nested.unpacked.length === 1 ? "" : "s"} could not fit within the ${sheetWidth}" film width.`);
+    if (artworks.length < 2) {
+      setNotice("Advanced Nest needs at least 2 designs. Move or resize a single design manually.");
       return;
     }
 
-    const previousLength = sheetLength;
-    setSheetLength(nested.recommendedLength);
+    const nested = settings.advancedNestingEnabled
+      ? advancedNestArtwork(
+          artworks,
+          sheetWidth,
+          sheetLength,
+          settings.spacing,
+          {
+            allowRotation: settings.autoRotateEnabled !== false,
+            minLength: settings.minLength,
+            maxLength: sheetLength,
+          }
+        )
+      : runNesting(artworks, sheetLength);
+
+    if (nested.unpacked.length) {
+      setPageError(
+        `${nested.unpacked.length} artwork item${nested.unpacked.length === 1 ? "" : "s"} could not fit inside the current ${sheetWidth}" × ${sheetLength}" film. Increase the film length or reduce the artwork size.`
+      );
+      return;
+    }
+
     setArtworks(nested.items);
     setApproval(false);
     setPageError("");
 
-    const saved = Math.max(0, previousLength - nested.recommendedLength);
+    const potentialLength = Math.max(settings.minLength, nested.recommendedLength);
+    const potentialSaving = Math.max(0, sheetLength - potentialLength);
     const detail = [
       `${nested.passes} packing passes`,
       `${nested.rotatedCount} auto-rotated`,
@@ -614,11 +852,9 @@ export default function DTFGangSheet() {
     ].join(" · ");
 
     setNotice(
-      saved >= 0.25
-        ? `Advanced nesting saved about ${saved.toFixed(2)}" of film. ${detail}.`
-        : beforeLength > nested.recommendedLength + 0.01
-          ? `Advanced nesting tightened the layout to ${nested.recommendedLength}". ${detail}.`
-          : `Advanced nesting optimized the current layout. ${detail}.`
+      potentialSaving >= 0.25
+        ? `Advanced Nest rearranged the designs without changing your ${sheetLength}" film length. The packed layout uses about ${potentialLength}". Use “Fit sheet to artwork” if you want to reduce the film length. ${detail}.`
+        : `Advanced Nest optimized the design positions without changing film size or price. ${detail}.`
     );
   };
 
@@ -1052,79 +1288,7 @@ export default function DTFGangSheet() {
               )}
             </Panel>
 
-            {selectedArtwork && (
-              <Panel title="3 / Selected design" icon={Move}>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="Print width">
-                    <div className="flex items-center gap-2">
-                      <input
-                        key={`width-${selectedArtwork.id}-${round(selectedArtwork.width, 3)}`}
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        defaultValue={round(selectedArtwork.width, 2)}
-                        onBlur={(event) => commitSelectedDimension("width", event.target.value, event.target)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") event.currentTarget.blur();
-                        }}
-                        className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
-                      />
-                      <span className="font-mono text-xs">in</span>
-                    </div>
-                  </Field>
-                  <Field label="Print height">
-                    <div className="flex items-center gap-2">
-                      <input
-                        key={`height-${selectedArtwork.id}-${round(selectedArtwork.height, 3)}`}
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        defaultValue={round(selectedArtwork.height, 2)}
-                        onBlur={(event) => commitSelectedDimension("height", event.target.value, event.target)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") event.currentTarget.blur();
-                        }}
-                        className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
-                      />
-                      <span className="font-mono text-xs">in</span>
-                    </div>
-                  </Field>
-                </div>
-                <div className="mb-3 text-[10px] leading-4 text-black/45">
-                  Aspect ratio is locked so the artwork cannot be stretched or distorted.
-                </div>
-                <div className="mb-3 border border-black/10 bg-white p-3 font-mono text-[9px] leading-5 text-black/55">
-                  <div>Source: {selectedArtwork.originalPixelWidth > 0 ? `${selectedArtwork.originalPixelWidth} × ${selectedArtwork.originalPixelHeight}px` : "Vector / PDF"}</div>
-                  {selectedArtwork.transparentTrimmed && selectedArtwork.pixelWidth > 0 && (
-                    <div>Visible artwork: {selectedArtwork.pixelWidth} × {selectedArtwork.pixelHeight}px</div>
-                  )}
-                  <div>File: {formatFileSize(selectedArtwork.size)}{selectedArtwork.sourceDpi ? ` · default print size based on ${selectedArtwork.sourceDpi} DPI` : ""}</div>
-                  <div>Default: {round(selectedArtwork.defaultWidth, 2)}" × {round(selectedArtwork.defaultHeight, 2)}"</div>
-                </div>
-                <div className={`border p-3 text-xs ${selectedQuality.tone === "bad" ? "border-red-200 bg-red-50" : selectedQuality.tone === "warning" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
-                  <div className="font-semibold">{selectedQuality.label}</div>
-                  <div className="mt-1 text-[11px] opacity-70">
-                    {selectedQuality.dpi
-                      ? `${Math.round(selectedQuality.dpi)} DPI at ${round(selectedArtwork.width, 2)}" wide`
-                      : "Vector/PDF artwork is not limited by raster DPI in this preview."}
-                  </div>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={resetSelectedArtworkSize} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase">
-                    <RotateCcw size={13} /> Reset size
-                  </button>
-                  <button type="button" onClick={rotateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
-                    <RotateCw size={13} /> Rotate
-                  </button>
-                  <button type="button" onClick={duplicateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
-                    <Copy size={13} /> Duplicate
-                  </button>
-                  <button type="button" onClick={removeSelected} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase hover:border-red-400 hover:text-red-700">
-                    <Trash2 size={13} /> Remove
-                  </button>
-                </div>
-              </Panel>
-            )}
+
           </aside>
 
           <main className="min-w-0">
@@ -1136,7 +1300,7 @@ export default function DTFGangSheet() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {mode === "build" && (
-                    <button type="button" onClick={autoArrange} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
+                    <button type="button" onClick={autoArrange} disabled={artworks.length < 2} title={artworks.length < 2 ? "Add at least 2 designs to use Advanced Nest" : "Automatically arrange designs within the current film size"} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
                       {settings.advancedNestingEnabled ? "Advanced Nest" : "Auto Arrange"}
                     </button>
                   )}
@@ -1291,7 +1455,137 @@ export default function DTFGangSheet() {
             </div>
           </main>
 
-          <aside className="space-y-4">
+          <aside className="space-y-4 xl:sticky xl:top-[110px] xl:self-start xl:max-h-[calc(100vh-130px)] xl:overflow-y-auto xl:pr-1">
+            {selectedArtwork && (
+              <div ref={selectedPanelRef}>
+                <Panel title="3 / Selected design" icon={Move}>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Print width">
+                    <div className="flex items-center gap-2">
+                      <input
+                        key={`width-${selectedArtwork.id}-${round(selectedArtwork.width, 3)}`}
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        defaultValue={round(selectedArtwork.width, 2)}
+                        onBlur={(event) => commitSelectedDimension("width", event.target.value, event.target)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.currentTarget.blur();
+                        }}
+                        className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
+                      />
+                      <span className="font-mono text-xs">in</span>
+                    </div>
+                  </Field>
+                  <Field label="Print height">
+                    <div className="flex items-center gap-2">
+                      <input
+                        key={`height-${selectedArtwork.id}-${round(selectedArtwork.height, 3)}`}
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        defaultValue={round(selectedArtwork.height, 2)}
+                        onBlur={(event) => commitSelectedDimension("height", event.target.value, event.target)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.currentTarget.blur();
+                        }}
+                        className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
+                      />
+                      <span className="font-mono text-xs">in</span>
+                    </div>
+                  </Field>
+                </div>
+                <div className="mb-3 text-[10px] leading-4 text-black/45">
+                  Aspect ratio is locked so the artwork cannot be stretched or distorted.
+                </div>
+                <div className="mb-3 border border-black/10 bg-white p-3 font-mono text-[9px] leading-5 text-black/55">
+                  <div>Source: {selectedArtwork.originalPixelWidth > 0 ? `${selectedArtwork.originalPixelWidth} × ${selectedArtwork.originalPixelHeight}px` : "Vector / PDF"}</div>
+                  {selectedArtwork.transparentTrimmed && selectedArtwork.pixelWidth > 0 && (
+                    <div>Visible artwork: {selectedArtwork.pixelWidth} × {selectedArtwork.pixelHeight}px</div>
+                  )}
+                  <div>File: {formatFileSize(selectedArtwork.size)}{selectedArtwork.sourceDpi ? ` · default print size based on ${selectedArtwork.sourceDpi} DPI` : ""}</div>
+                  <div>Default: {round(selectedArtwork.defaultWidth, 2)}" × {round(selectedArtwork.defaultHeight, 2)}"</div>
+                </div>
+                <div className={`border p-3 text-xs ${selectedQuality.tone === "bad" ? "border-red-200 bg-red-50" : selectedQuality.tone === "warning" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+                  <div className="font-semibold">{selectedQuality.label}</div>
+                  <div className="mt-1 text-[11px] opacity-70">
+                    {selectedQuality.dpi
+                      ? `${Math.round(selectedQuality.dpi)} DPI at ${round(selectedArtwork.width, 2)}" wide`
+                      : "Vector/PDF artwork is not limited by raster DPI in this preview."}
+                  </div>
+                </div>
+                <div className="mt-3 border-t border-black/10 pt-3">
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
+                    <Scissors size={14} /> Edit artwork
+                  </div>
+                  {mode !== "build" ? (
+                    <div className="mt-2 text-[10px] leading-4 text-black/45">
+                      Print-ready sheets should already be fully edited. Switch to Build My Gang Sheet to edit individual artwork.
+                    </div>
+                  ) : selectedArtwork.isVector ? (
+                    <div className="mt-2 text-[10px] leading-4 text-black/45">
+                      Background cleanup is intended for raster PNG, JPG and WEBP artwork. Vector/PDF files should be edited before upload.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-3 flex items-center justify-between gap-3 text-[10px]">
+                        <span className="font-semibold">Background cleanup</span>
+                        <span className="font-mono text-black/45">{backgroundThreshold}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="220"
+                        max="254"
+                        step="1"
+                        value={backgroundThreshold}
+                        onChange={(event) => setBackgroundThreshold(Number(event.target.value))}
+                        className="mt-2 w-full"
+                        aria-label="Background removal strength"
+                      />
+                      <div className="mt-1 flex justify-between text-[8px] uppercase tracking-[0.08em] text-black/35">
+                        <span>More aggressive</span><span>More conservative</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={removeSelectedBackground}
+                          disabled={editingArtwork}
+                          className="min-h-10 border border-black bg-black px-3 text-[9px] font-black uppercase text-white disabled:opacity-40"
+                        >
+                          {editingArtwork ? "Processing…" : "Remove background"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={restoreSelectedBackground}
+                          disabled={editingArtwork || !selectedArtwork.backgroundRemoved}
+                          className="min-h-10 border border-black/15 bg-white px-3 text-[9px] font-black uppercase disabled:opacity-35"
+                        >
+                          Restore original
+                        </button>
+                      </div>
+                      <div className="mt-2 text-[9px] leading-4 text-black/40">
+                        Best for white or light solid backgrounds. Only background connected to the image edges is removed; inspect the preview before ordering.
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={resetSelectedArtworkSize} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase">
+                    <RotateCcw size={13} /> Reset size
+                  </button>
+                  <button type="button" onClick={rotateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
+                    <RotateCw size={13} /> Rotate
+                  </button>
+                  <button type="button" onClick={duplicateSelected} disabled={mode === "upload"} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase disabled:opacity-35">
+                    <Copy size={13} /> Duplicate
+                  </button>
+                  <button type="button" onClick={removeSelected} className="flex min-h-10 items-center justify-center gap-1.5 border border-black/15 bg-white text-[9px] font-black uppercase hover:border-red-400 hover:text-red-700">
+                    <Trash2 size={13} /> Remove
+                  </button>
+                </div>
+                </Panel>
+              </div>
+            )}
             <Panel title="Order summary" icon={ShoppingBag}>
               <SummaryRow label="Order type" value={mode === "upload" ? "Print-ready upload" : "Gang sheet builder"} />
               <SummaryRow label="Film size" value={`${round(sheetWidth, 2)}" × ${round(sheetLength, 2)}"`} />
@@ -1328,24 +1622,7 @@ export default function DTFGangSheet() {
               ))}
             </Panel>
 
-            {selectedArtwork?.previewUrl && (
-              <Panel title="Garment sample preview" icon={Shirt}>
-                <div className="relative aspect-[4/5] overflow-hidden bg-[#ededed]">
-                  <svg viewBox="0 0 320 400" className="absolute inset-0 h-full w-full" aria-hidden="true">
-                    <path d="M106 52L75 68 31 118l43 34 25-25v214h122V127l25 25 43-34-44-50-31-16c-15 19-29 26-54 26s-39-7-54-26Z" fill="#fbfbfb" stroke="#b9b9b9" strokeWidth="2" />
-                    <path d="M128 57c7 12 17 18 32 18s25-6 32-18" fill="none" stroke="#b9b9b9" strokeWidth="2" />
-                  </svg>
-                  <img
-                    src={selectedArtwork.previewUrl}
-                    alt="Selected artwork on sample shirt"
-                    className="absolute left-1/2 top-[34%] max-h-[34%] max-w-[48%] -translate-x-1/2 object-contain"
-                  />
-                </div>
-                <div className="mt-2 text-[10px] leading-4 text-black/45">
-                  Sample visualization only. Your purchased item is DTF transfer film, not a garment.
-                </div>
-              </Panel>
-            )}
+
 
             {settings.artworkReviewEnabled && (
               <label className="flex cursor-pointer items-start gap-3 border border-black/15 bg-white p-4">
@@ -1410,6 +1687,50 @@ export default function DTFGangSheet() {
             </div>
           </aside>
         </div>
+        {selectedArtwork && (
+          <div className="fixed inset-x-3 bottom-3 z-40 border border-black/20 bg-white p-3 shadow-2xl xl:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-[10px] font-black uppercase tracking-[0.08em]">{selectedArtwork.name}</div>
+                <div className="mt-0.5 font-mono text-[9px] text-black/45">{round(selectedArtwork.width, 2)}" × {round(selectedArtwork.height, 2)}"</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => selectedPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="shrink-0 border border-black/15 px-3 py-2 text-[9px] font-black uppercase"
+              >
+                Full edit
+              </button>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center border border-black/15 bg-white px-2">
+                <span className="mr-1 font-mono text-[9px] text-black/40">W</span>
+                <input
+                  key={`mobile-width-${selectedArtwork.id}-${round(selectedArtwork.width, 3)}`}
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  defaultValue={round(selectedArtwork.width, 2)}
+                  onBlur={(event) => commitSelectedDimension("width", event.target.value, event.target)}
+                  className="min-w-0 flex-1 py-2 font-mono text-xs outline-none"
+                />
+                <span className="font-mono text-[9px]">in</span>
+              </div>
+              <button type="button" onClick={resetSelectedArtworkSize} className="border border-black/15 px-2.5 py-2 text-[8px] font-black uppercase">Reset</button>
+              <button
+                type="button"
+                onClick={removeSelectedBackground}
+                disabled={editingArtwork || mode !== "build" || selectedArtwork.isVector}
+                className="border border-black/15 px-2.5 py-2 text-[8px] font-black uppercase disabled:opacity-30"
+              >
+                BG
+              </button>
+              <button type="button" onClick={removeSelected} className="border border-red-200 px-2.5 py-2 text-red-700">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
