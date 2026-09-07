@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="GDP Minimal artwork overlay">
+<defs>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity=".28"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g fill="none" stroke="#b59b72" stroke-width="6">
+ <rect x="190" y="100" width="700" height="660" rx="34"/>
+ <rect x="210" y="120" width="660" height="620" rx="26" opacity=".6"/>
+ <path d="M160 100h120M190 70v120M800 760h120M890 700v120"/>
+ <path d="M290 840h160M630 840h160"/>
+</g>
+<g fill="#18202a" font-family="Arial,sans-serif">
+ <text x="100" y="130" font-size="22" letter-spacing="6">GOOD</text><text x="100" y="162" font-size="22" letter-spacing="6">PEOPLE</text><text x="100" y="194" font-size="22" letter-spacing="6">DOPE</text><text x="100" y="226" font-size="22" letter-spacing="6">CLOTHES</text>
+ <text x="900" y="130" text-anchor="end" font-size="56" font-weight="800">GDP</text>
+ <text x="540" y="860" text-anchor="middle" font-size="36" letter-spacing="8">GOOD PEOPLE DOPE CLOTHES</text>
+ <text x="540" y="950" text-anchor="middle" font-size="60" font-weight="800">GDP</text>
+ <text x="540" y="986" text-anchor="middle" font-size="20" letter-spacing="8">EST. MMXX</text>
+</g>
+<path d="M520 840l20-20 20 20-20 20Z" fill="#b59b72"/></svg>
