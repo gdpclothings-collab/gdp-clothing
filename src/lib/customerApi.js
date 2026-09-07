@@ -78,8 +78,25 @@ async function requireUser() {
 }
 
 async function optionalAccountUser() {
-  const { data } = await supabase.auth.getUser();
-  return data?.user && data.user.is_anonymous !== true ? data.user : null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const sessionUser = sessionData?.session?.user;
+  if (!sessionUser || sessionUser.is_anonymous === true) return null;
+
+  const { data, error } = await supabase.auth.getUser();
+  if (!error && data?.user?.is_anonymous !== true) return data.user;
+  return sessionUser;
+}
+
+async function functionErrorMessage(error, fallback) {
+  try {
+    const context = error?.context;
+    const response = typeof context?.clone === "function" ? context.clone() : context;
+    const payload = await response?.json?.();
+    if (payload?.message) return payload.message;
+  } catch {
+    // Relay and network errors do not always include a JSON response body.
+  }
+  return error?.message || fallback;
 }
 
 function customDesignPayload(data, userId = null) {
@@ -233,27 +250,20 @@ export const customerApi = {
   },
 
   async createCustomDesign(data) {
-    const user = await optionalAccountUser();
-    const payload = customDesignPayload(data, user?.id);
-
-    if (!user) {
-      const { data: response, error } = await supabase.functions.invoke("checkout", {
-        body: { action: "createGuestCustomDesign", design: payload },
-      });
-      if (error) throw error;
-      if (response?.error || !response?.design?.id || !response?.guestToken) {
-        throw new Error(response?.message || "Could not save the guest custom design.");
-      }
-      return { ...normalizeCustomDesign(response.design), guestDesignToken: response.guestToken };
+    // The Edge Function is the single authority for account-versus-guest
+    // ownership. The Supabase client forwards any active session token.
+    const payload = customDesignPayload(data);
+    const { data: response, error } = await supabase.functions.invoke("checkout", {
+      body: { action: "createGuestCustomDesign", design: payload },
+    });
+    if (error) throw new Error(await functionErrorMessage(error, "Could not save this custom design."));
+    if (response?.error || !response?.design?.id) {
+      throw new Error(response?.message || "Could not save this custom design.");
     }
-
-    const { data: created, error } = await supabase
-      .from("custom_designs")
-      .insert(payload)
-      .select("*")
-      .single();
-    if (error) throw error;
-    return normalizeCustomDesign(created);
+    return {
+      ...normalizeCustomDesign(response.design),
+      ...(response.guestToken ? { guestDesignToken: response.guestToken } : {}),
+    };
   },
 
   async listOrders() {
