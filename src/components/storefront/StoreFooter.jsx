@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Facebook, Instagram, Youtube, ShieldCheck } from "lucide-react";
+import { Facebook, Instagram, Music2, Youtube, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
 import { isLandingDraftPreview, storefrontContentApi } from "@/lib/storefrontContentApi";
@@ -52,6 +52,7 @@ export default function StoreFooter() {
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [subscribeState, setSubscribeState] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [contentLoaded, setContentLoaded] = useState(false);
   const previewDraft = isLandingDraftPreview();
 
   useEffect(() => {
@@ -63,6 +64,9 @@ export default function StoreFooter() {
       })
       .catch((error) => {
         console.error("Store footer content load failed:", error);
+      })
+      .finally(() => {
+        if (active) setContentLoaded(true);
       });
 
     return () => {
@@ -72,7 +76,7 @@ export default function StoreFooter() {
 
   const branding = landing.branding || DEFAULT_LANDING_PAGE.branding;
   const footer = landing.footer || DEFAULT_LANDING_PAGE.footer;
-  const social = footer.social || DEFAULT_LANDING_PAGE.footer.social;
+  const social = contentLoaded ? (footer.social || {}) : {};
 
   const subscribe = async (event) => {
     event.preventDefault();
@@ -116,8 +120,9 @@ export default function StoreFooter() {
             )}
             <div className="mt-4 flex items-center gap-1">
               {social.instagram && <Social href={social.instagram} label="Instagram" icon={Instagram} />}
-              {social.youtube && <Social href={social.youtube} label="YouTube" icon={Youtube} />}
               {social.facebook && <Social href={social.facebook} label="Facebook" icon={Facebook} />}
+              {social.tiktok && <Social href={social.tiktok} label="TikTok" icon={Music2} />}
+              {social.youtube && <Social href={social.youtube} label="YouTube" icon={Youtube} />}
             </div>
           </div>
 
