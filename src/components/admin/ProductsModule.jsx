@@ -167,6 +167,13 @@ export default function ProductsModule() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState("all");
+  const [inventoryFilter, setInventoryFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [vendorFilter, setVendorFilter] = useState("all");
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
+  const [updatedFilter, setUpdatedFilter] = useState("all");
+  const [filterOptions, setFilterOptions] = useState({ categories: [], vendors: [] });
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [editor, setEditor] = useState(null);
@@ -178,12 +185,14 @@ export default function ProductsModule() {
 
   const loadReference = async () => {
     try {
-      const [collectionRows, settingsRow] = await Promise.all([
+      const [collectionRows, settingsRow, productFilterOptions] = await Promise.all([
         adminProductsApi.collections(),
         adminProductsApi.settings(),
+        adminProductsApi.filterOptions(),
       ]);
       setCollections(collectionRows);
       setSettings(settingsRow);
+      setFilterOptions(productFilterOptions);
       setSummary(await adminProductsApi.summary(settingsRow.low_stock_threshold));
     } catch (err) {
       console.error("Product reference data failed:", err);
@@ -199,6 +208,13 @@ export default function ProductsModule() {
         pageSize: PAGE_SIZE,
         search,
         status,
+        inventory: inventoryFilter,
+        category: categoryFilter === "all" ? "" : categoryFilter,
+        vendor: vendorFilter === "all" ? "" : vendorFilter,
+        minPrice: priceMin,
+        maxPrice: priceMax,
+        updatedWithinDays: updatedFilter,
+        lowStockThreshold: settings.low_stock_threshold,
       });
       setProducts(result.products);
       setTotal(result.total);
@@ -216,7 +232,18 @@ export default function ProductsModule() {
 
   useEffect(() => {
     loadProducts();
-  }, [page, search, status]);
+  }, [
+    page,
+    search,
+    status,
+    inventoryFilter,
+    categoryFilter,
+    vendorFilter,
+    priceMin,
+    priceMax,
+    updatedFilter,
+    settings.low_stock_threshold,
+  ]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -247,6 +274,37 @@ export default function ProductsModule() {
     }
   };
 
+  const categoryOptions = Array.from(
+    new Set([...PRODUCT_CATEGORIES, ...(filterOptions.categories || [])])
+  ).sort((a, b) => a.localeCompare(b));
+
+  const vendorOptions = Array.from(
+    new Set(filterOptions.vendors || [])
+  ).sort((a, b) => a.localeCompare(b));
+
+  const hasActiveFilters =
+    Boolean(searchInput.trim()) ||
+    status !== "all" ||
+    inventoryFilter !== "all" ||
+    categoryFilter !== "all" ||
+    vendorFilter !== "all" ||
+    priceMin !== "" ||
+    priceMax !== "" ||
+    updatedFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchInput("");
+    setSearch("");
+    setStatus("all");
+    setInventoryFilter("all");
+    setCategoryFilter("all");
+    setVendorFilter("all");
+    setPriceMin("");
+    setPriceMax("");
+    setUpdatedFilter("all");
+    setPage(1);
+  };
+
   return (
     <div className="max-w-[1450px] mx-auto px-4 md:px-6 lg:px-8 pb-12">
       {notice && (
@@ -265,49 +323,173 @@ export default function ProductsModule() {
       </div>
 
       <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-        <div className="p-3 border-b border-[#e7e7e7] flex flex-col xl:flex-row xl:items-center gap-3">
-          <div className="relative flex-1 max-w-xl">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#888]" />
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search product, handle, category or vendor"
-              className="w-full h-10 pl-9 pr-3 rounded-lg border border-[#d5d5d5] outline-none focus:ring-2 focus:ring-black/10 text-sm"
-            />
+        <div className="p-3 border-b border-[#e7e7e7] space-y-3">
+          <div className="flex flex-col xl:flex-row xl:items-end gap-3">
+            <div className="flex-1 max-w-xl">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#777]">Product</div>
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#888]" />
+                <input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search product, handle, category or vendor"
+                  className="w-full h-10 pl-9 pr-3 rounded-lg border border-[#d5d5d5] outline-none focus:ring-2 focus:ring-black/10 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  loadProducts();
+                  loadReference();
+                }}
+                className="h-10 px-3 rounded-lg border border-[#d5d5d5] text-sm inline-flex items-center justify-center gap-2 hover:bg-[#fafafa]"
+              >
+                <RefreshCw size={14} /> Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setEditor({ mode: "create", product: null })}
+                className="h-10 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center justify-center gap-2"
+              >
+                <Plus size={15} /> Add product
+              </button>
+            </div>
           </div>
 
-          <select
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value);
-              setPage(1);
-            }}
-            className="h-10 rounded-lg border border-[#d5d5d5] px-3 bg-white text-sm"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="draft">Draft</option>
-            <option value="archived">Archived</option>
-          </select>
+          <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#777]">Column filters</div>
+              <button
+                type="button"
+                onClick={clearFilters}
+                disabled={!hasActiveFilters}
+                className="text-xs font-medium text-[#555] hover:text-black disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Clear filters
+              </button>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              loadProducts();
-              loadReference();
-            }}
-            className="h-9 px-3 rounded-lg border border-[#d5d5d5] text-sm inline-flex items-center justify-center gap-2 hover:bg-[#fafafa]"
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
+              <FilterField label="Status">
+                <select
+                  value={status}
+                  onChange={(event) => {
+                    setStatus(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 rounded-lg border border-[#d5d5d5] px-2.5 bg-white text-xs"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="draft">Draft</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </FilterField>
 
-          <button
-            type="button"
-            onClick={() => setEditor({ mode: "create", product: null })}
-            className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium inline-flex items-center justify-center gap-2"
-          >
-            <Plus size={15} /> Add product
-          </button>
+              <FilterField label="Inventory">
+                <select
+                  value={inventoryFilter}
+                  onChange={(event) => {
+                    setInventoryFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 rounded-lg border border-[#d5d5d5] px-2.5 bg-white text-xs"
+                >
+                  <option value="all">All inventory</option>
+                  <option value="in_stock">In stock</option>
+                  <option value="low_stock">Low stock</option>
+                  <option value="out_of_stock">Out of stock</option>
+                  <option value="not_tracked">Not tracked</option>
+                </select>
+              </FilterField>
+
+              <FilterField label="Category">
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => {
+                    setCategoryFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 rounded-lg border border-[#d5d5d5] px-2.5 bg-white text-xs"
+                >
+                  <option value="all">All categories</option>
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </FilterField>
+
+              <FilterField label="Vendor">
+                <select
+                  value={vendorFilter}
+                  onChange={(event) => {
+                    setVendorFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 rounded-lg border border-[#d5d5d5] px-2.5 bg-white text-xs"
+                >
+                  <option value="all">All vendors</option>
+                  {vendorOptions.map((vendor) => (
+                    <option key={vendor} value={vendor}>{vendor}</option>
+                  ))}
+                </select>
+              </FilterField>
+
+              <FilterField label="Price">
+                <div className="grid grid-cols-2 gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={priceMin}
+                    onChange={(event) => {
+                      setPriceMin(event.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Min"
+                    aria-label="Minimum product price"
+                    className="w-full h-9 rounded-lg border border-[#d5d5d5] px-2 bg-white text-xs outline-none focus:ring-2 focus:ring-black/10"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={priceMax}
+                    onChange={(event) => {
+                      setPriceMax(event.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Max"
+                    aria-label="Maximum product price"
+                    className="w-full h-9 rounded-lg border border-[#d5d5d5] px-2 bg-white text-xs outline-none focus:ring-2 focus:ring-black/10"
+                  />
+                </div>
+              </FilterField>
+
+              <FilterField label="Updated">
+                <select
+                  value={updatedFilter}
+                  onChange={(event) => {
+                    setUpdatedFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full h-9 rounded-lg border border-[#d5d5d5] px-2.5 bg-white text-xs"
+                >
+                  <option value="all">Any time</option>
+                  <option value="1">Last 24 hours</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
+              </FilterField>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -3217,6 +3399,17 @@ function Toggle({ checked, onChange, label }) {
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
+  );
+}
+
+function FilterField({ label, children }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#777]">
+        {label}
+      </div>
+      {children}
+    </div>
   );
 }
 
