@@ -151,7 +151,7 @@ export function autoArrangeArtwork(items = [], sheetWidth = 34, sheetLength = 36
       width,
       height,
       x: Math.min(x, Math.max(gap, maxWidth - width - gap)),
-      y: Math.min(y, Math.max(gap, maxLength - height - gap)),
+      y,
     };
 
     x += width + gap;
@@ -169,4 +169,23 @@ export function fitLengthToArtwork(items = [], settingsInput = {}) {
 export function createDtfConfigId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return `dtf-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+
+export function artworkOverlaps(items = []) {
+  const overlaps = [];
+  for (let i = 0; i < items.length; i += 1) {
+    const a = items[i];
+    for (let j = i + 1; j < items.length; j += 1) {
+      const b = items[j];
+      const intersects =
+        numberOr(a.x, 0) < numberOr(b.x, 0) + numberOr(b.width, 0) &&
+        numberOr(a.x, 0) + numberOr(a.width, 0) > numberOr(b.x, 0) &&
+        numberOr(a.y, 0) < numberOr(b.y, 0) + numberOr(b.height, 0) &&
+        numberOr(a.y, 0) + numberOr(a.height, 0) > numberOr(b.y, 0);
+
+      if (intersects) overlaps.push([a.id, b.id]);
+    }
+  }
+  return overlaps;
 }
