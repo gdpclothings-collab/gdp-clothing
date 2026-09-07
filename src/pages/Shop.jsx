@@ -5,7 +5,7 @@ import { storefrontDiscoveryApi } from "@/lib/storefrontDiscoveryApi";
 import ProductCard from "@/components/storefront/ProductCard";
 import { ArrowRight, Layers3, SlidersHorizontal } from "lucide-react";
 
-const CATEGORIES = ["All", "T-Shirt", "Hoodie", "Sweatshirt", "Crewneck", "Sweater", "DTF Transfer", "Custom"];
+const CATEGORIES = ["All", "T-Shirt", "Hoodie", "Sweatshirt", "Crewneck", "Sweater", "DTF Transfer Film", "Custom"];
 
 function CollectionCard({ collection }) {
   const image = collection.image || collection.products?.[0]?.images?.[0] || "/images/gdp-sold-categories.webp";
