@@ -393,7 +393,7 @@ export default function DTFGangSheet() {
   const [artworkReviewRequested, setArtworkReviewRequested] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
-  const [backgroundThreshold, setBackgroundThreshold] = useState(245);
+  const [backgroundThreshold, setBackgroundThreshold] = useState(230);
   const [editingArtwork, setEditingArtwork] = useState(false);
 
   useEffect(() => {
@@ -874,9 +874,13 @@ export default function DTFGangSheet() {
     const nextRotation = (Number(selectedArtwork.rotation || 0) + 90) % 180;
     const nextWidth = selectedArtwork.height;
     const nextHeight = selectedArtwork.width;
+    const maxWidth = Math.max(0.1, sheetWidth - settings.spacing * 2);
+    const maxHeight = Math.max(0.1, sheetLength - settings.spacing * 2);
 
-    if (nextWidth > sheetWidth - settings.spacing * 2) {
-      setPageError(`This design is too wide to rotate inside the ${sheetWidth}" film.`);
+    if (nextWidth > maxWidth + 0.001 || nextHeight > maxHeight + 0.001) {
+      setPageError(
+        `This design cannot rotate inside the current ${sheetWidth}" × ${sheetLength}" film. Reduce the artwork size or increase the film dimensions.`
+      );
       return;
     }
 
@@ -888,14 +892,15 @@ export default function DTFGangSheet() {
               rotation: nextRotation,
               width: nextWidth,
               height: nextHeight,
-              x: Math.min(item.x, Math.max(0, sheetWidth - nextWidth)),
-              y: Math.min(item.y, Math.max(0, sheetLength - nextHeight)),
+              x: Math.max(0, Math.min(item.x, sheetWidth - nextWidth)),
+              y: Math.max(0, Math.min(item.y, sheetLength - nextHeight)),
             }
           : item
       )
     );
     setApproval(false);
     setPageError("");
+    setNotice(`Artwork rotated to ${nextRotation}°.`);
   };
 
   const onPointerDown = (event, item) => {
@@ -1417,14 +1422,33 @@ export default function DTFGangSheet() {
                               >
                                 <Trash2 size={13} />
                               </button>
+                              {mode === "build" && (
+                                <button
+                                  type="button"
+                                  aria-label={`Rotate ${item.name}`}
+                                  title="Rotate artwork 90°"
+                                  onPointerDown={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                  }}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    rotateSelected();
+                                  }}
+                                  className="absolute -bottom-4 -left-4 z-30 grid h-8 w-8 place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg transition hover:bg-black hover:text-white"
+                                >
+                                  <RotateCw size={14} />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 aria-label={`Resize ${item.name}`}
                                 title="Drag to resize artwork"
                                 onPointerDown={(event) => onResizePointerDown(event, item)}
-                                className="absolute -bottom-3 -right-3 z-30 grid h-7 w-7 cursor-nwse-resize place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg"
+                                className="absolute -bottom-4 -right-4 z-30 grid h-8 w-8 cursor-nwse-resize place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg"
                               >
-                                <Maximize2 size={13} />
+                                <Maximize2 size={14} />
                               </button>
                             </>
                           )}
@@ -1720,6 +1744,15 @@ export default function DTFGangSheet() {
                 <span className="font-mono text-[9px]">in</span>
               </div>
               <button type="button" onClick={resetSelectedArtworkSize} className="border border-black/15 px-2.5 py-2 text-[8px] font-black uppercase">Reset</button>
+              <button
+                type="button"
+                onClick={rotateSelected}
+                disabled={mode === "upload"}
+                aria-label="Rotate selected artwork"
+                className="border border-black/15 px-2.5 py-2 text-black disabled:opacity-30"
+              >
+                <RotateCw size={13} />
+              </button>
               <button
                 type="button"
                 onClick={removeSelectedBackground}
