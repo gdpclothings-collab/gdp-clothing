@@ -184,6 +184,7 @@ export const customerApi = {
 
     const payload = {
       user_id: user.id,
+      ...(data.seasonalArtworkId ? {seasonal_artwork_id:data.seasonalArtworkId,seasonal_configuration:data.seasonalConfiguration} : {}),
       product_id: productId,
       product_name: data.productName,
       name: data.name || null,
