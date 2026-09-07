@@ -68,14 +68,14 @@ export default function ProductCard({ product }) {
             </h3>
           </div>
           <div className="shrink-0 text-right">
-            <span className="font-mono text-xs sm:text-sm">${Number(product.price || 0).toFixed(2)}</span>
+            <span className="font-mono text-xs sm:text-sm">{product.slug === "dtf-gang-sheet" ? "From " : ""}${Number(product.price || 0).toFixed(2)}</span>
             {product.compareAtPrice && product.compareAtPrice > product.price && (
               <span className="block text-[10px] text-black/35 line-through">${Number(product.compareAtPrice).toFixed(2)}</span>
             )}
           </div>
         </div>
         <div className="mt-2 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.13em] text-black/38 sm:text-[9px]">
-          <span>{product.customDesignable ? "Customizable" : "Ready to wear"}</span>
+          <span>{product.slug === "dtf-gang-sheet" ? "Build or upload" : product.customDesignable ? "Customizable" : "Ready to wear"}</span>
           <span>CAD</span>
         </div>
       </div>
