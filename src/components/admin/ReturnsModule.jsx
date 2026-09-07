@@ -11,6 +11,7 @@ import {
   ReceiptText,
 } from "lucide-react";
 import { adminOrderOperationsApi } from "@/lib/adminOrderOperationsApi";
+import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 function money(value) {
   return Number(value || 0).toLocaleString("en-CA", {
@@ -228,6 +229,12 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
   const [resolution, setResolution] = useState(returnRow.resolution);
   const [refundAmount, setRefundAmount] = useState(returnRow.refund_amount || 0);
   const [adminNotes, setAdminNotes] = useState(returnRow.admin_notes || "");
+  const [savedReturnValues, setSavedReturnValues] = useState(() => ({
+    status: returnRow.status,
+    resolution: returnRow.resolution,
+    refundAmount: String(returnRow.refund_amount || 0),
+    adminNotes: returnRow.admin_notes || "",
+  }));
   const [saving, setSaving] = useState(false);
   const [recordingRefund, setRecordingRefund] = useState(false);
 
@@ -236,6 +243,12 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
     setResolution(returnRow.resolution);
     setRefundAmount(returnRow.refund_amount || 0);
     setAdminNotes(returnRow.admin_notes || "");
+    setSavedReturnValues({
+      status: returnRow.status,
+      resolution: returnRow.resolution,
+      refundAmount: String(returnRow.refund_amount || 0),
+      adminNotes: returnRow.admin_notes || "",
+    });
   }, [returnRow.id, returnRow.status, returnRow.resolution, returnRow.refund_amount, returnRow.admin_notes]);
 
   const save = async () => {
@@ -249,10 +262,39 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
         restock: returnRow.restock,
       });
       await onChanged("Return updated.");
+      setSavedReturnValues({
+        status,
+        resolution,
+        refundAmount: String(refundAmount ?? ""),
+        adminNotes,
+      });
+      return true;
+    } catch (err) {
+      console.error("Return update failed:", err);
+      window.alert(err?.message || "Could not save return.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  const hasUnsavedReturnChanges =
+    status !== savedReturnValues.status ||
+    resolution !== savedReturnValues.resolution ||
+    String(refundAmount ?? "") !== savedReturnValues.refundAmount ||
+    adminNotes !== savedReturnValues.adminNotes;
+
+  const { requestAction: requestReturnAction } = useUnsavedChangesGuard({
+    isDirty: hasUnsavedReturnChanges,
+    onSave: save,
+    label: `Return: ${returnRow.return_number}`,
+  });
+
+  const requestClose = () =>
+    requestReturnAction(onClose, {
+      title: "Unsaved return changes",
+      description: "Save the return changes before closing, discard them, or keep editing.",
+    });
 
   const recordRefund = async () => {
     if (Number(refundAmount || 0) <= 0) {
@@ -275,14 +317,14 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
 
   return (
     <div className="fixed inset-0 z-[70]">
-      <button className="absolute inset-0 bg-black/35" onClick={onClose} aria-label="Close return" />
+      <button className="absolute inset-0 bg-black/35" onClick={requestClose} aria-label="Close return" />
       <aside className="absolute right-0 top-0 h-full w-full max-w-[660px] bg-[#f6f6f6] shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 h-16 px-5 border-b border-[#e3e3e3] bg-white flex items-center justify-between">
           <div>
             <div className="font-semibold">{returnRow.return_number}</div>
             <div className="text-xs text-[#777]">{returnRow.orders?.order_number} · {returnRow.orders?.customer_name}</div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
+          <button onClick={requestClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -320,7 +362,7 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={save}
-                disabled={saving}
+                disabled={saving || !hasUnsavedReturnChanges}
                 className="h-9 px-3 rounded-lg bg-[#222] text-white text-sm font-medium disabled:opacity-40"
               >
                 {saving ? "Saving…" : "Save return"}
@@ -419,7 +461,7 @@ function CreateReturnModal({ onClose, onCreated }) {
   };
 
   const create = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder) return false;
     const selectedItems = Object.entries(items)
       .filter(([, value]) => Number(value.quantity || 0) > 0)
       .map(([orderItemId, value]) => ({
@@ -431,7 +473,7 @@ function CreateReturnModal({ onClose, onCreated }) {
 
     if (!selectedItems.length) {
       window.alert("Select at least one item and quantity.");
-      return;
+      return false;
     }
 
     setCreating(true);
@@ -444,13 +486,39 @@ function CreateReturnModal({ onClose, onCreated }) {
         items: selectedItems,
       });
       await onCreated();
+      return true;
     } catch (err) {
       console.error("Create return failed:", err);
       window.alert(err?.message || "Could not create return.");
+      return false;
     } finally {
       setCreating(false);
     }
   };
+
+  const hasUnsavedNewReturn =
+    Boolean(selectedOrder) ||
+    Boolean(reason.trim()) ||
+    resolution !== "refund" ||
+    Boolean(notes.trim()) ||
+    Object.values(items).some(
+      (item) =>
+        Number(item?.quantity || 0) > 0 ||
+        Boolean(item?.itemCondition) ||
+        item?.restock === false
+    );
+
+  const { requestAction: requestCreateReturnAction } = useUnsavedChangesGuard({
+    isDirty: hasUnsavedNewReturn,
+    onSave: create,
+    label: "New return",
+  });
+
+  const requestClose = () =>
+    requestCreateReturnAction(onClose, {
+      title: "Unsaved new return",
+      description: "Create this return before closing, discard it, or keep editing.",
+    });
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/40 p-3 sm:p-8 flex items-start justify-center overflow-y-auto">
@@ -460,7 +528,7 @@ function CreateReturnModal({ onClose, onCreated }) {
             <div className="font-semibold">Create return</div>
             <div className="text-xs text-[#777]">Choose a fulfilled order and the items being returned</div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
+          <button onClick={requestClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]"><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-5">
@@ -605,10 +673,10 @@ function CreateReturnModal({ onClose, onCreated }) {
               </Section>
 
               <div className="flex justify-end gap-2">
-                <button onClick={onClose} className="h-9 px-4 rounded-lg border border-[#d5d5d5] text-sm">Cancel</button>
+                <button onClick={requestClose} className="h-9 px-4 rounded-lg border border-[#d5d5d5] text-sm">Cancel</button>
                 <button
                   onClick={create}
-                  disabled={creating}
+                  disabled={creating || !hasUnsavedNewReturn}
                   className="h-9 px-4 rounded-lg bg-[#222] text-white text-sm font-medium disabled:opacity-40"
                 >
                   {creating ? "Creating…" : "Create return"}
