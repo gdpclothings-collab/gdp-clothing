@@ -1814,6 +1814,15 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
   const blankArtwork =
     (side === "back" && placement === "front") ||
     (side === "front" && placement === "back");
+  const hasPreviewText = Boolean(
+    String(personalization?.name || "").trim() ||
+    String(personalization?.dates || "").trim() ||
+    String(personalization?.quote || "").trim()
+  );
+  // Keep the selected garment blank until the customer has supplied real
+  // printable content. Style-template graphics and upload instructions are
+  // editing aids, not pre-printed garment artwork.
+  const hasArtworkContent = Boolean(photo || hasPreviewText);
   const canDrag = Boolean(photo && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
@@ -1998,14 +2007,14 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
         >
           {blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
-          ) : (
+          ) : hasArtworkContent ? (
             <>
-              <div
-                className={"absolute z-10 overflow-hidden " + (showGuides ? "ring-1 ring-white/35" : "")}
-                style={photoZoneStyle}
-              >
-                {photo ? (
-                  artworkFitMode === "crop" ? (
+              {photo && (
+                <div
+                  className={"absolute z-10 overflow-hidden " + (showGuides ? "ring-1 ring-white/35" : "")}
+                  style={photoZoneStyle}
+                >
+                  {artworkFitMode === "crop" ? (
                     <div className="absolute h-full w-full pointer-events-none" style={artworkLayerStyle}>
                       <img src={photo.url} alt="Customer photo preview" draggable="false" className="h-full w-full object-cover pointer-events-none" />
                     </div>
@@ -2017,16 +2026,9 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
                       className="absolute max-h-full max-w-full object-contain pointer-events-none"
                       style={artworkLayerStyle}
                     />
-                  )
-                ) : (
-                  <div className="absolute inset-0 grid place-items-center rounded-[inherit] border border-dashed border-white/55 bg-[#17324D]/10 text-center px-3">
-                    <div>
-                      <Upload size={18} className="mx-auto text-white drop-shadow"/>
-                      <div className="mt-1.5 text-[7px] font-bold uppercase tracking-[0.12em] text-white drop-shadow">Upload photo</div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {template?.assetUrl && (
                 <img
@@ -2037,7 +2039,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
                 />
               )}
 
-              {(personalization?.name || personalization?.dates || personalization?.quote) && (
+              {hasPreviewText && (
                 <div
                   className={"absolute z-30 grid content-center px-2 pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.75)] " + (textZone?.tone === "dark" ? "text-[#26211d]" : "text-white")}
                   style={textZoneStyle}
@@ -2050,7 +2052,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
                 </div>
               )}
             </>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
