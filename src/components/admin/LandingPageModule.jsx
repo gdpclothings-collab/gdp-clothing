@@ -15,6 +15,7 @@ import {
 import { Link } from "react-router-dom";
 import { adminLandingPageApi } from "@/lib/adminLandingPageApi";
 import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
+import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 const inputClass = "w-full h-10 rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-black/10";
 const textAreaClass = "w-full rounded-lg border border-[#d4d4d4] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10";
@@ -224,6 +225,12 @@ export default function LandingPageModule() {
     }
   };
 
+  const { requestAction: requestLandingAction } = useUnsavedChangesGuard({
+    isDirty: hasUnsavedChanges,
+    onSave: saveDraft,
+    label: "Landing page draft",
+  });
+
   const publish = async () => {
     if (!window.confirm("Publish this landing page now? This will replace the customer-facing homepage content.")) return;
     setPublishing(true);
@@ -376,13 +383,13 @@ export default function LandingPageModule() {
             <a href="/" target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d5d5d5] bg-white px-3 text-xs font-medium">
               Live site <ExternalLink size={13} />
             </a>
-            <button onClick={load} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d5d5d5] bg-white px-3 text-xs font-medium">
+            <button onClick={() => requestLandingAction(load, { title: "Reload with unsaved changes?" })} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d5d5d5] bg-white px-3 text-xs font-medium">
               <RefreshCw size={13} /> Reload
             </button>
             <button onClick={restoreDefaults} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d5d5d5] bg-white px-3 text-xs font-medium">
               <RotateCcw size={13} /> Defaults
             </button>
-            <button onClick={saveDraft} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#343434] px-3 text-xs font-medium text-white disabled:opacity-50">
+            <button onClick={saveDraft} disabled={saving || !hasUnsavedChanges} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#343434] px-3 text-xs font-medium text-white disabled:opacity-50">
               <Save size={13} /> {saving ? "Saving..." : "Save draft"}
             </button>
             <button onClick={publish} disabled={publishing} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#111] px-3 text-xs font-medium text-white disabled:opacity-50">
