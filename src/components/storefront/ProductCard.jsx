@@ -8,10 +8,11 @@ export default function ProductCard({ product }) {
   const { wishlist, toggleWishlist } = useCart();
   const wished = product.id ? wishlist.includes(product.id) : false;
   const hasSecondImage = Boolean(product.images?.[1]);
+  const productHref = product.slug === "dtf-gang-sheet" ? "/products/dtf-gang-sheet" : "/product/" + product.id;
 
   return (
     <article className="group relative min-w-0">
-      <Link to={"/product/" + product.id} className="relative block overflow-hidden bg-[#e9e7e1]">
+      <Link to={productHref} className="relative block overflow-hidden bg-[#e9e7e1]">
         <div className="aspect-[3/4] overflow-hidden">
           <Image
             src={product.images?.[0]}
@@ -63,7 +64,7 @@ export default function ProductCard({ product }) {
           <div className="min-w-0">
             <p className="font-mono text-[8px] uppercase tracking-[0.16em] text-black/38 sm:text-[9px]">{product.type || "GDP Clothing"}</p>
             <h3 className="mt-1 truncate text-xs font-bold sm:text-sm">
-              <Link to={"/product/" + product.id} className="transition hover:text-[#e11d2e]">{product.name}</Link>
+              <Link to={productHref} className="transition hover:text-[#e11d2e]">{product.name}</Link>
             </h3>
           </div>
           <div className="shrink-0 text-right">
