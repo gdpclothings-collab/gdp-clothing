@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Info } from "lucide-react";
+import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
@@ -730,6 +731,7 @@ export default function CustomStudio() {
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [step, setStep] = useState(1);
+  const [seasonalMode, setSeasonalMode] = useState(false);
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
   const [occasionGroup, setOccasionGroup] = useState("");
@@ -1204,6 +1206,12 @@ export default function CustomStudio() {
 
   const activeOccasion = OCCASIONS.find(group => group.id === occasionGroup) || null;
 
+  if (seasonalMode && product && color && size) return <SeasonalStudio
+    product={product} garment={garment} color={color} size={size} variant={selectedVariant}
+    quantity={qty} unitPrice={Number(selectedVariant?.price ?? product.price ?? 0)} Preview={StudioPreview}
+    onBack={() => {setSeasonalMode(false);setStep(1);window.scrollTo({top:0,behavior:'instant'});}} />;
+
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
       <div className="max-w-[1540px] mx-auto px-4 lg:px-8 py-6 md:py-10">
@@ -1301,6 +1309,13 @@ export default function CustomStudio() {
 
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
           <section className="bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
+          {step === 2 && <section className="mb-7 rounded-2xl border border-[#DCE3EA] bg-white p-5" aria-label="Design option">
+            <h2 className="text-xl font-bold">Choose your design option</h2>
+            <p className="mt-2 text-sm">Select seasonal artwork for this garment, or continue below to create a photo design.</p>
+            <p className="mt-2 text-sm">Seasonal designs use front printing and one size per design. Add other sizes as separate designs.</p>
+            <button type="button" disabled={placement!=="front" || groupGarments.length>0} onClick={() => setSeasonalMode(true)} className="mt-4 rounded-xl bg-[#17324D] text-white px-5 py-3 font-semibold disabled:opacity-40">Choose a seasonal design</button>
+            {(placement!=="front" || groupGarments.length>0) && <p className="mt-2 text-sm">Return to Garment and choose front-only printing with no additional garment rows to use seasonal artwork.</p>}
+          </section>}
           {step === 2 && <div>
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choose the story first. The occasion helps us match the emotion, composition and visual direction before you upload photos." />
 
@@ -1874,7 +1889,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null }) {
   const dragRef = useRef(null);
   const blankArtwork =
     (side === "back" && placement === "front") ||
@@ -1938,14 +1953,16 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
   const printAreaStyle = {
     top: printArea.top + "%",
     width: printArea.width + "%",
-    height: printArea.height + "%"
+    height: seasonalOverlay ? "auto" : printArea.height + "%",
+    ...(seasonalOverlay ? {aspectRatio: `${profile.widthIn} / ${profile.heightIn}`} : {})
   };
   const maxAreaWidth = Math.min(78, printArea.width * (configuredNumber(profile.maxWidthIn, profile.widthIn) / Math.max(0.1, profile.widthIn)));
   const maxAreaHeight = Math.min(70, printArea.height * (configuredNumber(profile.maxHeightIn, profile.heightIn) / Math.max(0.1, profile.heightIn)));
   const maxPrintAreaStyle = {
     top: printArea.top + "%",
     width: maxAreaWidth + "%",
-    height: maxAreaHeight + "%"
+    height: seasonalOverlay ? "auto" : maxAreaHeight + "%",
+    ...(seasonalOverlay ? {aspectRatio: `${profile.widthIn} / ${profile.heightIn}`} : {})
   };
   const artworkLayerStyle = {
     left: (50 + Number(artworkOffset?.x || 0)) + "%",
@@ -2069,7 +2086,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
           style={printAreaStyle}
           className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
-          {!styleTemplate ? null : blankArtwork ? (
+          {seasonalOverlay || (!styleTemplate ? null : blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
           ) : (
             <>
@@ -2131,7 +2148,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
                 </div>
               )}
             </>
-          )}
+          ))}
         </div>
       </div>
     </div>
@@ -2144,7 +2161,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
 
     <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
       <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
-      {!blankArtwork && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{photo ? <><Move size={10}/> Drag to position</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","")} · {mood}</>}</span>}
+      {!blankArtwork && !seasonalOverlay && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{photo ? <><Move size={10}/> Drag to position</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","")} · {mood}</>}</span>}
     </div>
   </div>;
 }

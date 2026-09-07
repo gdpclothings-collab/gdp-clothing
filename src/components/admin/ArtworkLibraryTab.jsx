@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import SeasonalArtworkSettings from "./SeasonalArtworkSettings";
 
 export default function ArtworkLibraryTab() {
   const [rows, setRows] = useState([]);
@@ -10,7 +11,7 @@ export default function ArtworkLibraryTab() {
   useEffect(() => {
     let active = true;
     supabase.from("artwork_library")
-      .select("id,title,category,tags,status,rights_status,ready_print,customizable,preview_data_url,metadata")
+      .select("*")
       .order("title").then(({ data, error: failure }) => {
         if (!active) return;
         if (failure) setError("The artwork library is not available yet. Its database setup may still be pending.");
@@ -53,6 +54,7 @@ export default function ArtworkLibraryTab() {
           {row.metadata?.customization_mode === "name-or-monogram-frame" && <p className="text-xs mt-2">Personalization frame — add a name or monogram before printing.</p>}
           {(row.metadata?.review_flags || []).map(flag => <p key={flag} className="text-xs mt-2 text-amber-800">{flag}</p>)}
           <p className="text-xs mt-2">Source lettering is rasterized or outlined. Added personalization requires a separate text layer and proof.</p>
+          <SeasonalArtworkSettings row={row} onSaved={updated => setRows(current => current.map(item => item.id === updated.id ? updated : item))} />
         </div>
       </article>)}
     </div>
