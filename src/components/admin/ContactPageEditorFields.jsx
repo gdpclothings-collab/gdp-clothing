@@ -6,7 +6,7 @@ const inputClass =
 const textareaClass =
   "w-full rounded-lg border border-[#d4d4d4] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10";
 
-function Field({ label, helper, children }) {
+function Field({ label, helper = null, children }) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-[#555]">{label}</span>
