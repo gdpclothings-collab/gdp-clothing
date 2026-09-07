@@ -24,6 +24,7 @@ import { customerApi } from "@/lib/customerApi";
 import { useAuth } from "@/lib/AuthContext";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
+import { privacyApi } from "@/lib/privacyApi";
 
 const STATUS_LABELS = {
   pending_payment: "Pending Payment",
@@ -572,6 +573,8 @@ function ProfilePanel({ user }) {
           </Link>
         </section>
 
+        <PrivacyControls user={user} />
+
         {user?.role === "admin" && (
           <section className="border border-accent/30 bg-accent/5 p-5">
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Admin Access</div>
@@ -588,6 +591,154 @@ function ProfilePanel({ user }) {
         )}
       </div>
     </div>
+  );
+}
+
+function PrivacyControls({ user }) {
+  const [privacy, setPrivacy] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState("");
+  const [message, setMessage] = useState("");
+
+  const loadPrivacy = async () => {
+    setLoading(true);
+    try {
+      setPrivacy(await privacyApi.getAccountPrivacy());
+    } catch (error) {
+      setMessage(error?.message || "Could not load privacy controls.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPrivacy();
+  }, []);
+
+  const updateMarketing = async (consent) => {
+    setWorking("marketing");
+    setMessage("");
+    try {
+      await privacyApi.recordMarketingConsent(user?.email || "", consent, "account");
+      setMessage(consent ? "Marketing emails are now enabled." : "Marketing consent has been withdrawn.");
+      await loadPrivacy();
+    } catch (error) {
+      setMessage(error?.message || "Could not update marketing preference.");
+    } finally {
+      setWorking("");
+    }
+  };
+
+  const submitRequest = async (type) => {
+    const duplicate = privacy?.requests?.some((request) =>
+      request.request_type === type && ["open", "in_review"].includes(request.status)
+    );
+    if (duplicate) {
+      setMessage("A request of this type is already open.");
+      return;
+    }
+
+    setWorking(type);
+    setMessage("");
+    try {
+      await privacyApi.createPrivacyRequest(
+        type,
+        type === "deletion"
+          ? "Please review my account and personal information for deletion or de-identification, subject to required transaction, legal, tax, security and dispute-retention obligations."
+          : type === "correction"
+            ? "Please contact me to review and correct personal information associated with my GDP Clothing account."
+            : "Please provide access to or an export of personal information associated with my GDP Clothing account."
+      );
+      setMessage("Privacy request submitted. GDP Clothing will review it and may verify your identity.");
+      await loadPrivacy();
+    } catch (error) {
+      setMessage(error?.message || "Could not submit the privacy request.");
+    } finally {
+      setWorking("");
+    }
+  };
+
+  const subscribed = privacy?.marketingStatus === "subscribed";
+  const openRequests = (privacy?.requests || []).filter((request) =>
+    ["open", "in_review"].includes(request.status)
+  );
+
+  return (
+    <section className="border border-border bg-background p-5">
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Privacy & data</div>
+      <h3 className="font-display text-2xl mt-1">YOUR PRIVACY CONTROLS</h3>
+      <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+        Manage optional marketing and submit access, correction or deletion-review requests.
+      </p>
+
+      <div className="mt-4 rounded-lg border border-border bg-secondary/40 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wide">Marketing emails</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {loading ? "Checking preference…" : subscribed ? "Subscribed" : "Not subscribed"}
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={loading || working === "marketing"}
+            onClick={() => updateMarketing(!subscribed)}
+            className="border border-border px-3 py-2 text-[10px] font-bold uppercase tracking-wide hover:border-accent disabled:opacity-45"
+          >
+            {working === "marketing" ? "Saving…" : subscribed ? "Unsubscribe" : "Subscribe"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        <button
+          type="button"
+          disabled={Boolean(working)}
+          onClick={() => submitRequest("access")}
+          className="border border-border px-3 py-2.5 text-left text-xs font-semibold hover:border-accent disabled:opacity-45"
+        >
+          Request access / data export
+        </button>
+        <button
+          type="button"
+          disabled={Boolean(working)}
+          onClick={() => submitRequest("correction")}
+          className="border border-border px-3 py-2.5 text-left text-xs font-semibold hover:border-accent disabled:opacity-45"
+        >
+          Request correction
+        </button>
+        <button
+          type="button"
+          disabled={Boolean(working)}
+          onClick={() => submitRequest("deletion")}
+          className="border border-destructive/35 px-3 py-2.5 text-left text-xs font-semibold text-destructive hover:border-destructive disabled:opacity-45"
+        >
+          Request deletion review
+        </button>
+      </div>
+
+      {openRequests.length > 0 && (
+        <div className="mt-4 border-t border-border pt-3">
+          <div className="font-mono text-[9px] uppercase tracking-wide text-muted-foreground">Open requests</div>
+          <div className="mt-2 space-y-1.5">
+            {openRequests.slice(0, 3).map((request) => (
+              <div key={request.id} className="flex justify-between gap-3 text-xs">
+                <span className="capitalize">{String(request.request_type || "").replaceAll("_", " ")}</span>
+                <span className="capitalize text-muted-foreground">{String(request.status || "").replaceAll("_", " ")}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {message && <div className="mt-3 text-xs leading-5 text-muted-foreground">{message}</div>}
+
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
+        <Link to="/pages/privacy" className="font-semibold text-accent hover:underline">Privacy Policy</Link>
+        <Link to="/pages/data-retention" className="text-muted-foreground hover:text-foreground">Retention & deletion</Link>
+        <Link to="/pages/marketing-consent" className="text-muted-foreground hover:text-foreground">Marketing consent</Link>
+      </div>
+    </section>
   );
 }
 
