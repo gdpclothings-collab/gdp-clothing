@@ -587,6 +587,53 @@ function recommendedBackPrintProfile(key, normalizedSize, frontProfile) {
 }
 
 const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
+const MOOD_PREVIEW_TREATMENTS = {
+  Funny: {
+    description: "Brighter, playful color with extra pop.",
+    photoFilter: "saturate(1.2) contrast(1.04) brightness(1.03)",
+    templateFilter: "saturate(1.25) contrast(1.04)",
+  },
+  Emotional: {
+    description: "Softer contrast and warmer, more sentimental tones.",
+    photoFilter: "saturate(.82) sepia(.12) contrast(.96) brightness(1.04)",
+    templateFilter: "saturate(.9) brightness(1.03)",
+  },
+  Cool: {
+    description: "Clean contrast with a cooler chrome-forward finish.",
+    photoFilter: "saturate(.96) contrast(1.07) hue-rotate(3deg)",
+    templateFilter: "saturate(1.06) contrast(1.05)",
+  },
+  Romantic: {
+    description: "Warm rose, soft glow and richer skin-tone warmth.",
+    photoFilter: "saturate(1.04) sepia(.08) brightness(1.03)",
+    templateFilter: "saturate(1.12) sepia(.05)",
+  },
+  Loud: {
+    description: "Maximum color punch, stronger contrast and high-energy impact.",
+    photoFilter: "saturate(1.34) contrast(1.12) brightness(1.02)",
+    templateFilter: "saturate(1.35) contrast(1.1)",
+  },
+  Vintage: {
+    description: "Faded color, warm wash and distressed old-photo character.",
+    photoFilter: "sepia(.34) saturate(.72) contrast(.94) brightness(.98)",
+    templateFilter: "sepia(.22) saturate(.78) contrast(.96)",
+  },
+  Elegant: {
+    description: "Restrained saturation with clean black, cream and gold polish.",
+    photoFilter: "saturate(.72) contrast(1.04) brightness(1.03)",
+    templateFilter: "saturate(.78) contrast(1.04) brightness(1.02)",
+  },
+  "Designer's choice": {
+    description: "No forced filter — the GDP designer can choose the final treatment.",
+    photoFilter: "none",
+    templateFilter: "none",
+  },
+};
+
+function moodPreviewTreatment(mood) {
+  return MOOD_PREVIEW_TREATMENTS[mood] || MOOD_PREVIEW_TREATMENTS.Cool;
+}
+
 const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
 const ORDER_GUIDE_STEPS = [
   { title: "Choose garment", detail: "Pick clothing, color, size, quantity and print placement." },
@@ -1063,6 +1110,8 @@ export default function CustomStudio() {
             styleTemplateAssetUrl: activeStyleTemplate?.assetUrl || "",
             styleTemplatePhotoZone: activeStyleTemplate?.photoZone || null,
             styleTemplateTextZone: activeStyleTemplate?.textZone || null,
+            designMood,
+            moodTreatmentVersion: 1,
             artworkScale,
             artworkRotation,
             artworkOffset,
@@ -1335,8 +1384,12 @@ export default function CustomStudio() {
             </div>
             <div className="mt-6">
               <label className="font-mono text-xs uppercase text-muted-foreground">Mood</label>
+              <p className="mt-1 text-xs leading-relaxed text-[#7d766d]">Mood keeps the selected GDP layout but changes its live color, contrast and atmosphere.</p>
               <div className="flex flex-wrap gap-2 mt-2">
-                {MOODS.map(mood => <button key={mood} onClick={() => setDesignMood(mood)} className={"px-3 py-2 border text-sm " + (designMood === mood ? "bg-[#17324D] text-white border-[#17324D]" : "border-border bg-white")}>{mood}</button>)}
+                {MOODS.map(mood => <button key={mood} onClick={() => setDesignMood(mood)} className={"px-3 py-2 border text-sm transition " + (designMood === mood ? "bg-[#17324D] text-white border-[#17324D] shadow-sm" : "border-border bg-white hover:border-[#9aa8b5]")}>{mood}</button>)}
+              </div>
+              <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5 text-xs text-[#52616F]">
+                <span className="font-semibold text-[#17324D]">{designMood} preview:</span> {moodPreviewTreatment(designMood).description}
               </div>
             </div>
           </div>}
@@ -1596,6 +1649,7 @@ export default function CustomStudio() {
                 size={size}
                 previewConfig={config.preview || {}}
                 styleTemplate={activeStyleTemplate}
+                mood={designMood}
               />
 
               <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
@@ -1769,7 +1823,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} fullscreen />
+              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
             </div>
           </div>
         </div>}
@@ -1809,7 +1863,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, fullscreen = false }) {
+function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "Cool", fullscreen = false }) {
   const dragRef = useRef(null);
   const blankArtwork =
     (side === "back" && placement === "front") ||
@@ -1819,10 +1873,8 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     String(personalization?.dates || "").trim() ||
     String(personalization?.quote || "").trim()
   );
-  // Keep the selected garment blank until the customer has supplied real
-  // printable content. Style-template graphics and upload instructions are
-  // editing aids, not pre-printed garment artwork.
-  const hasArtworkContent = Boolean(photo || hasPreviewText);
+  // The selected GDP style is itself printable artwork, so it should appear
+  // immediately in the garment preview even before the customer uploads a photo.
   const canDrag = Boolean(photo && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
@@ -1891,6 +1943,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     transformOrigin: "center center"
   };
   const template = styleTemplate || GDP_STYLE_TEMPLATES[0];
+  const moodTreatment = moodPreviewTreatment(mood);
   const photoZone = template?.photoZone || { x: 10, y: 8, width: 80, height: 64, shape: "rounded", radius: 10 };
   const textZone = template?.textZone || { x: 10, y: 80, width: 80, height: 15, align: "center", tone: "light" };
   const zoneRadius = photoZone.shape === "circle" || photoZone.shape === "oval"
@@ -2007,35 +2060,50 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
         >
           {blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
-          ) : hasArtworkContent ? (
+          ) : (
             <>
-              {photo && (
-                <div
-                  className={"absolute z-10 overflow-hidden " + (showGuides ? "ring-1 ring-white/35" : "")}
-                  style={photoZoneStyle}
-                >
-                  {artworkFitMode === "crop" ? (
+              <div
+                className={"absolute z-10 overflow-hidden transition-all duration-200 " + (showGuides ? "ring-1 ring-white/35" : "")}
+                style={photoZoneStyle}
+              >
+                {photo ? (
+                  artworkFitMode === "crop" ? (
                     <div className="absolute h-full w-full pointer-events-none" style={artworkLayerStyle}>
-                      <img src={photo.url} alt="Customer photo preview" draggable="false" className="h-full w-full object-cover pointer-events-none" />
+                      <img
+                        src={photo.url}
+                        alt="Customer photo preview"
+                        draggable="false"
+                        className="h-full w-full object-cover pointer-events-none transition-[filter] duration-200"
+                        style={{ filter: moodTreatment.photoFilter }}
+                      />
                     </div>
                   ) : (
                     <img
                       src={photo.url}
                       alt="Customer photo preview"
                       draggable="false"
-                      className="absolute max-h-full max-w-full object-contain pointer-events-none"
-                      style={artworkLayerStyle}
+                      className="absolute max-h-full max-w-full object-contain pointer-events-none transition-[filter] duration-200"
+                      style={{ ...artworkLayerStyle, filter: moodTreatment.photoFilter }}
                     />
-                  )}
-                </div>
-              )}
+                  )
+                ) : (
+                  <div className="absolute inset-0 grid place-items-center rounded-[inherit] border border-dashed border-white/45 bg-[#17324D]/[0.08] text-center px-3 pointer-events-none">
+                    <div>
+                      <Upload size={16} className="mx-auto text-white/85 drop-shadow"/>
+                      <div className="mt-1 text-[6px] font-bold uppercase tracking-[0.14em] text-white/90 drop-shadow">Photo goes here</div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {template?.assetUrl && (
                 <img
+                  key={template.id}
                   src={template.assetUrl}
-                  alt=""
+                  alt={template.name + " artwork overlay"}
                   draggable="false"
-                  className="absolute inset-0 z-20 h-full w-full object-fill pointer-events-none"
+                  className="absolute inset-0 z-20 h-full w-full object-fill pointer-events-none transition-[filter,opacity] duration-200"
+                  style={{ filter: moodTreatment.templateFilter }}
                 />
               )}
 
@@ -2052,7 +2120,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
                 </div>
               )}
             </>
-          ) : null}
+          )}
         </div>
       </div>
     </div>
@@ -2065,7 +2133,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
 
     <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
       <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
-      {photo && !blankArtwork && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1"><Move size={10}/> Drag to position</span>}
+      {!blankArtwork && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{photo ? <><Move size={10}/> Drag to position</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","")} · {mood}</>}</span>}
     </div>
   </div>;
 }
