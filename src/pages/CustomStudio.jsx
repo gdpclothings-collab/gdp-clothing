@@ -2079,6 +2079,11 @@ function GarmentShape({ type, color, side }) {
   const isYouth = key.includes("youth") || key === "kids";
 
   const longSleeveBody = "M123 70 L84 86 L49 112 L18 271 L63 280 L94 151 L98 392 L262 392 L266 151 L297 280 L342 271 L311 112 L276 86 L237 70 C224 91 204 101 180 101 C156 101 136 91 123 70 Z";
+  // Traced from the approved Adult Long Sleeve Tee mockup so fallback views
+  // preserve the same sleeve length, shoulder width and body proportions.
+  const longSleeveTeeFrontBody = "M147 114 L107 201 L68 421 L55 632 L72 769 L144 768 L188 462 L213 375 L195 761 L341 779 L533 775 L603 761 L588 382 L612 470 L651 768 L720 773 L739 707 L744 602 L735 449 L701 237 L664 126 L490 33 L413 46 L309 33 Z";
+  const longSleeveTeeBackBody = "M145 116 L103 212 L68 412 L54 624 L72 768 L139 766 L193 425 L214 359 L190 754 L222 769 L327 778 L529 775 L605 758 L584 359 L607 432 L660 766 L726 769 L746 609 L734 433 L701 238 L660 124 L491 32 L307 32 Z";
+  const longSleeveTeeTransform = "translate(0 35) scale(.45)";
 
   return <svg viewBox="0 0 360 430" role="img" aria-label={color + " " + type + " " + side + " mockup"} className="w-full h-auto drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]">
     {isHoodie ? <>
@@ -2103,8 +2108,25 @@ function GarmentShape({ type, color, side }) {
       <path d="M98 365 L262 365" stroke={palette.seam} strokeWidth="6" opacity=".42" />
       <path d="M20 258 L64 268 M296 268 L340 258" stroke={palette.seam} strokeWidth="6" opacity=".42" />
     </> : isLongSleeve ? <>
-      <path d={longSleeveBody} fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
-      <path d="M149 69 C154 85 164 92 180 92 C196 92 206 85 211 69" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
+      <path
+        d={side === "back" ? longSleeveTeeBackBody : longSleeveTeeFrontBody}
+        transform={longSleeveTeeTransform}
+        fill={palette.base}
+        stroke={palette.stroke}
+        strokeWidth="4"
+      />
+      <path
+        d={side === "back"
+          ? "M307 43 C342 58 367 64 400 64 C433 64 458 58 491 43"
+          : "M309 43 C336 73 365 87 400 87 C435 87 464 73 490 43"}
+        transform={longSleeveTeeTransform}
+        fill="none"
+        stroke={palette.seam}
+        strokeWidth="10"
+        opacity=".62"
+      />
+      <path d="M74 730 L143 730 M657 730 L722 730" transform={longSleeveTeeTransform} fill="none" stroke={palette.seam} strokeWidth="9" opacity=".4" />
+      <path d="M205 742 C300 765 500 765 594 742" transform={longSleeveTeeTransform} fill="none" stroke={palette.seam} strokeWidth="5" opacity=".28" />
     </> : isToddler ? <>
       <path d="M132 78 L93 94 L52 148 L84 171 L108 146 L108 358 L252 358 L252 146 L276 171 L308 148 L267 94 L228 78 C218 96 201 105 180 105 C159 105 142 96 132 78 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
       <path d="M153 77 C157 92 166 99 180 99 C194 99 203 92 207 77" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
