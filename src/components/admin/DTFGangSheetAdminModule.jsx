@@ -7,7 +7,6 @@ import {
   RefreshCw,
   Ruler,
   Save,
-  Settings2,
   ShoppingBag,
 } from "lucide-react";
 import { adminDtfGangSheetApi } from "@/lib/adminDtfGangSheetApi";
