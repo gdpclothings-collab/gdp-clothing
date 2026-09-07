@@ -287,3 +287,36 @@ export function useUnsavedChangesGuard({
     requestAction: requestGuardedAction,
   };
 }
+
+
+export function useUnsavedEditorGuard({
+  value,
+  onSave,
+  onClose,
+  label = "This editor",
+}) {
+  const baselineRef = useRef(null);
+  const snapshot = JSON.stringify(value);
+
+  if (baselineRef.current === null) {
+    baselineRef.current = snapshot;
+  }
+
+  const isDirty = snapshot !== baselineRef.current;
+  const { requestAction } = useUnsavedChangesGuard({
+    isDirty,
+    onSave,
+    label,
+  });
+
+  const requestClose = useCallback(
+    () =>
+      requestAction(onClose, {
+        title: "You have unsaved changes",
+        description: "Save your changes before closing, discard them, or keep editing.",
+      }),
+    [onClose, requestAction]
+  );
+
+  return { isDirty, requestClose };
+}
