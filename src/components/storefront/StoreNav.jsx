@@ -8,11 +8,28 @@ import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
 const FALLBACK_NAV = [
   { label: "Home", path: "/" },
   { label: "Shop", path: "/shop" },
+  { label: "DTF", path: "/dtf" },
   { label: "Collections", path: "/shop?view=collections" },
   { label: "Custom Tee", path: "/custom-studio" },
   { label: "About", path: "/pages/about" },
   { label: "Contact", path: "/pages/contact" },
 ];
+
+function ensureDtfNavigation(items = []) {
+  if (
+    items.some((item) => {
+      const path = String(item.path || "").split("?")[0].split("#")[0];
+      return path === "/dtf" || path === "/dtf-gang-sheet";
+    })
+  ) {
+    return items;
+  }
+
+  const next = [...items];
+  const shopIndex = next.findIndex((item) => String(item.path || "").split("?")[0] === "/shop");
+  next.splice(shopIndex >= 0 ? shopIndex + 1 : 1, 0, { label: "DTF", path: "/dtf" });
+  return next;
+}
 
 function ManagedLogo({ src, fallbackSrc, alt, className }) {
   const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
@@ -71,7 +88,7 @@ export default function StoreNav() {
           .filter((item) => item.url)
           .map((item) => ({ label: item.label, path: item.url }));
         if (!active) return;
-        if (items.length) setNavItems(items);
+        if (items.length) setNavItems(ensureDtfNavigation(items));
         if (homepage) setLanding(homepage);
       })
       .catch((error) => {
