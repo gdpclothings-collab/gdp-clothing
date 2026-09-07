@@ -14,6 +14,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
 const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
+const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
 const CustomStudio = lazy(() => import('@/pages/CustomStudio'));
 const Cart = lazy(() => import('@/pages/Cart'));
@@ -71,6 +72,7 @@ const AuthenticatedApp = () => {
         <Route element={<StoreLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
+          <Route path="/dtf" element={<DTF />} />
           <Route path="/products/dtf-gang-sheet" element={<DTFGangSheet />} />
           <Route path="/dtf-gang-sheet" element={<DTFGangSheet />} />
           <Route path="/products/:slug" element={<ProductDetail />} />
