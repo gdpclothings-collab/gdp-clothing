@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { adminApi } from "@/lib/adminApi";
+import { normalizeDtfSettings } from "@/lib/dtfGangSheet";
 
 const mapSettings = (row) =>
   row
@@ -22,6 +23,7 @@ const mapSettings = (row) =>
         footerText: row.footer_text,
         logo: row.logo,
         customStudioSettings: row.custom_studio_settings || {},
+        dtfSettings: normalizeDtfSettings(row.dtf_settings || {}),
         updatedAt: row.updated_at,
       }
     : null;
@@ -44,6 +46,31 @@ export const adminSettingsApi = {
 
   async save(settings) {
     await adminApi.saveStoreSettings(settings.id || 1, settings);
+  },
+
+  async loadDtfSettings() {
+    const { data, error } = await supabase
+      .from("store_settings")
+      .select("dtf_settings")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return normalizeDtfSettings(data?.dtf_settings || {});
+  },
+
+  async saveDtfSettings(settings) {
+    const normalized = normalizeDtfSettings(settings);
+    const { error } = await supabase
+      .from("store_settings")
+      .update({
+        dtf_settings: normalized,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+
+    if (error) throw error;
+    return normalized;
   },
 
   async loadCustomStudioSettings() {
