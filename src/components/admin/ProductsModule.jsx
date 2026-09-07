@@ -20,6 +20,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { adminProductsApi } from "@/lib/adminProductsApi";
+import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 const PAGE_SIZE = 25;
 
@@ -633,16 +634,19 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     });
   };
 
+  const editorSnapshot = JSON.stringify({ form, variants, metafields });
+  const hasUnsavedChanges =
+    baselineSnapshot !== null && editorSnapshot !== baselineSnapshot;
+
   useEffect(() => {
-    const snapshot = JSON.stringify({ form, variants, metafields });
     if (baselineSnapshot === null) {
-      setBaselineSnapshot(snapshot);
+      setBaselineSnapshot(editorSnapshot);
       return;
     }
     if (!saving) {
-      setSaveState(isEdit && snapshot === baselineSnapshot ? "saved" : "unsaved");
+      setSaveState(isEdit && editorSnapshot === baselineSnapshot ? "saved" : "unsaved");
     }
-  }, [form, variants, metafields, baselineSnapshot, isEdit, saving]);
+  }, [editorSnapshot, baselineSnapshot, isEdit, saving]);
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -1143,9 +1147,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     setMetafields((current) => current.filter((_, rowIndex) => rowIndex !== index));
   };
 
-  const submit = async (event) => {
-    event.preventDefault();
-
+  const saveProduct = async () => {
     const optionColors = splitComma(form.colors);
     const optionSizes = splitComma(form.sizes);
     const submittedVariants =
@@ -1168,7 +1170,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
         `Saving will retire ${retiringWithStock.length} variant${retiringWithStock.length === 1 ? "" : "s"} that still contain inventory. Continue?`
       )
     ) {
-      return;
+      return false;
     }
 
     captureEditorViewport();
@@ -1296,14 +1298,33 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
 
       captureEditorViewport();
       await onSaved(wasExistingProduct ? "Product updated." : "Product created. You can keep editing.");
+      return true;
     } catch (err) {
       console.error("Product save failed:", err);
       setSaveState("unsaved");
       window.alert(err?.message || "Product save failed.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    await saveProduct();
+  };
+
+  const { requestAction: requestProductAction } = useUnsavedChangesGuard({
+    isDirty: hasUnsavedChanges,
+    onSave: saveProduct,
+    label: form.name.trim() ? `Product: ${form.name.trim()}` : "Product editor",
+  });
+
+  const requestClose = () =>
+    requestProductAction(onClose, {
+      title: "Unsaved product changes",
+      description: "Save this product before closing, discard the changes, or keep editing.",
+    });
 
   const primaryVariant = variants[0] || {
     sku: "",
@@ -1541,7 +1562,15 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                 {form.name.trim() || (isEdit ? product?.name : "Unsaved product")}
               </div>
               <div className="mt-0.5 text-[10px] text-white/55">
-                {saveState === "saving" ? "Saving changes…" : saveState === "saved" ? "Saved" : "Unsaved changes"}
+                {saveState === "saving"
+                  ? "Saving changes…"
+                  : saveState === "saved"
+                    ? "Saved"
+                    : hasUnsavedChanges
+                      ? "Unsaved changes"
+                      : savedProductId
+                        ? "Saved"
+                        : "Not saved yet"}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -1556,21 +1585,21 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
               )}
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="h-9 px-3 rounded-lg border border-white/20 text-sm hover:bg-white/10"
               >
                 Discard
               </button>
               <button
                 type="submit"
-                disabled={saving || !form.name.trim()}
+                disabled={saving || !form.name.trim() || !hasUnsavedChanges}
                 className="h-9 px-4 rounded-lg bg-white text-black text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
               >
                 <Save size={14} /> {saving ? "Saving…" : "Save"}
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="h-9 w-9 rounded-lg grid place-items-center hover:bg-white/10"
                 aria-label="Close product editor"
               >
@@ -3011,14 +3040,14 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
           <div className="mt-5 pb-20 lg:pb-0 flex justify-end gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="h-10 px-4 rounded-lg border border-[#d5d5d5] bg-white text-sm"
             >
               Discard
             </button>
             <button
               type="submit"
-              disabled={saving || !form.name.trim()}
+              disabled={saving || !form.name.trim() || !hasUnsavedChanges}
               className="h-10 px-5 rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
             >
               <Save size={14} /> {saving ? "Saving…" : "Save product"}
@@ -3028,12 +3057,12 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
 
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#d8d8d8] bg-white/95 backdrop-blur px-4 py-3 lg:hidden">
           <div className="mx-auto flex max-w-[1240px] items-center gap-2">
-            <button type="button" onClick={onClose} className="h-10 flex-1 rounded-lg border border-[#d5d5d5] text-sm font-medium">
+            <button type="button" onClick={requestClose} className="h-10 flex-1 rounded-lg border border-[#d5d5d5] text-sm font-medium">
               Discard
             </button>
             <button
               type="submit"
-              disabled={saving || !form.name.trim()}
+              disabled={saving || !form.name.trim() || !hasUnsavedChanges}
               className="h-10 flex-[1.35] rounded-lg bg-[#222] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-40"
             >
               <Save size={14} /> {saving ? "Saving…" : saveState === "saved" ? "Saved" : "Save product"}
