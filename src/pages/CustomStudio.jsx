@@ -11,7 +11,6 @@ import {
   resolvePreviewCanvas,
 } from "@/lib/garmentPreviewNormalization";
 import {
-  GDP_STYLE_TEMPLATES,
   normalizeStyleTemplates,
   styleTemplateForName,
 } from "@/lib/customStudioStyleTemplates";
@@ -631,7 +630,11 @@ const MOOD_PREVIEW_TREATMENTS = {
 };
 
 function moodPreviewTreatment(mood) {
-  return MOOD_PREVIEW_TREATMENTS[mood] || MOOD_PREVIEW_TREATMENTS.Cool;
+  return MOOD_PREVIEW_TREATMENTS[mood] || {
+    description: "Choose a mood to preview its color and contrast treatment.",
+    photoFilter: "none",
+    templateFilter: "none",
+  };
 }
 
 const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
@@ -730,15 +733,15 @@ export default function CustomStudio() {
   const [step, setStep] = useState(1);
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
-  const [occasionGroup, setOccasionGroup] = useState("love");
-  const [occasion, setOccasion] = useState("Anniversary");
+  const [occasionGroup, setOccasionGroup] = useState("");
+  const [occasion, setOccasion] = useState("");
   const [recipientType, setRecipientType] = useState("");
-  const [designStyle, setDesignStyle] = useState("GDP Classic 90s");
-  const [designMood, setDesignMood] = useState("Cool");
-  const [designIntensity, setDesignIntensity] = useState(DEFAULT_STUDIO_SETTINGS.defaultDesignIntensity);
+  const [designStyle, setDesignStyle] = useState("");
+  const [designMood, setDesignMood] = useState("");
+  const [designIntensity, setDesignIntensity] = useState(null);
   const [garment, setGarment] = useState(FALLBACK_GARMENT);
-  const [color, setColor] = useState("Black");
-  const [size, setSize] = useState("M");
+  const [color, setColor] = useState("");
+  const [size, setSize] = useState("");
   const [qty, setQty] = useState(1);
   const [placement, setPlacement] = useState("front");
   const [groupGarments, setGroupGarments] = useState([]);
@@ -789,7 +792,7 @@ export default function CustomStudio() {
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
   const styleTemplates = normalizeStyleTemplates(studioSettings.styleTemplates);
-  const activeStyleTemplate = styleTemplateForName(designStyle, studioSettings.styleTemplates);
+  const activeStyleTemplate = designStyle ? styleTemplateForName(designStyle, studioSettings.styleTemplates) : null;
 
   useEffect(() => {
     const node = mobileEndRef.current;
@@ -814,14 +817,14 @@ export default function CustomStudio() {
           customerApi.getCustomStudioSettings().catch(() => ({})),
         ]);
         const nextStudioSettings = normalizeStudioSettings(loadedStudioSettings);
-        let p = studioCatalog[0] || await customerApi.getDefaultCustomProduct();
+        let p = null;
         if (productId) {
           const requestedBlank = studioCatalog.find((item) => item.id === productId);
           if (requestedBlank) {
             p = requestedBlank;
           } else if (studioCatalog.length) {
             const legacyProduct = await customerApi.getProduct(productId);
-            p = studioCatalog.find((item) => item.type === legacyProduct?.type) || studioCatalog[0];
+            p = studioCatalog.find((item) => item.type === legacyProduct?.type) || null;
           } else {
             p = await customerApi.getProduct(productId);
           }
@@ -829,29 +832,21 @@ export default function CustomStudio() {
 
         if (!active) return;
         setStudioSettings(nextStudioSettings);
-        setDesignIntensity(Math.min(5, Math.max(1, Number(nextStudioSettings.defaultDesignIntensity || 3))));
         setShowOrderGuide(nextStudioSettings.orderGuideEnabled !== false);
         setCatalog(studioCatalog);
         if (!p) return;
 
         const colors = productColors(p);
-        const initialColor = colors[0] || "Black";
+        const requestedColor = String(params.get("color") || "");
+        const initialColor = colors.find((item) => item.toLowerCase() === requestedColor.toLowerCase()) || "";
         const sizes = productSizes(p, initialColor);
+        const requestedSize = String(params.get("size") || "");
+        const initialSize = sizes.find((item) => item.toLowerCase() === requestedSize.toLowerCase()) || "";
         setProduct(p);
         setGarment(garmentFromProduct(p));
         setColor(initialColor);
-        setSize(sizes[0] || "M");
+        setSize(initialSize);
         setProofRequired(p?.customization?.proofRequired !== false);
-        const loadedTemplates = normalizeStyleTemplates(nextStudioSettings.styleTemplates);
-        const allowedStyles = p?.customization?.allowedStyles || [];
-        const initialTemplate =
-          loadedTemplates.find((item) => item.enabled && (!allowedStyles.length || allowedStyles.includes(item.name))) ||
-          loadedTemplates.find((item) => item.enabled) ||
-          loadedTemplates[0];
-        if (initialTemplate) {
-          setDesignStyle(initialTemplate.name);
-          setArtworkStates(defaultArtworkStates(initialTemplate));
-        }
       } catch (error) {
         if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
       }
@@ -865,23 +860,22 @@ export default function CustomStudio() {
   const chooseProduct = (nextProduct) => {
     if (!nextProduct) return;
     const colors = productColors(nextProduct);
-    const nextColor = colors[0] || "Black";
+    const nextColor = color && colors.includes(color) ? color : "";
     const sizes = productSizes(nextProduct, nextColor);
+    const nextSize = size && sizes.includes(size) ? size : "";
     setProduct(nextProduct);
     setGarment(garmentFromProduct(nextProduct));
     setColor(nextColor);
-    setSize(sizes[0] || "M");
+    setSize(nextSize);
     setGroupGarments([]);
     setProofRequired(nextProduct?.customization?.proofRequired !== false);
     const allowedStyles = nextProduct?.customization?.allowedStyles || [];
-    const nextTemplate =
-      styleTemplates.find((item) => item.enabled && (!allowedStyles.length || allowedStyles.includes(item.name))) ||
-      styleTemplates.find((item) => item.enabled) ||
-      styleTemplates[0];
-    if (nextTemplate) setDesignStyle(nextTemplate.name);
+    const styleStillAllowed = Boolean(designStyle) && (!allowedStyles.length || allowedStyles.includes(designStyle));
+    if (designStyle && !styleStillAllowed) {
+      setDesignStyle("");
+      setArtworkStates(defaultArtworkStates());
+    }
     setPreviewSide("front");
-    setArtworkStates(defaultArtworkStates(nextTemplate));
-    setPreviewZoom(1);
   };
 
   const config = product?.customization || {};
@@ -892,10 +886,11 @@ export default function CustomStudio() {
   const intensityExamplesEnabled = studioSettings.intensityExamplesEnabled !== false;
   const intensityExampleImageUrl = studioSettings.intensityExampleImageUrl || DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
   const intensityImages = normalizeIntensityExamples(studioSettings.intensityExamples);
-  const selectedIntensityImage = intensityImages[String(designIntensity)] || "";
+  const recommendedIntensity = Math.min(5, Math.max(1, Number(studioSettings.defaultDesignIntensity || 3)));
+  const selectedIntensityImage = designIntensity ? (intensityImages[String(designIntensity)] || "") : "";
   const hasIntensityOverrides = Object.values(intensityImages).some((value) => Boolean(value));
   const showCombinedIntensityGuide = studioSettings.showCombinedIntensityGuide !== false;
-  const intensityLevel = DESIGN_INTENSITY_LEVELS[designIntensity] || DESIGN_INTENSITY_LEVELS[3];
+  const intensityLevel = DESIGN_INTENSITY_LEVELS[designIntensity] || DESIGN_INTENSITY_LEVELS[recommendedIntensity];
   const allowedStyleNames = config.allowedStyles || [];
   const configuredStyleOptions = styleTemplates.filter((style) =>
     style.enabled && (!allowedStyleNames.length || allowedStyleNames.includes(style.name))
@@ -925,14 +920,15 @@ export default function CustomStudio() {
   const frontBackFee = Math.max(0, Number(studioSettings.frontBackFee ?? 10) || 0);
   const availableColors = productColors(product);
   const availableSizes = productSizes(product, color);
+  const previewColor = color || availableColors[0] || garment?.defaultColor || "Black";
   const selectedVariant = variantFor(product, color, size);
   const selectedAvailable = variantAvailable(product, selectedVariant);
 
   useEffect(() => {
-    if (availableSizes.length && !availableSizes.includes(size)) {
-      setSize(availableSizes[0]);
+    if (size && availableSizes.length && !availableSizes.includes(size)) {
+      setSize("");
     }
-  }, [color, product?.id]);
+  }, [color, product?.id, size, availableSizes.join("|")]);
 
   useEffect(() => {
     if (!frontBackEnabled && placement !== "front") {
@@ -943,6 +939,7 @@ export default function CustomStudio() {
 
   const extrasPerUnit = (frontBackEnabled && placement === "front_back" ? frontBackFee : 0) + (priority === "rush" ? rushFee : 0);
   const priceFor = (itemColor, itemSize) => {
+    if (!product) return 0;
     const variant = variantFor(product, itemColor, itemSize);
     const base = variant?.price == null ? Number(product?.price || garment.price || 0) : Number(variant.price || 0);
     return Math.round((base + extrasPerUnit) * 100) / 100;
@@ -1062,8 +1059,10 @@ export default function CustomStudio() {
   const removeGroup = index => setGroupGarments(prev => prev.filter((_, i) => i !== index));
 
   const canContinue = () => {
-    if (step === 1) return Boolean(product) && selectedAvailable;
-    if (step === 4) return photos.length >= minPhotos;
+    if (step === 1) return Boolean(product) && Boolean(color) && Boolean(size) && selectedAvailable;
+    if (step === 2) return Boolean(occasionGroup) && Boolean(occasion);
+    if (step === 3) return Boolean(designStyle) && Boolean(designMood);
+    if (step === 4) return photos.length >= minPhotos && Boolean(designIntensity);
     if (step === 6) return rightsConfirmed && approvalAcknowledged;
     return true;
   };
@@ -1072,6 +1071,14 @@ export default function CustomStudio() {
     if (!rightsConfirmed || !approvalAcknowledged || photos.length < minPhotos) return;
     if (!product?.id) {
       setWarn("Choose a garment before adding your custom design to cart.");
+      return;
+    }
+    if (!color || !size) {
+      setWarn("Choose a color and size before adding your custom design to cart.");
+      return;
+    }
+    if (!occasion || !designStyle || !designMood || !designIntensity) {
+      setWarn("Complete the occasion, GDP style, mood and design intensity before adding to cart.");
       return;
     }
     if (product?.variants?.length && !selectedAvailable) {
@@ -1192,7 +1199,7 @@ export default function CustomStudio() {
     }
   }
 
-  const activeOccasion = OCCASIONS.find(group => group.id === occasionGroup) || OCCASIONS[0];
+  const activeOccasion = OCCASIONS.find(group => group.id === occasionGroup) || null;
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
@@ -1302,7 +1309,7 @@ export default function CustomStudio() {
                   type="button"
                   key={group.id}
                   aria-pressed={selected}
-                  onClick={() => { setOccasionGroup(group.id); setOccasion(group.options[0]); }}
+                  onClick={() => { setOccasionGroup(group.id); setOccasion(""); }}
                   className={"group overflow-hidden rounded-[20px] border bg-white text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 " + (selected
                     ? "border-accent shadow-[0_16px_38px_rgba(25,22,18,.11)] -translate-y-0.5"
                     : "border-[#ddd7ce] hover:border-[#b8aea2] hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(25,22,18,.08)]")}
@@ -1340,12 +1347,12 @@ export default function CustomStudio() {
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#756f67]">Choose a specific occasion</label>
-                  <p className="mt-1 text-sm font-semibold text-[#292621]">What best describes this {activeOccasion.label.toLowerCase()} design?</p>
+                  <p className="mt-1 text-sm font-semibold text-[#292621]">{activeOccasion ? `What best describes this ${activeOccasion.label.toLowerCase()} design?` : "Choose an occasion category above first."}</p>
                 </div>
-                <span className="text-[11px] font-semibold text-[#8a837a]">{activeOccasion.options.length} options</span>
+                <span className="text-[11px] font-semibold text-[#8a837a]">{activeOccasion?.options.length || 0} options</span>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                {activeOccasion.options.map(option => {
+                {(activeOccasion?.options || []).map(option => {
                   const selected = occasion === option;
                   return <button
                     type="button"
@@ -1389,7 +1396,7 @@ export default function CustomStudio() {
                 {MOODS.map(mood => <button key={mood} onClick={() => setDesignMood(mood)} className={"px-3 py-2 border text-sm transition " + (designMood === mood ? "bg-[#17324D] text-white border-[#17324D] shadow-sm" : "border-border bg-white hover:border-[#9aa8b5]")}>{mood}</button>)}
               </div>
               <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5 text-xs text-[#52616F]">
-                <span className="font-semibold text-[#17324D]">{designMood} preview:</span> {moodPreviewTreatment(designMood).description}
+                {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} preview:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a mood to apply a live preview treatment.</span>}
               </div>
             </div>
           </div>}
@@ -1433,7 +1440,8 @@ export default function CustomStudio() {
               })}
             </div>
 
-            {!product && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No Custom Studio garments are currently published.</div>}
+            {!product && catalog.length === 0 && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No Custom Studio garments are currently published.</div>}
+            {!product && catalog.length > 0 && <div className="mt-5 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 text-sm text-[#52616F]">Choose a garment above to begin. Nothing has been selected for you.</div>}
 
             {product && <>
               <div className="mt-7">
@@ -1564,8 +1572,8 @@ export default function CustomStudio() {
                 </button>)}
               </div>
               <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white p-3">
-                <div className="text-sm font-bold text-[#17324D]">{designIntensity}/5 · {intensityLevel.label}</div>
-                <p className="mt-1 text-[12px] leading-relaxed text-[#64707C]">{intensityLevel.description}</p>
+                <div className="text-sm font-bold text-[#17324D]">{designIntensity ? `${designIntensity}/5 · ${intensityLevel.label}` : `Not selected · ${recommendedIntensity}/5 recommended`}</div>
+                <p className="mt-1 text-[12px] leading-relaxed text-[#64707C]">{designIntensity ? intensityLevel.description : "Choose an intensity after reviewing your uploaded photos."}</p>
               </div>
             </div>
           </div>}
@@ -1598,9 +1606,9 @@ export default function CustomStudio() {
           {step === 7 && <div>
             <StepTitle eyebrow="Final check" title="REVIEW YOUR CUSTOM ORDER" text="Nothing is printed yet. This saves your design and adds the selected garments to your cart." />
             <div className="grid md:grid-cols-2 gap-4">
-              <ReviewCard label="Occasion" value={occasion} sub={recipientType} />
-              <ReviewCard label="Style" value={designStyle} sub={designMood + " · Intensity " + designIntensity + "/5"} />
-              <ReviewCard label="Garment" value={product?.name || garment.label} sub={color + " · " + size + " · Qty " + qty} />
+              <ReviewCard label="Occasion" value={occasion || "Not selected"} sub={recipientType} />
+              <ReviewCard label="Style" value={designStyle || "Not selected"} sub={designStyle ? `${designMood || "No mood"} · ${designIntensity ? `Intensity ${designIntensity}/5` : "Intensity not selected"}` : ""} />
+              <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} · ${size || "No size"} · Qty ${qty}` : ""} />
               <ReviewCard
                 label="Print"
                 value={placement === "front_back" ? "Front + back" : placement === "back" ? "Back only" : "Front only"}
@@ -1624,14 +1632,14 @@ export default function CustomStudio() {
               <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#FFFFFF]">
                 <div>
                   <div className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.18em] text-accent">Live garment preview</div>
-                  <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || garment.label}</div>
+                  <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || "Choose a garment"}</div>
                 </div>
                 <button type="button" onClick={() => setFullscreenPreview(true)} className="h-9 w-9 grid place-items-center rounded-xl border border-[#ddd6cc] bg-white text-[#5d5851] hover:border-accent hover:text-accent" aria-label="Open full screen preview"><Maximize2 size={15} /></button>
               </div>
 
               <StudioPreview
                 garment={garment}
-                color={color}
+                color={previewColor}
                 side={previewSide}
                 placement={placement}
                 photo={previewArtworkPhoto}
@@ -1698,17 +1706,17 @@ export default function CustomStudio() {
                   </div>
                   <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
                 </div>
-                <p className="mt-2 text-[10px] font-mono uppercase tracking-wide text-[#8f887f]">Recommended print zone updates automatically for {size} and the selected garment.</p>
-                <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">Your uploaded photo is auto-fitted inside the selected GDP artwork template. Drag, zoom or switch Fit / Crop without losing the original image.</p>
+                <p className="mt-2 text-[10px] font-mono uppercase tracking-wide text-[#8f887f]">Recommended print zone updates after you choose a garment and size.</p>
+                <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">Artwork controls activate after you choose a GDP style and upload a photo. Nothing is applied automatically.</p>
               </div>
             </div>
 
             <div className="rounded-[22px] border border-[#ddd6cc] bg-[#17212B] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
               <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">Your order</div>
-              <div className="font-display text-3xl mt-2">{occasion}</div>
-              <SummaryRow label="Style" value={designStyle.replace("GDP ","")} />
-              <SummaryRow label="Garment" value={product?.name || garment.label} />
-              <SummaryRow label="Size / Color" value={size + " / " + color} />
+              <div className="font-display text-3xl mt-2">{occasion || "Build your order"}</div>
+              <SummaryRow label="Style" value={designStyle ? designStyle.replace("GDP ","") : "Not selected"} />
+              <SummaryRow label="Garment" value={product?.name || "Not selected"} />
+              <SummaryRow label="Size / Color" value={size && color ? `${size} / ${color}` : "Not selected"} />
               <SummaryRow label="Photos" value={photos.length + "/" + maxPhotos} />
               <SummaryRow label="Total shirts" value={totalUnits} />
               <SummaryRow label="Proof" value={proofRequired ? "Before print" : "Skipped"} />
@@ -1823,7 +1831,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={color} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
+              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
             </div>
           </div>
         </div>}
@@ -1863,7 +1871,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "Cool", fullscreen = false }) {
+function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false }) {
   const dragRef = useRef(null);
   const blankArtwork =
     (side === "back" && placement === "front") ||
@@ -1875,7 +1883,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
   );
   // The selected GDP style is itself printable artwork, so it should appear
   // immediately in the garment preview even before the customer uploads a photo.
-  const canDrag = Boolean(photo && !blankArtwork && setArtworkOffset);
+  const canDrag = Boolean(photo && styleTemplate && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
   const frontMockupUrl =
@@ -1942,7 +1950,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
     transform: `translate(-50%, -50%) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)`,
     transformOrigin: "center center"
   };
-  const template = styleTemplate || GDP_STYLE_TEMPLATES[0];
+  const template = styleTemplate || null;
   const moodTreatment = moodPreviewTreatment(mood);
   const photoZone = template?.photoZone || { x: 10, y: 8, width: 80, height: 64, shape: "rounded", radius: 10 };
   const textZone = template?.textZone || { x: 10, y: 80, width: 80, height: 15, align: "center", tone: "light" };
@@ -2058,7 +2066,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
           style={printAreaStyle}
           className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
-          {blankArtwork ? (
+          {!styleTemplate ? null : blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
           ) : (
             <>
@@ -2125,7 +2133,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
       </div>
     </div>
 
-    {uploading && photo && !blankArtwork && <div className="absolute left-1/2 top-12 z-40 -translate-x-1/2 pointer-events-none">
+    {uploading && photo && styleTemplate && !blankArtwork && <div className="absolute left-1/2 top-12 z-40 -translate-x-1/2 pointer-events-none">
       <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[#C9D4DE] bg-white/90 px-3 py-1.5 text-[9px] font-semibold text-[#17324D] shadow-sm backdrop-blur">
         <Upload size={11} /> Uploading new artwork… current preview stays visible
       </span>
