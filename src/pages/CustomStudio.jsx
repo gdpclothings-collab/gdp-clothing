@@ -62,6 +62,23 @@ function normalizeStudioSettings(settings = {}) {
   };
 }
 
+function defaultArtworkState() {
+  return {
+    scale: 92,
+    rotation: 0,
+    offset: { x: 0, y: 0 },
+    fitMode: "fit",
+    sourcePhotoIndex: 0,
+  };
+}
+
+function defaultArtworkStates() {
+  return {
+    front: defaultArtworkState(),
+    back: defaultArtworkState(),
+  };
+}
+
 const STYLES = [
   ["GDP Classic 90s","Layered portraits, chrome type, clouds and full retro energy."],
   ["GDP Y2K","Metallic type, stars, glow effects and early-2000s attitude."],
@@ -86,19 +103,22 @@ function uniqueValues(values = []) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
+function activeProductVariants(product) {
+  return (product?.variants || []).filter((variant) => variant?.active !== false);
+}
+
 function productColors(product) {
   if (!product) return [];
-  const configuredColors = uniqueValues(product.colors || []);
-  if (configuredColors.length) return configuredColors;
-  return uniqueValues((product.variants || []).map((variant) => variant.color));
+  const variants = activeProductVariants(product);
+  if (variants.length) return uniqueValues(variants.map((variant) => variant.color));
+  return uniqueValues(product.colors || []);
 }
 
 function productSizes(product, color = "") {
   if (!product) return [];
-  const configuredSizes = uniqueValues(product.sizes || []);
-  if (configuredSizes.length) return configuredSizes;
+  const variants = activeProductVariants(product);
+  if (!variants.length) return uniqueValues(product.sizes || []);
 
-  const variants = product.variants || [];
   const matching = color
     ? variants.filter((variant) => String(variant.color || "").toLowerCase() === String(color).toLowerCase())
     : variants;
@@ -107,16 +127,16 @@ function productSizes(product, color = "") {
 
 function variantFor(product, color, size) {
   if (!product?.variants?.length) return null;
-  return product.variants.find((variant) =>
+  return activeProductVariants(product).find((variant) =>
     String(variant.color || "").toLowerCase() === String(color || "").toLowerCase() &&
     String(variant.size || "").toLowerCase() === String(size || "").toLowerCase()
   ) || null;
 }
 
 function variantAvailable(product, variant) {
-  if (product?.trackInventory === false) return true;
   if (!product?.variants?.length) return true;
-  if (!variant) return false;
+  if (!variant || variant.active === false) return false;
+  if (product?.trackInventory === false) return true;
   return Number(variant.stock || 0) > 0;
 }
 
@@ -182,6 +202,22 @@ function garmentImageMatchesType(url, type) {
   return true;
 }
 
+function hasStrictGarmentPreviewType(type) {
+  const key = normalizePreviewToken(type);
+  return [
+    "baby", "bodysuit", "onesie", "toddler", "youth", "kids",
+    "hoodie", "crewneck", "crew neck", "sweatshirt", "sweater",
+    "long sleeve", "t shirt", "tee"
+  ].some((token) => key.includes(token));
+}
+
+function studioCardImage(product) {
+  const images = uniqueValues(product?.images || []);
+  if (!images.length) return "";
+  const type = [product?.name, product?.type].filter(Boolean).join(" ");
+  return images.find((url) => garmentImageMatchesType(url, type)) || "";
+}
+
 function imageMatchesPreviewColor(url, color) {
   const name = normalizePreviewToken(previewFileName(url));
   const key = normalizePreviewToken(color);
@@ -210,7 +246,11 @@ function previewImageForGarment(garment, color, side) {
   // Every image here already belongs to the selected product. Storage URLs can
   // be UUID-based and may not contain garment/color keywords, so an empty
   // filename match must not force the generic SVG preview.
-  const scopedImages = typeMatches.length ? typeMatches : images;
+  const scopedImages = typeMatches.length
+    ? typeMatches
+    : (hasStrictGarmentPreviewType(previewType) ? [] : images);
+  if (!scopedImages.length) return "";
+
   const candidates = scopedImages.filter((url) => {
     const name = normalizePreviewToken(previewFileName(url));
     const isBack = name.includes("back") || name.includes("rear");
@@ -604,10 +644,30 @@ export default function CustomStudio() {
   const [saving, setSaving] = useState(false);
   const [previewSide, setPreviewSide] = useState("front");
   const [previewZoom, setPreviewZoom] = useState(1);
-  const [artworkScale, setArtworkScale] = useState(92);
-  const [artworkRotation, setArtworkRotation] = useState(0);
-  const [artworkOffset, setArtworkOffset] = useState({ x: 0, y: 0 });
-  const [artworkFitMode, setArtworkFitMode] = useState("fit");
+  const [artworkStates, setArtworkStates] = useState(() => defaultArtworkStates());
+  const activeArtworkState = artworkStates[previewSide] || artworkStates.front;
+  const artworkScale = Number(activeArtworkState.scale ?? 92);
+  const artworkRotation = Number(activeArtworkState.rotation ?? 0);
+  const artworkOffset = activeArtworkState.offset || { x: 0, y: 0 };
+  const artworkFitMode = activeArtworkState.fitMode || "fit";
+  const updateArtworkState = (field, valueOrUpdater) => {
+    setArtworkStates((currentStates) => {
+      const current = currentStates[previewSide] || defaultArtworkState();
+      const currentValue = current[field];
+      const nextValue = typeof valueOrUpdater === "function"
+        ? valueOrUpdater(currentValue)
+        : valueOrUpdater;
+      return {
+        ...currentStates,
+        [previewSide]: { ...current, [field]: nextValue },
+      };
+    });
+  };
+  const setArtworkScale = (value) => updateArtworkState("scale", value);
+  const setArtworkRotation = (value) => updateArtworkState("rotation", value);
+  const setArtworkOffset = (value) => updateArtworkState("offset", value);
+  const setArtworkFitMode = (value) => updateArtworkState("fitMode", value);
+  const setArtworkSourcePhotoIndex = (value) => updateArtworkState("sourcePhotoIndex", value);
   const [showGuides, setShowGuides] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
@@ -694,10 +754,7 @@ export default function CustomStudio() {
       setDesignStyle(nextProduct.customization.allowedStyles[0]);
     }
     setPreviewSide("front");
-    setArtworkScale(92);
-    setArtworkRotation(0);
-    setArtworkOffset({ x: 0, y: 0 });
-    setArtworkFitMode("fit");
+    setArtworkStates(defaultArtworkStates());
     setPreviewZoom(1);
   };
 
@@ -732,7 +789,7 @@ export default function CustomStudio() {
   }, [color, product?.id]);
 
   useEffect(() => {
-    if (!frontBackEnabled && placement === "front_back") {
+    if (!frontBackEnabled && placement !== "front") {
       setPlacement("front");
       setPreviewSide("front");
     }
@@ -752,12 +809,26 @@ export default function CustomStudio() {
     groupGarments.reduce((sum, item) => sum + priceFor(item.color, item.size) * Number(item.quantity || 0), 0)
   ) * 100) / 100;
   const primaryPhoto = photos.find(photo => photo.isPrimary) || photos[0] || null;
+  const artworkPhotoForSide = (side) => {
+    const state = artworkStates[side] || defaultArtworkState();
+    const index = Math.min(
+      Math.max(0, Number(state.sourcePhotoIndex || 0)),
+      Math.max(0, photos.length - 1)
+    );
+    return photos[index] || primaryPhoto;
+  };
+  const previewArtworkPhoto = artworkPhotoForSide(previewSide);
+  const frontArtworkPhoto = artworkPhotoForSide("front");
+  const backArtworkPhoto = artworkPhotoForSide("back");
+  const activeSideHasPrint =
+    (previewSide === "front" && placement !== "back") ||
+    (previewSide === "back" && placement !== "front");
 
   const resetPreviewPlacement = () => {
-    setArtworkScale(92);
-    setArtworkRotation(0);
-    setArtworkOffset({ x: 0, y: 0 });
-    setArtworkFitMode("fit");
+    setArtworkStates((current) => ({
+      ...current,
+      [previewSide]: defaultArtworkState(),
+    }));
     setPreviewZoom(1);
   };
 
@@ -818,11 +889,20 @@ export default function CustomStudio() {
   }
 
   const setPrimary = index => setPhotos(prev => prev.map((photo, i) => ({ ...photo, isPrimary: i === index })));
-  const removePhoto = index => setPhotos(prev => {
-    const next = prev.filter((_, i) => i !== index);
-    if (next.length && !next.some(p => p.isPrimary)) next[0] = { ...next[0], isPrimary: true };
-    return next;
-  });
+  const removePhoto = index => {
+    setPhotos(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length && !next.some(p => p.isPrimary)) next[0] = { ...next[0], isPrimary: true };
+      return next;
+    });
+    setArtworkStates((current) => Object.fromEntries(
+      Object.entries(current).map(([side, state]) => {
+        const sourceIndex = Number(state?.sourcePhotoIndex || 0);
+        const nextIndex = sourceIndex === index ? 0 : (sourceIndex > index ? sourceIndex - 1 : sourceIndex);
+        return [side, { ...state, sourcePhotoIndex: Math.max(0, nextIndex) }];
+      })
+    ));
+  };
 
   const addGroupGarment = () => setGroupGarments(prev => [...prev, { size, color, quantity: 1 }]);
   const updateGroup = (index, patch) => setGroupGarments(prev => prev.map((item, i) => i === index ? { ...item, ...patch } : item));
@@ -871,14 +951,18 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 3,
+            version: 4,
             side: previewSide,
             artworkScale,
             artworkRotation,
             artworkOffset,
             artworkFitMode,
             viewZoom: previewZoom,
-            sourcePhotoIndex: Math.max(0, photos.findIndex(p => p.isPrimary)),
+            sourcePhotoIndex: Number(activeArtworkState.sourcePhotoIndex || 0),
+            artworkBySide: {
+              front: { ...artworkStates.front },
+              back: { ...artworkStates.back },
+            },
             garmentId: productId,
             variantId: selectedVariant?.id || null,
             conceptOnly: true
@@ -1084,6 +1168,7 @@ export default function CustomStudio() {
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {(catalog.length ? catalog : (product ? [product] : [])).map((option) => {
                 const optionGarment = garmentFromProduct(option);
+                const optionImage = studioCardImage(option);
                 const active = product?.id === option.id;
                 return <button
                   type="button"
@@ -1092,8 +1177,8 @@ export default function CustomStudio() {
                   className={"group overflow-hidden rounded-2xl border text-left transition-all duration-200 " + (active ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.08)]" : "border-[#ddd7ce] bg-white/70 hover:border-accent hover:-translate-y-0.5")}
                 >
                   <div className="aspect-[2/1] sm:aspect-[16/10] bg-[#f1ede6] overflow-hidden grid place-items-center">
-                    {option.images?.[0]
-                      ? <img src={option.images[0]} alt="" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]" />
+                    {optionImage
+                      ? <img src={optionImage} alt="" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]" />
                       : <Shirt size={48} className="text-[#aaa39a]" />}
                   </div>
                   <div className="p-4">
@@ -1174,6 +1259,7 @@ export default function CustomStudio() {
                 <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
+                  {frontBackEnabled && <Choice active={placement === "back"} onClick={() => { setPlacement("back"); setPreviewSide("back"); }}>Back only</Choice>}
                   {frontBackEnabled && <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>}
                 </div>
                 <p className="mt-2 text-[10px] text-[#817b73]">{frontBackEnabled ? "Front is the default. Back is optional and uses the Custom Studio additional-print surcharge." : "Custom Studio is currently configured for front printing only."}</p>
@@ -1277,11 +1363,19 @@ export default function CustomStudio() {
               <ReviewCard label="Occasion" value={occasion} sub={recipientType} />
               <ReviewCard label="Style" value={designStyle} sub={designMood + " · Intensity " + designIntensity + "/5"} />
               <ReviewCard label="Garment" value={product?.name || garment.label} sub={color + " · " + size + " · Qty " + qty} />
+              <ReviewCard
+                label="Print"
+                value={placement === "front_back" ? "Front + back" : placement === "back" ? "Back only" : "Front only"}
+                sub={placement === "front_back" ? "Two independent artwork placements saved." : "One print side selected."}
+              />
+              {placement !== "back" && <ReviewCard label="Front artwork" value={frontArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
+              {placement !== "front" && <ReviewCard label="Back artwork" value={backArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
               <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? "One or more photos should ideally be replaced." : "Photo quality check complete."} />
               <ReviewCard label="Proof" value={proofRequired ? "Required before print" : "Proof skipped"} sub={proofRequired ? revisions + " included revision(s)" : ""} />
               <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
             </div>
             {groupGarments.length > 0 && <div className="mt-4 border border-border p-4"><div className="font-bold">Additional shirts using the same design</div>{groupGarments.map((g,i) => <div key={i} className="text-sm text-muted-foreground mt-1">{g.quantity}× {g.color} · {g.size}</div>)}</div>}
+            {personalization.instructions && <div className="mt-4 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-4"><div className="font-mono text-[10px] uppercase tracking-wide text-[#64788A]">Designer notes · not printed</div><div className="mt-1 text-sm leading-relaxed text-[#44515D]">{personalization.instructions}</div></div>}
             {showOrderPrice && <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Before cart discounts, shipping, tax or coupon.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>}
             <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide disabled:opacity-50">{saving ? "Saving custom design…" : "Add Custom Order to Cart →"}</button>
           </div>}
@@ -1302,7 +1396,7 @@ export default function CustomStudio() {
                 color={color}
                 side={previewSide}
                 placement={placement}
-                photo={primaryPhoto}
+                photo={previewArtworkPhoto}
                 uploading={uploading}
                 personalization={personalization}
                 zoom={previewZoom}
@@ -1331,7 +1425,17 @@ export default function CustomStudio() {
                   </div>
                 </div>
 
-                {primaryPhoto && previewSide === "front" && <div className="mt-4 space-y-3">
+                {previewArtworkPhoto && activeSideHasPrint && <div className="mt-4 space-y-3">
+                  {photos.length > 1 && <div>
+                    <div className="font-mono text-[9px] uppercase text-[#756f67]">Artwork photo</div>
+                    <select
+                      value={Number(activeArtworkState.sourcePhotoIndex || 0)}
+                      onChange={(e) => setArtworkSourcePhotoIndex(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-[#DCE3EA] bg-white px-2.5 py-2 text-xs text-[#44515D]"
+                    >
+                      {photos.map((photo, index) => <option key={photo.url || index} value={index}>{index + 1}. {photo.name || "Uploaded photo"}</option>)}
+                    </select>
+                  </div>}
                   <div>
                     <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Design size</span><span>{artworkScale}%</span></div>
                     <input type="range" min="55" max="145" value={artworkScale} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
@@ -1521,8 +1625,10 @@ function clampPreview(value) {
 
 function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "fit", showGuides, showMeasurements, size, previewConfig = {}, fullscreen = false }) {
   const dragRef = useRef(null);
-  const blankBack = side === "back" && placement === "front";
-  const canDrag = Boolean(photo && !blankBack && setArtworkOffset);
+  const blankArtwork =
+    (side === "back" && placement === "front") ||
+    (side === "front" && placement === "back");
+  const canDrag = Boolean(photo && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
   const frontMockupUrl =
@@ -1678,7 +1784,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
           style={printAreaStyle}
           className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
-          {blankBack ? (
+          {blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
           ) : photo ? (
             artworkFitMode === "crop" ? (
@@ -1700,7 +1806,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
           ) : (
             <div className="absolute inset-0 grid place-items-center text-center px-2"><div><Sparkles size={20} className="mx-auto text-[#8c857b]" /><div className="mt-2 text-[8px] uppercase tracking-[0.12em] font-semibold text-[#817b71]">Your design appears here</div></div></div>
           )}
-          {!blankBack && (personalization?.name || personalization?.dates || personalization?.quote) && <div className="absolute inset-x-1 bottom-1.5 text-center text-white pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.85)]">
+          {!blankArtwork && (personalization?.name || personalization?.dates || personalization?.quote) && <div className="absolute inset-x-1 bottom-1.5 text-center text-white pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.85)]">
             {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
             {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
             {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
@@ -1709,7 +1815,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
       </div>
     </div>
 
-    {uploading && photo && !blankBack && <div className="absolute left-1/2 top-12 z-40 -translate-x-1/2 pointer-events-none">
+    {uploading && photo && !blankArtwork && <div className="absolute left-1/2 top-12 z-40 -translate-x-1/2 pointer-events-none">
       <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[#C9D4DE] bg-white/90 px-3 py-1.5 text-[9px] font-semibold text-[#17324D] shadow-sm backdrop-blur">
         <Upload size={11} /> Uploading new artwork… current preview stays visible
       </span>
@@ -1717,7 +1823,7 @@ function StudioPreview({ garment, color, side, placement, photo, uploading = fal
 
     <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
       <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
-      {photo && !blankBack && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1"><Move size={10}/> Drag to position</span>}
+      {photo && !blankArtwork && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1"><Move size={10}/> Drag to position</span>}
     </div>
   </div>;
 }

@@ -243,6 +243,35 @@ async function getCheckoutRules(
   };
 }
 
+async function releaseCheckoutReservations(service: any, orderId: string, status = "released") {
+  const [inventory, coupon] = await Promise.all([
+    service.rpc("release_order_inventory_reservations", {
+      p_order_id: orderId,
+      p_status: status,
+    }),
+    service.rpc("release_order_coupon_reservation", {
+      p_order_id: orderId,
+      p_status: status,
+    }),
+  ]);
+
+  if (inventory.error) console.error("inventory reservation release failed", inventory.error);
+  if (coupon.error) console.error("coupon reservation release failed", coupon.error);
+}
+
+function reservationErrorMessage(error: any, fallback: string) {
+  const message = String(error?.message || "");
+  if (message.includes("INSUFFICIENT_INVENTORY")) {
+    const parts = message.split("|");
+    const itemName = parts[1] || "One of your items";
+    return itemName + " no longer has enough inventory for this checkout. Please review your cart and try again.";
+  }
+  if (message.includes("COUPON_USAGE_LIMIT_REACHED") || message.includes("COUPON_NOT_AVAILABLE")) {
+    return "That discount code is no longer available. Please remove it or use another code.";
+  }
+  return fallback;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   if (req.method !== "POST") return respond(req, { error: true, message: "Method not allowed." }, 405);
@@ -678,6 +707,44 @@ Deno.serve(async (req: Request) => {
       throw itemError;
     }
 
+    const reservationExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    const { error: inventoryReservationError } = await service.rpc(
+      "reserve_order_inventory",
+      { p_order_id: order.id, p_expires_at: reservationExpiresAt }
+    );
+    if (inventoryReservationError) {
+      await service.from("orders").delete().eq("id", order.id);
+      return respond(req, {
+        error: true,
+        message: reservationErrorMessage(
+          inventoryReservationError,
+          "One or more items became unavailable while checkout was being created."
+        ),
+      }, 409);
+    }
+
+    if (coupon?.id) {
+      const { error: couponReservationError } = await service.rpc(
+        "reserve_order_coupon",
+        {
+          p_order_id: order.id,
+          p_discount_id: coupon.id,
+          p_expires_at: reservationExpiresAt,
+        }
+      );
+      if (couponReservationError) {
+        await releaseCheckoutReservations(service, order.id);
+        await service.from("orders").delete().eq("id", order.id);
+        return respond(req, {
+          error: true,
+          message: reservationErrorMessage(
+            couponReservationError,
+            "That discount code could not be reserved for checkout."
+          ),
+        }, 409);
+      }
+    }
+
     const uniqueDesigns = [...new Map(normalizedItems.filter((x) => x.design).map((x) => [x.design.id, x.design])).values()];
     for (const design of uniqueDesigns as any[]) {
       await service
@@ -704,17 +771,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (coupon?.id) {
-      await service
-        .from("discounts")
-        .update({ usage_count: Number(coupon.usage_count || 0) + 1 })
-        .eq("id", coupon.id);
-    }
-
     const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY");
     const stripePublishableKey = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
 
     if (!stripeSecret || !stripePublishableKey) {
+      await releaseCheckoutReservations(service, order.id);
+      await service
+        .from("orders")
+        .update({
+          payment_status: "failed",
+          status: "payment_failed",
+          fulfillment_status: "unfulfilled",
+        })
+        .eq("id", order.id);
+
       if (checkoutSessionToken) {
         await service
           .from("checkout_sessions")
@@ -746,6 +816,7 @@ Deno.serve(async (req: Request) => {
     const form = new URLSearchParams();
     form.set("mode", "payment");
     form.set("ui_mode", "elements");
+    form.set("expires_at", String(Math.floor(new Date(reservationExpiresAt).getTime() / 1000)));
     form.set(
       "return_url",
       `${origin}/order/${encodeURIComponent(order.order_number)}?status=success&token=${order.confirmation_token}&session_id={CHECKOUT_SESSION_ID}`
@@ -775,6 +846,8 @@ Deno.serve(async (req: Request) => {
 
     const stripeData = await stripeResponse.json();
     if (!stripeResponse.ok || !stripeData?.client_secret) {
+      await releaseCheckoutReservations(service, order.id);
+
       for (const design of uniqueDesigns as any[]) {
         await service
           .from("custom_designs")

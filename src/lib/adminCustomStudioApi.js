@@ -129,7 +129,7 @@ export const adminCustomStudioApi = {
   async startArtwork(order, proof) {
     await adminApi.updateOrder(order.id, {
       status: "design_in_progress",
-      fulfillmentStatus: "design_in_progress",
+      designStatus: "design_in_progress",
     });
 
     if (proof?.id) {
@@ -148,7 +148,7 @@ export const adminCustomStudioApi = {
   async releaseApprovedOrder(orderId) {
     await adminApi.updateOrder(orderId, {
       status: "production_queue",
-      fulfillmentStatus: "production_queue",
+      productionStatus: "queued",
     });
   },
 };

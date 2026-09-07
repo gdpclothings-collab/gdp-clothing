@@ -45,6 +45,21 @@ async function verifyStripeSignature(rawBody: string, signatureHeader: string, s
   return signatures.some((sig) => timingSafeEqual(expected, sig));
 }
 
+async function releaseCheckoutReservations(service: any, orderId: string, status = "released") {
+  const [inventory, coupon] = await Promise.all([
+    service.rpc("release_order_inventory_reservations", {
+      p_order_id: orderId,
+      p_status: status,
+    }),
+    service.rpc("release_order_coupon_reservation", {
+      p_order_id: orderId,
+      p_status: status,
+    }),
+  ]);
+  if (inventory.error) console.error("inventory reservation release failed", inventory.error);
+  if (coupon.error) console.error("coupon reservation release failed", coupon.error);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
@@ -119,6 +134,14 @@ Deno.serve(async (req: Request) => {
           ? inventoryResult.shortages
           : [];
 
+        const { error: couponError } = await service.rpc(
+          "redeem_order_coupon",
+          { p_order_id: orderId }
+        );
+        if (couponError) {
+          console.error("paid-order coupon redemption requires attention", couponError);
+        }
+
         if (inventoryError || shortages.length) {
           console.error(
             "paid-order inventory allocation requires attention",
@@ -154,6 +177,7 @@ Deno.serve(async (req: Request) => {
       const session = event.data.object;
       const orderId = session?.metadata?.order_id;
       if (orderId) {
+        await releaseCheckoutReservations(service, orderId, "expired");
         await service
           .from("orders")
           .update({
@@ -170,6 +194,7 @@ Deno.serve(async (req: Request) => {
       const intent = event.data.object;
       const orderId = intent?.metadata?.order_id;
       if (orderId) {
+        await releaseCheckoutReservations(service, orderId);
         await service
           .from("orders")
           .update({
