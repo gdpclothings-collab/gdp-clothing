@@ -13,6 +13,14 @@ const SAVED_KEY = "gdp_saved_v2";
 const WISH_KEY = "gdp_wishlist_v2";
 const LEGACY_KEYS = ["gdp_cart_v1", "gdp_saved_v1", "gdp_wishlist_v1"];
 
+function cartItemKey(item) {
+  return item.dtfSpec?.configId
+    ? `dtf_${item.dtfSpec.configId}`
+    : item.customDesignId
+      ? `custom_${item.customDesignId}_${item.size || ""}_${item.color || ""}_${item.variant || ""}`
+      : `${item.productId}_${item.variantId || ""}_${item.size || ""}_${item.color || ""}`;
+}
+
 export function CartProvider({ children }) {
   const { user, isLoadingAuth } = useAuth();
   const storageKeys = useMemo(() => ({
@@ -66,17 +74,18 @@ export function CartProvider({ children }) {
 
   const addItem = useCallback((item) => {
     setItems(prev => {
-      const key = item.dtfSpec?.configId
-        ? `dtf_${item.dtfSpec.configId}`
-        : item.customDesignId
-          ? `custom_${item.customDesignId}_${item.size || ""}_${item.color || ""}_${item.variant || ""}`
-          : `${item.productId}_${item.variantId || ""}_${item.size || ""}_${item.color || ""}`;
+      const key = cartItemKey(item);
       const existing = prev.find(i => i.key === key);
       if (existing) {
         return prev.map(i => i.key === key ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i);
       }
       return [...prev, { ...item, key, quantity: item.quantity || 1 }];
     });
+  }, []);
+
+  const replaceItem = useCallback((key, item) => {
+    const next = { ...item, key: cartItemKey(item), quantity: item.quantity || 1 };
+    setItems(prev => prev.map(current => current.key === key ? next : current));
   }, []);
 
   const updateQty = useCallback((key, quantity) => {
@@ -114,7 +123,7 @@ export function CartProvider({ children }) {
 
   return (
     <CartContext.Provider value={{
-      items, saved, wishlist, addItem, updateQty, removeItem, saveForLater, moveToCart,
+      items, saved, wishlist, addItem, replaceItem, updateQty, removeItem, saveForLater, moveToCart,
       clearCart, toggleWishlist, subtotal, itemCount
     }}>
       {children}
