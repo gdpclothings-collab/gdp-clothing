@@ -834,9 +834,9 @@ export default function CustomStudio() {
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
   const styleTemplates = normalizeStyleTemplates(studioSettings.styleTemplates);
-  const activeStyleTemplate = designPath === "upload"
-    ? null
-    : (designStyle ? styleTemplateForName(designStyle, studioSettings.styleTemplates) : null);
+  const activeStyleTemplate = designStyle ?
+    (designPath === "upload" ? null : styleTemplateForName(designStyle, studioSettings.styleTemplates))
+    : null;
 
   useEffect(() => {
     if (step > 1) setShowOrderGuide(false);
