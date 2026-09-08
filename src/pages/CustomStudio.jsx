@@ -740,7 +740,7 @@ async function captureElementAsPng(elementId, targetWidthPx, fileName) {
   const element = document.getElementById(elementId);
   if (!element) throw new Error("The final preview is not ready yet. Please try again.");
   await document.fonts?.ready;
-  const images = [...element.querySelectorAll("img")];
+  const images = Array.from(element.querySelectorAll("img"));
   await Promise.all(images.map(async (image) => {
     if (!image.complete) await new Promise((resolve) => image.addEventListener("load", resolve, { once: true }));
     try { await image.decode?.(); } catch { /* html2canvas reports unreadable assets below */ }
@@ -2103,7 +2103,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId, printAreaId }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom = null, artworkScale, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
   const dragRef = useRef(null);
   const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
