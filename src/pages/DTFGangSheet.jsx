@@ -954,17 +954,56 @@ export default function DTFGangSheet() {
 
   const duplicateSelected = () => {
     if (!selectedArtwork || mode === "upload") return;
+    const gap = Math.max(0.05, Number(settings.spacing || 0.25));
+    const selectedBounds = getArtworkRotatedBounds(selectedArtwork);
     const copy = {
       ...selectedArtwork,
       id: createArtworkId(),
-      x: Math.min(sheetWidth - selectedArtwork.width, selectedArtwork.x + settings.spacing * 2),
-      y: Math.min(sheetLength - selectedArtwork.height, selectedArtwork.y + settings.spacing * 2),
     };
-    const nested = runNesting([...artworks, copy], sheetLength);
-    setSheetLength(Math.max(sheetLength, nested.recommendedLength));
-    setArtworks(nested.items);
+
+    const fitsWithoutMovingArtwork = (candidate) => {
+      const bounds = getArtworkRotatedBounds(candidate);
+      return bounds.left >= -0.001 &&
+        bounds.top >= -0.001 &&
+        bounds.right <= sheetWidth + 0.001 &&
+        bounds.bottom <= sheetLength + 0.001 &&
+        artworkOverlaps([...artworks, candidate]).length === 0;
+    };
+
+    const preferredPositions = [
+      { x: selectedArtwork.x + selectedBounds.width + gap, y: selectedArtwork.y },
+      { x: selectedArtwork.x, y: selectedArtwork.y + selectedBounds.height + gap },
+      { x: selectedArtwork.x - selectedBounds.width - gap, y: selectedArtwork.y },
+      { x: selectedArtwork.x, y: selectedArtwork.y - selectedBounds.height - gap },
+    ];
+
+    let placed = preferredPositions
+      .map((position) => ({ ...copy, ...position }))
+      .find(fitsWithoutMovingArtwork);
+
+    if (!placed) {
+      const step = Math.max(0.25, gap);
+      for (let y = gap; y <= sheetLength && !placed; y += step) {
+        for (let x = gap; x <= sheetWidth; x += step) {
+          const candidate = { ...copy, x, y };
+          if (fitsWithoutMovingArtwork(candidate)) {
+            placed = candidate;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!placed) {
+      setPageError("There is no open space for another copy at this size and rotation. Increase the film length, reduce the artwork size, or use Advanced Nest.");
+      return;
+    }
+
+    setArtworks([...artworks, placed]);
     setSelectedId(copy.id);
     setApproval(false);
+    setPageError("");
+    setNotice("Artwork duplicated beside the original without rotating or rearranging existing designs.");
   };
 
   const removeArtwork = (artworkId) => {
