@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Heart, Pencil } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 import { calculateCartQuantityDiscount } from "@/lib/cartPricing";
+import { customerApi } from "@/lib/customerApi";
 
 export default function Cart() {
   const { items, updateQty, removeItem, saved, moveToCart } = useCart();
@@ -13,9 +14,42 @@ export default function Cart() {
   const subtotal = quantityPricing.subtotal;
   const discount = quantityPricing.discount;
   const discountedSubtotal = quantityPricing.afterDiscount;
-  const shipping = discountedSubtotal >= 150 ? 0 : 12.99;
-  const tax = (discountedSubtotal + shipping) * 0.11;
+  const [pricingConfig, setPricingConfig] = useState(null);
+  const fallbackShipping = discountedSubtotal >= 150 ? 0 : 12.99;
+  const fallbackTaxRate = 0.11;
+  const shipping = pricingConfig?.shipping ?? fallbackShipping;
+  const tax = pricingConfig?.tax ?? ((discountedSubtotal + shipping) * fallbackTaxRate);
   const total = discountedSubtotal + shipping + tax;
+  const taxName = pricingConfig?.taxName || "Saskatchewan GST + PST";
+  const freeShippingThreshold = Number(pricingConfig?.freeShippingThreshold ?? 150);
+
+  useEffect(() => {
+    if (!items.length) {
+      setPricingConfig(null);
+      return undefined;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        const next = await customerApi.getCheckoutConfig({
+          amount: discountedSubtotal,
+          province: "Saskatchewan",
+          shippingMethod: "standard",
+          freeShipping: false,
+        });
+        if (active) setPricingConfig(next);
+      } catch (error) {
+        if (active) setPricingConfig(null);
+        console.debug("Cart pricing configuration fallback:", error?.message || error);
+      }
+    }, 120);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [items.length, discountedSubtotal]);
 
   if (items.length === 0) {
     return (
@@ -65,10 +99,11 @@ export default function Cart() {
                       <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
                         {item.occasion && <div>Occasion: <span className="text-foreground">{item.occasion}</span></div>}
                         {item.designStyle && <div>Style: <span className="text-foreground">{item.designStyle}</span></div>}
+                        {item.designMood && <div>Mood: <span className="text-foreground">{item.designMood}</span></div>}
+                        {item.placement && <div>Print: <span className="text-foreground">{item.placement === "front_back" ? "Front + back" : item.placement === "back" ? "Back only" : "Front only"}</span></div>}
                         {item.fabric && <div>Fabric: <span className="text-foreground">{item.fabric}</span></div>}
                         <div>Proof: <span className="text-foreground">{item.proofRequired === false ? "Skipped" : "Required before print"}</span></div>
                         {item.needByDate && <div>Need by: <span className="text-foreground">{item.needByDate}</span></div>}
-                        <div className="font-mono text-[10px]">Design ID: {item.customDesignId}</div>
                       </div>
                     )}
                   </div>
@@ -106,7 +141,7 @@ export default function Cart() {
             <Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} />
             {discount > 0 && <Row k="Qty discount" v={`-$${discount.toFixed(2)}`} accent />}
             <Row k="Shipping" v={shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`} />
-            <Row k="Tax (11%)" v={`$${tax.toFixed(2)}`} />
+            <Row k={taxName} v={`${tax.toFixed(2)}`} />
           </div>
           {discount > 0 && (
             <div className="mt-2 text-xs font-mono uppercase text-accent bg-accent/10 px-2 py-1">
@@ -114,9 +149,9 @@ export default function Cart() {
             </div>
           )}
           <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-border">
-            <span>Total</span><span className="font-mono">${total.toFixed(2)}</span>
+            <span>Estimated total</span><span className="font-mono">${total.toFixed(2)}</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 font-mono">CAD · Free shipping over $150</p>
+          <p className="text-xs text-muted-foreground mt-2 font-mono">{`CAD · Saskatchewan estimate · Free shipping over ${freeShippingThreshold.toFixed(0)} · Final tax updates with delivery province`}</p>
           <button onClick={() => navigate("/checkout")} className="w-full mt-5 bg-primary text-primary-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90">
             Checkout →
           </button>

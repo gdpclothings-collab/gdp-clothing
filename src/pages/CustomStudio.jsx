@@ -814,6 +814,10 @@ export default function CustomStudio() {
   const activeStyleTemplate = designStyle ? styleTemplateForName(designStyle, studioSettings.styleTemplates) : null;
 
   useEffect(() => {
+    if (step > 1) setShowOrderGuide(false);
+  }, [step]);
+
+  useEffect(() => {
     const node = mobileEndRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return undefined;
 
@@ -1104,6 +1108,26 @@ export default function CustomStudio() {
     return true;
   };
 
+  const continueHint = () => {
+    if (canContinue()) return "";
+    if (step === 1) {
+      if (!product) return "Choose a garment to continue.";
+      if (!color) return "Choose a garment color to continue.";
+      if (!size) return "Choose a size to continue.";
+      if (!selectedAvailable) return "This color and size combination is unavailable.";
+    }
+    if (step === 2) return "Choose a design path to continue.";
+    if (step === 3) {
+      if (designPath === "occasion" && (!occasionGroup || !occasion)) return "Choose an occasion to continue.";
+      if (!designStyle) return "Choose an artwork style to continue.";
+      if (!designMood) return "Choose a design mood to continue.";
+      if (photos.length < minPhotos) return `Upload at least ${minPhotos} photo${minPhotos === 1 ? "" : "s"} to continue.`;
+      if (!designIntensity) return "Choose a design intensity to continue.";
+    }
+    if (step === 5) return "Confirm both artwork rights and proof approval terms to continue.";
+    return "Complete the required choices to continue.";
+  };
+
   async function createAndAdd() {
     if (!rightsConfirmed || !approvalAcknowledged || photos.length < minPhotos) return;
     if (!product?.id) {
@@ -1204,6 +1228,8 @@ export default function CustomStudio() {
         fulfillmentMode: product?.fulfillmentMode || "in_house",
         designStyle,
         designPath,
+        designMood,
+        placement,
         occasion: occasion || designPath,
         needByDate,
         priority,
@@ -1288,13 +1314,6 @@ export default function CustomStudio() {
             })}
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[#DCE3EA] bg-white px-3 py-2.5 shadow-sm">
-            <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] bg-white px-4 py-2.5 font-bold uppercase text-xs text-[#17324D] hover:border-[#9fb0c0]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
-            {step < STEPS.length
-              ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#17324D] px-5 py-2.5 font-bold uppercase text-xs text-white shadow-sm disabled:opacity-40">Continue <ArrowRight size={16}/></button>
-              : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-bold uppercase text-xs text-white shadow-sm disabled:opacity-40">{saving ? "Saving…" : "Add to cart"} <ArrowRight size={16}/></button>}
-          </div>
-
           <div className="mt-3 overflow-hidden rounded-2xl border border-[#DCE3EA] bg-white/75 shadow-sm">
             <button
               type="button"
@@ -1311,8 +1330,8 @@ export default function CustomStudio() {
             </button>
 
             {showOrderGuide && <div className="border-t border-[#ebe5dc]">
-              <div className="overflow-x-auto">
-                <div className="grid min-w-[960px] grid-cols-6 divide-x divide-[#e4ddd3]">
+              <div className="overflow-x-auto snap-x snap-mandatory md:overflow-visible">
+                <div className="flex md:grid md:grid-cols-6 md:divide-x md:divide-[#e4ddd3]">
                   {ORDER_GUIDE_STEPS.map((guide, index) => {
                     const number = index + 1;
                     const active = number === step;
@@ -1321,7 +1340,7 @@ export default function CustomStudio() {
                       type="button"
                       key={guide.title}
                       onClick={() => number < step && setStep(number)}
-                      className={"p-4 text-left transition " + (active ? "bg-accent/[0.065]" : complete ? "bg-[#F8FAFC]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
+                      className={"w-[82%] shrink-0 snap-start p-4 text-left transition md:w-auto md:shrink " + (active ? "bg-accent/[0.065]" : complete ? "bg-[#F8FAFC]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
                     >
                       <div className="flex items-center gap-2">
                         <span className={"grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] font-bold " + (active ? "border-accent bg-accent text-white" : complete ? "border-accent/40 text-accent" : "border-[#d0c8bd] text-[#5f5951]")}>{complete ? <Check size={12}/> : number}</span>
@@ -1343,6 +1362,20 @@ export default function CustomStudio() {
                 </div>
               </div>
             </div>}
+          </div>
+
+          <div className="mt-3">
+            <StudioStepNav
+              step={step}
+              totalSteps={STEPS.length}
+              canContinue={canContinue()}
+              hint={continueHint()}
+              saving={saving}
+              finalDisabled={!rightsConfirmed || !approvalAcknowledged}
+              onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
+              onContinue={() => canContinue() && setStep(step + 1)}
+              onFinal={createAndAdd}
+            />
           </div>
         </div>
 
@@ -1718,6 +1751,21 @@ export default function CustomStudio() {
         </section>
 
           <aside className="h-fit lg:sticky lg:top-24 space-y-4">
+            <div ref={mobileEndRef} className="lg:hidden">
+              <StudioStepNav
+                step={step}
+                totalSteps={STEPS.length}
+                canContinue={canContinue()}
+                hint={continueHint()}
+                saving={saving}
+                finalDisabled={!rightsConfirmed || !approvalAcknowledged}
+                onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
+                onContinue={() => canContinue() && setStep(step + 1)}
+                onFinal={createAndAdd}
+                compact
+              />
+            </div>
+
             <div className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
               <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#FFFFFF]">
                 <div>
@@ -1814,11 +1862,6 @@ export default function CustomStudio() {
             </div>
           </aside>
       </div>
-
-        <div ref={mobileEndRef} className="mt-6 flex justify-between gap-3 pb-8 md:pb-0">
-          <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex items-center gap-2 rounded-xl border border-[#d9d2c8] bg-white px-5 py-3 font-bold uppercase text-xs text-[#332f2a] shadow-sm hover:border-[#aaa198]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
-          {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 rounded-xl bg-[#17324D] text-white px-6 py-3 font-bold uppercase text-xs shadow-lg disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
-        </div>
 
         {mobileFloatingCtaEnabled && mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#17324D]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
           <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{showOrderPrice ? "$" + (priceVisibility === "total" ? estimatedSubtotal : unitPrice).toFixed(2) : "GDP Studio"}</div></div>
@@ -2328,6 +2371,25 @@ function garmentPalette(color) {
   if (key.includes("charcoal") || key.includes("heather")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
   if (key.includes("vintage")) return { base: "#272422", stroke: "#101010", seam: "#595553", highlight: "#68615e" };
   return { base: "#17324D", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
+}
+
+function StudioStepNav({ step, totalSteps, canContinue, hint, saving, finalDisabled, onPrevious, onContinue, onFinal, compact = false }) {
+  const isFinal = step >= totalSteps;
+  const disabled = isFinal ? saving || finalDisabled : !canContinue;
+  return <div className={"rounded-2xl border border-[#DCE3EA] bg-white shadow-sm " + (compact ? "px-3 py-3" : "px-3 py-2.5")}>
+    <div className="flex items-center justify-between gap-3">
+      <button type="button" onClick={onPrevious} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] bg-white px-4 py-2.5 text-xs font-bold uppercase text-[#17324D] transition hover:border-[#9fb0c0]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={isFinal ? onFinal : onContinue}
+        className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold uppercase text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-40 " + (isFinal ? "bg-accent" : "bg-[#17324D]")}
+      >
+        {isFinal ? (saving ? "Saving…" : "Add to cart") : "Continue"} <ArrowRight size={16}/>
+      </button>
+    </div>
+    {!isFinal && !canContinue && hint && <p className="mt-2 text-right text-[11px] font-medium text-[#8A5A48]" role="status">{hint}</p>}
+  </div>;
 }
 
 function StepTitle({ eyebrow, title, text }) {
