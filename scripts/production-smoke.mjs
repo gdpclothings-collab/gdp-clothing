@@ -2,6 +2,8 @@ import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+// Safe production canary: no live payment, order creation, or customer artwork upload.
+
 const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
 const ARTIFACT_DIR = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
 const DESKTOP = { width: 1440, height: 1000 };
