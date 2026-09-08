@@ -239,3 +239,85 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* GDP admin design system — readable, dense, and consistent across modules. */
+.gdp-admin {
+  --admin-accent: #d7193f;
+  --admin-accent-dark: #a70f2d;
+  --admin-border: #dfe1e5;
+  --admin-muted: #555961;
+  color-scheme: light;
+  font-size: 16px;
+}
+
+.gdp-admin main {
+  min-width: 0;
+}
+
+.gdp-admin main > div > div[class*="max-w-[1450px]"],
+.gdp-admin main > div[class*="max-w-[1450px]"] {
+  max-width: 1600px;
+}
+
+.gdp-admin [class~="text-[10px]"],
+.gdp-admin [class~="text-[11px]"] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.gdp-admin [class~="text-xs"] {
+  line-height: 1.25rem;
+}
+
+.gdp-admin input,
+.gdp-admin select,
+.gdp-admin textarea,
+.gdp-admin button {
+  font-size: max(0.875rem, 14px);
+}
+
+.gdp-admin input:focus-visible,
+.gdp-admin select:focus-visible,
+.gdp-admin textarea:focus-visible,
+.gdp-admin button:focus-visible,
+.gdp-admin a:focus-visible {
+  outline: 3px solid rgb(215 25 63 / 0.22);
+  outline-offset: 2px;
+}
+
+.gdp-admin table {
+  font-size: 0.875rem;
+}
+
+.gdp-admin thead {
+  color: #45484f;
+}
+
+.gdp-admin tbody tr {
+  border-color: #e7e8eb;
+}
+
+.gdp-admin tbody tr:hover {
+  background: #fafafb;
+}
+
+.gdp-admin [class*="border-[#dedede]"],
+.gdp-admin [class*="border-[#ddd]"] {
+  border-color: var(--admin-border);
+}
+
+.gdp-admin [class*="text-[#777]"],
+.gdp-admin [class*="text-[#707070]"],
+.gdp-admin [class*="text-[#888]"] {
+  color: var(--admin-muted);
+}
+
+@media (max-width: 767px) {
+  .gdp-admin {
+    font-size: 15px;
+  }
+
+  .gdp-admin table {
+    min-width: 680px;
+  }
+}

@@ -20,12 +20,6 @@ function reminderKey(userId) {
   return `gdp-admin-mfa-remind-after:${userId || "unknown"}`;
 }
 
-function readReminder(userId) {
-  if (typeof window === "undefined") return 0;
-  const value = Number(window.localStorage.getItem(reminderKey(userId)) || 0);
-  return Number.isFinite(value) ? value : 0;
-}
-
 function writeReminder(userId) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
@@ -118,7 +112,11 @@ export default function AdminMfaGate() {
         Number.isFinite(expiresAt) &&
         expiresAt > Date.now();
 
-      if (graceIsActive && readReminder(user?.id) > Date.now()) {
+      // During the documented first-time grace period, keep the administrator
+      // in their workflow and surface setup as a persistent banner. The full
+      // security gate is reserved for verified-factor challenges or an expired
+      // grace period, so opening Admin never unexpectedly discards page context.
+      if (graceIsActive) {
         setGraceBypass(true);
       }
     } catch (loadError) {
