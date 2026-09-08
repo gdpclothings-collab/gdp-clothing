@@ -33,6 +33,11 @@ const defaultDtfSettings = {
   artworkReviewEnabled: true,
   artworkReviewPrice: 0,
   maxUploadMb: 100,
+  watermarkedPreviewEnabled: true,
+  previewDownloadBeforePayment: false,
+  fullResolutionDownloadAfterPayment: false,
+  adminProductionExportEnabled: true,
+  watermarkText: "GDP Clothing Preview",
   acceptedMimeTypes: [
     "image/png",
     "image/jpeg",
@@ -1205,6 +1210,11 @@ Deno.serve(async (req: Request) => {
           rightsTimestamp: String(spec.rightsTimestamp || new Date().toISOString()),
           approvalAcknowledged: true,
           approvalTimestamp: String(spec.approvalTimestamp || new Date().toISOString()),
+          exportPolicy: {
+            watermarkedPreviewEnabled: dtfSettings.watermarkedPreviewEnabled === true,
+            fullResolutionDownloadAfterPayment: dtfSettings.fullResolutionDownloadAfterPayment === true,
+            watermarkText: String(dtfSettings.watermarkText || "GDP Clothing Preview"),
+          },
           utilization: Math.max(0, Math.min(100, Number(spec.utilization || 0))),
           usedLength: Math.max(0, Number(spec.usedLength || 0)),
           layout: cleanLayout,

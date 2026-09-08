@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ExternalLink,
   FileImage,
+  FileArchive,
   RefreshCw,
   Ruler,
   Save,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { adminDtfGangSheetApi } from "@/lib/adminDtfGangSheetApi";
 import { normalizeDtfSettings } from "@/lib/dtfGangSheet";
+import { exportProductionPackage } from "@/lib/dtfFilmExport";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 const moneyRate = (value) => Number(value || 0).toFixed(3);
@@ -21,6 +23,7 @@ export default function DTFGangSheetAdminModule() {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exportingId, setExportingId] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -67,6 +70,8 @@ export default function DTFGangSheetAdminModule() {
         productionSegmentLength: Number(form.productionSegmentLength || 120),
         artworkReviewPrice: Number(form.artworkReviewPrice || 0),
         maxUploadMb: Number(form.maxUploadMb || 100),
+        watermarkOpacity: Number(form.watermarkOpacity || 0.2),
+        watermarkSize: Number(form.watermarkSize || 28),
       });
       await adminDtfGangSheetApi.saveSettings(normalized);
       setForm(normalized);
@@ -231,6 +236,20 @@ export default function DTFGangSheetAdminModule() {
               onChange={(value) => set("artworkReviewEnabled", value)}
             />
             <NumberField label="Artwork review price" prefix="$" suffix="CAD" value={form.artworkReviewPrice} step="0.01" min="0" onChange={(value) => set("artworkReviewPrice", value)} />
+
+            <div className="md:col-span-2 mt-2 border-t border-[#e7e7e7] pt-5">
+              <div className="text-sm font-semibold">Film preview and export access</div>
+              <p className="mt-1 text-xs text-[#777]">Customer previews may be watermarked. Admin production files are always exported clean.</p>
+            </div>
+            <ToggleField label="Watermarked customer preview" helper="Show a configurable watermark on selected customer-facing previews." checked={form.watermarkedPreviewEnabled} onChange={(value) => set("watermarkedPreviewEnabled", value)} />
+            <ToggleField label="Preview download before payment" helper="Allow customers to download the low-resolution preview from the builder." checked={form.previewDownloadBeforePayment} onChange={(value) => set("previewDownloadBeforePayment", value)} />
+            <ToggleField label="Full-resolution download after payment" helper="Reserve access for a future paid-order customer download flow." checked={form.fullResolutionDownloadAfterPayment} onChange={(value) => set("fullResolutionDownloadAfterPayment", value)} />
+            <ToggleField label="Admin production export" helper="Allow clean PNG, PDF, manifest and ZIP production exports from the DTF queue." checked={form.adminProductionExportEnabled} onChange={(value) => set("adminProductionExportEnabled", value)} />
+            <TextField label="Watermark text" value={form.watermarkText} onChange={(value) => set("watermarkText", value)} />
+            <NumberField label="Watermark opacity" value={form.watermarkOpacity} step="0.05" min="0.05" suffix="0–0.8" onChange={(value) => set("watermarkOpacity", value)} />
+            <NumberField label="Watermark text size" value={form.watermarkSize} step="1" min="10" suffix="px" onChange={(value) => set("watermarkSize", value)} />
+            <SelectField label="Watermark position" value={form.watermarkPosition} onChange={(value) => set("watermarkPosition", value)} options={[['repeated','Repeated'],['centered','Centered'],['corner','Bottom corner']]} />
+            <SelectField label="Apply watermark to" value={form.watermarkApplyTo} onChange={(value) => set("watermarkApplyTo", value)} options={[['all','All customer previews'],['builder','Builder workspace only'],['cart','Cart image only'],['download','Downloaded preview only']]} />
           </div>
         </section>
 
@@ -286,6 +305,26 @@ export default function DTFGangSheetAdminModule() {
                         <FileImage size={14} /> Open first artwork
                       </a>
                     )}
+                    {form.adminProductionExportEnabled && (
+                      <button
+                        type="button"
+                        disabled={exportingId === entry.orderItemId}
+                        onClick={async () => {
+                          setExportingId(entry.orderItemId);
+                          setError("");
+                          try {
+                            await exportProductionPackage({ items: entry.spec.layout || [], width: Number(entry.spec.width), length: Number(entry.spec.length), settings: form, orderNumber: entry.orderNumber, itemId: entry.orderItemId });
+                          } catch (err) {
+                            setError(err?.message || "Could not export this film.");
+                          } finally {
+                            setExportingId("");
+                          }
+                        }}
+                        className="mt-3 ml-3 inline-flex items-center gap-2 text-xs font-semibold hover:underline disabled:opacity-40"
+                      >
+                        <FileArchive size={14} /> {exportingId === entry.orderItemId ? "Building files…" : "Export film ZIP"}
+                      </button>
+                    )}
                   </div>
                 ))
               )}
@@ -317,7 +356,7 @@ function NumberField({ label, value, onChange, step = "1", min = "0", prefix = "
   );
 }
 
-function TextField({ label, value, onChange, helper }) {
+function TextField({ label, value, onChange, helper = "" }) {
   return (
     <div>
       <label className="text-xs font-medium text-[#555]">{label}</label>
@@ -339,6 +378,17 @@ function ToggleField({ label, helper, checked, onChange }) {
         <span className="mt-1 block text-[11px] leading-4 text-[#888]">{helper}</span>
       </span>
       <input type="checkbox" checked={Boolean(checked)} onChange={(event) => onChange(event.target.checked)} className="mt-1 h-4 w-4 shrink-0" />
+    </label>
+  );
+}
+
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <label>
+      <span className="text-xs font-medium text-[#555]">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#d4d4d4] bg-white px-3 text-sm outline-none focus:border-[#777]">
+        {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
+      </select>
     </label>
   );
 }

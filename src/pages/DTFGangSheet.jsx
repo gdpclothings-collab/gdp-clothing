@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Copy,
+  Download,
   FileCheck,
   Layers3,
   Maximize2,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/dtfGangSheet";
 import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
 import { advancedNestArtwork } from "@/lib/dtfNesting";
+import { downloadFilmPreview, drawWatermark, watermarkApplies } from "@/lib/dtfFilmExport";
 
 const round = (value, decimals = 2) => {
   const power = 10 ** decimals;
@@ -385,7 +387,7 @@ function loadPreviewImage(source) {
   });
 }
 
-async function createGangSheetThumbnail(items, sheetWidth, sheetLength) {
+async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings) {
   const width = Math.max(1, Number(sheetWidth || 1));
   const length = Math.max(1, Number(sheetLength || 1));
   const previewScale = Math.min(720 / width, 1400 / length);
@@ -443,6 +445,7 @@ async function createGangSheetThumbnail(items, sheetWidth, sheetLength) {
   context.strokeStyle = "#111111";
   context.lineWidth = 3;
   context.strokeRect(1.5, 1.5, outputWidth - 3, outputHeight - 3);
+  if (watermarkApplies(settings, "cart")) drawWatermark(context, outputWidth, outputHeight, settings);
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
@@ -1345,7 +1348,7 @@ export default function DTFGangSheet() {
         ? Number(settings.artworkReviewPrice || 0)
         : 0;
       const linePrice = round(price.price + reviewFee, 2);
-      const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength);
+      const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength, settings);
 
       addItem({
         productId: product.id,
@@ -1379,6 +1382,11 @@ export default function DTFGangSheet() {
           rightsTimestamp: approvalTimestamp,
           approvalAcknowledged: true,
           approvalTimestamp,
+          exportPolicy: {
+            watermarkedPreviewEnabled: settings.watermarkedPreviewEnabled,
+            fullResolutionDownloadAfterPayment: settings.fullResolutionDownloadAfterPayment,
+            watermarkText: settings.watermarkText,
+          },
           layout,
         },
       });
@@ -1751,6 +1759,9 @@ export default function DTFGangSheet() {
                         </div>
                       );
                     })}
+                    {watermarkApplies(settings, "builder") && artworks.length > 0 && (
+                      <WorkspaceWatermark settings={settings} />
+                    )}
                     {!artworks.length && (
                       <div className="absolute inset-0 grid place-items-center px-8 text-center">
                         <div>
@@ -2000,6 +2011,31 @@ export default function DTFGangSheet() {
               ))}
             </Panel>
 
+            <Panel title="Export film preview" icon={Download}>
+              <div className="text-[11px] leading-5 text-black/55">
+                Download a low-resolution proof of the exact film placement. Production files remain clean and are available to GDP administrators.
+              </div>
+              {settings.previewDownloadBeforePayment ? (
+                <button
+                  type="button"
+                  disabled={!artworks.length || Boolean(validation.errors.length)}
+                  onClick={async () => {
+                    setPageError("");
+                    try {
+                      await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-preview.jpg` });
+                    } catch (error) {
+                      setPageError(error?.message || "Could not download the film preview.");
+                    }
+                  }}
+                  className="mt-3 flex h-11 w-full items-center justify-center gap-2 border border-black bg-white text-[9px] font-black uppercase tracking-[0.1em] hover:bg-black hover:text-white disabled:opacity-30"
+                >
+                  <Download size={15} /> Download preview
+                </button>
+              ) : (
+                <div className="mt-3 border border-black/10 bg-black/[0.03] p-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-black/50">Preview download is disabled before payment</div>
+              )}
+            </Panel>
+
             {showUnusedFilmWarning && (
               <div className="border border-amber-300 bg-amber-50 p-4 text-amber-950">
                 <div className="flex items-start gap-2 text-xs font-black uppercase tracking-[0.07em]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> Unused film charge</div>
@@ -2142,6 +2178,22 @@ export default function DTFGangSheet() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function WorkspaceWatermark({ settings }) {
+  const text = settings.watermarkText || "GDP Clothing Preview";
+  const common = { opacity: settings.watermarkOpacity, fontSize: `${Math.max(10, settings.watermarkSize * 0.55)}px` };
+  if (settings.watermarkPosition === "corner") {
+    return <div className="pointer-events-none absolute bottom-3 right-3 z-30 font-black uppercase text-black" style={common}>{text}</div>;
+  }
+  if (settings.watermarkPosition === "centered") {
+    return <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 -rotate-[30deg] whitespace-nowrap font-black uppercase text-black" style={common}>{text}</div>;
+  }
+  return (
+    <div className="pointer-events-none absolute inset-0 z-30 grid grid-cols-2 content-around overflow-hidden">
+      {Array.from({ length: 12 }, (_, index) => <span key={index} className="-rotate-[30deg] whitespace-nowrap text-center font-black uppercase text-black" style={common}>{text}</span>)}
     </div>
   );
 }
