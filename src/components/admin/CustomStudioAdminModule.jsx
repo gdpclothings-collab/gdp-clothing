@@ -18,6 +18,8 @@ import {
   BookOpen,
   Trash2,
   RotateCcw,
+  Download,
+  LockKeyhole,
 } from "lucide-react";
 import { adminCustomStudioApi } from "@/lib/adminCustomStudioApi";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
@@ -212,8 +214,10 @@ export default function CustomStudioAdminModule() {
       ["proof_ready", "awaiting_approval", "revision_requested"].includes(order.status) ||
       ["ready", "sent", "awaiting_approval", "revision_requested"].includes(proof?.status)
     ).length,
-    approved: rows.filter(({ order, proof }) =>
-      order.status === "approved" || proof?.status === "approved"
+    approved: rows.filter(({ order, proof, design }) =>
+      ["approved", "production_queue", "in_production"].includes(order.status) ||
+      proof?.status === "approved" ||
+      design?.renderStatus === "locked"
     ).length,
   }), [rows]);
 
@@ -291,7 +295,7 @@ export default function CustomStudioAdminModule() {
         <div className="p-3 border-b border-[#e7e7e7] flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold">Custom order pipeline</div>
-            <div className="text-xs text-[#777] mt-0.5">Customer upload → artwork → proof → approval → production</div>
+            <div className="text-xs text-[#777] mt-0.5">Customer-approved render → payment → production queue</div>
           </div>
           <button onClick={load} className="h-9 px-3 rounded-lg border border-[#d5d5d5] text-sm inline-flex items-center gap-2">
             <RefreshCw size={14} /> Refresh
@@ -359,7 +363,21 @@ export default function CustomStudioAdminModule() {
                     </div>
 
                     <SeasonalProductionDetails design={design} />
-                    {design?.personalization?.previewState && (
+                    {design?.renderStatus === "locked" ? (
+                      <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-semibold text-emerald-800"><LockKeyhole size={12} /> Customer-approved production result</div>
+                        <div className="text-xs text-emerald-950 mt-1">Approved {formatDate(design.customerApprovedAt)} · preflight {prettify(design.preflight?.status || "passed")}</div>
+                        <div className="text-[10px] font-mono text-emerald-700 mt-1">Render {String(design.lockedHash || "").slice(0, 16)}…</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {Object.entries(design.productionFiles || {}).map(([side, file]) => (
+                            <a key={side} href={file.downloadUrl} download className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-800 px-3 text-xs font-semibold text-white">
+                              <Download size={13} /> Print {prettify(side)} PNG
+                            </a>
+                          ))}
+                        </div>
+                        <div className="mt-2 text-[10px] font-semibold text-emerald-800">Print these locked files exactly. Do not rebuild the customer artwork.</div>
+                      </div>
+                    ) : design?.personalization?.previewState && (
                       <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3">
                         <div className="text-[10px] uppercase tracking-wide font-semibold text-violet-700">Customer preview intent</div>
                         <div className="text-xs text-violet-900 mt-1">
@@ -387,9 +405,9 @@ export default function CustomStudioAdminModule() {
                   </div>
 
                   <div className="rounded-lg border border-[#e2e2e2] p-3 h-fit">
-                    <div className="text-[10px] uppercase tracking-wide text-[#888]">Proof workspace</div>
+                    <div className="text-[10px] uppercase tracking-wide text-[#888]">{design?.renderStatus === "locked" ? "Production handoff" : "Proof workspace"}</div>
                     <div className="font-semibold mt-1">
-                      {proof ? `v${proof.currentVersion || 0} · ${prettify(proof.status)}` : "No proof record"}
+                      {design?.renderStatus === "locked" ? "Ready to print" : proof ? `v${proof.currentVersion || 0} · ${prettify(proof.status)}` : "No proof record"}
                     </div>
                     {proof && (
                       <>
@@ -401,12 +419,13 @@ export default function CustomStudioAdminModule() {
                         </div>
                       </>
                     )}
-                    {!proof && (
+                    {!proof && design?.renderStatus !== "locked" && (
                       <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 flex gap-2">
                         <AlertTriangle size={13} className="shrink-0 mt-0.5" />
                         Proof workspace not created yet.
                       </div>
                     )}
+                    {design?.renderStatus === "locked" && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">No manual proof is required. Payment automatically releases this approved render to production.</div>}
                   </div>
                 </div>
               </div>

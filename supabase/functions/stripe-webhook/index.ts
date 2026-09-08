@@ -94,27 +94,56 @@ Deno.serve(async (req: Request) => {
       if (orderId) {
         const { data: items, error: itemError } = await service
           .from("order_items")
-          .select("is_custom")
+          .select("is_custom,custom_design_id")
           .eq("order_id", orderId);
         if (itemError) throw itemError;
 
         const hasCustom = (items || []).some((item: any) => item.is_custom);
-        const nextStatus = hasCustom ? "artwork_needed" : "paid";
+        const customDesignIds = [...new Set(
+          (items || [])
+            .filter((item: any) => item.is_custom && item.custom_design_id)
+            .map((item: any) => item.custom_design_id)
+        )];
+        let productionReady = false;
+        let readyDesignIds: string[] = [];
+        if (customDesignIds.length) {
+          const { data: designs, error: designError } = await service
+            .from("custom_designs")
+            .select("id,render_status,locked_hash,customer_approved_at,production_files,seasonal_artwork_id")
+            .in("id", customDesignIds);
+          if (designError) throw designError;
+          readyDesignIds = (designs || [])
+            .filter((design: any) => Boolean(design.seasonal_artwork_id) || (
+              design.render_status === "locked" &&
+              design.customer_approved_at &&
+              /^[0-9a-f]{64}$/.test(String(design.locked_hash || "")) &&
+              design.production_files &&
+              Object.keys(design.production_files).length > 0
+            ))
+            .map((design: any) => design.id);
+          productionReady = readyDesignIds.length === customDesignIds.length;
+        }
+        const nextStatus = hasCustom ? (productionReady ? "production_queue" : "artwork_needed") : "paid";
 
         const { error } = await service
           .from("orders")
           .update({
             payment_status: "paid",
             status: nextStatus,
-            design_status: hasCustom ? "artwork_needed" : "not_required",
-            production_status: "not_started",
+            design_status: hasCustom ? (productionReady ? "approved" : "artwork_needed") : "not_required",
+            production_status: productionReady ? "queued" : "not_started",
             fulfillment_status: "unfulfilled",
             stripe_payment_intent_id: session.payment_intent || null,
           })
           .eq("id", orderId);
         if (error) throw error;
 
-        if (hasCustom) {
+        if (productionReady && readyDesignIds.length) {
+          await service
+            .from("custom_designs")
+            .update({ status: "in_production" })
+            .in("id", readyDesignIds);
+        } else if (hasCustom) {
           await service
             .from("design_proofs")
             .update({ status: "pending" })

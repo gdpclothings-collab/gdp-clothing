@@ -51,6 +51,14 @@ const mapDesign = (row) => ({
   proofRequired: row.proof_required,
   revisionAllowance: row.revision_allowance,
   primaryPhotoIndex: row.primary_photo_index,
+  designPath: row.design_path,
+  renderSnapshot: row.render_snapshot || {},
+  productionFiles: row.production_files || {},
+  customerMockupPath: row.customer_mockup_path,
+  renderStatus: row.render_status,
+  lockedHash: row.locked_hash,
+  customerApprovedAt: row.customer_approved_at,
+  preflight: row.preflight || {},
   createdAt: row.created_at,
 });
 
@@ -103,12 +111,22 @@ export const adminCustomStudioApi = {
       .filter((order) => order.items.some((item) => item.isCustom));
 
     const designs = await Promise.all(
-      (designsResult.data || []).map(async (row) =>
-        mapDesign({
+      (designsResult.data || []).map(async (row) => {
+        const productionFiles = {};
+        for (const side of ["front", "back"]) {
+          const file = row.production_files?.[side];
+          if (!file?.path) continue;
+          productionFiles[side] = {
+            ...file,
+            downloadUrl: await signedStorageUrl("customer-uploads", file.path),
+          };
+        }
+        return mapDesign({
           ...row,
           preview_url: await signedStorageUrl("customer-uploads", row.preview_url),
-        })
-      )
+          production_files: productionFiles,
+        });
+      })
     );
 
     const proofs = await Promise.all(
