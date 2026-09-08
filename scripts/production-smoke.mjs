@@ -290,7 +290,7 @@ async function main() {
       await navigate(page, "/checkout");
       await page.getByRole("heading", { name: "CHECKOUT" }).waitFor();
       await page.getByText("Guest checkout is ready", { exact: false }).waitFor();
-      assert((await page.locator('input[type="email"]').count()) === 1, "Checkout email field is missing.");
+      assert(await page.locator("#checkout-email").isVisible(), "Checkout email field is missing.");
       assert((await page.getByText("Continue to Payment", { exact: false }).count()) > 0, "Checkout payment handoff CTA is missing.");
     });
 
