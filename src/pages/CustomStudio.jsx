@@ -1380,7 +1380,7 @@ export default function CustomStudio() {
         </div>
 
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
-          <section className="bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
+          <section id="custom-studio-workspace" className="scroll-mt-24 bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
           {step === 2 && <div>
             <StepTitle eyebrow="Start your design" title="CHOOSE YOUR DESIGN PATH" text="Choose the kind of design you want. You will customize everything in the next workspace." />
             <div className="grid sm:grid-cols-2 gap-4">
@@ -1394,7 +1394,11 @@ export default function CustomStudio() {
                   aria-pressed={designPath === path.id}
                   onClick={() => {
                     setDesignPath(path.id);
-                    if (path.id === "seasonal") { setSeasonalMode(true); return; }
+                    if (path.id === "seasonal") {
+                      setSeasonalMode(true);
+                      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+                      return;
+                    }
                     if (path.id === "upload") {
                       const ownArtworkTemplate = styleOptions.find((style) => style.id === "designers-choice") || styleOptions[0];
                       chooseStyleTemplate(ownArtworkTemplate);
@@ -1406,6 +1410,10 @@ export default function CustomStudio() {
                       setOccasionGroup("");
                       setOccasion("");
                     }
+                    setStep(3);
+                    window.requestAnimationFrame(() => {
+                      document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    });
                   }}
                   className={"rounded-[20px] border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 " + (designPath === path.id ? "border-accent bg-accent/[0.055] shadow-sm" : "border-[#ddd7ce] bg-white hover:border-accent hover:-translate-y-0.5")}
                 >
