@@ -1,0 +1,63 @@
+name: GDP Clothing Production Smoke Bot
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/production-smoke.yml"
+      - "scripts/production-smoke.mjs"
+  schedule:
+    - cron: "13 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Production URL to test"
+        required: false
+        default: "https://gdpclothing.ca"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke-\${{ github.event_name }}-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    name: Production smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      PRODUCTION_BASE_URL: \${{ github.event.inputs.base_url || 'https://gdpclothing.ca' }}
+      SMOKE_ARTIFACT_DIR: production-smoke-results
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up supported Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright runner
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run non-destructive production canary
+        run: node scripts/production-smoke.mjs
+
+      - name: Upload production smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-\${{ github.run_id }}
+          path: production-smoke-results
+          if-no-files-found: ignore
+          retention-days: 7
