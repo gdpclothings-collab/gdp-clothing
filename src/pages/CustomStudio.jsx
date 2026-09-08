@@ -88,6 +88,23 @@ const OCCASIONS = [
   },
 ];
 
+const DESIGN_PATHS = [
+  { id: "seasonal", label: "Seasonal Designs", description: "Browse ready-made holiday and seasonal artwork.", icon: Sparkles },
+  { id: "bootleg", label: "Photo Bootleg Designs", description: "Choose a photo-ready layout, then build the design in one workspace.", icon: Star },
+  { id: "occasion", label: "Occasion & Story Designs", description: "Start with the story and see artwork matched to the occasion.", icon: Heart },
+  { id: "upload", label: "Upload My Own Artwork", description: "Use print-ready artwork without choosing a template.", icon: Upload },
+];
+
+const OCCASION_STYLE_IDS = {
+  love: ["love-story", "classic-90s", "y2k", "minimal"],
+  family: ["classic-90s", "vintage-wash", "minimal", "designers-choice"],
+  pets: ["pet-legend", "memorial", "minimal", "designers-choice"],
+  sports: ["sports-hype", "classic-90s", "y2k", "vintage-wash"],
+  events: ["classic-90s", "y2k", "vintage-wash", "minimal"],
+  memorial: ["memorial", "vintage-wash", "minimal", "designers-choice"],
+  other: ["classic-90s", "y2k", "vintage-wash", "minimal", "designers-choice"],
+};
+
 const DESIGN_INTENSITY_LEVELS = {
   1: { label: "Clean", description: "Minimal layout with one clear focal point, restrained type and plenty of breathing room." },
   2: { label: "Light", description: "A little more styling with supporting type, subtle texture and a few graphic accents." },
@@ -637,12 +654,11 @@ function moodPreviewTreatment(mood) {
   };
 }
 
-const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
+const STEPS = ["Garment","Choose Design","Create & Customize","Personalize","Timing","Review"];
 const ORDER_GUIDE_STEPS = [
   { title: "Choose garment", detail: "Pick clothing, color, size, quantity and print placement." },
-  { title: "Tell us the occasion", detail: "Share who or what the custom piece is for." },
-  { title: "Choose your style", detail: "Pick the GDP design direction and mood you want." },
-  { title: "Upload photos", detail: "Add your best-quality photos or artwork references." },
+  { title: "Choose your design", detail: "Select seasonal, photo bootleg, occasion-based or your own artwork." },
+  { title: "Create & customize", detail: "Choose artwork, upload photos and set the visual treatment in one workspace." },
   { title: "Personalize it", detail: "Add names, dates, quotes, numbers and designer notes." },
   { title: "Timing & approval", detail: "Set your needed-by date and confirm artwork permissions." },
   { title: "Review & checkout", detail: "Final-check everything, add to cart and complete checkout." }
@@ -733,6 +749,7 @@ export default function CustomStudio() {
   const { addItem } = useCart();
   const [step, setStep] = useState(1);
   const [seasonalMode, setSeasonalMode] = useState(false);
+  const [designPath, setDesignPath] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
   const [occasionGroup, setOccasionGroup] = useState("");
@@ -911,6 +928,11 @@ export default function CustomStudio() {
   const styleOptions = configuredStyleOptions.length
     ? configuredStyleOptions
     : styleTemplates.filter((style) => style.enabled);
+  const matchingStyleOptions = designPath === "occasion" && occasionGroup
+    ? styleOptions.filter((style) => (OCCASION_STYLE_IDS[occasionGroup] || []).includes(style.id))
+    : designPath === "bootleg"
+      ? styleOptions.filter((style) => ["classic-90s", "y2k", "vintage-wash", "sports-hype", "love-story", "pet-legend", "minimal"].includes(style.id))
+      : styleOptions;
   const chooseStyleTemplate = (style) => {
     if (!style) return;
     setDesignStyle(style.name);
@@ -1073,10 +1095,12 @@ export default function CustomStudio() {
 
   const canContinue = () => {
     if (step === 1) return Boolean(product) && Boolean(color) && Boolean(size) && selectedAvailable;
-    if (step === 2) return Boolean(occasionGroup) && Boolean(occasion);
-    if (step === 3) return Boolean(designStyle) && Boolean(designMood);
-    if (step === 4) return photos.length >= minPhotos && Boolean(designIntensity);
-    if (step === 6) return rightsConfirmed && approvalAcknowledged;
+    if (step === 2) return Boolean(designPath);
+    if (step === 3) {
+      if (designPath === "occasion" && (!occasionGroup || !occasion)) return false;
+      return Boolean(designStyle) && Boolean(designMood) && photos.length >= minPhotos && Boolean(designIntensity);
+    }
+    if (step === 5) return rightsConfirmed && approvalAcknowledged;
     return true;
   };
 
@@ -1090,8 +1114,8 @@ export default function CustomStudio() {
       setWarn("Choose a color and size before adding your custom design to cart.");
       return;
     }
-    if (!occasion || !designStyle || !designMood || !designIntensity) {
-      setWarn("Complete the occasion, GDP style, mood and design intensity before adding to cart.");
+    if (!designPath || !designStyle || !designMood || !designIntensity || (designPath === "occasion" && !occasion)) {
+      setWarn("Complete the design path, artwork, mood and design intensity before adding to cart.");
       return;
     }
     if (product?.variants?.length && !selectedAvailable) {
@@ -1119,6 +1143,7 @@ export default function CustomStudio() {
         productName: product?.name || garment.label,
         name: personalization.name || (occasion + " Custom Design"),
         designStyle,
+        designPath,
         photos: photos.map(p => p.url),
         photoAssets: photos,
         personalization: {
@@ -1152,7 +1177,7 @@ export default function CustomStudio() {
         color,
         size,
         previewUrl: photos[primaryIndex]?.url || "",
-        occasion,
+        occasion: occasion || designPath,
         recipientType,
         designMood,
         story,
@@ -1178,7 +1203,8 @@ export default function CustomStudio() {
         ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
         fulfillmentMode: product?.fulfillmentMode || "in_house",
         designStyle,
-        occasion,
+        designPath,
+        occasion: occasion || designPath,
         needByDate,
         priority,
         proofRequired
@@ -1286,7 +1312,7 @@ export default function CustomStudio() {
 
             {showOrderGuide && <div className="border-t border-[#ebe5dc]">
               <div className="overflow-x-auto">
-                <div className="grid min-w-[1120px] grid-cols-7 divide-x divide-[#e4ddd3]">
+                <div className="grid min-w-[960px] grid-cols-6 divide-x divide-[#e4ddd3]">
                   {ORDER_GUIDE_STEPS.map((guide, index) => {
                     const number = index + 1;
                     const active = number === step;
@@ -1322,14 +1348,44 @@ export default function CustomStudio() {
 
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
           <section className="bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
-          {step === 2 && <section className="mb-7 rounded-2xl border border-[#DCE3EA] bg-white p-5" aria-label="Design option">
-            <h2 className="text-xl font-bold">Choose your design option</h2>
-            <p className="mt-2 text-sm">Select seasonal artwork for this garment, or continue below to create a photo design.</p>
-            <p className="mt-2 text-sm">Seasonal designs use front printing and one size per design. Add other sizes as separate designs.</p>
-            <button type="button" disabled={placement!=="front" || groupGarments.length>0} onClick={() => setSeasonalMode(true)} className="mt-4 rounded-xl bg-[#17324D] text-white px-5 py-3 font-semibold disabled:opacity-40">Choose a seasonal design</button>
-            {(placement!=="front" || groupGarments.length>0) && <p className="mt-2 text-sm">Return to Garment and choose front-only printing with no additional garment rows to use seasonal artwork.</p>}
-          </section>}
           {step === 2 && <div>
+            <StepTitle eyebrow="Start your design" title="CHOOSE YOUR DESIGN PATH" text="Choose the kind of design you want. You will customize everything in the next workspace." />
+            <div className="grid sm:grid-cols-2 gap-4">
+              {DESIGN_PATHS.map((path) => {
+                const Icon = path.icon;
+                const unavailable = path.id === "seasonal" && (placement !== "front" || groupGarments.length > 0);
+                return <button
+                  key={path.id}
+                  type="button"
+                  disabled={unavailable}
+                  aria-pressed={designPath === path.id}
+                  onClick={() => {
+                    setDesignPath(path.id);
+                    if (path.id === "seasonal") { setSeasonalMode(true); return; }
+                    if (path.id === "upload") {
+                      const ownArtworkTemplate = styleOptions.find((style) => style.id === "designers-choice") || styleOptions[0];
+                      chooseStyleTemplate(ownArtworkTemplate);
+                      setDesignMood("Designer's choice");
+                      setDesignIntensity(1);
+                    } else if (path.id === "occasion") {
+                      setDesignStyle("");
+                    } else if (path.id === "bootleg") {
+                      setOccasionGroup("");
+                      setOccasion("");
+                    }
+                  }}
+                  className={"rounded-[20px] border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 " + (designPath === path.id ? "border-accent bg-accent/[0.055] shadow-sm" : "border-[#ddd7ce] bg-white hover:border-accent hover:-translate-y-0.5")}
+                >
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-[#F1F5F8] text-[#17324D]"><Icon size={20}/></span>
+                  <div className="mt-4 text-lg font-extrabold">{path.label}</div>
+                  <p className="mt-1 text-sm leading-relaxed text-[#6b645c]">{path.description}</p>
+                  <div className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-accent">{designPath === path.id ? "Selected" : "Choose this path"} <ArrowRight size={13} className="inline"/></div>
+                </button>;
+              })}
+            </div>
+            {placement !== "front" || groupGarments.length > 0 ? <p className="mt-4 text-sm text-[#706960]">Seasonal designs require front-only printing with no additional garment rows.</p> : null}
+          </div>}
+          {step === 3 && designPath === "occasion" && <div className="mb-8">
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choose the story first. The occasion helps us match the emotion, composition and visual direction before you upload photos." />
 
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1340,7 +1396,7 @@ export default function CustomStudio() {
                   type="button"
                   key={group.id}
                   aria-pressed={selected}
-                  onClick={() => { setOccasionGroup(group.id); setOccasion(""); }}
+                  onClick={() => { setOccasionGroup(group.id); setOccasion(""); setDesignStyle(""); }}
                   className={"group overflow-hidden rounded-[20px] border bg-white text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 " + (selected
                     ? "border-accent shadow-[0_16px_38px_rgba(25,22,18,.11)] -translate-y-0.5"
                     : "border-[#ddd7ce] hover:border-[#b8aea2] hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(25,22,18,.08)]")}
@@ -1407,11 +1463,13 @@ export default function CustomStudio() {
           </div>}
 
           {step === 3 && <div>
-            <StepTitle eyebrow="Choose the visual direction" title="PICK A GDP STYLE" text="You choose the vibe. Our designer handles the actual composition." />
+            <StepTitle eyebrow="Build it in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE ARTWORK & CUSTOMIZE"} text={designPath === "occasion" ? "These ready-artwork choices are matched to your story. Choose one, then add your photos below." : designPath === "upload" ? "Upload your print-ready file, adjust its placement and review it directly on the garment." : "Choose a photo-ready layout, then upload and shape the finished design without leaving this workspace."} />
+            {designPath !== "upload" && (designPath !== "occasion" || (occasionGroup && occasion)) && <>
+            {designPath === "occasion" && occasionGroup && <div className="mb-3 text-sm font-semibold text-[#52616F]">Recommended for {activeOccasion?.label}</div>}
             <div className="grid md:grid-cols-2 gap-3">
-              {styleOptions.map((style) => <button key={style.id} onClick={() => chooseStyleTemplate(style)} className={"grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
+              {matchingStyleOptions.map((style) => <button key={style.id} onClick={() => chooseStyleTemplate(style)} className={"grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
                 <div className="min-w-0">
-                  <div className="font-bold">{style.name}</div>
+                  <div className="font-bold">{style.name.replace(/^GDP\s+/, "")}</div>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{style.description}</p>
                   <div className="mt-2 text-[9px] font-mono uppercase tracking-[0.12em] text-[#8a8279]">Photo-ready template</div>
                 </div>
@@ -1420,7 +1478,8 @@ export default function CustomStudio() {
                 </div>
               </button>)}
             </div>
-            <div className="mt-6">
+            </>}
+            {(designPath !== "occasion" || (occasionGroup && occasion)) && <div className="mt-6">
               <label className="font-mono text-xs uppercase text-muted-foreground">Mood</label>
               <p className="mt-1 text-xs leading-relaxed text-[#7d766d]">Mood keeps the selected GDP layout but changes its live color, contrast and atmosphere.</p>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -1429,7 +1488,7 @@ export default function CustomStudio() {
               <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5 text-xs text-[#52616F]">
                 {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} preview:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a mood to apply a live preview treatment.</span>}
               </div>
-            </div>
+            </div>}
           </div>}
 
           {step === 1 && <div>
@@ -1489,7 +1548,7 @@ export default function CustomStudio() {
                       className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
                     >
                       <span
-                        className="h-5 w-5 rounded-full border border-black/15 shadow-inner"
+                        className="h-5 w-5 rounded-full border border-slate-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.75),0_0_0_1px_rgba(15,23,42,0.18)]"
                         style={{ backgroundColor: swatchFor(product, optionColor) }}
                       />
                       {optionColor}
@@ -1567,11 +1626,11 @@ export default function CustomStudio() {
             </>}
           </div>}
 
-          {step === 4 && <div>
-            <StepTitle eyebrow="Your memories" title="UPLOAD YOUR BEST PHOTOS" text={"Upload " + minPhotos + "–" + maxPhotos + " photos. We check resolution before you order so poor source images do not become surprise print problems."} />
+          {step === 3 && <div className="mt-8 border-t border-[#e3ddd4] pt-8">
+            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "–" + maxPhotos + " photos. We check resolution before you order so poor source images do not become surprise print problems."} />
             <label className={"border-2 border-dashed border-border min-h-44 flex flex-col items-center justify-center hover:border-accent " + (uploading ? "cursor-wait opacity-80" : "cursor-pointer")}>
               <Upload size={28}/>
-              <div className="font-bold mt-2">{uploading ? "Optimizing & uploading…" : "Upload photos"}</div>
+              <div className="font-bold mt-2">{uploading ? "Optimizing & uploading…" : designPath === "upload" ? "Upload artwork" : "Upload photos"}</div>
               {uploading && uploadProgress.total > 0 && <div className="font-mono text-xs mt-1">{uploadProgress.done}/{uploadProgress.total} complete · {Math.round((uploadProgress.done / uploadProgress.total) * 100)}%</div>}
               <div className="text-xs text-muted-foreground mt-1">JPG, PNG or WEBP · max {MAX_MB}MB each</div>
               <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploading} onChange={e => uploadFiles(e.target.files)} />
@@ -1586,8 +1645,8 @@ export default function CustomStudio() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#64788A]">Design intensity</div>
-                  <div className="mt-1 font-bold text-[#17324D]">How bold should the finished design feel?</div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#64707C]">Choose the visual density after selecting your photos. 3/5 Balanced is the recommended starting point.</p>
+                  <div className="mt-1 font-bold text-[#17324D]">{designPath === "upload" ? "Confirm the artwork treatment" : "How bold should the finished design feel?"}</div>
+                  <p className="mt-1 text-xs leading-relaxed text-[#64707C]">{designPath === "upload" ? "Choose Clean to preserve a print-ready file without adding visual density." : "Choose the visual density after selecting your photos. 3/5 Balanced is the recommended starting point."}</p>
                 </div>
                 {intensityExamplesEnabled && <button type="button" onClick={() => setShowIntensityExamples(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#C9D4DE] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] hover:border-[#17324D]"><Info size={13}/> View examples</button>}
               </div>
@@ -1609,7 +1668,7 @@ export default function CustomStudio() {
             </div>
           </div>}
 
-          {step === 5 && <div>
+          {step === 4 && <div>
             <StepTitle eyebrow="Make it yours" title="TEXT + STORY" text="Separate printed text from designer notes so instructions never accidentally appear on the shirt." />
             <div className="grid md:grid-cols-2 gap-4">
               <Field label="Main name / headline" value={personalization.name} onChange={v => setPersonalization({...personalization,name:v})} placeholder="BIG MIKE" />
@@ -1623,7 +1682,7 @@ export default function CustomStudio() {
             <TextArea label="Notes for our designer — NOT printed" value={personalization.instructions} onChange={v => setPersonalization({...personalization,instructions:v})} placeholder="Use photo #1 in the center. Make the name large. Keep the overall look vintage." />
           </div>}
 
-          {step === 6 && <div>
+          {step === 5 && <div>
             <StepTitle eyebrow="Set expectations" title="TIMING + DESIGN PROOF" text="We would rather be transparent about timing than promise a date we cannot meet." />
             <div className="grid md:grid-cols-2 gap-4">
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Need it by</label><input type="date" value={needByDate} onChange={e => setNeedByDate(e.target.value)} className="w-full border border-border bg-background px-3 py-2 mt-1"/></div>
@@ -1634,11 +1693,11 @@ export default function CustomStudio() {
             <label className="flex items-start gap-3 mt-3 text-sm"><input type="checkbox" checked={approvalAcknowledged} onChange={e => setApprovalAcknowledged(e.target.checked)} className="mt-1"/><span>I understand production begins after artwork approval and approved artwork cannot be changed after production starts. Customer uploads follow the <Link to="/pages/data-retention" target="_blank" className="font-semibold text-accent hover:underline">retention policy</Link>.</span></label>
           </div>}
 
-          {step === 7 && <div>
+          {step === 6 && <div>
             <StepTitle eyebrow="Final check" title="REVIEW YOUR CUSTOM ORDER" text="Nothing is printed yet. This saves your design and adds the selected garments to your cart." />
             <div className="grid md:grid-cols-2 gap-4">
-              <ReviewCard label="Occasion" value={occasion || "Not selected"} sub={recipientType} />
-              <ReviewCard label="Style" value={designStyle || "Not selected"} sub={designStyle ? `${designMood || "No mood"} · ${designIntensity ? `Intensity ${designIntensity}/5` : "Intensity not selected"}` : ""} />
+              <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={occasion || recipientType} />
+              <ReviewCard label={designPath === "upload" ? "Artwork treatment" : "Artwork"} value={(designStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designStyle ? `${designMood || "No mood"} · ${designIntensity ? `Intensity ${designIntensity}/5` : "Intensity not selected"}` : ""} />
               <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} · ${size || "No size"} · Qty ${qty}` : ""} />
               <ReviewCard
                 label="Print"
