@@ -10,6 +10,7 @@ import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { PASSWORD_POLICY_HINT, validatePassword } from "@/lib/passwordPolicy";
 import { privacyApi } from "@/lib/privacyApi";
+import { signInWithGoogle } from "@/lib/googleAuth";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -17,6 +18,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
@@ -80,6 +82,16 @@ export default function Register() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle(safeReturnTo());
+    } catch (err) {
+      setError(err.message || "Google sign-in could not be started. Please try again.");
+      setGoogleLoading(false);
+    }
+  };
 
   if (confirmationSent) {
     return (
@@ -119,15 +131,27 @@ export default function Register() {
     >
       <Button
         variant="outline"
-        className="w-full h-12 text-sm font-medium mb-2 opacity-60 cursor-not-allowed"
-        disabled
+        className="w-full h-12 text-sm font-medium mb-2"
+        disabled={googleLoading}
         type="button"
+        onClick={handleGoogleSignIn}
       >
-        <GoogleIcon className="w-5 h-5 mr-2" />
-        Google sign-in unavailable
+        {googleLoading ? (
+          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+        ) : (
+          <GoogleIcon className="w-5 h-5 mr-2" />
+        )}
+        {googleLoading ? "Connecting to Google..." : "Continue with Google"}
       </Button>
       <p className="text-xs text-muted-foreground text-center mb-6">
-        Use email and password for now. Google sign-in will return after OAuth setup.
+        By continuing with Google, you agree to the{" "}
+        <Link to="/pages/terms" target="_blank" className="underline hover:text-foreground">
+          Terms & Conditions
+        </Link>{" "}
+        and acknowledge the{" "}
+        <Link to="/pages/privacy" target="_blank" className="underline hover:text-foreground">
+          Privacy Policy
+        </Link>.
       </p>
 
       <div className="relative mb-6">
@@ -221,7 +245,7 @@ export default function Register() {
             </span>
           </label>
         </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
+        <Button type="submit" className="w-full h-12 font-medium" disabled={loading || googleLoading}>
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
