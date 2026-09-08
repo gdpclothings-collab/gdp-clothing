@@ -29,7 +29,6 @@ import {
   X,
   Plus,
   AlertTriangle,
-  Clock3,
   CircleDollarSign,
   Command,
   ShieldCheck,
@@ -82,7 +81,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
   {
-    label: "Commerce",
+    label: "Sell",
     items: [
       { id: "home", label: "Home", icon: LayoutDashboard },
       { id: "orders", label: "Orders", icon: ShoppingBag },
@@ -94,48 +93,36 @@ const NAV_GROUPS = [
       { id: "inventory", label: "Inventory", icon: Boxes },
       { id: "inventory-operations", label: "Locations & transfers", icon: ArrowRightLeft },
       { id: "customers", label: "Customers", icon: Users },
-      { id: "support", label: "Support", icon: LifeBuoy },
       { id: "customer-groups", label: "Segments & tags", icon: UsersRound },
     ],
   },
   {
-    label: "Growth",
+    label: "Produce",
     items: [
-      { id: "growth", label: "Growth", icon: TrendingUp },
+      { id: "production", label: "Production board", icon: Factory },
+      { id: "custom-studio", label: "Custom Studio", icon: Sparkles },
+      { id: "dtf-gang-sheet", label: "DTF Gang Sheets", icon: FileImage },
+      { id: "support", label: "Customer support", icon: LifeBuoy },
+    ],
+  },
+  {
+    label: "Grow",
+    items: [
       { id: "marketing", label: "Marketing", icon: Megaphone },
       { id: "discounts", label: "Discounts", icon: BadgePercent },
       { id: "content", label: "Content", icon: FileText },
       { id: "reviews", label: "Reviews", icon: Star },
       { id: "markets", label: "Markets", icon: Globe2 },
-    ],
-  },
-  {
-    label: "Business",
-    items: [
-      { id: "finance", label: "Finance", icon: WalletCards },
-      { id: "analytics", label: "Analytics", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "GDP Operations",
-    items: [
-      { id: "custom-studio", label: "Custom Studio", icon: Sparkles },
-      { id: "dtf-gang-sheet", label: "DTF Gang Sheets", icon: FileImage },
-      { id: "production", label: "Production", icon: Factory },
-    ],
-  },
-  {
-    label: "Channels",
-    items: [
       { id: "landing-page", label: "Landing page", icon: Palette },
       { id: "online-store", label: "Online Store", icon: Store },
-      { id: "apps", label: "Apps & integrations", icon: Blocks },
     ],
   },
   {
-    label: "Governance",
+    label: "Insights",
     items: [
-      { id: "security", label: "Security & compliance", icon: ShieldCheck },
+      { id: "analytics", label: "Analytics", icon: BarChart3 },
+      { id: "finance", label: "Finance", icon: WalletCards },
+      { id: "growth", label: "Growth opportunities", icon: TrendingUp },
     ],
   },
 ];
@@ -330,7 +317,7 @@ export default function AdminV2() {
   const module = MODULE_COPY[section] || MODULE_COPY.settings;
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] text-[#181818]">
+    <div className="gdp-admin min-h-screen bg-[#f4f5f7] text-[#171717]">
       <AdminTopBar
         user={user}
         onMenu={() => setSidebarOpen(true)}
@@ -635,7 +622,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
   const displayName = user?.display_name || user?.email?.split("@")[0] || "Admin";
 
   return (
-    <header className="sticky top-0 z-40 h-14 bg-[#121212] text-white border-b border-white/10">
+    <header className="sticky top-0 z-40 h-16 bg-[#111214] text-white border-b border-white/10 shadow-sm">
       <div className="h-full px-3 md:px-4 flex items-center gap-3">
         <button
           type="button"
@@ -647,19 +634,19 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
         </button>
 
         <Link to="/admin" className="flex items-center gap-2 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-white text-black grid place-items-center font-black text-xs">
+          <div className="w-8 h-8 rounded-lg bg-[#d7193f] text-white grid place-items-center font-black text-xs shadow-sm shadow-black/30">
             GDP
           </div>
           <div className="hidden sm:block">
             <div className="text-sm font-semibold leading-none">GDP Clothing</div>
-            <div className="text-[10px] text-white/45 mt-1">Commerce Admin</div>
+            <div className="text-xs text-white/70 mt-1">Commerce Admin</div>
           </div>
         </Link>
 
         <button
           type="button"
           onClick={onSearch}
-          className="mx-auto w-full max-w-[590px] h-9 px-3 rounded-lg bg-[#2a2a2a] border border-white/10 hover:bg-[#303030] flex items-center gap-2 text-sm text-white/65"
+          className="mx-auto w-full max-w-[640px] h-10 px-3.5 rounded-xl bg-white/10 border border-white/10 hover:bg-white/15 flex items-center gap-2.5 text-sm text-white/80 transition-colors"
         >
           <Search size={16} />
           <span className="truncate">Search orders, products and customers</span>
@@ -710,7 +697,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
 
 function AdminSidebar({ active, onSelect, className = "", onClose = undefined }) {
   return (
-    <aside className={`${className} flex-col bg-[#efefef] border-r border-[#dadada] w-[250px] shrink-0`}>
+    <aside className={`${className} flex-col bg-white border-r border-[#dedfe3] w-[264px] shrink-0`}>
       <div className="lg:hidden h-14 px-4 border-b border-[#ddd] flex items-center justify-between">
         <div className="font-semibold">GDP Commerce</div>
         <button onClick={onClose} className="p-2 rounded-lg hover:bg-black/5" aria-label="Close navigation">
@@ -718,10 +705,10 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-3 px-2">
+      <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Admin navigation">
         {NAV_GROUPS.map((group) => (
-          <div key={group.label} className="mb-4">
-            <div className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#777]">
+          <div key={group.label} className="mb-5">
+            <div className="px-2.5 mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[#686b72]">
               {group.label}
             </div>
             {group.items.map((item) => {
@@ -732,8 +719,10 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
                   key={item.id}
                   type="button"
                   onClick={() => onSelect(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-left transition ${selected ? "bg-white shadow-sm font-semibold" : "hover:bg-white/60 text-[#404040]"}`}
+                  aria-current={selected ? "page" : undefined}
+                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6] text-[#35373b]"}`}
                 >
+                  {selected && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-[#d7193f]" />}
                   <Icon size={17} strokeWidth={1.8} />
                   <span>{item.label}</span>
                   {selected && <ChevronRight size={14} className="ml-auto text-[#777]" />}
@@ -744,17 +733,20 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
         ))}
       </nav>
 
-      <div className="border-t border-[#dadada] p-2">
+      <div className="border-t border-[#e4e5e8] p-3 space-y-1">
         <button
           type="button"
           onClick={() => onSelect("settings")}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm ${active === "settings" ? "bg-white shadow-sm font-semibold" : "hover:bg-white/60"}`}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "settings" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}
         >
           <Settings size={17} /> Store settings
         </button>
-        <Link to="/admin/legacy" className="mt-1 flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm hover:bg-white/60 text-[#555]">
-          <Clock3 size={17} /> Current admin tools
-        </Link>
+        <button type="button" onClick={() => onSelect("apps")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "apps" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+          <Blocks size={17} /> Apps & integrations
+        </button>
+        <button type="button" onClick={() => onSelect("security")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+          <ShieldCheck size={17} /> Security
+        </button>
       </div>
     </aside>
   );
@@ -1019,12 +1011,12 @@ function ModuleLanding({ module, section, onOpen }) {
 
 function PageHeader({ eyebrow, title, description, actions = null }) {
   return (
-    <div className="border-b border-[#dedede] bg-white">
-      <div className="max-w-[1450px] mx-auto px-4 md:px-6 lg:px-8 py-5 md:py-6 flex flex-col md:flex-row md:items-center gap-4 md:justify-between">
+    <div className="border-b border-[#dedfe3] bg-white">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-7 lg:px-10 py-6 md:py-7 flex flex-col md:flex-row md:items-center gap-4 md:justify-between">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[#777]">{eyebrow}</div>
-          <h1 className="text-2xl font-semibold tracking-tight mt-1">{title}</h1>
-          <p className="text-sm text-[#707070] mt-1">{description}</p>
+          <div className="text-xs uppercase tracking-[0.14em] font-bold text-[#a70f2d]">{eyebrow}</div>
+          <h1 className="text-[28px] md:text-[32px] font-bold tracking-tight mt-1">{title}</h1>
+          <p className="text-base leading-6 text-[#555961] mt-1 max-w-3xl">{description}</p>
         </div>
         {actions}
       </div>

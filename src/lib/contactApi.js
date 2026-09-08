@@ -43,7 +43,7 @@ export const contactApi = {
     return {
       storeName: data?.store_name || "GDP Clothing",
       email: data?.contact_email || "hello@gdpclothing.ca",
-      phone: data?.phone || "",
+      phone: data?.phone || "3068363345",
       address: data?.address || "Saskatoon, Saskatchewan, Canada",
       instagram: data?.instagram || "",
       facebook: data?.facebook || "",

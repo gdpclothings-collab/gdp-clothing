@@ -324,13 +324,6 @@ export default function LandingPageModule() {
     ...current,
     footer: { ...current.footer, ...patch },
   }));
-  const setSocial = (patch) => setForm((current) => ({
-    ...current,
-    footer: {
-      ...current.footer,
-      social: { ...current.footer.social, ...patch },
-    },
-  }));
   const setSeo = (patch) => setForm((current) => ({
     ...current,
     seo: { ...current.seo, ...patch },
@@ -706,8 +699,8 @@ export default function LandingPageModule() {
       </SectionCard>
 
       <SectionCard
-        title="Footer & social links"
-        description="Brand wording and social destinations shown in the customer-facing footer."
+        title="Footer content"
+        description="Brand wording shown in the customer-facing footer. Social destinations are managed store-wide in Settings."
       >
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Tagline"><input value={form.footer.tagline || ""} onChange={(event) => setFooter({ tagline: event.target.value })} className={inputClass} /></Field>
@@ -715,10 +708,8 @@ export default function LandingPageModule() {
           <Field label="Footer description">
             <textarea value={form.footer.description || ""} onChange={(event) => setFooter({ description: event.target.value })} className={textAreaClass} rows={3} />
           </Field>
-          <div className="grid gap-2">
-            <Field label="Instagram URL"><input value={form.footer.social.instagram || ""} onChange={(event) => setSocial({ instagram: event.target.value })} className={inputClass} /></Field>
-            <Field label="YouTube URL"><input value={form.footer.social.youtube || ""} onChange={(event) => setSocial({ youtube: event.target.value })} className={inputClass} /></Field>
-            <Field label="Facebook URL"><input value={form.footer.social.facebook || ""} onChange={(event) => setSocial({ facebook: event.target.value })} className={inputClass} /></Field>
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
+            Instagram, Facebook, TikTok, and YouTube are controlled from <Link to="/admin/settings" className="font-semibold underline">Settings → Brand & social</Link>. Empty channels stay hidden everywhere on the storefront.
           </div>
         </div>
       </SectionCard>

@@ -19,6 +19,7 @@ const ADMIN_CHUNKS = [
   ["ReviewsModule", "admin-reviews"],
   ["DiscountsModule", "admin-discounts"],
   ["CustomStudioAdminModule", "admin-custom-studio"],
+  ["SeasonalProductionDetails", "admin-custom-studio"],
   ["ProductionModule", "admin-production"],
   ["AnalyticsModule", "admin-analytics"],
   ["FinanceModule", "admin-finance"],
@@ -32,6 +33,7 @@ const ADMIN_CHUNKS = [
 
 function manualChunks(id) {
   const normalizedId = id.replaceAll("\\", "/");
+  if (normalizedId.endsWith("/src/lib/seasonalArtwork.js")) return "seasonal-artwork";
 
   if (normalizedId.includes("/node_modules/recharts/") || normalizedId.includes("/node_modules/d3-")) {
     return "vendor-charts";

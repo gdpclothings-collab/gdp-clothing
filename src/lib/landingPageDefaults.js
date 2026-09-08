@@ -191,9 +191,10 @@ export const DEFAULT_LANDING_PAGE = {
     description: "",
     copyrightText: "",
     social: {
-      instagram: "https://www.instagram.com/gdpclothings",
-      youtube: "https://www.youtube.com/@GDPClothingYXE",
-      facebook: "https://www.facebook.com/gdpclothing",
+      instagram: "",
+      facebook: "",
+      tiktok: "",
+      youtube: "",
     },
   },
   seo: {

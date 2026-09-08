@@ -87,6 +87,7 @@ const EMPTY_ADVANCED_FILTERS = {
   fulfillmentStatus: "all",
   designStatus: "all",
   productionStatus: "all",
+  customerType: "all",
   dateFrom: "",
   dateTo: "",
   attentionOnly: false,
@@ -158,6 +159,7 @@ export default function OrdersModule() {
         fulfillmentStatus: advanced.fulfillmentStatus,
         designStatus: advanced.designStatus,
         productionStatus: advanced.productionStatus,
+        customerType: advanced.customerType,
         dateFrom: advanced.dateFrom,
         dateTo: advanced.dateTo,
         attentionOnly: effectiveAttentionOnly,
@@ -201,6 +203,7 @@ export default function OrdersModule() {
     advanced.fulfillmentStatus,
     advanced.designStatus,
     advanced.productionStatus,
+    advanced.customerType,
     advanced.dateFrom,
     advanced.dateTo,
     advanced.attentionOnly,
@@ -602,7 +605,10 @@ export default function OrdersModule() {
                         )}
                       </Td>
                       <Td>
-                        <div className="font-medium">{order.customer_name || "Guest"}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{order.customer_name || "Guest"}</span>
+                          {order.is_guest && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-800">Guest</span>}
+                        </div>
                         <div className="text-[11px] text-[#808080]">{order.customer_email}</div>
                       </Td>
                       <Td>{itemCount(order)}</Td>
@@ -718,7 +724,19 @@ function SummaryCard({ label, value, icon: Icon, active = false, onClick }) {
 function AdvancedFilters({ value, onChange, onClear }) {
   return (
     <div className="border-b border-[#e7e7e7] bg-[#fbfbfb] p-4">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+        <FilterField label="Customer">
+          <select
+            value={value.customerType}
+            onChange={(event) => onChange({ customerType: event.target.value })}
+            className="filter-control"
+          >
+            <option value="all">All customers</option>
+            <option value="guest">Guest checkout</option>
+            <option value="account">Customer account</option>
+          </select>
+        </FilterField>
+
         <FilterField label="Payment">
           <select
             value={value.paymentStatus}
@@ -1067,6 +1085,7 @@ function OrderDrawer({ order, saving, onClose, onSave }) {
           <Section title="Customer">
             <InfoGrid
               rows={[
+                ["Checkout type", order.is_guest ? "Guest checkout" : "Customer account"],
                 ["Name", order.customer_name || "Guest"],
                 ["Email", order.customer_email],
                 ["Phone", order.customer_phone || "—"],

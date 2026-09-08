@@ -62,7 +62,7 @@ export default function ContactPageContent({ page }) {
   const [store, setStore] = useState({
     storeName: "GDP Clothing",
     email: "hello@gdpclothing.ca",
-    phone: "",
+    phone: "3068363345",
     address: "Saskatoon, Saskatchewan, Canada",
   });
   const [form, setForm] = useState({

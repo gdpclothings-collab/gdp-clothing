@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Info } from "lucide-react";
+import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
@@ -86,6 +87,23 @@ const OCCASIONS = [
     options: ["Best Friend","Inside Joke","Funny Shirt","For Myself","Designer's Choice"],
   },
 ];
+
+const DESIGN_PATHS = [
+  { id: "seasonal", label: "Seasonal Designs", description: "Browse ready-made holiday and seasonal artwork.", icon: Sparkles },
+  { id: "bootleg", label: "Photo Bootleg Designs", description: "Choose a photo-ready layout, then build the design in one workspace.", icon: Star },
+  { id: "occasion", label: "Occasion & Story Designs", description: "Start with the story and see artwork matched to the occasion.", icon: Heart },
+  { id: "upload", label: "Upload My Own Artwork", description: "Use print-ready artwork without choosing a template.", icon: Upload },
+];
+
+const OCCASION_STYLE_IDS = {
+  love: ["love-story", "classic-90s", "y2k", "minimal"],
+  family: ["classic-90s", "vintage-wash", "minimal", "designers-choice"],
+  pets: ["pet-legend", "memorial", "minimal", "designers-choice"],
+  sports: ["sports-hype", "classic-90s", "y2k", "vintage-wash"],
+  events: ["classic-90s", "y2k", "vintage-wash", "minimal"],
+  memorial: ["memorial", "vintage-wash", "minimal", "designers-choice"],
+  other: ["classic-90s", "y2k", "vintage-wash", "minimal", "designers-choice"],
+};
 
 const DESIGN_INTENSITY_LEVELS = {
   1: { label: "Clean", description: "Minimal layout with one clear focal point, restrained type and plenty of breathing room." },
@@ -636,12 +654,11 @@ function moodPreviewTreatment(mood) {
   };
 }
 
-const STEPS = ["Garment","Occasion","Style","Photos","Personalize","Timing","Review"];
+const STEPS = ["Garment","Choose Design","Create & Customize","Personalize","Timing","Review"];
 const ORDER_GUIDE_STEPS = [
   { title: "Choose garment", detail: "Pick clothing, color, size, quantity and print placement." },
-  { title: "Tell us the occasion", detail: "Share who or what the custom piece is for." },
-  { title: "Choose your style", detail: "Pick the GDP design direction and mood you want." },
-  { title: "Upload photos", detail: "Add your best-quality photos or artwork references." },
+  { title: "Choose your design", detail: "Select seasonal, photo bootleg, occasion-based or your own artwork." },
+  { title: "Create & customize", detail: "Choose artwork, upload photos and set the visual treatment in one workspace." },
   { title: "Personalize it", detail: "Add names, dates, quotes, numbers and designer notes." },
   { title: "Timing & approval", detail: "Set your needed-by date and confirm artwork permissions." },
   { title: "Review & checkout", detail: "Final-check everything, add to cart and complete checkout." }
@@ -727,9 +744,12 @@ async function uploadWithRetry(file, attempts = 2) {
 
 export default function CustomStudio() {
   const [params] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [step, setStep] = useState(1);
+  const [seasonalMode, setSeasonalMode] = useState(false);
+  const [designPath, setDesignPath] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
   const [occasionGroup, setOccasionGroup] = useState("");
@@ -841,7 +861,7 @@ export default function CustomStudio() {
 
         const colors = productColors(p);
         const requestedColor = String(params.get("color") || "");
-        const initialColor = colors.find((item) => item.toLowerCase() === requestedColor.toLowerCase()) || "";
+        const initialColor = colors.find((item) => item.toLowerCase() === requestedColor.toLowerCase()) || colors[0] || "";
         const sizes = productSizes(p, initialColor);
         const requestedSize = String(params.get("size") || "");
         const initialSize = sizes.find((item) => item.toLowerCase() === requestedSize.toLowerCase()) || "";
@@ -850,6 +870,7 @@ export default function CustomStudio() {
         setColor(initialColor);
         setSize(initialSize);
         setProofRequired(p?.customization?.proofRequired !== false);
+        if (location.state?.seasonalDraft) setSeasonalMode(true);
       } catch (error) {
         if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
       }
@@ -863,9 +884,9 @@ export default function CustomStudio() {
   const chooseProduct = (nextProduct) => {
     if (!nextProduct) return;
     const colors = productColors(nextProduct);
-    const nextColor = color && colors.includes(color) ? color : "";
+    const nextColor = color && colors.includes(color) ? color : colors[0] || "";
     const sizes = productSizes(nextProduct, nextColor);
-    const nextSize = size && sizes.includes(size) ? size : "";
+    const nextSize = size && sizes.includes(size) ? size : (seasonalMode ? sizes[0] || "" : "");
     setProduct(nextProduct);
     setGarment(garmentFromProduct(nextProduct));
     setColor(nextColor);
@@ -879,6 +900,12 @@ export default function CustomStudio() {
       setArtworkStates(defaultArtworkStates());
     }
     setPreviewSide("front");
+  };
+
+  const chooseColor = (nextColor) => {
+    setColor(nextColor);
+    const sizes = productSizes(product, nextColor);
+    if (!sizes.includes(size)) setSize(seasonalMode ? sizes[0] || "" : "");
   };
 
   const config = product?.customization || {};
@@ -901,6 +928,11 @@ export default function CustomStudio() {
   const styleOptions = configuredStyleOptions.length
     ? configuredStyleOptions
     : styleTemplates.filter((style) => style.enabled);
+  const matchingStyleOptions = designPath === "occasion" && occasionGroup
+    ? styleOptions.filter((style) => (OCCASION_STYLE_IDS[occasionGroup] || []).includes(style.id))
+    : designPath === "bootleg"
+      ? styleOptions.filter((style) => ["classic-90s", "y2k", "vintage-wash", "sports-hype", "love-story", "pet-legend", "minimal"].includes(style.id))
+      : styleOptions;
   const chooseStyleTemplate = (style) => {
     if (!style) return;
     setDesignStyle(style.name);
@@ -1063,10 +1095,12 @@ export default function CustomStudio() {
 
   const canContinue = () => {
     if (step === 1) return Boolean(product) && Boolean(color) && Boolean(size) && selectedAvailable;
-    if (step === 2) return Boolean(occasionGroup) && Boolean(occasion);
-    if (step === 3) return Boolean(designStyle) && Boolean(designMood);
-    if (step === 4) return photos.length >= minPhotos && Boolean(designIntensity);
-    if (step === 6) return rightsConfirmed && approvalAcknowledged;
+    if (step === 2) return Boolean(designPath);
+    if (step === 3) {
+      if (designPath === "occasion" && (!occasionGroup || !occasion)) return false;
+      return Boolean(designStyle) && Boolean(designMood) && photos.length >= minPhotos && Boolean(designIntensity);
+    }
+    if (step === 5) return rightsConfirmed && approvalAcknowledged;
     return true;
   };
 
@@ -1080,8 +1114,8 @@ export default function CustomStudio() {
       setWarn("Choose a color and size before adding your custom design to cart.");
       return;
     }
-    if (!occasion || !designStyle || !designMood || !designIntensity) {
-      setWarn("Complete the occasion, GDP style, mood and design intensity before adding to cart.");
+    if (!designPath || !designStyle || !designMood || !designIntensity || (designPath === "occasion" && !occasion)) {
+      setWarn("Complete the design path, artwork, mood and design intensity before adding to cart.");
       return;
     }
     if (product?.variants?.length && !selectedAvailable) {
@@ -1109,6 +1143,7 @@ export default function CustomStudio() {
         productName: product?.name || garment.label,
         name: personalization.name || (occasion + " Custom Design"),
         designStyle,
+        designPath,
         photos: photos.map(p => p.url),
         photoAssets: photos,
         personalization: {
@@ -1142,7 +1177,7 @@ export default function CustomStudio() {
         color,
         size,
         previewUrl: photos[primaryIndex]?.url || "",
-        occasion,
+        occasion: occasion || designPath,
         recipientType,
         designMood,
         story,
@@ -1165,9 +1200,11 @@ export default function CustomStudio() {
         image: product?.images?.[0] || photos[primaryIndex]?.url || "",
         isCustom: true,
         customDesignId: design.id,
+        ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
         fulfillmentMode: product?.fulfillmentMode || "in_house",
         designStyle,
-        occasion,
+        designPath,
+        occasion: occasion || designPath,
         needByDate,
         priority,
         proofRequired
@@ -1203,6 +1240,16 @@ export default function CustomStudio() {
   }
 
   const activeOccasion = OCCASIONS.find(group => group.id === occasionGroup) || null;
+
+  if (seasonalMode && product && color && size) return <SeasonalStudio
+    product={product} garment={garment} color={color} size={size} variant={selectedVariant}
+    quantity={qty} unitPrice={Number(selectedVariant?.price ?? product.price ?? 0)} Preview={StudioPreview}
+    catalog={catalog} availableColors={availableColors} availableSizes={availableSizes}
+    onProductChange={chooseProduct} onColorChange={chooseColor} onSizeChange={setSize}
+    colorSwatch={(value) => swatchFor(product, value)} priceVisibility={priceVisibility}
+    initialDraft={location.state?.seasonalDraft || null} editCartKey={location.state?.editCartKey || ""}
+    onBack={() => {setSeasonalMode(false);setStep(1);window.scrollTo({top:0,behavior:'instant'});}} />;
+
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
@@ -1265,7 +1312,7 @@ export default function CustomStudio() {
 
             {showOrderGuide && <div className="border-t border-[#ebe5dc]">
               <div className="overflow-x-auto">
-                <div className="grid min-w-[1120px] grid-cols-7 divide-x divide-[#e4ddd3]">
+                <div className="grid min-w-[960px] grid-cols-6 divide-x divide-[#e4ddd3]">
                   {ORDER_GUIDE_STEPS.map((guide, index) => {
                     const number = index + 1;
                     const active = number === step;
@@ -1302,6 +1349,43 @@ export default function CustomStudio() {
         <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
           <section className="bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
           {step === 2 && <div>
+            <StepTitle eyebrow="Start your design" title="CHOOSE YOUR DESIGN PATH" text="Choose the kind of design you want. You will customize everything in the next workspace." />
+            <div className="grid sm:grid-cols-2 gap-4">
+              {DESIGN_PATHS.map((path) => {
+                const Icon = path.icon;
+                const unavailable = path.id === "seasonal" && (placement !== "front" || groupGarments.length > 0);
+                return <button
+                  key={path.id}
+                  type="button"
+                  disabled={unavailable}
+                  aria-pressed={designPath === path.id}
+                  onClick={() => {
+                    setDesignPath(path.id);
+                    if (path.id === "seasonal") { setSeasonalMode(true); return; }
+                    if (path.id === "upload") {
+                      const ownArtworkTemplate = styleOptions.find((style) => style.id === "designers-choice") || styleOptions[0];
+                      chooseStyleTemplate(ownArtworkTemplate);
+                      setDesignMood("Designer's choice");
+                      setDesignIntensity(1);
+                    } else if (path.id === "occasion") {
+                      setDesignStyle("");
+                    } else if (path.id === "bootleg") {
+                      setOccasionGroup("");
+                      setOccasion("");
+                    }
+                  }}
+                  className={"rounded-[20px] border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 " + (designPath === path.id ? "border-accent bg-accent/[0.055] shadow-sm" : "border-[#ddd7ce] bg-white hover:border-accent hover:-translate-y-0.5")}
+                >
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-[#F1F5F8] text-[#17324D]"><Icon size={20}/></span>
+                  <div className="mt-4 text-lg font-extrabold">{path.label}</div>
+                  <p className="mt-1 text-sm leading-relaxed text-[#6b645c]">{path.description}</p>
+                  <div className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-accent">{designPath === path.id ? "Selected" : "Choose this path"} <ArrowRight size={13} className="inline"/></div>
+                </button>;
+              })}
+            </div>
+            {placement !== "front" || groupGarments.length > 0 ? <p className="mt-4 text-sm text-[#706960]">Seasonal designs require front-only printing with no additional garment rows.</p> : null}
+          </div>}
+          {step === 3 && designPath === "occasion" && <div className="mb-8">
             <StepTitle eyebrow="Start with the reason" title="WHAT ARE YOU MAKING?" text="Choose the story first. The occasion helps us match the emotion, composition and visual direction before you upload photos." />
 
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1312,7 +1396,7 @@ export default function CustomStudio() {
                   type="button"
                   key={group.id}
                   aria-pressed={selected}
-                  onClick={() => { setOccasionGroup(group.id); setOccasion(""); }}
+                  onClick={() => { setOccasionGroup(group.id); setOccasion(""); setDesignStyle(""); }}
                   className={"group overflow-hidden rounded-[20px] border bg-white text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 " + (selected
                     ? "border-accent shadow-[0_16px_38px_rgba(25,22,18,.11)] -translate-y-0.5"
                     : "border-[#ddd7ce] hover:border-[#b8aea2] hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(25,22,18,.08)]")}
@@ -1379,11 +1463,13 @@ export default function CustomStudio() {
           </div>}
 
           {step === 3 && <div>
-            <StepTitle eyebrow="Choose the visual direction" title="PICK A GDP STYLE" text="You choose the vibe. Our designer handles the actual composition." />
+            <StepTitle eyebrow="Build it in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE ARTWORK & CUSTOMIZE"} text={designPath === "occasion" ? "These ready-artwork choices are matched to your story. Choose one, then add your photos below." : designPath === "upload" ? "Upload your print-ready file, adjust its placement and review it directly on the garment." : "Choose a photo-ready layout, then upload and shape the finished design without leaving this workspace."} />
+            {designPath !== "upload" && (designPath !== "occasion" || (occasionGroup && occasion)) && <>
+            {designPath === "occasion" && occasionGroup && <div className="mb-3 text-sm font-semibold text-[#52616F]">Recommended for {activeOccasion?.label}</div>}
             <div className="grid md:grid-cols-2 gap-3">
-              {styleOptions.map((style) => <button key={style.id} onClick={() => chooseStyleTemplate(style)} className={"grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
+              {matchingStyleOptions.map((style) => <button key={style.id} onClick={() => chooseStyleTemplate(style)} className={"grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
                 <div className="min-w-0">
-                  <div className="font-bold">{style.name}</div>
+                  <div className="font-bold">{style.name.replace(/^GDP\s+/, "")}</div>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{style.description}</p>
                   <div className="mt-2 text-[9px] font-mono uppercase tracking-[0.12em] text-[#8a8279]">Photo-ready template</div>
                 </div>
@@ -1392,7 +1478,8 @@ export default function CustomStudio() {
                 </div>
               </button>)}
             </div>
-            <div className="mt-6">
+            </>}
+            {(designPath !== "occasion" || (occasionGroup && occasion)) && <div className="mt-6">
               <label className="font-mono text-xs uppercase text-muted-foreground">Mood</label>
               <p className="mt-1 text-xs leading-relaxed text-[#7d766d]">Mood keeps the selected GDP layout but changes its live color, contrast and atmosphere.</p>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -1401,7 +1488,7 @@ export default function CustomStudio() {
               <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5 text-xs text-[#52616F]">
                 {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} preview:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a mood to apply a live preview treatment.</span>}
               </div>
-            </div>
+            </div>}
           </div>}
 
           {step === 1 && <div>
@@ -1457,11 +1544,11 @@ export default function CustomStudio() {
                     <button
                       type="button"
                       key={optionColor}
-                      onClick={() => setColor(optionColor)}
+                      onClick={() => chooseColor(optionColor)}
                       className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
                     >
                       <span
-                        className="h-5 w-5 rounded-full border border-black/15 shadow-inner"
+                        className="h-5 w-5 rounded-full border border-slate-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.75),0_0_0_1px_rgba(15,23,42,0.18)]"
                         style={{ backgroundColor: swatchFor(product, optionColor) }}
                       />
                       {optionColor}
@@ -1471,15 +1558,824 @@ export default function CustomStudio() {
               </div>
 
               <div className="grid md:grid-cols-[1fr_auto] gap-5 mt-6 items-start">
-              #µêÚ$z{-®éÜj×˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´Ø‰œµÍ•½¹‘…ÉäÀ´Ô™±•à¥Ñ•µÌµ•¹©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´Ðˆøñ‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµáÌÕÁÁ•É…Í”Ñ•áÐµµÕÑ•µ™½É•É½Õ¹ˆùÍÑ¥µ…Ñ•ÕÍÑ½´ÍÕ‰Ñ½Ñ…°ð½‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµáÌÑ•áÐµµÕÑ•µ™½É•É½Õ¹µÐ´Äˆù	•™½É”…ÉÐ‘¥Í½Õ¹ÑÌ°Í¡¥ÁÁ¥¹œ°Ñ…à½È½ÕÁ½¸¸ð½‘¥Øøð½‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµ‘¥ÍÁ±…äÑ•áÐ´Ñá°ˆùìˆˆ€¬•ÍÑ¥µ…Ñ•‘MÕ‰Ñ½Ñ…°¹Ñ½¥á• È¥ôð½‘¥Øøð½‘¥Øùô(€€€€€€€€€€€€ñ‰ÕÑÑ½¸½¹±¥¬õíÉ•…Ñ•¹‘‘‘ô‘¥Í…‰±•õíÍ…Ù¥¹œñð€…É¥¡ÑÍ½¹™¥Éµ•ñð€……ÁÁÉ½Ù…±­¹½Ý±•‘•‘ô±…ÍÍ9…µ”ô‰Üµ™Õ±°µÐ´Ô‰œµ…•¹ÐÑ•áÐµ…•¹Ðµ™½É•É½Õ¹Áä´Ð™½¹Ðµ‰½±ÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”‘¥Í…‰±•é½Á…¥Ñä´ÔÀˆùíÍ…Ù¥¹œ€ü€‰M…Ù¥¹œÕÍÑ½´‘•Í¥»Š˜ˆ€è€‰‘ÕÍÑ½´=É‘•ÈÑ¼…ÉÐƒŠH‰ôð½‰ÕÑÑ½¸ø(€€€€€€€€€€ð½‘¥Øùô(€€€€€€€€ð½Í•Ñ¥½¸ø((€€€€€€€€€€ñ…Í¥‘”±…ÍÍ9…µ”ô‰ µ™¥Ð±œéÍÑ¥­ä±œéÑ½À´ÈÐÍÁ…”µä´Ðˆø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰½Ù•É™±½Üµ¡¥‘‘•¸É½Õ¹‘•µlÈÑÁát‰½É‘•È‰½É‘•Èµl‘Õ…t‰œµÝ¡¥Ñ”Í¡…‘½ÜµlÁ|ÄáÁá|ÔÕÁá}É‰„ ÈÔ°ÈÈ°Äà°¸ÀàÔ¥tˆø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´ÌÁà´ÐÁä´Ì¸Ô‰½É‘•Èµˆ‰½É‘•Èµl•‰”Õ‘t‰œµltˆø(€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlÄÁÁátÍ´éÑ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸Äá•µtÑ•áÐµ…•¹Ðˆù1¥Ù”…Éµ•¹ÐÁÉ•Ù¥•Üð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµÍ´™½¹ÐµÍ•µ¥‰½±µÐ´À¸ÔÑ•áÐµlŒÈÔÈÌÅ™tˆùíÁÉ½‘ÕÐü¹¹…µ”ñð€‰¡½½Í”„…Éµ•¹Ð‰ôð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑÕ±±ÍÉ••¹AÉ•Ù¥•Ü¡ÑÉÕ”¥ô±…ÍÍ9…µ”ô‰ ´äÜ´äÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµl‘‘Ùt‰œµÝ¡¥Ñ”Ñ•áÐµlŒÕÔàÔÅt¡½Ù•Èé‰½É‘•Èµ…•¹Ð¡½Ù•ÈéÑ•áÐµ…•¹Ðˆ…É¥„µ±…‰•°ô‰=Á•¸™Õ±°ÍÉ••¸ÁÉ•Ù¥•Üˆøñ5…á¥µ¥é”ÈÍ¥é”õìÄÕô€¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€ñMÑÕ‘¥½AÉ•Ù¥•Ü(€€€€€€€€€€€€€€€…Éµ•¹Ðõí…Éµ•¹Ñô(€€€€€€€€€€€€€€€½±½ÈõíÁÉ•Ù¥•Ý½±½Éô(€€€€€€€€€€€€€€€Í¥‘”õíÁÉ•Ù¥•ÝM¥‘•ô(€€€€€€€€€€€€€€€Á±…•µ•¹ÐõíÁ±…•µ•¹Ñô(€€€€€€€€€€€€€€€Á¡½Ñ¼õíÁÉ•Ù¥•ÝÉÑÝ½É­A¡½Ñ½ô(€€€€€€€€€€€€€€€ÕÁ±½…‘¥¹œõíÕÁ±½…‘¥¹ô(€€€€€€€€€€€€€€€Á•ÉÍ½¹…±¥é…Ñ¥½¸õíÁ•ÉÍ½¹…±¥é…Ñ¥½¹ô(€€€€€€€€€€€€€€€é½½´õíÁÉ•Ù¥•Ýi½½µô(€€€€€€€€€€€€€€€Í•Ñi½½´õíÍ•ÑAÉ•Ù¥•Ýi½½µô(€€€€€€€€€€€€€€€…ÉÑÝ½É­M…±”õí…ÉÑÝ½É­M…±•ô(€€€€€€€€€€€€€€€…ÉÑÝ½É­I½Ñ…Ñ¥½¸õí…ÉÑÝ½É­I½Ñ…Ñ¥½¹ô(€€€€€€€€€€€€€€€…ÉÑÝ½É­=™™Í•Ðõí…ÉÑÝ½É­=™™Í•Ñô(€€€€€€€€€€€€€€€Í•ÑÉÑÝ½É­=™™Í•ÐõíÍ•ÑÉÑÝ½É­=™™Í•Ñô(€€€€€€€€€€€€€€€…ÉÑÝ½É­¥Ñ5½‘”õí…ÉÑÝ½É­¥Ñ5½‘•ô(€€€€€€€€€€€€€€€Í¡½ÝÕ¥‘•ÌõíÍ¡½ÝÕ¥‘•Íô(€€€€€€€€€€€€€€€Í¡½Ý5•…ÍÕÉ•µ•¹ÑÌõíÍ¡½Ý5•…ÍÕÉ•µ•¹ÑÍô(€€€€€€€€€€€€€€€Í¥é”õíÍ¥é•ô(€€€€€€€€€€€€€€€ÁÉ•Ù¥•Ý½¹™¥œõí½¹™¥œ¹ÁÉ•Ù¥•Üñðíõô(€€€€€€€€€€€€€€€ÍÑå±•Q•µÁ±…Ñ”õí…Ñ¥Ù•MÑå±•Q•µÁ±…Ñ•ô(€€€€€€€€€€€€€€€µ½½õí‘•Í¥¹5½½‘ô(€€€€€€€€€€€€€€¼ø((€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰À´Ð‰½É‘•ÈµÐ‰½É‘•Èµl•‰”Õ‘t‰œµltˆø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´Èˆø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•àÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµl‘‘Ùt‰œµl˜Õ˜Á”åtÀ´Äˆø(€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑAÉ•Ù¥•ÝM¥‘” ‰™É½¹Ðˆ¥ô±…ÍÍ9…µ”õì‰É½Õ¹‘•µ±œÁà´ÌÁä´Ä¸ÔÑ•áÐµlÄÅÁát™½¹Ðµ‰½±ÕÁÁ•É…Í”€ˆ€¬€¡ÁÉ•Ù¥•ÝM¥‘”€ôôô€‰™É½¹Ðˆ€ü€‰‰œµlŒÄÜÌÈÑtÑ•áÐµÝ¡¥Ñ”ˆ€è€‰Ñ•áÐµlŒÜÔÙ˜ØÝtˆ¥ôùÉ½¹Ðð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑAÉ•Ù¥•ÝM¥‘” ‰‰…¬ˆ¥ô±…ÍÍ9…µ”õì‰É½Õ¹‘•µ±œÁà´ÌÁä´Ä¸ÔÑ•áÐµlÄÅÁát™½¹Ðµ‰½±ÕÁÁ•É…Í”€ˆ€¬€¡ÁÉ•Ù¥•ÝM¥‘”€ôôô€‰‰…¬ˆ€ü€‰‰œµlŒÄÜÌÈÑtÑ•áÐµÝ¡¥Ñ”ˆ€è€‰Ñ•áÐµlŒÜÔÙ˜ØÝtˆ¥ôù	…¬ð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Äˆø(€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑAÉ•Ù¥•Ýi½½´¡Ø€ôø±…µÁAÉ•Ù¥•Ü¡Ø€´€¸Ä¤¥ô±…ÍÍ9…µ”ô‰ ´àÜ´àÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µ±œ‰½É‘•È‰½É‘•Èµl‘‘Ùtˆ…É¥„µ±…‰•°ô‰i½½´½ÕÐˆøñi½½µ=ÕÐÍ¥é”õìÄÑô€¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ü´ÄÀÑ•áÐµ•¹Ñ•È™½¹Ðµµ½¹¼Ñ•áÐµlÄÁÁátÑ•áÐµlŒÜÐÙ”ØÙtˆùí5…Ñ ¹É½Õ¹¡ÁÉ•Ù¥•Ýi½½´€¨€ÄÀÀ¥ô”ð½ÍÁ…¸ø(€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑAÉ•Ù¥•Ýi½½´¡Ø€ôø±…µÁAÉ•Ù¥•Ü¡Ø€¬€¸Ä¤¥ô±…ÍÍ9…µ”ô‰ ´àÜ´àÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µ±œ‰½É‘•È‰½É‘•Èµl‘‘Ùtˆ…É¥„µ±…‰•°ô‰i½½´¥¸ˆøñi½½µ%¸Í¥é”õìÄÑô€¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€íÁÉ•Ù¥•ÝÉÑÝ½É­A¡½Ñ¼€˜˜…Ñ¥Ù•M¥‘•!…ÍAÉ¥¹Ð€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÐÍÁ…”µä´Ìˆø(€€€€€€€€€€€€€€€€€íÁ¡½Ñ½Ì¹±•¹Ñ €ø€Ä€˜˜€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”Ñ•áÐµlŒÜÔÙ˜ØÝtˆùÉÑÝ½É¬Á¡½Ñ¼ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€ñÍ•±•Ð(€€€€€€€€€€€€€€€€€€€€€Ù…±Õ”õí9Õµ‰•È¡…Ñ¥Ù•ÉÑÝ½É­MÑ…Ñ”¹Í½ÕÉ•A¡½Ñ½%¹‘•àñð€À¥ô(€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÍ•ÑÉÑÝ½É­M½ÕÉ•A¡½Ñ½%¹‘•à¡9Õµ‰•È¡”¹Ñ…É•Ð¹Ù…±Õ”¤¥ô(€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰µÐ´ÄÜµ™Õ±°É½Õ¹‘•µ±œ‰½É‘•È‰½É‘•ÈµlÍt‰œµÝ¡¥Ñ”Áà´È¸ÔÁä´ÈÑ•áÐµáÌÑ•áÐµlŒÐÐÔÄÕtˆ(€€€€€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€€€€íÁ¡½Ñ½Ì¹µ…À ¡Á¡½Ñ¼°¥¹‘•à¤€ôø€ñ½ÁÑ¥½¸­•äõíÁ¡½Ñ¼¹ÕÉ°ñð¥¹‘•áôÙ…±Õ”õí¥¹‘•áôùí¥¹‘•à€¬€Åô¸íÁ¡½Ñ¼¹¹…µ”ñð€‰UÁ±½…‘•Á¡½Ñ¼‰ôð½½ÁÑ¥½¸ø¥ô(€€€€€€€€€€€€€€€€€€€€ð½Í•±•Ðø(€€€€€€€€€€€€€€€€€€ð½‘¥Øùô(€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à©ÕÍÑ¥™äµ‰•ÑÝ••¸™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”Ñ•áÐµlŒÜÔÙ˜ØÝtˆøñÍÁ…¸ù•Í¥¸Í¥é”ð½ÍÁ…¸øñÍÁ…¸ùí…ÉÑÝ½É­M…±•ô”ð½ÍÁ…¸øð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐÑåÁ”ô‰É…¹”ˆµ¥¸ôˆÔÔˆµ…àôˆÄÐÔˆÙ…±Õ”õí…ÉÑÝ½É­M…±•ô½¹¡…¹”õí”€ôøÍ•ÑÉÑÝ½É­M…±”¡9Õµ‰•È¡”¹Ñ…É•Ð¹Ù…±Õ”¤¥ô±…ÍÍ9…µ”ô‰Üµ™Õ±°…•¹ÐµlŒÄÜÌÈÑtˆ€¼ø(€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´È¥¹±¥¹”µ™±•àÉ½Õ¹‘•µ±œ‰½É‘•È‰½É‘•ÈµlÍt‰œµlÑÝtÀ´Äˆø(€€€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑÉÑÝ½É­¥Ñ5½‘” ‰™¥Ðˆ¥ô±…ÍÍ9…µ”õì‰É½Õ¹‘•µµÁà´ÌÁä´Ä¸ÔÑ•áÐµlÄÁÁát™½¹Ðµ‰½±ÕÁÁ•É…Í”€ˆ€¬€¡…ÉÑÝ½É­¥Ñ5½‘”€ôôô€‰™¥Ðˆ€ü€‰‰œµlŒÄÜÌÈÑtÑ•áÐµÝ¡¥Ñ”ˆ€è€‰Ñ•áÐµlŒØÐÜÀÝtˆ¥ôù¥Ðƒ
-Ü¹¼É½Àð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑÉÑÝ½É­¥Ñ5½‘” ‰É½Àˆ¥ô±…ÍÍ9…µ”õì‰É½Õ¹‘•µµÁà´ÌÁä´Ä¸ÔÑ•áÐµlÄÁÁát™½¹Ðµ‰½±ÕÁÁ•É…Í”€ˆ€¬€¡…ÉÑÝ½É­¥Ñ5½‘”€ôôô€‰É½Àˆ€ü€‰‰œµlŒÄÜÌÈÑtÑ•áÐµÝ¡¥Ñ”ˆ€è€‰Ñ•áÐµlŒØÐÜÀÝtˆ¥ôùÉ½ÀÑ¼™¥±°ð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€í…ÉÑÝ½É­¥Ñ5½‘”€ôôô€‰É½Àˆ€˜˜€ñÀ±…ÍÍ9…µ”ô‰µÐ´ÈÑ•áÐµlÄÁÁát±•…‘¥¹œµÉ•±…á•Ñ•áÐµlŒáÕÐátˆùÉ½ÀÑ¼¥±°¥¹Ñ•¹Ñ¥½¹…±±äÑÉ¥µÌ¥µ…”•‘•ÌÑ¼™¥±°Ñ¡”…ÉÑÝ½É¬‰½à¸UÍ”¥Ðƒ
-Ü9¼É½ÀÑ¼­••ÀÑ¡”½µÁ±•Ñ”¥µ…”Ù¥Í¥‰±”¸ð½Àùô(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à©ÕÍÑ¥™äµ‰•ÑÝ••¸™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”Ñ•áÐµlŒÜÔÙ˜ØÝtˆøñÍÁ…¸ùI½Ñ…Ñ¥½¸ð½ÍÁ…¸øñÍÁ…¸ùí…ÉÑÝ½É­I½Ñ…Ñ¥½¹÷
-Àð½ÍÁ…¸øð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐÑåÁ”ô‰É…¹”ˆµ¥¸ôˆ´ÄÈˆµ…àôˆÄÈˆÙ…±Õ”õí…ÉÑÝ½É­I½Ñ…Ñ¥½¹ô½¹¡…¹”õí”€ôøÍ•ÑÉÑÝ½É­I½Ñ…Ñ¥½¸¡9Õµ‰•È¡”¹Ñ…É•Ð¹Ù…±Õ”¤¥ô±…ÍÍ9…µ”ô‰Üµ™Õ±°…•¹ÐµläÈÜÍ•tˆ€¼ø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øùô((€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´Ì™±•à™±•àµÝÉ…À¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´Èˆø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à™±•àµÝÉ…À¥Ñ•µÌµ•¹Ñ•È…Àµà´Ð…Àµä´Èˆø(€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑM¡½ÝÕ¥‘•Ì¡Ø€ôø€…Ø¥ô±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´Ä¸ÔÑ•áÐµlÄÅÁátÍ´éÑ•áÐµlÄÁÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµlŒÜÀÙ„ØÉt¡½Ù•ÈéÑ•áÐµ…•¹Ðˆøñå”Í¥é”õìÄÍô€¼øíÍ¡½ÝÕ¥‘•Ì€ü€‰!¥‘”ÁÉ¥¹ÐÕ¥‘”ˆ€è€‰M¡½ÜÁÉ¥¹ÐÕ¥‘”‰ôð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑM¡½Ý5•…ÍÕÉ•µ•¹ÑÌ¡Ø€ôø€…Ø¥ô±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´Ä¸ÔÑ•áÐµlÄÅÁátÍ´éÑ•áÐµlÄÁÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµlŒÜÀÙ„ØÉt¡½Ù•ÈéÑ•áÐµ…•¹ÐˆøñIÕ±•ÈÍ¥é”õìÄÍô€¼øíÍ¡½Ý5•…ÍÕÉ•µ•¹ÑÌ€ü€‰!¥‘”µ•…ÍÕÉ•µ•¹ÑÌˆ€è€‰M¡½Üµ•…ÍÕÉ•µ•¹ÑÌ‰ôð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õíÉ•Í•ÑAÉ•Ù¥•ÝA±…•µ•¹Ñô±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´Ä¸ÔÑ•áÐµlÄÅÁátÍ´éÑ•áÐµlÄÁÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµlŒÜÀÙ„ØÉt¡½Ù•ÈéÑ•áÐµ…•¹ÐˆøñI½Ñ…Ñ•ÜÍ¥é”õìÄÍô€¼øI•Í•Ðð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µÐ´ÈÑ•áÐµlÄÁÁát™½¹Ðµµ½¹¼ÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒá˜ààÝ™tˆùI•½µµ•¹‘•ÁÉ¥¹Ðé½¹”ÕÁ‘…Ñ•Ì…™Ñ•Èå½Ô¡½½Í”„…Éµ•¹Ð…¹Í¥é”¸ð½Àø(€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µÐ´ÈÑ•áÐµlÄÅÁátÍ´éÑ•áÐµlÄÁÁát±•…‘¥¹œµÉ•±…á•Ñ•áÐµlŒÝÜØÙ‘tˆùÉÑÝ½É¬½¹ÑÉ½±Ì…Ñ¥Ù…Ñ”…™Ñ•Èå½Ô¡½½Í”„@ÍÑå±”…¹ÕÁ±½…„Á¡½Ñ¼¸9½Ñ¡¥¹œ¥Ì…ÁÁ±¥•…ÕÑ½µ…Ñ¥…±±ä¸ð½Àø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É½Õ¹‘•µlÈÉÁát‰½É‘•È‰½É‘•Èµl‘‘Ùt‰œµlŒÄÜÈÄÉ	tÑ•áÐµÝ¡¥Ñ”À´ÔÍ¡…‘½ÜµlÁ|ÄÑÁá|ÐÁÁá}É‰„ ÈÀ°Äà°ÄØ°¸ÄÄ¥tˆø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸É•µtÑ•áÐµÝ¡¥Ñ”¼ÐÔˆùe½ÕÈ½É‘•Èð½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµ‘¥ÍÁ±…äÑ•áÐ´Íá°µÐ´Èˆùí½…Í¥½¸ñð€‰	Õ¥±å½ÕÈ½É‘•È‰ôð½‘¥Øø(€€€€€€€€€€€€€€ñMÕµµ…ÉåI½Ü±…‰•°ô‰MÑå±”ˆÙ…±Õ”õí‘•Í¥¹MÑå±”€ü‘•Í¥¹MÑå±”¹É•Á±…” ‰@€ˆ°ˆˆ¤€è€‰9½ÐÍ•±•Ñ•‰ô€¼ø(€€€€€€€€€€€€€€ñMÕµµ…ÉåI½Ü±…‰•°ô‰…Éµ•¹ÐˆÙ…±Õ”õíÁÉ½‘ÕÐü¹¹…µ”ñð€‰9½ÐÍ•±•Ñ•‰ô€¼ø(€€€€€€€€€€€€€€ñMÕµµ…ÉåI½Ü±…‰•°ô‰M¥é”€¼½±½ÈˆÙ…±Õ”õíÍ¥é”€˜˜½±½È€ü€‘íÍ¥é•ô€¼€‘í½±½Éõ€€è€‰9½ÐÍ•±•Ñ•‰ô€¼ø(€€€€€€€€€€€€€€ñMÕµµ…ÉåI½Ü±…‰•°ô‰A¡½Ñ½ÌˆÙ…±Õ”õíÁ¡½Ñ½Ì¹±•¹Ñ €¬€ˆ¼ˆ€¬µ…áA¡½Ñ½Íô€¼ø(€€€€€€€€€€€€€€ñMÕµµ…ÉåI½Ü±…‰•°ô‰Q½Ñ…°Í¡¥ÉÑÌˆÙ…±Õ”õíÑ½Ñ…±U¹¥ÑÍô€¼ø(€€€€€€€€€€€€€€ñMÕµµ…ÉåI½Ü±…‰•°ô‰AÉ½½˜ˆÙ…±Õ”õíÁÉ½½™I•ÅÕ¥É•€ü€‰	•™½É”ÁÉ¥¹Ðˆ€è€‰M­¥ÁÁ•‰ô€¼ø(€€€€€€€€€€€€€íÍ¡½Ý=É‘•ÉAÉ¥”€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰‰½É‘•ÈµÐ‰½É‘•ÈµÝ¡¥Ñ”¼ÄÔµÐ´ÔÁÐ´Ð™±•à©ÕÍÑ¥™äµ‰•ÑÝ••¸¥Ñ•µÌµ•¹ˆøñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áÐµlÄÁÁátÕÁÁ•É…Í”™½¹Ðµµ½¹¼Ñ•áÐµÝ¡¥Ñ”¼ÐÔˆùíÁÉ¥•Y¥Í¥‰¥±¥Ñä€ôôô€‰Ñ½Ñ…°ˆ€ü€‰ÍÑ¥µ…Ñ•ÍÕ‰Ñ½Ñ…°ˆ€è€‰U¹¥ÐÁÉ¥”‰ôð½ÍÁ…¸øñÍÁ…¸±…ÍÍ9…µ”ô‰™½¹Ðµ‘¥ÍÁ±…äÑ•áÐ´Íá°ˆùìˆˆ€¬€¡ÁÉ¥•Y¥Í¥‰¥±¥Ñä€ôôô€‰Ñ½Ñ…°ˆ€ü•ÍÑ¥µ…Ñ•‘MÕ‰Ñ½Ñ…°€èÕ¹¥ÑAÉ¥”¤¹Ñ½¥á• È¥ôð½ÍÁ…¸øð½‘¥Øùô(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€ð½…Í¥‘”ø(€€€€€€ð½‘¥Øø((€€€€€€€€ñ‘¥ØÉ•˜õíµ½‰¥±•¹‘I•™ô±…ÍÍ9…µ”ô‰µÐ´Ø™±•à©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´ÌÁˆ´àµéÁˆ´Àˆø(€€€€€€€€€€ñ‰ÕÑÑ½¸½¹±¥¬õì ¤€ôøÍÑ•À€ôôô€Ä€ü¹…Ù¥…Ñ” ´Ä¤€èÍ•ÑMÑ•À¡ÍÑ•À€´€Ä¥ô±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÈÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµlåÉŒát‰œµÝ¡¥Ñ”Áà´ÔÁä´Ì™½¹Ðµ‰½±ÕÁÁ•É…Í”Ñ•áÐµáÌÑ•áÐµlŒÌÌÉ˜É…tÍ¡…‘½ÜµÍ´¡½Ù•Èé‰½É‘•Èµl……„ÄäátˆøñÉÉ½Ý1•™ÐÍ¥é”õìÄÙô¼ùíÍÑ•À€ôôô€Ä€ü€‰	…¬ˆ€è€‰AÉ•Ù¥½ÕÌ‰ôð½‰ÕÑÑ½¸ø(€€€€€€€€€íÍÑ•À€ðMQAL¹±•¹Ñ €˜˜€ñ‰ÕÑÑ½¸‘¥Í…‰±•õì……¹½¹Ñ¥¹Õ” ¥ô½¹±¥¬õì ¤€ôø…¹½¹Ñ¥¹Õ” ¤€˜˜Í•ÑMÑ•À¡ÍÑ•À€¬€Ä¥ô±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÈÉ½Õ¹‘•µá°‰œµlŒÄÜÌÈÑtÑ•áÐµÝ¡¥Ñ”Áà´ØÁä´Ì™½¹Ðµ‰½±ÕÁÁ•É…Í”Ñ•áÐµáÌÍ¡…‘½Üµ±œ‘¥Í…‰±•é½Á…¥Ñä´ÐÀˆù½¹Ñ¥¹Õ”€ñÉÉ½ÝI¥¡ÐÍ¥é”õìÄÙô¼øð½‰ÕÑÑ½¸ùô(€€€€€€€€ð½‘¥Øø((€€€€€€€íµ½‰¥±•±½…Ñ¥¹Ñ…¹…‰±•€˜˜µ½‰¥±•½­Y¥Í¥‰±”€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰µé¡¥‘‘•¸™¥á•¥¹Í•Ðµà´Ì‰½ÑÑ½´´Ìè´ÐÀµàµ…ÕÑ¼µ…àµÜµµÉ½Õ¹‘•´Éá°‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀ‰œµlŒÄÜÌÈÑt¼äÔ‰…­‘É½Àµ‰±ÕÈµá°Ñ•áÐµÝ¡¥Ñ”À´ÈÁ°´ÌÍ¡…‘½Ü´Éá°™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´Ìˆø(€€€€€€€€€€ñ‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµláÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘•ÍÐÑ•áÐµÝ¡¥Ñ”¼ÐÔˆùÕÍÑ½´Á¥•”ð½‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµ‘¥ÍÁ±…äÑ•áÐµá°±•…‘¥¹œµ¹½¹”µÐ´ÄˆùíÍ¡½Ý=É‘•ÉAÉ¥”€ü€ˆˆ€¬€¡ÁÉ¥•Y¥Í¥‰¥±¥Ñä€ôôô€‰Ñ½Ñ…°ˆ€ü•ÍÑ¥µ…Ñ•‘MÕ‰Ñ½Ñ…°€èÕ¹¥ÑAÉ¥”¤¹Ñ½¥á• È¤€è€‰@MÑÕ‘¥¼‰ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€íÍÑ•À€ðMQAL¹±•¹Ñ €ü€ñ‰ÕÑÑ½¸‘¥Í…‰±•õì……¹½¹Ñ¥¹Õ” ¥ô½¹±¥¬õì ¤€ôø…¹½¹Ñ¥¹Õ” ¤€˜˜Í•ÑMÑ•À¡ÍÑ•À€¬€Ä¥ô±…ÍÍ9…µ”ô‰É½Õ¹‘•µá°‰œµÝ¡¥Ñ”Ñ•áÐµlŒÄÜÌÈÑtÁà´ÐÁä´È¸ÔÑ•áÐµáÌ™½¹Ðµ‰½±ÕÁÁ•É…Í”‘¥Í…‰±•é½Á…¥Ñä´ÐÀˆù½¹Ñ¥¹Õ”ƒŠHð½‰ÕÑÑ½¸ø€è€ñ‰ÕÑÑ½¸½¹±¥¬õíÉ•…Ñ•¹‘‘‘ô‘¥Í…‰±•õíÍ…Ù¥¹œñð€…É¥¡ÑÍ½¹™¥Éµ•ñð€……ÁÁÉ½Ù…±­¹½Ý±•‘•‘ô±…ÍÍ9…µ”ô‰É½Õ¹‘•µá°‰œµ…•¹ÐÑ•áÐµÝ¡¥Ñ”Áà´ÐÁä´È¸ÔÑ•áÐµáÌ™½¹Ðµ‰½±ÕÁÁ•É…Í”‘¥Í…‰±•é½Á…¥Ñä´ÐÀˆùíÍ…Ù¥¹œ€ü€‰M…Ù¥¹ŸŠ˜ˆ€è€‰‘Ñ¼…ÉÐƒŠH‰ôð½‰ÕÑÑ½¸ùô(€€€€€€€€ð½‘¥Øùô((€€€€€€€íÍ¡½Ý%¹Ñ•¹Í¥Ñåá…µÁ±•Ì€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰™¥á•¥¹Í•Ð´ÀèµläÙt™±•à¥Ñ•µÌµ•¹©ÕÍÑ¥™äµ•¹Ñ•È‰œµ‰±…¬¼ÜÀÍ´é¥Ñ•µÌµ•¹Ñ•ÈÍ´éÀ´ÔˆÉ½±”ô‰‘¥…±½œˆ…É¥„µµ½‘…°ô‰ÑÉÕ”ˆ…É¥„µ±…‰•°ô‰•Í¥¸¥¹Ñ•¹Í¥Ñä•á…µÁ±•Ìˆø(€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´Àˆ½¹±¥¬õì ¤€ôøÍ•ÑM¡½Ý%¹Ñ•¹Í¥Ñåá…µÁ±•Ì¡™…±Í”¥ô…É¥„µ±…‰•°ô‰±½Í”‘•Í¥¸¥¹Ñ•¹Í¥Ñä•á…µÁ±•Ìˆ€¼ø(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É•±…Ñ¥Ù”è´ÄÀÜµ™Õ±°µ…àµ µläÉ‘Ù¡t½Ù•É™±½Üµäµ…ÕÑ¼É½Õ¹‘•µÐµlÈáÁát‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀ‰œµlÑÝtÍ¡…‘½Ü´Éá°Í´éµ…àµÜ´Õá°Í´éÉ½Õ¹‘•µlÈáÁátˆø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ÍÑ¥­äÑ½À´Àè´ÄÀ™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´Ð‰½É‘•Èµˆ‰½É‘•Èµl‘•á™t‰œµlÑÝt¼äÔÁà´ÐÁä´Ì¸Ô‰…­‘É½Àµ‰±ÕÈÍ´éÁà´Ôˆø(€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸É•µtÑ•áÐµ…•¹Ðˆù•Í¥¸¥¹Ñ•¹Í¥ÑäÕ¥‘”ð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´À¸Ô™½¹Ðµ‰½±Ñ•áÐµlŒÈÐÈÄÅ•tˆùÉ½´±•…¸Ñ¼™Õ±°‰½½Ñ±•œ•¹•Éäð½‘¥Øø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑM¡½Ý%¹Ñ•¹Í¥Ñåá…µÁ±•Ì¡™…±Í”¥ô±…ÍÍ9…µ”ô‰É¥ ´äÜ´äÍ¡É¥¹¬´ÀÁ±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµláÅŒÝt‰œµÝ¡¥Ñ”Ñ•áÐµlŒÌäÌÐÉ™tˆ…É¥„µ±…‰•°ô‰±½Í”ˆøñ`Í¥é”õìÄÙô¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰À´ÌÍ´éÀ´Ôˆø(€€€€€€€€€€€€€íÍ¡½Ý½µ‰¥¹•‘%¹Ñ•¹Í¥ÑåÕ¥‘”€ü€ (€€€€€€€€€€€€€€€€…¡…Í%¹Ñ•¹Í¥Ñå=Ù•ÉÉ¥‘•Ì€ü€ (€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰½Ù•É™±½Üµ¡¥‘‘•¸É½Õ¹‘•´Éá°‰½É‘•È‰½É‘•Èµl‘‘Ù‘t‰œµÝ¡¥Ñ”ˆø(€€€€€€€€€€€€€€€€€€€€ñ¥µœ(€€€€€€€€€€€€€€€€€€€€€ÍÉŒõí¥¹Ñ•¹Í¥Ñåá…µÁ±•%µ…•UÉ±ô(€€€€€€€€€€€€€€€€€€€€€…±Ðô‰¥Ù”‰½½Ñ±•œÉ…ÀPµÍ¡¥ÉÐ•á…µÁ±•ÌÍ¡½Ý¥¹œ‘•Í¥¸¥¹Ñ•¹Í¥Ñä™É½´€Ä½ÕÐ½˜€Ô±•…¸Ñ¼€Ô½ÕÐ½˜€Ôµ…á¥µÕ´¡…½Ìˆ(€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰‰±½¬ µ…ÕÑ¼Üµ™Õ±°ˆ(€€€€€€€€€€€€€€€€€€€€€±½…‘¥¹œô‰±…éäˆ(€€€€€€€€€€€€€€€€€€€€€‘•½‘¥¹œô‰…Íå¹Œˆ(€€€€€€€€€€€€€€€€€€€€€½¹ÉÉ½Èõì¡•Ù•¹Ð¤€ôøì(€€€€€€€€€€€€€€€€€€€€€€€½¹ÍÐ™…±±‰…¬€ôU1Q}MQU%=}MQQ%9L¹¥¹Ñ•¹Í¥Ñåá…µÁ±•%µ…•UÉ°ì(€€€€€€€€€€€€€€€€€€€€€€€¥˜€¡•Ù•¹Ð¹ÕÉÉ•¹ÑQ…É•Ð¹•ÑÑÑÉ¥‰ÕÑ” ‰ÍÉŒˆ¤€„ôô™…±±‰…¬¤ì(€€€€€€€€€€€€€€€€€€€€€€€€€•Ù•¹Ð¹ÕÉÉ•¹ÑQ…É•Ð¹ÍÉŒ€ô™…±±‰…¬ì(€€€€€€€€€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€€€€€€€€€€õô(€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€¤€è€ (€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ÍÁ…”µä´È¸Ôˆø(€€€€€€€€€€€€€€€€€€€í=‰©•Ð¹•¹ÑÉ¥•Ì¡M%9}%9Q9M%Qe}1Y1L¤¹µ…À ¡m±•Ù•°°¥Ñ•µt¤€ôø€ (€€€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸(€€€€€€€€€€€€€€€€€€€€€€€­•äõí±•Ù•±ô(€€€€€€€€€€€€€€€€€€€€€€€ÑåÁ”ô‰‰ÕÑÑ½¸ˆ(€€€€€€€€€€€€€€€€€€€€€€€½¹±¥¬õì ¤€ôøìÍ•Ñ•Í¥¹%¹Ñ•¹Í¥Ñä¡9Õµ‰•È¡±•Ù•°¤¤ìÍ•ÑM¡½Ý%¹Ñ•¹Í¥Ñåá…µÁ±•Ì¡™…±Í”¤ìõô(€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”õì‰É¥Üµ™Õ±°É¥µ½±ÌµlØáÁá|Å™Ét…À´Ì½Ù•É™±½Üµ¡¥‘‘•¸É½Õ¹‘•´Éá°‰½É‘•ÈÑ•áÐµ±•™ÐÑÉ…¹Í¥Ñ¥½¸Í´éÉ¥µ½±ÌµlÜáÁá|Å™É|ÈÄÁÁát€ˆ€¬€¡9Õµ‰•È¡±•Ù•°¤€ôôô‘•Í¥¹%¹Ñ•¹Í¥Ñä€ü€‰‰½É‘•Èµ…•¹Ð‰œµ…•¹Ð½lÀ¸ÀÐÕtˆ€è€‰‰½É‘•Èµl‘‘Ù‘t‰œµÝ¡¥Ñ”¡½Ù•Èé‰½É‘•Èµ…•¹Ðˆ¥ô(€€€€€€€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É¥Á±…”µ¥Ñ•µÌµ•¹Ñ•È‰œµlŒÅŒÅˆÄåtÁà´ÈÁä´ÐÑ•áÐµÝ¡¥Ñ”ˆø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµ•¹Ñ•Èˆø(€€€€€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµá°™½¹Ðµ‰±…¬ˆùí±•Ù•±ô¼Ôð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´À¸ÔÑ•áÐµláÁát™½¹Ðµ‰½±ÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµÝ¡¥Ñ”¼ØÀˆùí¥Ñ•´¹±…‰•±ôð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Í•±˜µ•¹Ñ•ÈÁä´ÌÁÈ´ÌÍ´éÁÈ´Àˆø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµÍ´™½¹Ðµ‰½±Ñ•áÐµlŒÈäÈØÈÉtˆùí¥Ñ•´¹±…‰•±ôð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµlÄÅÁát±•…‘¥¹œµÉ•±…á•Ñ•áÐµlŒÜÐÙØÑtˆùí¥Ñ•´¹‘•ÍÉ¥ÁÑ¥½¹ôð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰½°µÍÁ…¸´È…ÍÁ•ÐµlÄØ¼åt‰œµlŒÄàÄàÄátÍ´é½°µÍÁ…¸´ÄÍ´é…ÍÁ•Ðµ…ÕÑ¼Í´éµ¥¸µ µlÄÄáÁátˆø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ%¹Ñ•¹Í¥Ñåá…µÁ±•Y¥ÍÕ…°ÍÉŒõí¥¹Ñ•¹Í¥Ñå%µ…•Ím±•Ù•±uô±…‰•°õí€‘í±•Ù•±ô¼Ô€‘í¥Ñ•´¹±…‰•±õô€¼ø(€€€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€ð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€€€¤¥ô(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€€€¤€è€ (€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰½Ù•É™±½Üµ¡¥‘‘•¸É½Õ¹‘•´Éá°‰½É‘•È‰½É‘•Èµl‘‘Ù‘t‰œµlŒÄàÄàÄátˆø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…ÍÁ•ÐµlÐ¼ÕtÍ´é…ÍÁ•ÐµlÄØ¼åtˆø(€€€€€€€€€€€€€€€€€€€€ñ%¹Ñ•¹Í¥Ñåá…µÁ±•Y¥ÍÕ…°ÍÉŒõíÍ•±•Ñ•‘%¹Ñ•¹Í¥Ñå%µ…•ô±…‰•°õí€‘í‘•Í¥¹%¹Ñ•¹Í¥Ñåô¼Ô€‘í¥¹Ñ•¹Í¥Ñå1•Ù•°¹±…‰•±õô±…É”€¼ø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰‰œµÝ¡¥Ñ”À´Ðˆø(€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµÍ´™½¹Ðµ‰½±ˆùí‘•Í¥¹%¹Ñ•¹Í¥Ñåô¼Ôƒ
-Üí¥¹Ñ•¹Í¥Ñå1•Ù•°¹±…‰•±ôð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµáÌ±•…‘¥¹œµÉ•±…á•Ñ•áÐµlŒÜÐÙØÑtˆùí¥¹Ñ•¹Í¥Ñå1•Ù•°¹‘•ÍÉ¥ÁÑ¥½¹ôð½‘¥Øø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€¥ô(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÐÉ¥É¥µ½±Ì´Ô…À´Ä¸ÔÍ´é…À´Èˆø(€€€€€€€€€€€€€€€í=‰©•Ð¹•¹ÑÉ¥•Ì¡M%9}%9Q9M%Qe}1Y1L¤¹µ…À ¡m±•Ù•°°¥Ñ•µt¤€ôø€ñ‰ÕÑÑ½¸(€€€€€€€€€€€€€€€€€­•äõí±•Ù•±ô(€€€€€€€€€€€€€€€€€ÑåÁ”ô‰‰ÕÑÑ½¸ˆ(€€€€€€€€€€€€€€€€€½¹±¥¬õì ¤€ôøì(€€€€€€€€€€€€€€€€€€€Í•Ñ•Í¥¹%¹Ñ•¹Í¥Ñä¡9Õµ‰•È¡±•Ù•°¤¤ì(€€€€€€€€€€€€€€€€€€€¥˜€¡Í¡½Ý½µ‰¥¹•‘%¹Ñ•¹Í¥ÑåÕ¥‘”¤Í•ÑM¡½Ý%¹Ñ•¹Í¥Ñåá…µÁ±•Ì¡™…±Í”¤ì(€€€€€€€€€€€€€€€€€õô(€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”õì‰É½Õ¹‘•µá°‰½É‘•ÈÁà´ÄÁä´ÈÑ•áÐµ•¹Ñ•ÈÑÉ…¹Í¥Ñ¥½¸Í´éÀ´ÌÍ´éÑ•áÐµ±•™Ð€ˆ€¬€¡9Õµ‰•È¡±•Ù•°¤€ôôô‘•Í¥¹%¹Ñ•¹Í¥Ñä€ü€‰‰½É‘•Èµ…•¹Ð‰œµ…•¹Ð½lÀ¸ÀÙtˆ€è€‰‰½É‘•Èµl‘‘Ù‘t‰œµÝ¡¥Ñ”¡½Ù•Èé‰½É‘•Èµ…•¹Ðˆ¥ô(€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµlÄÁÁát™½¹Ðµ‰½±Í´éÑ•áÐµáÌˆùí±•Ù•±ô¼ÔñÍÁ…¸±…ÍÍ9…µ”ô‰¡¥‘‘•¸Í´é¥¹±¥¹”ˆøƒ
-Üí¥Ñ•´¹±…‰•±ôð½ÍÁ…¸øð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‰ÕÑÑ½¸ø¥ô(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µÐ´ÌÑ•áÐµlÄÁÁát±•…‘¥¹œµÉ•±…á•Ñ•áÐµlŒàÄÜäÜÁtˆùá…µÁ±•Ì…É”Ù¥ÍÕ…°‘¥É•Ñ¥½¸½¹±ä¸e½ÕÈ™¥¹…°@…ÉÑÝ½É¬¥ÌÕÍÑ½µ¥é•Ñ¼å½ÕÈÁ¡½Ñ½Ì°ÍÑ½Éä…¹Í•±•Ñ•ÍÑå±”¸ð½Àø(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€ð½‘¥Øø(€€€€€€€€ð½‘¥Øùô((€€€€€€€í™Õ±±ÍÉ••¹AÉ•Ù¥•Ü€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰™¥á•¥¹Í•Ð´ÀèµläÁt‰œµlŒÄÄÅt¼äÔ‰…­‘É½Àµ‰±ÕÈµÍ´À´ÌµéÀ´Üˆø(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ µ™Õ±°µ…àµÜ´Õá°µàµ…ÕÑ¼É½Õ¹‘•µlÈáÁát½Ù•É™±½Üµ¡¥‘‘•¸‰œµl˜Ñ•™”Ýt‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀ™±•à™±•àµ½°ˆø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ ´ÄØÍ¡É¥¹¬´À™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´ÐÁà´ÐµéÁà´Ø‰œµlŒÄÜÌÈÑtÑ•áÐµÝ¡¥Ñ”ˆø(€€€€€€€€€€€€€€ñ‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸É•µtÑ•áÐµÝ¡¥Ñ”¼ÐÔˆù@ÕÍÑ½´MÑÕ‘¥¼ð½‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹ÐµÍ•µ¥‰½±ˆùÕ±°µÍÉ••¸…Éµ•¹ÐÁÉ•Ù¥•Üð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Èˆø(€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑM¡½Ý5•…ÍÕÉ•µ•¹ÑÌ¡Ø€ôø€…Ø¥ô±…ÍÍ9…µ”õì‰ ´äÜ´äÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µá°‰½É‘•È€ˆ€¬€¡Í¡½Ý5•…ÍÕÉ•µ•¹ÑÌ€ü€‰‰½É‘•Èµ…•¹Ð‰œµ…•¹Ð¼ÄÔÑ•áÐµÝ¡¥Ñ”ˆ€è€‰‰½É‘•ÈµÝ¡¥Ñ”¼ÄÔÑ•áÐµÝ¡¥Ñ”¼ÜÔˆ¥ô…É¥„µ±…‰•°õíÍ¡½Ý5•…ÍÕÉ•µ•¹ÑÌ€ü€‰!¥‘”µ•…ÍÕÉ•µ•¹ÑÌˆ€è€‰M¡½Üµ•…ÍÕÉ•µ•¹ÑÌ‰ôøñIÕ±•ÈÍ¥é”õìÄÕô¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑAÉ•Ù¥•Ýi½½´¡Ø€ôø±…µÁAÉ•Ù¥•Ü¡Ø€´€¸Ä¤¥ô±…ÍÍ9…µ”ô‰ ´äÜ´äÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÔˆøñi½½µ=ÕÐÍ¥é”õìÄÕô¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ü´ÄÈÑ•áÐµ•¹Ñ•È™½¹Ðµµ½¹¼Ñ•áÐµlÄÁÁátˆùí5…Ñ ¹É½Õ¹¡ÁÉ•Ù¥•Ýi½½´€¨€ÄÀÀ¥ô”ð½ÍÁ…¸ø(€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑAÉ•Ù¥•Ýi½½´¡Ø€ôø±…µÁAÉ•Ù¥•Ü¡Ø€¬€¸Ä¤¥ô±…ÍÍ9…µ”ô‰ ´äÜ´äÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÔˆøñi½½µ%¸Í¥é”õìÄÕô¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôøÍ•ÑÕ±±ÍÉ••¹AÉ•Ù¥•Ü¡™…±Í”¥ô±…ÍÍ9…µ”ô‰ ´äÜ´äÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µá°‰œµÝ¡¥Ñ”Ñ•áÐµlŒÄÜÌÈÑtˆ…É¥„µ±…‰•°ô‰±½Í”™Õ±°ÍÉ••¸ÁÉ•Ù¥•Üˆøñ`Í¥é”õìÄÙô¼øð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à´Äµ¥¸µ ´Àˆø(€€€€€€€€€€€€€€ñMÑÕ‘¥½AÉ•Ù¥•Ü…Éµ•¹Ðõí…Éµ•¹Ñô½±½ÈõíÁÉ•Ù¥•Ý½±½ÉôÍ¥‘”õíÁÉ•Ù¥•ÝM¥‘•ôÁ±…•µ•¹ÐõíÁ±…•µ•¹ÑôÁ¡½Ñ¼õíÁÉ•Ù¥•ÝÉÑÝ½É­A¡½Ñ½ôÕÁ±½…‘¥¹œõíÕÁ±½…‘¥¹ôÁ•ÉÍ½¹…±¥é…Ñ¥½¸õíÁ•ÉÍ½¹…±¥é…Ñ¥½¹ôé½½´õíÁÉ•Ù¥•Ýi½½µôÍ•Ñi½½´õíÍ•ÑAÉ•Ù¥•Ýi½½µô…ÉÑÝ½É­M…±”õí…ÉÑÝ½É­M…±•ô…ÉÑÝ½É­I½Ñ…Ñ¥½¸õí…ÉÑÝ½É­I½Ñ…Ñ¥½¹ô…ÉÑÝ½É­=™™Í•Ðõí…ÉÑÝ½É­=™™Í•ÑôÍ•ÑÉÑÝ½É­=™™Í•ÐõíÍ•ÑÉÑÝ½É­=™™Í•Ñô…ÉÑÝ½É­¥Ñ5½‘”õí…ÉÑÝ½É­¥Ñ5½‘•ôÍ¡½ÝÕ¥‘•ÌõíÍ¡½ÝÕ¥‘•ÍôÍ¡½Ý5•…ÍÕÉ•µ•¹ÑÌõíÍ¡½Ý5•…ÍÕÉ•µ•¹ÑÍôÍ¥é”õíÍ¥é•ôÁÉ•Ù¥•Ý½¹™¥œõí½¹™¥œ¹ÁÉ•Ù¥•ÜñðíõôÍÑå±•Q•µÁ±…Ñ”õí…Ñ¥Ù•MÑå±•Q•µÁ±…Ñ•ôµ½½õí‘•Í¥¹5½½‘ô™Õ±±ÍÉ••¸€¼ø(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€ð½‘¥Øø(€€€€€€€€ð½‘¥Øùô(€€€€€€ð½‘¥Øø(€€€€ð½‘¥Øø(€€¤ì)ô()™Õ¹Ñ¥½¸%¹Ñ•¹Í¥Ñåá…µÁ±•Y¥ÍÕ…°¡ìÍÉŒ°±…‰•°°±…ÍÍ9…µ”€ô€ˆˆ°±…É”€ô™…±Í”ô¤ì(€½¹ÍÐm™…¥±•°Í•Ñ…¥±•‘t€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì(€ÕÍ•™™•Ð  ¤€ôøÍ•Ñ…¥±•¡™…±Í”¤°mÍÉt¤ì((€¥˜€¡ÍÉŒ€ôôô!%9}%9Q9M%Qe}%5¤ì(€€€É•ÑÕÉ¸€ (€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õì‰ µ™Õ±°Üµ™Õ±°É¥Á±…”µ¥Ñ•µÌµ•¹Ñ•È‰œµlŒÈÈÉtÑ•áÐµ•¹Ñ•ÈÑ•áÐµÝ¡¥Ñ”¼ÔÔ€ˆ€¬±…ÍÍ9…µ•ôø(€€€€€€€€ñ‘¥Øøñ`Í¥é”õí±…É”€ü€ÈØ€è€Äáô±…ÍÍ9…µ”ô‰µàµ…ÕÑ¼ˆ¼øñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”ˆùá…µÁ±”É•µ½Ù•ð½‘¥Øøð½‘¥Øø(€€€€€€ð½‘¥Øø(€€€€¤ì(€ô((€¥˜€¡ÍÉŒ€˜˜€…™…¥±•¤ì(€€€É•ÑÕÉ¸€ñ¥µœÍÉŒõíÍÉô…±Ðõí±…‰•±ô±…ÍÍ9…µ”õì‰ µ™Õ±°Üµ™Õ±°½‰©•Ðµ½Ù•È€ˆ€¬±…ÍÍ9…µ•ô±½…‘¥¹œô‰±…éäˆ‘•½‘¥¹œô‰…Íå¹Œˆ½¹ÉÉ½Èõì ¤€ôøÍ•Ñ…¥±•¡ÑÉÕ”¥ô€¼øì(€ô((€É•ÑÕÉ¸€ (€€€€ñ‘¥Ø±…ÍÍ9…µ”õì‰ µ™Õ±°Üµ™Õ±°É¥Á±…”µ¥Ñ•µÌµ•¹Ñ•È‰œµmÉ…‘¥…°µÉ…‘¥•¹Ð¡¥É±•}…Ñ|ÔÀ•|ÌÈ”°ŒÌäÌäÌå|À”°ŒÄäÄäÄå|ÔÔ”°ŒÄÀÄÀÄÁ|ÄÀÀ”¥tÑ•áÐµÝ¡¥Ñ”Ñ•áÐµ•¹Ñ•È€ˆ€¬±…ÍÍ9…µ•ôø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Áà´Ðˆø(€€€€€€€€ñM¡¥ÉÐÍ¥é”õí±…É”€ü€ÌÐ€è€ÈÑô±…ÍÍ9…µ”ô‰µàµ…ÕÑ¼Ñ•áÐµÝ¡¥Ñ”¼ÐÔˆ¼ø(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÈÑ•áÐµlÄÁÁát™½¹Ðµ‰½±ÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸ÄÉ•µtˆù@‘•™…Õ±Ðð½‘¥Øø(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµlåÁátÑ•áÐµÝ¡¥Ñ”¼ÐÔˆùí±…‰•±ôð½‘¥Øø(€€€€€€ð½‘¥Øø(€€€€ð½‘¥Øø(€€¤ì)ô()™Õ¹Ñ¥½¸±…µÁAÉ•Ù¥•Ü¡Ù…±Õ”¤ì(€É•ÑÕÉ¸5…Ñ ¹µ¥¸ Ä¸à°5…Ñ ¹µ…à À¸Ü°9Õµ‰•È¡9Õµ‰•È¡Ù…±Õ”¤¹Ñ½¥á• È¤¤¤¤ì)ô()™Õ¹Ñ¥½¸MÑÕ‘¥½AÉ•Ù¥•Ü¡ì…Éµ•¹Ð°½±½È°Í¥‘”°Á±…•µ•¹Ð°Á¡½Ñ¼°ÕÁ±½…‘¥¹œ€ô™…±Í”°Á•ÉÍ½¹…±¥é…Ñ¥½¸°é½½´°Í•Ñi½½´°…ÉÑÝ½É­M…±”°…ÉÑÝ½É­I½Ñ…Ñ¥½¸°…ÉÑÝ½É­=™™Í•Ð°Í•ÑÉÑÝ½É­=™™Í•Ð°…ÉÑÝ½É­¥Ñ5½‘”€ô€‰É½Àˆ°Í¡½ÝÕ¥‘•Ì°Í¡½Ý5•…ÍÕÉ•µ•¹ÑÌ°Í¥é”°ÁÉ•Ù¥•Ý½¹™¥œ€ôíô°ÍÑå±•Q•µÁ±…Ñ”°µ½½€ô€ˆˆ°™Õ±±ÍÉ••¸€ô™…±Í”ô¤ì(€½¹ÍÐ‘É…I•˜€ôÕÍ•I•˜¡¹Õ±°¤ì(€½¹ÍÐ‰±…¹­ÉÑÝ½É¬€ô(€€€€¡Í¥‘”€ôôô€‰‰…¬ˆ€˜˜Á±…•µ•¹Ð€ôôô€‰™É½¹Ðˆ¤ñð(€€€€¡Í¥‘”€ôôô€‰™É½¹Ðˆ€˜˜Á±…•µ•¹Ð€ôôô€‰‰…¬ˆ¤ì(€½¹ÍÐ¡…ÍAÉ•Ù¥•ÝQ•áÐ€ô	½½±•…¸ (€€€MÑÉ¥¹œ¡Á•ÉÍ½¹…±¥é…Ñ¥½¸ü¹¹…µ”ñð€ˆˆ¤¹ÑÉ¥´ ¤ñð(€€€MÑÉ¥¹œ¡Á•ÉÍ½¹…±¥é…Ñ¥½¸ü¹‘…Ñ•Ìñð€ˆˆ¤¹ÑÉ¥´ ¤ñð(€€€MÑÉ¥¹œ¡Á•ÉÍ½¹…±¥é…Ñ¥½¸ü¹ÅÕ½Ñ”ñð€ˆˆ¤¹ÑÉ¥´ ¤(€€¤ì(€€¼¼Q¡”Í•±•Ñ•@ÍÑå±”¥Ì¥ÑÍ•±˜ÁÉ¥¹Ñ…‰±”…ÉÑÝ½É¬°Í¼¥ÐÍ¡½Õ±…ÁÁ•…È(€€¼¼¥µµ•‘¥…Ñ•±ä¥¸Ñ¡”…Éµ•¹ÐÁÉ•Ù¥•Ü•Ù•¸‰•™½É”Ñ¡”ÕÍÑ½µ•ÈÕÁ±½…‘Ì„Á¡½Ñ¼¸(€½¹ÍÐ…¹É…œ€ô	½½±•…¸¡Á¡½Ñ¼€˜˜ÍÑå±•Q•µÁ±…Ñ”€˜˜€…‰±…¹­ÉÑÝ½É¬€˜˜Í•ÑÉÑÝ½É­=™™Í•Ð¤ì(€½¹ÍÐÁÉ•Ù¥•ÝM•ÑÑ¥¹Ì€ô€¼¨¨ÑåÁ”í…¹åô€¨¼€¡ÁÉ•Ù¥•Ý½¹™¥œñðíô¤ì(€½¹ÍÐ½±½ÉAÉ•Ù¥•Ü€ôÁÉ•Ù¥•ÝM•ÑÑ¥¹Ìü¹½±½É5½­ÕÁÌü¹m½±½Étñðíôì(€½¹ÍÐ™É½¹Ñ5½­ÕÁUÉ°€ô(€€€½±½ÉAÉ•Ù¥•Ü¹™É½¹ÑUÉ°ñð(€€€€ (€€€€€½±½È€ôôô…Éµ•¹Ðü¹‘•™…Õ±Ñ½±½È(€€€€€€€€ü€¡ÁÉ•Ù¥•ÝM•ÑÑ¥¹Ì¹…É‘%µ…•UÉ°ñð€ˆˆ¤(€€€€€€€€è€ˆˆ(€€€€¤ñð(€€€ÁÉ•Ù¥•ÝM•ÑÑ¥¹Ì¹™É½¹Ñ5½­ÕÁUÉ°ñð(€€€ÁÉ•Ù¥•Ý%µ…•½É…Éµ•¹Ð¡…Éµ•¹Ð°½±½È°€‰™É½¹Ðˆ¤ì(€½¹ÍÐ‰…­5½­ÕÁUÉ°€ô(€€€½±½ÉAÉ•Ù¥•Ü¹‰…­UÉ°ñð(€€€ÁÉ•Ù¥•ÝM•ÑÑ¥¹Ì¹‰…­5½­ÕÁUÉ°ñð(€€€ÁÉ•Ù¥•Ý%µ…•½É…Éµ•¹Ð¡…Éµ•¹Ð°½±½È°€‰‰…¬ˆ¤ì(€½¹ÍÐµ½­ÕÁUÉ°€ôÍ¥‘”€ôôô€‰‰…¬ˆ€ü‰…­5½­ÕÁUÉ°€è™É½¹Ñ5½­ÕÁUÉ°ì(€½¹ÍÐÁÉ•Ù¥•Ý…¹Ù…Ì€ôÉ•Í½±Ù•AÉ•Ù¥•Ý…¹Ù…Ì¡ÁÉ•Ù¥•ÝM•ÑÑ¥¹Ì¤ì(€½¹ÍÐµ½­ÕÁ9½Éµ…±¥é…Ñ¥½¸€ôÉ•Í½±Ù•5½­ÕÁ9½Éµ…±¥é…Ñ¥½¸¡ÁÉ•Ù¥•ÝM•ÑÑ¥¹Ì°Í¥‘”¤ì(€½¹ÍÐµ½­ÕÁ1…å•ÉMÑå±”€ô•Ñ5½­ÕÁ1…å•ÉMÑå±”¡µ½­ÕÁ9½Éµ…±¥é…Ñ¥½¸¤ì((€ÕÍ•™™•Ð  ¤€ôøì(€€€ÁÉ•±½…‘AÉ•Ù¥•Ý%µ…•Ì¡m™É½¹Ñ5½­ÕÁUÉ°°‰…­5½­ÕÁUÉ±t¤ì(€ô°m™É½¹Ñ5½­ÕÁUÉ°°‰…­5½­ÕÁUÉ±t¤ì(€½¹ÍÐ½¹™¥ÕÉ•‘9Õµ‰•È€ô€¡Ù…±Õ”°™…±±‰…¬¤€ôøì(€€€½¹ÍÐÁ…ÉÍ•€ô9Õµ‰•È¡Ù…±Õ”¤ì(€€€É•ÑÕÉ¸9Õµ‰•È¹¥Í¥¹¥Ñ”¡Á…ÉÍ•¤€˜˜Á…ÉÍ•€ø€À€üÁ…ÉÍ•€è™…±±‰…¬ì(€ôì(€½¹ÍÐ‘•™…Õ±ÑAÉ½™¥±”€ôÉ•½µµ•¹‘•‘AÉ¥¹ÑAÉ½™¥±”¡…Éµ•¹Ðü¹ÁÉ•Ù¥•ÝQåÁ”ñð…Éµ•¹Ðü¹ÑåÁ”°Í¥é”°Í¥‘”¤ì(€½¹ÍÐ½¹™¥ÕÉ•‘Õ¥‘”€ôÁÉ•Ù¥•ÝM•ÑÑ¥¹Ìü¹ÁÉ¥¹ÑÕ¥‘”ü¹mÍ¥‘•tñðíôì(€½¹ÍÐÍ¥é•-•ä€ôMÑÉ¥¹œ¡Í¥é”ñð€ˆˆ¤¹Ñ½UÁÁ•É…Í” ¤¹É•Á±…” ½qÌ¬½œ°€ˆˆ¤ì(€½¹ÍÐ½¹™¥ÕÉ•‘M¥é•Õ¥‘”€ô½¹™¥ÕÉ•‘Õ¥‘”ü¹Í¥é•M…±¥¹¹…‰±•€ôôô™…±Í”(€€€€üíô(€€€€è€¡½¹™¥ÕÉ•‘Õ¥‘”ü¹Í¥é•=Ù•ÉÉ¥‘•Ìü¹mÍ¥é•-•åtñð½¹™¥ÕÉ•‘Õ¥‘”ü¹Í¥é•=Ù•ÉÉ¥‘•Ìü¹mÍ¥é•tñðíô¤ì(€½¹ÍÐÁÉ½™¥±”€ôì(€€€€¸¸¹‘•™…Õ±ÑAÉ½™¥±”°(€€€½±±…É%¸è½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘M¥é•Õ¥‘”¹½±±…É%¸€üü½¹™¥ÕÉ•‘Õ¥‘”¹½±±…É%¸°‘•™…Õ±ÑAÉ½™¥±”¹½±±…É%¸¤°(€€€Ý¥‘Ñ¡%¸è½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘M¥é•Õ¥‘”¹Ý¥‘Ñ¡%¸€üü½¹™¥ÕÉ•‘Õ¥‘”¹Ý¥‘Ñ¡%¸°‘•™…Õ±ÑAÉ½™¥±”¹Ý¥‘Ñ¡%¸¤°(€€€¡•¥¡Ñ%¸è½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘M¥é•Õ¥‘”¹¡•¥¡Ñ%¸€üü½¹™¥ÕÉ•‘Õ¥‘”¹¡•¥¡Ñ%¸°‘•™…Õ±ÑAÉ½™¥±”¹¡•¥¡Ñ%¸¤°(€€€µ…á]¥‘Ñ¡%¸è½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘Õ¥‘”¹µ…á]¥‘Ñ¡%¸°‘•™…Õ±ÑAÉ½™¥±”¹µ…á]¥‘Ñ¡%¸ñð‘•™…Õ±ÑAÉ½™¥±”¹Ý¥‘Ñ¡%¸¤°(€€€µ…á!•¥¡Ñ%¸è½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘Õ¥‘”¹µ…á!•¥¡Ñ%¸°‘•™…Õ±ÑAÉ½™¥±”¹µ…á!•¥¡Ñ%¸ñð‘•™…Õ±ÑAÉ½™¥±”¹¡•¥¡Ñ%¸¤°(€ôì(€½¹ÍÐ½¹™¥ÕÉ•‘É•„€ôÁÉ•Ù¥•ÝM•ÑÑ¥¹Ìü¹ÁÉ¥¹ÑÉ•„ü¹mÍ¥‘•tñðíôì(€½¹ÍÐÕÍ•ÕÍÑ½µÉ•„€ôÁÉ•Ù¥•ÝM•ÑÑ¥¹Ìü¹ÁÉ¥¹ÑÉ•…5½‘”€ôôô€‰ÕÍÑ½´ˆñð½¹™¥ÕÉ•‘É•„ü¹µ½‘”€ôôô€‰ÕÍÑ½´ˆñðÁÉ½™¥±”¹•¹•É¥Œ€ôôôÑÉÕ”ì(€½¹ÍÐÁÉ¥¹ÑÉ•„€ôì(€€€Ñ½ÀèÕÍ•ÕÍÑ½µÉ•„€ü½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘É•„¹Ñ½À°ÁÉ½™¥±”¹Ñ½À¤€èÁÉ½™¥±”¹Ñ½À°(€€€Ý¥‘Ñ èÕÍ•ÕÍÑ½µÉ•„€ü½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘É•„¹Ý¥‘Ñ °ÁÉ½™¥±”¹Ý¥‘Ñ ¤€èÁÉ½™¥±”¹Ý¥‘Ñ °(€€€¡•¥¡ÐèÕÍ•ÕÍÑ½µÉ•„€ü½¹™¥ÕÉ•‘9Õµ‰•È¡½¹™¥ÕÉ•‘É•„¹¡•¥¡Ð°ÁÉ½™¥±”¹¡•¥¡Ð¤€èÁÉ½™¥±”¹¡•¥¡Ð(€ôì(€½¹ÍÐÁÉ¥¹ÑÉ•…MÑå±”€ôì(€€€Ñ½ÀèÁÉ¥¹ÑÉ•„¹Ñ½À€¬€ˆ”ˆ°(€€€Ý¥‘Ñ èÁÉ¥¹ÑÉ•„¹Ý¥‘Ñ €¬€ˆ”ˆ°(€€€¡•¥¡ÐèÁÉ¥¹ÑÉ•„¹¡•¥¡Ð€¬€ˆ”ˆ(€ôì(€½¹ÍÐµ…áÉ•…]¥‘Ñ €ô5…Ñ ¹µ¥¸ Üà°ÁÉ¥¹ÑÉ•„¹Ý¥‘Ñ €¨€¡½¹™¥ÕÉ•‘9Õµ‰•È¡ÁÉ½™¥±”¹µ…á]¥‘Ñ¡%¸°ÁÉ½™¥±”¹Ý¥‘Ñ¡%¸¤€¼5…Ñ ¹µ…à À¸Ä°ÁÉ½™¥±”¹Ý¥‘Ñ¡%¸¤¤¤ì(€½¹ÍÐµ…áÉ•…!•¥¡Ð€ô5…Ñ ¹µ¥¸ ÜÀ°ÁÉ¥¹ÑÉ•„¹¡•¥¡Ð€¨€¡½¹™¥ÕÉ•‘9Õµ‰•È¡ÁÉ½™¥±”¹µ…á!•¥¡Ñ%¸°ÁÉ½™¥±”¹¡•¥¡Ñ%¸¤€¼5…Ñ ¹µ…à À¸Ä°ÁÉ½™¥±”¹¡•¥¡Ñ%¸¤¤¤ì(€½¹ÍÐµ…áAÉ¥¹ÑÉ•…MÑå±”€ôì(€€€Ñ½ÀèÁÉ¥¹ÑÉ•„¹Ñ½À€¬€ˆ”ˆ°(€€€Ý¥‘Ñ èµ…áÉ•…]¥‘Ñ €¬€ˆ”ˆ°(€€€¡•¥¡Ðèµ…áÉ•…!•¥¡Ð€¬€ˆ”ˆ(€ôì(€½¹ÍÐ…ÉÑÝ½É­1…å•ÉMÑå±”€ôì(€€€±•™Ðè€ ÔÀ€¬9Õµ‰•È¡…ÉÑÝ½É­=™™Í•Ðü¹àñð€À¤¤€¬€ˆ”ˆ°(€€€Ñ½Àè€ ÔÀ€¬9Õµ‰•È¡…ÉÑÝ½É­=™™Í•Ðü¹äñð€À¤¤€¬€ˆ”ˆ°(€€€ÑÉ…¹Í™½É´èÑÉ…¹Í±…Ñ” ´ÔÀ”°€´ÔÀ”¤Í…±” ‘í…ÉÑÝ½É­M…±”€¼€ÄÀÁô¤É½Ñ…Ñ” ‘í…ÉÑÝ½É­I½Ñ…Ñ¥½¹õ‘•œ¥€°(€€€ÑÉ…¹Í™½Éµ=É¥¥¸è€‰•¹Ñ•È•¹Ñ•Èˆ(€ôì(€½¹ÍÐÑ•µÁ±…Ñ”€ôÍÑå±•Q•µÁ±…Ñ”ñð¹Õ±°ì(€½¹ÍÐµ½½‘QÉ•…Ñµ•¹Ð€ôµ½½‘AÉ•Ù¥•ÝQÉ•…Ñµ•¹Ð¡µ½½¤ì(€½¹ÍÐÁ¡½Ñ½i½¹”€ôÑ•µÁ±…Ñ”ü¹Á¡½Ñ½i½¹”ñðìàè€ÄÀ°äè€à°Ý¥‘Ñ è€àÀ°¡•¥¡Ðè€ØÐ°Í¡…Á”è€‰É½Õ¹‘•ˆ°É…‘¥ÕÌè€ÄÀôì(€½¹ÍÐÑ•áÑi½¹”€ôÑ•µÁ±…Ñ”ü¹Ñ•áÑi½¹”ñðìàè€ÄÀ°äè€àÀ°Ý¥‘Ñ è€àÀ°¡•¥¡Ðè€ÄÔ°…±¥¸è€‰•¹Ñ•Èˆ°Ñ½¹”è€‰±¥¡Ðˆôì(€½¹ÍÐé½¹•I…‘¥ÕÌ€ôÁ¡½Ñ½i½¹”¹Í¡…Á”€ôôô€‰¥É±”ˆñðÁ¡½Ñ½i½¹”¹Í¡…Á”€ôôô€‰½Ù…°ˆ(€€€€ü€ˆÔÀ”ˆ(€€€€èÁ¡½Ñ½i½¹”¹Í¡…Á”€ôôô€‰É•Ðˆ(€€€€€€ü€ˆÀˆ(€€€€€€è€‘í9Õµ‰•È¡Á¡½Ñ½i½¹”¹É…‘¥ÕÌñð€à¥ô•€ì(€½¹ÍÐÁ¡½Ñ½i½¹•MÑå±”€ôì(€€€±•™Ðè€‘í9Õµ‰•È¡Á¡½Ñ½i½¹”¹àñð€À¥ô•€°(€€€Ñ½Àè€‘í9Õµ‰•È¡Á¡½Ñ½i½¹”¹äñð€À¥ô•€°(€€€Ý¥‘Ñ è€‘í9Õµ‰•È¡Á¡½Ñ½i½¹”¹Ý¥‘Ñ ñð€ÄÀÀ¥ô•€°(€€€¡•¥¡Ðè€‘í9Õµ‰•È¡Á¡½Ñ½i½¹”¹¡•¥¡Ðñð€ÄÀÀ¥ô•€°(€€€‰½É‘•ÉI…‘¥ÕÌèé½¹•I…‘¥ÕÌ°(€ôì(€½¹ÍÐÑ•áÑi½¹•MÑå±”€ôì(€€€±•™Ðè€‘í9Õµ‰•È¡Ñ•áÑi½¹”¹àñð€À¥ô•€°(€€€Ñ½Àè€‘í9Õµ‰•È¡Ñ•áÑi½¹”¹äñð€À¥ô•€°(€€€Ý¥‘Ñ è€‘í9Õµ‰•È¡Ñ•áÑi½¹”¹Ý¥‘Ñ ñð€ÄÀÀ¥ô•€°(€€€¡•¥¡Ðè€‘í9Õµ‰•È¡Ñ•áÑi½¹”¹¡•¥¡Ðñð€ÄÔ¥ô•€°(€ôì(€½¹ÍÐ½±±…É¹¡½È€ô5…Ñ ¹µ¥¸¡ÁÉ¥¹ÑÉ•„¹Ñ½À€´€È°9Õµ‰•È¡ÁÉ½™¥±”¹½±±…É¹¡½Èñð€ÈÀ¤¤ì(€½¹ÍÐ½±±…ÉÕ¥‘•!•¥¡Ð€ô5…Ñ ¹µ…à È°ÁÉ¥¹ÑÉ•„¹Ñ½À€´½±±…É¹¡½È¤ì((€½¹ÍÐ½¹A½¥¹Ñ•É½Ý¸€ô€¡•Ù•¹Ð¤€ôøì(€€€¥˜€ ……¹É…œ¤É•ÑÕÉ¸ì(€€€•Ù•¹Ð¹ÁÉ•Ù•¹Ñ•™…Õ±Ð ¤ì(€€€•Ù•¹Ð¹ÕÉÉ•¹ÑQ…É•Ð¹Í•ÑA½¥¹Ñ•É…ÁÑÕÉ”ü¸¡•Ù•¹Ð¹Á½¥¹Ñ•É%¤ì(€€€½¹ÍÐÉ•Ð€ô•Ù•¹Ð¹ÕÉÉ•¹ÑQ…É•Ð¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ð ¤ì(€€€‘É…I•˜¹ÕÉÉ•¹Ð€ôìàè•Ù•¹Ð¹±¥•¹Ñ`°äè•Ù•¹Ð¹±¥•¹Ñd°ÍÑ…ÉÑ`è…ÉÑÝ½É­=™™Í•Ð¹à°ÍÑ…ÉÑdè…ÉÑÝ½É­=™™Í•Ð¹ä°Ý¥‘Ñ èÉ•Ð¹Ý¥‘Ñ °¡•¥¡ÐèÉ•Ð¹¡•¥¡Ðôì(€ôì(€½¹ÍÐ½¹A½¥¹Ñ•É5½Ù”€ô€¡•Ù•¹Ð¤€ôøì(€€€¥˜€ …‘É…I•˜¹ÕÉÉ•¹Ðñð€……¹É…œ¤É•ÑÕÉ¸ì(€€€½¹ÍÐÍÑ…ÉÐ€ô‘É…I•˜¹ÕÉÉ•¹Ðì(€€€½¹ÍÐ±…µÀ€ô€¡Ø¤€ôø5…Ñ ¹µ¥¸ ÐÈ°5…Ñ ¹µ…à ´ÐÈ°Ø¤¤ì(€€€Í•ÑÉÑÝ½É­=™™Í•Ð¡ì(€€€€€àè±…µÀ¡ÍÑ…ÉÐ¹ÍÑ…ÉÑ`€¬€ ¡•Ù•¹Ð¹±¥•¹Ñ`€´ÍÑ…ÉÐ¹à¤€¼5…Ñ ¹µ…à Ä°ÍÑ…ÉÐ¹Ý¥‘Ñ ¤¤€¨€ÄÀÀ¤°(€€€€€äè±…µÀ¡ÍÑ…ÉÐ¹ÍÑ…ÉÑd€¬€ ¡•Ù•¹Ð¹±¥•¹Ñd€´ÍÑ…ÉÐ¹ä¤€¼5…Ñ ¹µ…à Ä°ÍÑ…ÉÐ¹¡•¥¡Ð¤¤€¨€ÄÀÀ¤(€€€ô¤ì(€ôì(€½¹ÍÐÍÑ½ÁÉ…œ€ô€ ¤€ôøì‘É…I•˜¹ÕÉÉ•¹Ð€ô¹Õ±°ìôì(€½¹ÍÐ½¹]¡••°€ô€¡•Ù•¹Ð¤€ôøì(€€€¥˜€ …Í•Ñi½½´¤É•ÑÕÉ¸ì(€€€•Ù•¹Ð¹ÁÉ•Ù•¹Ñ•™…Õ±Ð ¤ì(€€€Í•Ñi½½´¡Ù…±Õ”€ôø±…µÁAÉ•Ù¥•Ü¡Ù…±Õ”€¬€¡•Ù•¹Ð¹‘•±Ñ…d€ð€À€ü€¸Àà€è€´¸Àà¤¤¤ì(€ôì((€É•ÑÕÉ¸€ñ‘¥Ø½¹]¡••°õí½¹]¡••±ô±…ÍÍ9…µ”õì‰É•±…Ñ¥Ù”½Ù•É™±½Üµ¡¥‘‘•¸‰œµmÉ…‘¥…°µÉ…‘¥•¹Ð¡¥É±•}…Ñ|ÔÀ•|ÌÔ”°™™™‘˜á|À”°••”Ý‘|Øà”°”Ñ‘‰™|ÄÀÀ”¥t€ˆ€¬€¡™Õ±±ÍÉ••¸€ü€‰ µ™Õ±°ˆ€è€‰ µlÌÜÁÁátÍ´é µlÐÌÁÁátˆ¥ôø(€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ðµà´ÀÑ½À´Ìè´ÌÀÑ•áÐµ•¹Ñ•ÈÁ½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ˆøñÍÁ…¸±…ÍÍ9…µ”ô‰É½Õ¹‘•µ™Õ±°‰½É‘•È‰½É‘•Èµl‘‘Ùt‰œµÝ¡¥Ñ”¼àÀÁà´È¸ÔÁä´Ä™½¹Ðµµ½¹¼Ñ•áÐµláÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸ÄÙ•µtÑ•áÐµlŒàÄÝˆÜÅtˆùíÍ¥‘•ôÙ¥•Üð½ÍÁ…¸øð½‘¥Øø((€€€íÍ¡½Ý5•…ÍÕÉ•µ•¹ÑÌ€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´ÌÑ½À´ÄÄè´ÌÀµ…àµÜµlÈÌáÁátÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµláÉŒát‰œµÝ¡¥Ñ”¼äÀ‰…­‘É½Àµ‰±ÕÈÁà´ÌÁä´È¸ÔÍ¡…‘½ÜµÍ´Á½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ˆø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµláÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸ÄÉ•µtÑ•áÐµ…•¹ÐˆùíÍ¥‘”€ôôô€‰‰…¬ˆ€ü€‰	…¬ÁÉ¥¹ÐÕ¥‘”ˆ€è€‰É½¹ÐÁÉ¥¹ÐÕ¥‘”‰ôƒ
-ÜíÍ¥é”ñð€‹ŠP‰ôð½‘¥Øø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµlÄÁÁát™½¹Ðµ‰½±Ñ•áÐµlŒÈäÈØÈÅtˆùI•½µµ•¹‘•ƒ
-Üíµ•…ÍÕÉ•µ•¹ÑA…¥È¡ÁÉ½™¥±”¹Ý¥‘Ñ¡%¸°ÁÉ½™¥±”¹¡•¥¡Ñ%¸¥ôð½‘¥Øø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµláÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµlŒÙ˜Ù„ØÍtˆù5…á¥µÕ´Í…™”…É•„ƒ
-Üíµ•…ÍÕÉ•µ•¹ÑA…¥È¡ÁÉ½™¥±”¹µ…á]¥‘Ñ¡%¸°ÁÉ½™¥±”¹µ…á!•¥¡Ñ%¸¥ôð½‘¥Øø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµláÁát±•…‘¥¹œµÉ•±…á•Ñ•áÐµlŒØÈÕŒÔÑtˆùíÁÉ½™¥±”¹Á±…•µ•¹Ñ1…‰•±ôƒ
-ÜƒŠLíµ•…ÍÕÉ•µ•¹ÑM¥¹±”¡ÁÉ½™¥±”¹½±±…É%¸¥ô™É½´íMÑÉ¥¹œ¡…Éµ•¹Ðü¹ÁÉ•Ù¥•ÝQåÁ”ñð…Éµ•¹Ðü¹ÑåÁ”ñð€ˆˆ¤¹Ñ½1½Ý•É…Í” ¤¹¥¹±Õ‘•Ì ‰¡½½‘¥”ˆ¤€ü€‰¡½½Í•…´ˆ€è€‰½±±…È‰ôð½‘¥Øø(€€€€€í½¹™¥ÕÉ•‘Õ¥‘”ü¹Í¥é•M…±¥¹¹…‰±•€„ôô™…±Í”€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµláÁátÑ•áÐµlŒÝ„ÜÐÙtˆùM¥é”µ…Ý…É”ÁÉ•Í•Ð¥Ì…Ñ¥Ù”™½ÈíÍ¥é”ñð€‰Ñ¡¥ÌÍ¥é”‰ô¸ð½‘¥Øùô(€€€€€íÁÉ½™¥±”¹‰½ÑÑ½µ±•…É…¹•%¸€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµláÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµlŒá„ÔÄÑ‰tˆù-••ÀƒŠ&”íµ•…ÍÕÉ•µ•¹ÑM¥¹±”¡ÁÉ½™¥±”¹‰½ÑÑ½µ±•…É…¹•%¸¥ô…‰½Ù”Á½­•Ð¸ð½‘¥Øùô(€€€€ð½‘¥Øùô((€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´ÀÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÑÉ…¹Í¥Ñ¥½¸µÑÉ…¹Í™½É´‘ÕÉ…Ñ¥½¸´ÈÀÀˆÍÑå±”õíìÑÉ…¹Í™½É´èÍ…±” ‘íé½½µô¥€õôø(€€€€€€ñ‘¥Ø(€€€€€€€±…ÍÍ9…µ”õì‰É•±…Ñ¥Ù”€ˆ€¬€¡™Õ±±ÍÉ••¸€ü€‰Üµmµ¥¸ ÔÕÙ °ÔÈÁÁà¥tˆ€è€‰ÜµlÈÜÕÁátÍ´éÜµlÌÀÕÁátˆ¥ô(€€€€€€€ÍÑå±”õíì…ÍÁ•ÑI…Ñ¥¼è€‘íÁÉ•Ù¥•Ý…¹Ù…Ì¹Ý¥‘Ñ¡ô€¼€‘íÁÉ•Ù¥•Ý…¹Ù…Ì¹¡•¥¡Ñõ€õô(€€€€€€ø(€€€€€€€íµ½­ÕÁUÉ°€ü€ (€€€€€€€€€€ñ¥µœ(€€€€€€€€€€€ÍÉŒõíµ½­ÕÁUÉ±ô(€€€€€€€€€€€…±Ðõì¡…Éµ•¹Ðü¹±…‰•°ñð€‰ÕÍÑ½´…Éµ•¹Ðˆ¤€¬€ˆ€ˆ€¬Í¥‘”€¬€ˆµ½­ÕÀ‰ô(€€€€€€€€€€€±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´À µ™Õ±°Üµ™Õ±°½‰©•Ðµ½¹Ñ…¥¸‘É½ÀµÍ¡…‘½ÜµlÁ|ÄáÁá|ÈÉÁá}É‰„ À°À°À°¸Äà¥tˆ(€€€€€€€€€€€ÍÑå±”õíµ½­ÕÁ1…å•ÉMÑå±•ô(€€€€€€€€€€€‘É……‰±”ô‰™…±Í”ˆ(€€€€€€€€€€¼ø(€€€€€€€€¤€è€ (€€€€€€€€€€ñ…Éµ•¹ÑM¡…Á”ÑåÁ”õí…Éµ•¹Ðü¹ÁÉ•Ù¥•ÝQåÁ”ñð…Éµ•¹Ðü¹ÑåÁ”ñð€‰PµM¡¥ÉÐ‰ô½±½Èõí½±½ÉôÍ¥‘”õíÍ¥‘•ô€¼ø(€€€€€€€€¥ô((€€€€€€€íÍ¡½Ý5•…ÍÕÉ•µ•¹ÑÌ€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´Àè´ÈÀÁ½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”Í•±•Ðµ¹½¹”ˆø(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”ÜµÁà‰œµ…•¹Ð¼ØÔˆÍÑå±”õíì±•™Ðè€ˆÔÀ”ˆ°Ñ½Àè½±±…É¹¡½È€¬€ˆ”ˆ°¡•¥¡Ðè½±±…ÉÕ¥‘•!•¥¡Ð€¬€ˆ”ˆõôø(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”€µ±•™Ð´ÄÑ½À´À µÁàÜ´È‰œµ…•¹Ð¼ÜÀˆ€¼ø(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”€µ±•™Ð´Ä‰½ÑÑ½´´À µÁàÜ´È‰œµ…•¹Ð¼ÜÀˆ€¼ø(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´ÈÑ½À´Ä¼È€µÑÉ…¹Í±…Ñ”µä´Ä¼ÈÝ¡¥Ñ•ÍÁ…”µ¹½ÝÉ…ÀÉ½Õ¹‘•µµ‰½É‘•È‰½É‘•Èµl•…ÍÙt‰œµÝ¡¥Ñ”¼äÀÁà´ÄÁä´À¸Ô™½¹Ðµµ½¹¼Ñ•áÐµlÝÁátÑ•áÐµ…•¹Ðˆùí™½Éµ…Ñ5•…ÍÕÉ•µ•¹Ñ9Õµ‰•È¡ÁÉ½™¥±”¹½±±…É%¸¥ôˆð½ÍÁ…¸ø(€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´Ä¼È€µÑÉ…¹Í±…Ñ”µà´Ä¼ÈÉ½Õ¹‘•µÍ´‰½É‘•È‰½É‘•Èµ‘½ÑÑ•‰½É‘•ÈµlŒÝˆàÜäÑt¼ÜÔ‰œµlŒÄÜÌÈÑt½lÀ¸ÀÄÕtˆÍÑå±”õíµ…áAÉ¥¹ÑÉ•…MÑå±•ôø(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”‰½ÑÑ½´´Ä±•™Ð´Ä¼È€µÑÉ…¹Í±…Ñ”µà´Ä¼ÈÝ¡¥Ñ•ÍÁ…”µ¹½ÝÉ…ÀÉ½Õ¹‘•µµ‰œµÝ¡¥Ñ”¼äÀÁà´Ä¸ÔÁä´À¸Ô™½¹Ðµµ½¹¼Ñ•áÐµlÙÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒØÔÜÄÝ‘tˆùµ…á¥µÕ´Í…™”…É•„ð½ÍÁ…¸ø(€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´Ä¼È€µÑÉ…¹Í±…Ñ”µà´Ä¼ÈˆÍÑå±”õíÁÉ¥¹ÑÉ•…MÑå±•ôø(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ðµä´À±•™Ð´Ä¼È‰½É‘•Èµ°‰½É‘•Èµ‘…Í¡•‰½É‘•Èµ…•¹Ð¼ÔÔˆ€¼ø(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´Ä¼ÈÑ½À´Ä€µÑÉ…¹Í±…Ñ”µà´Ä¼ÈÉ½Õ¹‘•µµ‰œµlt¼äÀÁà´ÄÁä´À¸Ô™½¹Ðµµ½¹¼Ñ•áÐµlÝÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒáˆÔØÕtˆù•¹Ñ•Èð½ÍÁ…¸ø((€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”€µÑ½À´È±•™Ð´ÀÉ¥¡Ð´À µÁà‰œµ…•¹Ð¼ÜÀˆø(€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´À€µÑ½À´Ä ´ÈÜµÁà‰œµ…•¹Ð¼ÜÀˆ€¼ø(€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”É¥¡Ð´À€µÑ½À´Ä ´ÈÜµÁà‰œµ…•¹Ð¼ÜÀˆ€¼ø(€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´Ä¼È€µÑÉ…¹Í±…Ñ”µà´Ä¼È€µÑÉ…¹Í±…Ñ”µä´Ä¼ÈÝ¡¥Ñ•ÍÁ…”µ¹½ÝÉ…ÀÉ½Õ¹‘•µµ‰½É‘•È‰½É‘•Èµl•…ÍÙt‰œµÝ¡¥Ñ”¼äÔÁà´Ä¸ÔÁä´À¸Ô™½¹Ðµµ½¹¼Ñ•áÐµlÝÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµ…•¹Ðˆùí™½Éµ…Ñ5•…ÍÕÉ•µ•¹Ñ9Õµ‰•È¡ÁÉ½™¥±”¹Ý¥‘Ñ¡%¸¥ôˆÝ¥‘”ð½ÍÁ…¸ø(€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”€µÉ¥¡Ð´ÈÑ½À´À‰½ÑÑ½´´ÀÜµÁà‰œµ…•¹Ð¼ÜÀˆø(€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”€µ±•™Ð´ÄÑ½À´À µÁàÜ´È‰œµ…•¹Ð¼ÜÀˆ€¼ø(€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”€µ±•™Ð´Ä‰½ÑÑ½´´À µÁàÜ´È‰œµ…•¹Ð¼ÜÀˆ€¼ø(€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´ÈÑ½À´Ä¼È€µÑÉ…¹Í±…Ñ”µä´Ä¼ÈÝ¡¥Ñ•ÍÁ…”µ¹½ÝÉ…ÀÉ½Õ¹‘•µµ‰½É‘•È‰½É‘•Èµl•…ÍÙt‰œµÝ¡¥Ñ”¼äÔÁà´ÄÁä´À¸Ô™½¹Ðµµ½¹¼Ñ•áÐµlÝÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµ…•¹Ðˆùí™½Éµ…Ñ5•…ÍÕÉ•µ•¹Ñ9Õµ‰•È¡ÁÉ½™¥±”¹¡•¥¡Ñ%¸¥ôˆ¡¥ ð½ÍÁ…¸ø(€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€íÁÉ½™¥±”¹‰½ÑÑ½µ±•…É…¹•%¸€˜˜€ñÍÁ…¸±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´Ä¼ÈÑ½Àµ™Õ±°µÐ´Ä€µÑÉ…¹Í±…Ñ”µà´Ä¼ÈÝ¡¥Ñ•ÍÁ…”µ¹½ÝÉ…ÀÉ½Õ¹‘•µµ‰½É‘•È‰½É‘•Èµl•…ÍÙt‰œµÝ¡¥Ñ”¼äÔÁà´Ä¸ÔÁä´À¸Ô™½¹Ðµµ½¹¼Ñ•áÐµlÝÁátÑ•áÐµlŒá„ÔÄÑ‰tˆûŠDí™½Éµ…Ñ5•…ÍÕÉ•µ•¹Ñ9Õµ‰•È¡ÁÉ½™¥±”¹‰½ÑÑ½µ±•…É…¹•%¸¥ôˆÁ½­•Ð±•…É…¹”ð½ÍÁ…¸ùô(€€€€€€€€€€ð½‘¥Øø(€€€€€€€€ð½‘¥Øùô((€€€€€€€€ñ‘¥Ø(€€€€€€€€€½¹A½¥¹Ñ•É½Ý¸õí½¹A½¥¹Ñ•É½Ý¹ô(€€€€€€€€€½¹A½¥¹Ñ•É5½Ù”õí½¹A½¥¹Ñ•É5½Ù•ô(€€€€€€€€€½¹A½¥¹Ñ•ÉUÀõíÍÑ½ÁÉ…ô(€€€€€€€€€½¹A½¥¹Ñ•É…¹•°õíÍÑ½ÁÉ…ô(€€€€€€€€€ÍÑå±”õíÁÉ¥¹ÑÉ•…MÑå±•ô(€€€€€€€€€±…ÍÍ9…µ”õì‰…‰Í½±ÕÑ”±•™Ð´Ä¼È€µÑÉ…¹Í±…Ñ”µà´Ä¼È½Ù•É™±½Üµ¡¥‘‘•¸Í•±•Ðµ¹½¹”Ñ½Õ µ¹½¹”€ˆ€¬€¡Í¡½ÝÕ¥‘•Ì€ü€ˆ‰½É‘•È‰½É‘•Èµ‘…Í¡•‰½É‘•Èµ…•¹Ð¼ØÔ‰œµÝ¡¥Ñ”½lÀ¸ÀÍtˆ€è€ˆˆ¤€¬€¡…¹É…œ€ü€ˆÕÉÍ½ÈµÉ…ˆ…Ñ¥Ù”éÕÉÍ½ÈµÉ…‰‰¥¹œˆ€è€ˆˆ¥ô(€€€€€€€€ø(€€€€€€€€€ì…ÍÑå±•Q•µÁ±…Ñ”€ü¹Õ±°€è‰±…¹­ÉÑÝ½É¬€ü€ (€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´ÀÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÑ•áÐµ•¹Ñ•ÈÁà´ÈÑ•áÐµláÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒáˆàÐÝ…tˆù9¼‰…¬ÁÉ¥¹ÐÍ•±•Ñ•ð½‘¥Øø(€€€€€€€€€€¤€è€ (€€€€€€€€€€€€ðø(€€€€€€€€€€€€€€ñ‘¥Ø(€€€€€€€€€€€€€€€±…ÍÍ9…µ”õì‰…‰Í½±ÕÑ”è´ÄÀ½Ù•É™±½Üµ¡¥‘‘•¸ÑÉ…¹Í¥Ñ¥½¸µ…±°‘ÕÉ…Ñ¥½¸´ÈÀÀ€ˆ€¬€¡Í¡½ÝÕ¥‘•Ì€ü€‰É¥¹œ´ÄÉ¥¹œµÝ¡¥Ñ”¼ÌÔˆ€è€ˆˆ¥ô(€€€€€€€€€€€€€€€ÍÑå±”õíÁ¡½Ñ½i½¹•MÑå±•ô(€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€íÁ¡½Ñ¼€ü€ (€€€€€€€€€€€€€€€€€…ÉÑÝ½É­¥Ñ5½‘”€ôôô€‰É½Àˆ€ü€ (€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ” µ™Õ±°Üµ™Õ±°Á½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ˆÍÑå±”õí…ÉÑÝ½É­1…å•ÉMÑå±•ôø(€€€€€€€€€€€€€€€€€€€€€€ñ¥µœ(€€€€€€€€€€€€€€€€€€€€€€€ÍÉŒõíÁ¡½Ñ¼¹ÕÉ±ô(€€€€€€€€€€€€€€€€€€€€€€€…±Ðô‰ÕÍÑ½µ•ÈÁ¡½Ñ¼ÁÉ•Ù¥•Üˆ(€€€€€€€€€€€€€€€€€€€€€€€‘É……‰±”ô‰™…±Í”ˆ(€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰ µ™Õ±°Üµ™Õ±°½‰©•Ðµ½Ù•ÈÁ½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ÑÉ…¹Í¥Ñ¥½¸µm™¥±Ñ•Ét‘ÕÉ…Ñ¥½¸´ÈÀÀˆ(€€€€€€€€€€€€€€€€€€€€€€€ÍÑå±”õíì™¥±Ñ•Èèµ½½‘QÉ•…Ñµ•¹Ð¹Á¡½Ñ½¥±Ñ•Èõô(€€€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€¤€è€ (€€€€€€€€€€€€€€€€€€€€ñ¥µœ(€€€€€€€€€€€€€€€€€€€€€ÍÉŒõíÁ¡½Ñ¼¹ÕÉ±ô(€€€€€€€€€€€€€€€€€€€€€…±Ðô‰ÕÍÑ½µ•ÈÁ¡½Ñ¼ÁÉ•Ù¥•Üˆ(€€€€€€€€€€€€€€€€€€€€€‘É……‰±”ô‰™…±Í”ˆ(€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”µ…àµ µ™Õ±°µ…àµÜµ™Õ±°½‰©•Ðµ½¹Ñ…¥¸Á½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ÑÉ…¹Í¥Ñ¥½¸µm™¥±Ñ•Ét‘ÕÉ…Ñ¥½¸´ÈÀÀˆ(€€€€€€€€€€€€€€€€€€€€€ÍÑå±”õíì€¸¸¹…ÉÑÝ½É­1…å•ÉMÑå±”°™¥±Ñ•Èèµ½½‘QÉ•…Ñµ•¹Ð¹Á¡½Ñ½¥±Ñ•Èõô(€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€€€€€¤€è€ (€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´ÀÉ¥Á±…”µ¥Ñ•µÌµ•¹Ñ•ÈÉ½Õ¹‘•µm¥¹¡•É¥Ñt‰½É‘•È‰½É‘•Èµ‘…Í¡•‰½É‘•ÈµÝ¡¥Ñ”¼ÐÔ‰œµlŒÄÜÌÈÑt½lÀ¸ÀátÑ•áÐµ•¹Ñ•ÈÁà´ÌÁ½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ˆø(€€€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€ñUÁ±½…Í¥é”õìÄÙô±…ÍÍ9…µ”ô‰µàµ…ÕÑ¼Ñ•áÐµÝ¡¥Ñ”¼àÔ‘É½ÀµÍ¡…‘½Üˆ¼ø(€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´ÄÑ•áÐµlÙÁát™½¹Ðµ‰½±ÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸ÄÑ•µtÑ•áÐµÝ¡¥Ñ”¼äÀ‘É½ÀµÍ¡…‘½ÜˆùA¡½Ñ¼½•Ì¡•É”ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€¥ô(€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€íÑ•µÁ±…Ñ”ü¹…ÍÍ•ÑUÉ°€˜˜€ (€€€€€€€€€€€€€€€€ñ¥µœ(€€€€€€€€€€€€€€€€€­•äõíÑ•µÁ±…Ñ”¹¥‘ô(€€€€€€€€€€€€€€€€€ÍÉŒõíÑ•µÁ±…Ñ”¹…ÍÍ•ÑUÉ±ô(€€€€€€€€€€€€€€€€€…±ÐõíÑ•µÁ±…Ñ”¹¹…µ”€¬€ˆ…ÉÑÝ½É¬½Ù•É±…ä‰ô(€€€€€€€€€€€€€€€€€‘É……‰±”ô‰™…±Í”ˆ(€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´Àè´ÈÀ µ™Õ±°Üµ™Õ±°½‰©•Ðµ™¥±°Á½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ÑÉ…¹Í¥Ñ¥½¸µm™¥±Ñ•È±½Á…¥Ñåt‘ÕÉ…Ñ¥½¸´ÈÀÀˆ(€€€€€€€€€€€€€€€€€ÍÑå±”õíì™¥±Ñ•Èèµ½½‘QÉ•…Ñµ•¹Ð¹Ñ•µÁ±…Ñ•¥±Ñ•Èõô(€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€¥ô((€€€€€€€€€€€€€í¡…ÍAÉ•Ù¥•ÝQ•áÐ€˜˜€ (€€€€€€€€€€€€€€€€ñ‘¥Ø(€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”õì‰…‰Í½±ÕÑ”è´ÌÀÉ¥½¹Ñ•¹Ðµ•¹Ñ•ÈÁà´ÈÁ½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”‘É½ÀµÍ¡…‘½ÜµlÁ|ÅÁá|ÉÁá}É‰„ À°À°À°¸ÜÔ¥t€ˆ€¬€¡Ñ•áÑi½¹”ü¹Ñ½¹”€ôôô€‰‘…É¬ˆ€ü€‰Ñ•áÐµlŒÈØÈÄÅ‘tˆ€è€‰Ñ•áÐµÝ¡¥Ñ”ˆ¥ô(€€€€€€€€€€€€€€€€€ÍÑå±”õíÑ•áÑi½¹•MÑå±•ô(€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÑ•áÑi½¹”ü¹…±¥¸€ôôô€‰±•™Ðˆ€ü€‰Ñ•áÐµ±•™Ðˆ€èÑ•áÑi½¹”ü¹…±¥¸€ôôô€‰É¥¡Ðˆ€ü€‰Ñ•áÐµÉ¥¡Ðˆ€è€‰Ñ•áÐµ•¹Ñ•È‰ôø(€€€€€€€€€€€€€€€€€€€íÁ•ÉÍ½¹…±¥é…Ñ¥½¸ü¹¹…µ”€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµ‘¥ÍÁ±…äÑ•áÐµÍ´±•…‘¥¹œµ¹½¹”ÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”ˆùíÁ•ÉÍ½¹…±¥é…Ñ¥½¸¹¹…µ•ôð½‘¥Øùô(€€€€€€€€€€€€€€€€€€€íÁ•ÉÍ½¹…±¥é…Ñ¥½¸ü¹‘…Ñ•Ì€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlÙÁátµÐ´À¸ÔˆùíÁ•ÉÍ½¹…±¥é…Ñ¥½¸¹‘…Ñ•Íôð½‘¥Øùô(€€€€€€€€€€€€€€€€€€€íÁ•ÉÍ½¹…±¥é…Ñ¥½¸ü¹ÅÕ½Ñ”€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµlÙÁát±•…‘¥¹œµÑ¥¡ÐµÐ´À¸Ô±¥¹”µ±…µÀ´ÈˆùíÁ•ÉÍ½¹…±¥é…Ñ¥½¸¹ÅÕ½Ñ•ôð½‘¥Øùô(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€¥ô(€€€€€€€€€€€€ð¼ø(€€€€€€€€€€¥ô(€€€€€€€€ð½‘¥Øø(€€€€€€ð½‘¥Øø(€€€€ð½‘¥Øø((€€€íÕÁ±½…‘¥¹œ€˜˜Á¡½Ñ¼€˜˜ÍÑå±•Q•µÁ±…Ñ”€˜˜€…‰±…¹­ÉÑÝ½É¬€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”±•™Ð´Ä¼ÈÑ½À´ÄÈè´ÐÀ€µÑÉ…¹Í±…Ñ”µà´Ä¼ÈÁ½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ˆø(€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´Ä¸ÔÝ¡¥Ñ•ÍÁ…”µ¹½ÝÉ…ÀÉ½Õ¹‘•µ™Õ±°‰½É‘•È‰½É‘•ÈµlåÑt‰œµÝ¡¥Ñ”¼äÀÁà´ÌÁä´Ä¸ÔÑ•áÐµlåÁát™½¹ÐµÍ•µ¥‰½±Ñ•áÐµlŒÄÜÌÈÑtÍ¡…‘½ÜµÍ´‰…­‘É½Àµ‰±ÕÈˆø(€€€€€€€€ñUÁ±½…Í¥é”õìÄÅô€¼øUÁ±½…‘¥¹œ¹•Ü…ÉÑÝ½É¯Š˜ÕÉÉ•¹ÐÁÉ•Ù¥•ÜÍÑ…åÌÙ¥Í¥‰±”(€€€€€€ð½ÍÁ…¸ø(€€€€ð½‘¥Øùô((€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”‰½ÑÑ½´´Ì±•™Ð´ÌÉ¥¡Ð´Ìè´ÌÀ™±•à¥Ñ•µÌµ•¹©ÕÍÑ¥™äµ‰•ÑÝ••¸…À´ÈÁ½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ˆø(€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰É½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµláÉŒát‰œµÝ¡¥Ñ”¼àÀ‰…­‘É½Àµ‰±ÕÈÁà´È¸ÔÁä´Ä¸ÔÑ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒàÄÝˆÜÅtˆùí½±½Éôƒ
-Üí…Éµ•¹Ðü¹±…‰•°ñð€‰ÕÍÑ½´…Éµ•¹Ð‰ôð½ÍÁ…¸ø(€€€€€ì…‰±…¹­ÉÑÝ½É¬€˜˜€ñÍÁ…¸±…ÍÍ9…µ”ô‰É½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµláÉŒát‰œµÝ¡¥Ñ”¼àÀ‰…­‘É½Àµ‰±ÕÈÁà´È¸ÔÁä´Ä¸ÔÑ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒàÄÝˆÜÅt¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÄˆùíÁ¡½Ñ¼€ü€ðøñ5½Ù”Í¥é”õìÄÁô¼øÉ…œÑ¼Á½Í¥Ñ¥½¸ð¼ø€è€ðøñMÁ…É­±•ÌÍ¥é”õìÄÁô¼øíÑ•µÁ±…Ñ”ü¹¹…µ”ü¹É•Á±…” ‰@€ˆ°ˆˆ¥ôƒ
-Üíµ½½‘ôð¼ùôð½ÍÁ…¸ùô(€€€€ð½‘¥Øø(€€ð½‘¥Øøì)ô()™Õ¹Ñ¥½¸…Éµ•¹ÑM¡…Á”¡ìÑåÁ”°½±½È°Í¥‘”ô¤ì(€½¹ÍÐÁ…±•ÑÑ”€ô…Éµ•¹ÑA…±•ÑÑ”¡½±½È¤ì(€½¹ÍÐ­•ä€ô¹½Éµ…±¥é•AÉ•Ù¥•ÝQ½­•¸¡ÑåÁ”¤ì(€½¹ÍÐ¥Í!½½‘¥”€ô­•ä¹¥¹±Õ‘•Ì ‰¡½½‘¥”ˆ¤ì(€½¹ÍÐ¥ÍÉ•Ü€ô­•ä¹¥¹±Õ‘•Ì ‰É•Ý¹•¬ˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰É•Ü¹•¬ˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰ÍÝ•…ÑÍ¡¥ÉÐˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰ÍÝ•…Ñ•Èˆ¤ì(€½¹ÍÐ¥Í1½¹M±••Ù”€ô­•ä¹¥¹±Õ‘•Ì ‰±½¹œÍ±••Ù”ˆ¤ì(€½¹ÍÐ¥Í	…‰ä€ô­•ä¹¥¹±Õ‘•Ì ‰‰…‰äˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰‰½‘åÍÕ¥Ðˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰½¹•Í¥”ˆ¤ì(€½¹ÍÐ¥ÍQ½‘‘±•È€ô­•ä¹¥¹±Õ‘•Ì ‰Ñ½‘‘±•Èˆ¤ì(€½¹ÍÐ¥Íe½ÕÑ €ô­•ä¹¥¹±Õ‘•Ì ‰å½ÕÑ ˆ¤ñð­•ä€ôôô€‰­¥‘Ìˆì((€½¹ÍÐ±½¹M±••Ù•	½‘ä€ô€‰4ÄÈÌ€ÜÀ0àÐ€àØ0Ðä€ÄÄÈ0Äà€ÈÜÄ0ØÌ€ÈàÀ0äÐ€ÄÔÄ0äà€ÌäÈ0ÈØÈ€ÌäÈ0ÈØØ€ÄÔÄ0ÈäÜ€ÈàÀ0ÌÐÈ€ÈÜÄ0ÌÄÄ€ÄÄÈ0ÈÜØ€àØ0ÈÌÜ€ÜÀÈÈÐ€äÄ€ÈÀÐ€ÄÀÄ€ÄàÀ€ÄÀÄÄÔØ€ÄÀÄ€ÄÌØ€äÄ€ÄÈÌ€ÜÀhˆì(€€¼¼QÉ…•™É½´Ñ¡”…ÁÁÉ½Ù•‘Õ±Ð1½¹œM±••Ù”Q•”µ½­ÕÀÍ¼™…±±‰…¬Ù¥•ÝÌ(€€¼¼ÁÉ•Í•ÉÙ”Ñ¡”Í…µ”Í±••Ù”±•¹Ñ °Í¡½Õ±‘•ÈÝ¥‘Ñ …¹‰½‘äÁÉ½Á½ÉÑ¥½¹Ì¸(€½¹ÍÐ±½¹M±••Ù•Q••É½¹Ñ	½‘ä€ô€‰4ÄÐÜ€ÄÄÐ0ÄÀÜ€ÈÀÄ0Øà€ÐÈÄ0ÔÔ€ØÌÈ0ÜÈ€ÜØä0ÄÐÐ€ÜØà0Äàà€ÐØÈ0ÈÄÌ€ÌÜÔ0ÄäÔ€ÜØÄ0ÌÐÄ€ÜÜä0ÔÌÌ€ÜÜÔ0ØÀÌ€ÜØÄ0Ôàà€ÌàÈ0ØÄÈ€ÐÜÀ0ØÔÄ€ÜØà0ÜÈÀ€ÜÜÌ0ÜÌä€ÜÀÜ0ÜÐÐ€ØÀÈ0ÜÌÔ€ÐÐä0ÜÀÄ€ÈÌÜ0ØØÐ€ÄÈØ0ÐäÀ€ÌÌ0ÐÄÌ€ÐØ0ÌÀä€ÌÌhˆì(€½¹ÍÐ±½¹M±••Ù•Q••	…­	½‘ä€ô€‰4ÄÐÔ€ÄÄØ0ÄÀÌ€ÈÄÈ0Øà€ÐÄÈ0ÔÐ€ØÈÐ0ÜÈ€ÜØà0ÄÌä€ÜØØ0ÄäÌ€ÐÈÔ0ÈÄÐ€ÌÔä0ÄäÀ€ÜÔÐ0ÈÈÈ€ÜØä0ÌÈÜ€ÜÜà0ÔÈä€ÜÜÔ0ØÀÔ€ÜÔà0ÔàÐ€ÌÔä0ØÀÜ€ÐÌÈ0ØØÀ€ÜØØ0ÜÈØ€ÜØä0ÜÐØ€ØÀä0ÜÌÐ€ÐÌÌ0ÜÀÄ€ÈÌà0ØØÀ€ÄÈÐ0ÐäÄ€ÌÈ0ÌÀÜ€ÌÈhˆì(€½¹ÍÐ±½¹M±••Ù•Q••QÉ…¹Í™½É´€ô€‰ÑÉ…¹Í±…Ñ” À€ÌÔ¤Í…±” ¸ÐÔ¤ˆì((€É•ÑÕÉ¸€ñÍÙœÙ¥•Ý	½àôˆÀ€À€ÌØÀ€ÐÌÀˆÉ½±”ô‰¥µœˆ…É¥„µ±…‰•°õí½±½È€¬€ˆ€ˆ€¬ÑåÁ”€¬€ˆ€ˆ€¬Í¥‘”€¬€ˆµ½­ÕÀ‰ô±…ÍÍ9…µ”ô‰Üµ™Õ±° µ…ÕÑ¼‘É½ÀµÍ¡…‘½ÜµlÁ|ÄáÁá|ÈÉÁá}É‰„ À°À°À°¸Äà¥tˆø(€€€í¥Í!½½‘¥”€ü€ðø(€€€€€€ñÁ…Ñ ô‰4ÄÈÐ€àäÄÌÀ€Ðà€ÄÔÄ€ÈÔ€ÄàÀ€ÈÔÈÀä€ÈÔ€ÈÌÀ€Ðà€ÈÌØ€àä0ÈÄØ€ÄÄÄÈÀà€àÈ€ÄäÜ€Øà€ÄàÀ€ØàÄØÌ€Øà€ÄÔÈ€àÈ€ÄÐÐ€ÄÄÄhˆ™¥±°õíÁ…±•ÑÑ”¹‰…Í•ôÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ôÍÑÉ½­•]¥‘Ñ ôˆÈˆ€¼ø(€€€€€€ñÁ…Ñ õí±½¹M±••Ù•	½‘åô™¥±°õíÁ…±•ÑÑ”¹‰…Í•ôÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ôÍÑÉ½­•]¥‘Ñ ôˆÈˆ€¼ø(€€€€€íÍ¥‘”€ôôô€‰™É½¹Ðˆ€˜˜€ðø(€€€€€€€€ñÁ…Ñ ô‰4ÄÌä€ÈàÐDÄàÀ€ÈØØ€ÈÈÄ€ÈàÐ0ÈÄÐ€ÌÐÀ ÄÐØhˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÈˆ½Á…¥Ñäôˆ¸ÔÔˆ€¼ø(€€€€€€€€ñÁ…Ñ ô‰4ÄÔà€àÜ0ÄÜÐ€ÄÌÄ4ÈÀÈ€àÜ0ÄàØ€ÄÌÄˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÈˆ½Á…¥Ñäôˆ¸ÔÔˆ€¼ø(€€€€€€ð¼ùô(€€€€ð¼ø€è¥Í	…‰ä€ü€ðø(€€€€€€ñÁ…Ñ ô‰4ÄÌÈ€ÜÈ0äÐ€àÜ0ÔÜ€ÄÌØ0àÜ€ÄÔà0ÄÄÀ€ÄÌÐ0ÄÄÀ€ÈäÈ0ÄÌØ€ÌÈÈ0ÄÔÄ€ÌäÈ0ÄàÀ€ÌØä0ÈÀä€ÌäÈ0ÈÈÐ€ÌÈÈ0ÈÔÀ€ÈäÈ0ÈÔÀ€ÄÌÐ0ÈÜÌ€ÄÔà0ÌÀÌ€ÄÌØ0ÈØØ€àÜ0ÈÈà€ÜÈÈÄà€äÄ€ÈÀÄ€ÄÀÄ€ÄàÀ€ÄÀÄÄÔä€ÄÀÄ€ÄÐÈ€äÄ€ÄÌÈ€ÜÈhˆ™¥±°õíÁ…±•ÑÑ”¹‰…Í•ôÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ôÍÑÉ½­•]¥‘Ñ ôˆÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÄÔÄ€ÜÈÄÔØ€àà€ÄØØ€äÐ€ÄàÀ€äÐÄäÐ€äÐ€ÈÀÐ€àà€ÈÀä€ÜÈˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÌˆ½Á…¥Ñäôˆ¸ØÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÄÔÄ€ÌäÈDÄàÀ€ÐÀÔ€ÈÀä€ÌäÈˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÈˆ½Á…¥Ñäôˆ¸Ôˆ€¼ø(€€€€€íÍ¥‘”€ôôô€‰™É½¹Ðˆ€˜˜€ðø(€€€€€€€€ñ¥É±”àôˆÄØØˆäôˆÌàÐˆÈôˆÈ¸Ðˆ™¥±°õíÁ…±•ÑÑ”¹Í•…µô€¼ø(€€€€€€€€ñ¥É±”àôˆÄàÀˆäôˆÌààˆÈôˆÈ¸Ðˆ™¥±°õíÁ…±•ÑÑ”¹Í•…µô€¼ø(€€€€€€€€ñ¥É±”àôˆÄäÐˆäôˆÌàÐˆÈôˆÈ¸Ðˆ™¥±°õíÁ…±•ÑÑ”¹Í•…µô€¼ø(€€€€€€ð¼ùô(€€€€ð¼ø€è¥ÍÉ•Ü€ü€ðø(€€€€€€ñÁ…Ñ õí±½¹M±••Ù•	½‘åô™¥±°õíÁ…±•ÑÑ”¹‰…Í•ôÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ôÍÑÉ½­•]¥‘Ñ ôˆÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÄÐä€ØäÄÔÐ€àØ€ÄØÔ€äÌ€ÄàÀ€äÌÄäÔ€äÌ€ÈÀØ€àØ€ÈÄÄ€Øäˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆØˆ½Á…¥Ñäôˆ¸ØÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4äà€ÌØÔ0ÈØÈ€ÌØÔˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆØˆ½Á…¥Ñäôˆ¸ÐÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÈÀ€ÈÔà0ØÐ€ÈØà4ÈäØ€ÈØà0ÌÐÀ€ÈÔàˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆØˆ½Á…¥Ñäôˆ¸ÐÈˆ€¼ø(€€€€ð¼ø€è¥Í1½¹M±••Ù”€ü€ðø(€€€€€€ñÁ…Ñ (€€€€€€€õíÍ¥‘”€ôôô€‰‰…¬ˆ€ü±½¹M±••Ù•Q••	…­	½‘ä€è±½¹M±••Ù•Q••É½¹Ñ	½‘åô(€€€€€€€ÑÉ…¹Í™½É´õí±½¹M±••Ù•Q••QÉ…¹Í™½Éµô(€€€€€€€™¥±°õíÁ…±•ÑÑ”¹‰…Í•ô(€€€€€€€ÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ô(€€€€€€€ÍÑÉ½­•]¥‘Ñ ôˆÐˆ(€€€€€€¼ø(€€€€€€ñÁ…Ñ (€€€€€€€õíÍ¥‘”€ôôô€‰‰…¬ˆ(€€€€€€€€€€ü€‰4ÌÀÜ€ÐÌÌÐÈ€Ôà€ÌØÜ€ØÐ€ÐÀÀ€ØÐÐÌÌ€ØÐ€ÐÔà€Ôà€ÐäÄ€ÐÌˆ(€€€€€€€€€€è€‰4ÌÀä€ÐÌÌÌØ€ÜÌ€ÌØÔ€àÜ€ÐÀÀ€àÜÐÌÔ€àÜ€ÐØÐ€ÜÌ€ÐäÀ€ÐÌ‰ô(€€€€€€€ÑÉ…¹Í™½É´õí±½¹M±••Ù•Q••QÉ…¹Í™½Éµô(€€€€€€€™¥±°ô‰¹½¹”ˆ(€€€€€€€ÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µô(€€€€€€€ÍÑÉ½­•]¥‘Ñ ôˆÄÀˆ(€€€€€€€½Á…¥Ñäôˆ¸ØÈˆ(€€€€€€¼ø(€€€€€€ñÁ…Ñ ô‰4ÜÐ€ÜÌÀ0ÄÐÌ€ÜÌÀ4ØÔÜ€ÜÌÀ0ÜÈÈ€ÜÌÀˆÑÉ…¹Í™½É´õí±½¹M±••Ù•Q••QÉ…¹Í™½Éµô™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆäˆ½Á…¥Ñäôˆ¸Ðˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÈÀÔ€ÜÐÈÌÀÀ€ÜØÔ€ÔÀÀ€ÜØÔ€ÔäÐ€ÜÐÈˆÑÉ…¹Í™½É´õí±½¹M±••Ù•Q••QÉ…¹Í™½Éµô™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÔˆ½Á…¥Ñäôˆ¸Èàˆ€¼ø(€€€€ð¼ø€è¥ÍQ½‘‘±•È€ü€ðø(€€€€€€ñÁ…Ñ ô‰4ÄÌÈ€Üà0äÌ€äÐ0ÔÈ€ÄÐà0àÐ€ÄÜÄ0ÄÀà€ÄÐØ0ÄÀà€ÌÔà0ÈÔÈ€ÌÔà0ÈÔÈ€ÄÐØ0ÈÜØ€ÄÜÄ0ÌÀà€ÄÐà0ÈØÜ€äÐ0ÈÈà€ÜàÈÄà€äØ€ÈÀÄ€ÄÀÔ€ÄàÀ€ÄÀÔÄÔä€ÄÀÔ€ÄÐÈ€äØ€ÄÌÈ€Üàhˆ™¥±°õíÁ…±•ÑÑ”¹‰…Í•ôÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ôÍÑÉ½­•]¥‘Ñ ôˆÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÄÔÌ€ÜÜÄÔÜ€äÈ€ÄØØ€ää€ÄàÀ€ääÄäÐ€ää€ÈÀÌ€äÈ€ÈÀÜ€ÜÜˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÌˆ½Á…¥Ñäôˆ¸Øˆ€¼ø(€€€€ð¼ø€è¥Íe½ÕÑ €ü€ðø(€€€€€€ñÁ…Ñ ô‰4ÄÈà€ÜÐ0àØ€äÄ0Ìà€ÄÔÄ0ÜØ€ÄÜà0ÄÀÌ€ÄÐà0ÄÀÌ€ÌÜØ0ÈÔÜ€ÌÜØ0ÈÔÜ€ÄÐà0ÈàÐ€ÄÜà0ÌÈÈ€ÄÔÄ0ÈÜÐ€äÄ0ÈÌÈ€ÜÐÈÈÄ€äÌ€ÈÀÌ€ÄÀÈ€ÄàÀ€ÄÀÈÄÔÜ€ÄÀÈ€ÄÌä€äÌ€ÄÈà€ÜÐhˆ™¥±°õíÁ…±•ÑÑ”¹‰…Í•ôÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ôÍÑÉ½­•]¥‘Ñ ôˆÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÄÔÄ€ÜÌÄÔÔ€àà€ÄØÔ€äÔ€ÄàÀ€äÔÄäÔ€äÔ€ÈÀÔ€àà€ÈÀä€ÜÌˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÌˆ½Á…¥Ñäôˆ¸Øˆ€¼ø(€€€€ð¼ø€è€ðø(€€€€€€ñÁ…Ñ ô‰4ÄÈÌ€ÜÀ0Üà€àà0ÈÜ€ÄÔÐ0ÜÀ€ÄàÐ0äØ€ÄÔÄ0äØ€ÌäÈ0ÈØÐ€ÌäÈ0ÈØÐ€ÄÔÄ0ÈäÀ€ÄàÐ0ÌÌÌ€ÄÔÐ0ÈàÈ€àà0ÈÌÜ€ÜÀÈÈÐ€äÄ€ÈÀÐ€ÄÀÄ€ÄàÀ€ÄÀÄÄÔØ€ÄÀÄ€ÄÌØ€äÄ€ÄÈÌ€ÜÀhˆ™¥±°õíÁ…±•ÑÑ”¹‰…Í•ôÍÑÉ½­”õíÁ…±•ÑÑ”¹ÍÑÉ½­•ôÍÑÉ½­•]¥‘Ñ ôˆÈˆ€¼ø(€€€€€€ñÁ…Ñ ô‰4ÄÐä€ØäÄÔÐ€àÔ€ÄØÐ€äÈ€ÄàÀ€äÈÄäØ€äÈ€ÈÀØ€àÔ€ÈÄÄ€Øäˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹Í•…µôÍÑÉ½­•]¥‘Ñ ôˆÌˆ½Á…¥Ñäôˆ¸Øˆ€¼ø(€€€€ð¼ùô(€€€€ñÁ…Ñ ô‰4ÄÄØ€äÌÄÌä€ÄÀÔ€ÄÔÜ€ÄÄÈ€ÄàÀ€ÄÄÈÈÀÌ€ÄÄÈ€ÈÈÄ€ÄÀÔ€ÈÐÐ€äÌˆ™¥±°ô‰¹½¹”ˆÍÑÉ½­”õíÁ…±•ÑÑ”¹¡¥¡±¥¡ÑôÍÑÉ½­•]¥‘Ñ ôˆÄÌˆ½Á…¥Ñäôˆ¸Èˆ€¼ø(€€ð½ÍÙœøì)ô()™Õ¹Ñ¥½¸…Éµ•¹ÑA…±•ÑÑ”¡½±½È¤ì(€½¹ÍÐ­•ä€ôMÑÉ¥¹œ¡½±½Èñð€‰	±…¬ˆ¤¹Ñ½1½Ý•É…Í” ¤ì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰‰±…¬ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆŒÄÜÄÜÄÜˆ°ÍÑÉ½­”è€ˆŒÀÔÀÔÀÔˆ°Í•…´è€ˆŒÑ˜Ñ˜Ñ˜ˆ°¡¥¡±¥¡Ðè€ˆŒÙ„Ù„Ù„ˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰Ý¡¥Ñ”ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆ˜Ñ˜Å•ˆˆ°ÍÑÉ½­”è€ˆŒáŒÉˆàˆ°Í•…´è€ˆ……„Ðå„ˆ°¡¥¡±¥¡Ðè€ˆ™™™™™˜ˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰ÍÁ½ÉÐÉ•äˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰ÍÁ½ÉÐÉ…äˆ¤ñð­•ä€ôôô€‰É•äˆñð­•ä€ôôô€‰É…äˆ¤É•ÑÕÉ¸ì‰…Í”è€ˆˆáˆåˆÔˆ°ÍÑÉ½­”è€ˆŒàÔàØàÈˆ°Í•…´è€ˆŒÜÜÜàÜÐˆ°¡¥¡±¥¡Ðè€ˆ‘‘‘‘‘„ˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰Í…¹ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆŒáˆÜåˆˆ°ÍÑÉ½­”è€ˆŒäÔàÄØØˆ°Í•…´è€ˆŒá˜Ý„Õ˜ˆ°¡¥¡±¥¡Ðè€ˆ˜Á”ÅŒàˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰¹…Ùäˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆŒÈÀÉˆÍˆˆ°ÍÑÉ½­”è€ˆŒÁˆÄÈÈÀˆ°Í•…´è€ˆŒØØÜÀàÔˆ°¡¥¡±¥¡Ðè€ˆŒØÐÜÐáˆˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰É½å…°ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆŒÈàÔÝ„Øˆ°ÍÑÉ½­”è€ˆŒÄÜÌÜÙ˜ˆ°Í•…´è€ˆŒÙ˜äÅˆ°¡¥¡±¥¡Ðè€ˆŒÝ…„Á‘˜ˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰É•ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆ…ÈÜÌÔˆ°ÍÑÉ½­”è€ˆŒØàÄÔÅ”ˆ°Í•…´è€ˆ”ØàÜÌˆ°¡¥¡±¥¡Ðè€ˆ‘˜ÝàÜˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰Á¥¹¬ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆ”å…™ŒÌˆ°ÍÑÉ½­”è€ˆˆØÜàáˆ°Í•…´è€ˆÌá™„Øˆ°¡¥¡±¥¡Ðè€ˆ˜áÙ”Äˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰™½É•ÍÐˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰É••¸ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆŒÈäÐØÍˆˆ°ÍÑÉ½­”è€ˆŒÄÀÈÌÅŒˆ°Í•…´è€ˆŒÜÈàÜÝ˜ˆ°¡¥¡±¥¡Ðè€ˆŒÙ˜äÌàÔˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰¡…É½…°ˆ¤ñð­•ä¹¥¹±Õ‘•Ì ‰¡•…Ñ¡•Èˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆŒÐÄÐÄÐÄˆ°ÍÑÉ½­”è€ˆŒÈÈÈˆ°Í•…´è€ˆŒÜÀÜÀÜÀˆ°¡¥¡±¥¡Ðè€ˆŒÝˆÝˆÝˆˆôì(€¥˜€¡­•ä¹¥¹±Õ‘•Ì ‰Ù¥¹Ñ…”ˆ¤¤É•ÑÕÉ¸ì‰…Í”è€ˆŒÈÜÈÐÈÈˆ°ÍÑÉ½­”è€ˆŒÄÀÄÀÄÀˆ°Í•…´è€ˆŒÔäÔÔÔÌˆ°¡¥¡±¥¡Ðè€ˆŒØàØÄÕ”ˆôì(€É•ÑÕÉ¸ì‰…Í”è€ˆŒÄÜÌÈÑˆ°ÍÑÉ½­”è€ˆŒÀÔÀÔÀÔˆ°Í•…´è€ˆŒÑˆÑˆÑˆˆ°¡¥¡±¥¡Ðè€ˆŒÔÔÔÔÔÔˆôì)ô()™Õ¹Ñ¥½¸MÑ•ÁQ¥Ñ±”¡ì•å•‰É½Ü°Ñ¥Ñ±”°Ñ•áÐô¤ì(€É•ÑÕÉ¸€ñ‘¥Ø±…ÍÍ9…µ”ô‰µˆ´Üˆøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸ÈÉ•µtÑ•áÐµ…•¹Ðˆùí•å•‰É½Ýôð½‘¥Øøñ È±…ÍÍ9…µ”ô‰™½¹Ðµ‘¥ÍÁ±…äÑ•áÐ´Ñá°µéÑ•áÐ´Õá°±•…‘¥¹œµ¹½¹”µÐ´Ä¸ÔÑ•áÐµlŒÅÅˆÄátˆùíÑ¥Ñ±•ôð½ ÈøñÀ±…ÍÍ9…µ”ô‰Ñ•áÐµÍ´Ñ•áÐµlŒÜÄÙˆØÍtµÐ´È¸Ôµ…àµÜ´Éá°±•…‘¥¹œµÉ•±…á•ˆùíÑ•áÑôð½Àøð½‘¥Øøì)ô)™Õ¹Ñ¥½¸¥•±¡ì±…‰•°°Ù…±Õ”°½¹¡…¹”°Á±…•¡½±‘•Èô¤ì(€É•ÑÕÉ¸€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´Ðˆøñ±…‰•°±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlÄÁÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒÜÔÙ˜ØÝtˆùí±…‰•±ôð½±…‰•°øñ¥¹ÁÕÐÙ…±Õ”õíÙ…±Õ•ô½¹¡…¹”õí”€ôø½¹¡…¹”¡”¹Ñ…É•Ð¹Ù…±Õ”¥ôÁ±…•¡½±‘•ÈõíÁ±…•¡½±‘•Éô±…ÍÍ9…µ”ô‰Üµ™Õ±°É½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµl‘Õt‰œµÝ¡¥Ñ”¼ÜÀÁà´Ì¸ÔÁä´ÌµÐ´Ä¸Ô½ÕÑ±¥¹”µ¹½¹”ÑÉ…¹Í¥Ñ¥½¸™½ÕÌé‰½É‘•Èµ…•¹Ð™½ÕÌéÉ¥¹œ´È™½ÕÌéÉ¥¹œµ…•¹Ð¼ÄÀˆ¼øð½‘¥Øøì)ô)™Õ¹Ñ¥½¸Q•áÑÉ•„¡ì±…‰•°°Ù…±Õ”°½¹¡…¹”°Á±…•¡½±‘•Èô¤ì(€É•ÑÕÉ¸€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´Ôˆøñ±…‰•°±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlÄÁÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒÜÔÙ˜ØÝtˆùí±…‰•±ôð½±…‰•°øñÑ•áÑ…É•„É½ÝÌõìÑôÙ…±Õ”õíÙ…±Õ•ô½¹¡…¹”õí”€ôø½¹¡…¹”¡”¹Ñ…É•Ð¹Ù…±Õ”¥ôÁ±…•¡½±‘•ÈõíÁ±…•¡½±‘•Éô±…ÍÍ9…µ”ô‰Üµ™Õ±°É½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµl‘Õt‰œµÝ¡¥Ñ”¼ÜÀÁà´Ì¸ÔÁä´ÌµÐ´Ä¸Ô½ÕÑ±¥¹”µ¹½¹”ÑÉ…¹Í¥Ñ¥½¸™½ÕÌé‰½É‘•Èµ…•¹Ð™½ÕÌéÉ¥¹œ´È™½ÕÌéÉ¥¹œµ…•¹Ð¼ÄÀˆ¼øð½‘¥Øøì)ô)™Õ¹Ñ¥½¸M•±•Ñ¥•±¡ì±…‰•°°Ù…±Õ”°½¹¡…¹”°½ÁÑ¥½¹Ìô¤ì(€É•ÑÕÉ¸€ñ‘¥Øøñ±…‰•°±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlÄÁÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒÜÔÙ˜ØÝtˆùí±…‰•±ôð½±…‰•°øñÍ•±•ÐÙ…±Õ”õíÙ…±Õ•ô½¹¡…¹”õí”€ôø½¹¡…¹”¡”¹Ñ…É•Ð¹Ù…±Õ”¥ô±…ÍÍ9…µ”ô‰Üµ™Õ±°É½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµl‘Õt‰œµÝ¡¥Ñ”¼ÜÀÁà´Ì¸ÔÁä´ÌµÐ´Ä¸Ô½ÕÑ±¥¹”µ¹½¹”™½ÕÌé‰½É‘•Èµ…•¹Ðˆùí½ÁÑ¥½¹Ì¹µ…À¡½ÁÑ¥½¸€ôø€ñ½ÁÑ¥½¸­•äõí½ÁÑ¥½¹ôùí½ÁÑ¥½¹ôð½½ÁÑ¥½¸ø¥ôð½Í•±•Ðøð½‘¥Øøì)ô)™Õ¹Ñ¥½¸¡½¥”¡ì…Ñ¥Ù”°½¹±¥¬°¡¥±‘É•¸ô¤ì(€É•ÑÕÉ¸€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õí½¹±¥­ô±…ÍÍ9…µ”õì‰É½Õ¹‘•µá°‰½É‘•ÈÁà´Ì¸ÔÁä´È¸ÔÑ•áÐµÍ´ÑÉ…¹Í¥Ñ¥½¸€ˆ€¬€¡…Ñ¥Ù”€ü€‰‰½É‘•Èµ…•¹Ð‰œµ…•¹Ð½lÀ¸ÀÙtÑ•áÐµ…•¹ÐÍ¡…‘½ÜµÍ´ˆ€è€‰‰½É‘•Èµl‘‘Ùt‰œµÝ¡¥Ñ”¼ØÀÑ•áÐµlŒÕ˜Õ„ÔÍt¡½Ù•Èé‰½É‘•Èµl……„Ääátˆ¥ôùí¡¥±‘É•¹ôð½‰ÕÑÑ½¸øì)ô)™Õ¹Ñ¥½¸I•Ù¥•Ý…É¡ì±…‰•°°Ù…±Õ”°ÍÕˆô¤ì(€É•ÑÕÉ¸€ñ‘¥Ø±…ÍÍ9…µ”ô‰É½Õ¹‘•´Éá°‰½É‘•È‰½É‘•Èµl‘™á™t‰œµÝ¡¥Ñ”¼ØÔÀ´Ðˆøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµµ½¹¼Ñ•áÐµlåÁátÕÁÁ•É…Í”ÑÉ…­¥¹œµÝ¥‘”Ñ•áÐµlŒàØÝ˜ÜÙtˆùí±…‰•±ôð½‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰™½¹Ðµ‰½±µÐ´ÄÑ•áÐµlŒÈäÈØÈÅtˆùíÙ…±Õ•ôð½‘¥ØùíÍÕˆ€˜˜€ñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµáÌÑ•áÐµlŒÝ„ÜÐÙtµÐ´ÄˆùíÍÕ‰ôð½‘¥Øùôð½‘¥Øøì)ô)™Õ¹Ñ¥½¸MÕµµ…ÉåI½Ü¡ì±…‰•°°Ù…±Õ”ô¤ì(€É•ÑÕÉ¸€ñ‘¥Ø±…ÍÍ9…µ”ô‰µÐ´Ì™±•à™±•àµ½°…À´ÄÑ•áÐµÍ´Í´é™±•àµÉ½ÜÍ´é©ÕÍÑ¥™äµ‰•ÑÝ••¸Í´é…À´ÌˆøñÍÁ…¸±…ÍÍ9…µ”ô‰½Á…¥Ñä´ÔÔˆùí±…‰•±ôð½ÍÁ…¸øñÍÁ…¸±…ÍÍ9…µ”ô‰‰É•…¬µÝ½É‘Ì™½¹Ðµµ•‘¥Õ´Í´éµ…àµÜµlØà•tÍ´éÑ•áÐµÉ¥¡ÐˆùíÙ…±Õ•ôð½ÍÁ…¸øð½‘¥Øøì)ô)™Õ¹Ñ¥½¸É½ÕÁI½Ü¡ì¥Ñ•´°ÁÉ½‘ÕÐ°½¹¡…¹”°½¹I•µ½Ù”ô¤ì(€½¹ÍÐ½±½ÉÌ€ôÁÉ½‘ÕÑ½±½ÉÌ¡ÁÉ½‘ÕÐ¤ì(€½¹ÍÐÍ¥é•Ì€ôÁÉ½‘ÕÑM¥é•Ì¡ÁÉ½‘ÕÐ°¥Ñ•´¹½±½È¤ì(€½¹ÍÐ¡…¹•½±½È€ô€¡¹•áÑ½±½È¤€ôøì(€€€½¹ÍÐ¹•áÑM¥é•Ì€ôÁÉ½‘ÕÑM¥é•Ì¡ÁÉ½‘ÕÐ°¹•áÑ½±½È¤ì(€€€½¹ÍÐ¹•áÑM¥é”€ô¹•áÑM¥é•Ì¹¥¹±Õ‘•Ì¡¥Ñ•´¹Í¥é”¤€ü¥Ñ•´¹Í¥é”€è€¡¹•áÑM¥é•ÍlÁtñð¥Ñ•´¹Í¥é”¤ì(€€€½¹¡…¹”¡ì½±½Èè¹•áÑ½±½È°Í¥é”è¹•áÑM¥é”ô¤ì(€ôì((€É•ÑÕÉ¸€ñ‘¥Ø±…ÍÍ9…µ”ô‰É¥É¥µ½±Ìµmµ¥¹µ…à À°Å™È¥}µ¥¹µ…à À°Å™È¥|àÁÁá|ÌÙÁát…À´ÈµÐ´Ìˆø(€€€€ñÍ•±•ÐÙ…±Õ”õí¥Ñ•´¹½±½Éô½¹¡…¹”õí”€ôø¡…¹•½±½È¡”¹Ñ…É•Ð¹Ù…±Õ”¥ô±…ÍÍ9…µ”ô‰É½Õ¹‘•µ±œ‰½É‘•È‰½É‘•Èµ‰½É‘•È‰œµ‰…­É½Õ¹Áà´ÈÁä´ÈÑ•áÐµÍ´ˆø(€€€€€í½±½ÉÌ¹µ…À¡Ø€ôø€ñ½ÁÑ¥½¸­•äõíÙôùíÙôð½½ÁÑ¥½¸ø¥ô(€€€€ð½Í•±•Ðø(€€€€ñÍ•±•ÐÙ…±Õ”õí¥Ñ•´¹Í¥é•ô½¹¡…¹”õí”€ôø½¹¡…¹”¡íÍ¥é”é”¹Ñ…É•Ð¹Ù…±Õ•ô¥ô±…ÍÍ9…µ”ô‰É½Õ¹‘•µ±œ‰½É‘•È‰½É‘•Èµ‰½É‘•È‰œµ‰…­É½Õ¹Áà´ÈÁä´ÈÑ•áÐµÍ´ˆø(€€€€€íÍ¥é•Ì¹µ…À¡Ø€ôøì(€€€€€€€½¹ÍÐÙ…É¥…¹Ð€ôÙ…É¥…¹Ñ½È¡ÁÉ½‘ÕÐ°¥Ñ•´¹½±½È°Ø¤ì(€€€€€€€É•ÑÕÉ¸€ñ½ÁÑ¥½¸­•äõíÙôÙ…±Õ”õíÙô‘¥Í…‰±•õì…Ù…É¥…¹ÑÙ…¥±…‰±”¡ÁÉ½‘ÕÐ°Ù…É¥…¹Ð¥ôùíÙõì…Ù…É¥…¹ÑÙ…¥±…‰±”¡ÁÉ½‘ÕÐ°Ù…É¥…¹Ð¤€ü€ˆƒŠPÕ¹…Ù…¥±…‰±”ˆ€è€ˆ‰ôð½½ÁÑ¥½¸øì(€€€€€ô¥ô(€€€€ð½Í•±•Ðø(€€€€ñ¥¹ÁÕÐÑåÁ”ô‰¹Õµ‰•Èˆµ¥¸ôˆÄˆµ…àôˆääˆÙ…±Õ”õí¥Ñ•´¹ÅÕ…¹Ñ¥Ñåô½¹¡…¹”õí”€ôø½¹¡…¹”¡íÅÕ…¹Ñ¥Ñäé5…Ñ ¹µ…à Ä°5…Ñ ¹µ¥¸ ää°9Õµ‰•È¡”¹Ñ…É•Ð¹Ù…±Õ”¤ñð€Ä¤¥ô¥ô±…ÍÍ9…µ”ô‰É½Õ¹‘•µ±œ‰½É‘•È‰½É‘•Èµ‰½É‘•È‰œµ‰…­É½Õ¹Áà´ÈÁä´ÈÑ•áÐµÍ´ˆ¼ø(€€€€ñ‰ÕÑÑ½¸ÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õí½¹I•µ½Ù•ô±…ÍÍ9…µ”ô‰É½Õ¹‘•µ±œ‰½É‘•È‰½É‘•Èµ‰½É‘•È¡½Ù•Èé‰œµl˜Ñ˜Å•tˆ…É¥„µ±…‰•°ô‰I•µ½Ù”…Éµ•¹Ðˆøñ`Í¥é”õìÄÑô±…ÍÍ9…µ”ô‰µàµ…ÕÑ¼ˆ¼øð½‰ÕÑÑ½¸ø(€€ð½‘¥Øøì)ô)™Õ¹Ñ¥½¸A¡½Ñ½…É¡ìÁ¡½Ñ¼°½¹AÉ¥µ…Éä°½¹I•µ½Ù”ô¤ì(€½¹ÍÐÅ±…ÍÌ€ôÁ¡½Ñ¼¹ÅÕ…±¥Ñä€ôôô€‰•á•±±•¹Ðˆ€ü€‰Ñ•áÐµÉ••¸´ØÀÀˆ€èÁ¡½Ñ¼¹ÅÕ…±¥Ñä€ôôô€‰ÕÍ…‰±”ˆ€ü€‰Ñ•áÐµ…µ‰•È´ØÀÀˆ€è€‰Ñ•áÐµ‘•ÍÑÉÕÑ¥Ù”ˆì(€½¹ÍÐÅ1…‰•°€ôÁ¡½Ñ¼¹ÅÕ…±¥Ñä€ôôô€‰•á•±±•¹Ðˆ€ü€‰É•…ÐÅÕ…±¥Ñäˆ€èÁ¡½Ñ¼¹ÅÕ…±¥Ñä€ôôô€‰ÕÍ…‰±”ˆ€ü€‰5…ä±½½¬Í±¥¡Ñ±äÍ½™Ðˆ€è€‰1½ÜÉ•Í½±ÕÑ¥½¸ˆì(€É•ÑÕÉ¸€ñ‘¥Ø±…ÍÍ9…µ”ô‰É½Õ¹‘•´Éá°‰½É‘•È‰½É‘•Èµl‘‘Ùt‰œµÝ¡¥Ñ”É•±…Ñ¥Ù”½Ù•É™±½Üµ¡¥‘‘•¸Í¡…‘½ÜµÍ´ˆøñ‘¥Ø±…ÍÍ9…µ”ô‰…ÍÁ•ÐµÍÅÕ…É”½Ù•É™±½Üµ¡¥‘‘•¸‰œµl˜Í•™”átˆøñ¥µœÍÉŒõíÁ¡½Ñ¼¹ÕÉ±ô…±ÐõíÁ¡½Ñ¼¹¹…µ•ô±…ÍÍ9…µ”ô‰Üµ™Õ±° µ™Õ±°½‰©•Ðµ½Ù•Èˆ¼øð½‘¥Øøñ‰ÕÑÑ½¸½¹±¥¬õí½¹I•µ½Ù•ô±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”Ñ½À´ÈÉ¥¡Ð´ÈÉ½Õ¹‘•µ±œ‰œµÝ¡¥Ñ”¼äÀÀ´Ä¸ÔÍ¡…‘½ÜµÍ´ˆøñ`Í¥é”õìÄÍô¼øð½‰ÕÑÑ½¸øñ‘¥Ø±…ÍÍ9…µ”ô‰À´Ìˆøñ‰ÕÑÑ½¸½¹±¥¬õí½¹AÉ¥µ…Éåô±…ÍÍ9…µ”õì‰Ñ•áÐµlåÁátÕÁÁ•É…Í”™½¹Ðµµ½¹¼™±•à¥Ñ•µÌµ•¹Ñ•È…À´Ä€ˆ€¬€¡Á¡½Ñ¼¹¥ÍAÉ¥µ…Éä€ü€‰Ñ•áÐµ…•¹Ðˆ€è€‰Ñ•áÐµlŒÝŒÜØÙ•tˆ¥ôøñMÑ…ÈÍ¥é”õìÄÉô±…ÍÍ9…µ”õíÁ¡½Ñ¼¹¥ÍAÉ¥µ…Éä€ü€‰™¥±°µ…•¹Ðˆ€è€ˆ‰ô¼ùíÁ¡½Ñ¼¹¥ÍAÉ¥µ…Éä€ü€‰AÉ¥µ…ÉäÁ¡½Ñ¼ˆ€è€‰5…­”ÁÉ¥µ…Éä‰ôð½‰ÕÑÑ½¸øñ‘¥Ø±…ÍÍ9…µ”õì‰µÐ´Ä¸ÔÑ•áÐµlåÁátÕÁÁ•É…Í”™½¹Ðµµ½¹¼€ˆ€¬Å±…ÍÍôùíÅ1…‰•±ôð½‘¥Øøñ‘¥Ø±…ÍÍ9…µ”ô‰Ñ•áÐµlåÁátÑ•áÐµlŒá„àÐÝtˆùíÁ¡½Ñ¼¹Ý¥‘Ñ¡÷]íÁ¡½Ñ¼¹¡•¥¡Ñôð½‘¥Øøð½‘¥Øøð½‘¥Øøì)ô(
+                <div>
+                  <label className="font-mono text-xs uppercase text-muted-foreground">Size</label>
+                  <div className="mt-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+                    {availableSizes.map((optionSize) => {
+                      const optionVariant = variantFor(product, color, optionSize);
+                      const enabled = variantAvailable(product, optionVariant);
+                      const optionPrice = optionVariant?.price == null ? Number(product.price || 0) : Number(optionVariant.price || 0);
+                      return <button
+                        type="button"
+                        key={optionSize}
+                        disabled={!enabled}
+                        onClick={() => enabled && setSize(optionSize)}
+                        title={!enabled ? "Unavailable" : ""}
+                        className={"w-full rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:w-auto sm:min-w-14 " + (size === optionSize ? "border-accent bg-accent/[0.07] text-accent" : enabled ? "border-[#ddd7ce] bg-white hover:border-accent" : "border-[#e5e0d9] bg-[#f4f1ec] text-[#aaa39a] line-through cursor-not-allowed")}
+                      >
+                        <span>{optionSize}</span>
+                        {showGarmentPrices && optionVariant?.price != null && optionPrice !== Number(product.price || 0) && <span className="block text-[8px] font-mono mt-0.5">{"$" + optionPrice.toFixed(2)}</span>}
+                      </button>;
+                    })}
+                  </div>
+                  {product.trackInventory === false && <div className="mt-2 text-[10px] text-[#817b73]">Made to order Â· inventory tracking is currently off for this blank.</div>}
+                </div>
+
+                <div>
+                  <label className="font-mono text-xs uppercase text-muted-foreground">Quantity</label>
+                  <div className="mt-2 flex items-center rounded-xl border border-[#ddd7ce] bg-white overflow-hidden w-fit">
+                    <button type="button" onClick={() => setQty(v => Math.max(1,v-1))} className="p-2.5 hover:bg-[#f5f1eb]"><Minus size={15}/></button>
+                    <span className="px-5 font-mono min-w-14 text-center">{qty}</span>
+                    <button type="button" onClick={() => setQty(v => Math.min(99,v+1))} className="p-2.5 hover:bg-[#f5f1eb]"><Plus size={15}/></button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
+                  {frontBackEnabled && <Choice active={placement === "back"} onClick={() => { setPlacement("back"); setPreviewSide("back"); }}>Back only</Choice>}
+                  {frontBackEnabled && <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>}
+                </div>
+                <p className="mt-2 text-[10px] text-[#817b73]">{frontBackEnabled ? "Front is the default. Back is optional and uses the Custom Studio additional-print surcharge." : "Custom Studio is currently configured for front printing only."}</p>
+              </div>
+
+              <div className="mt-7 border-t border-border pt-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-bold">Same design, different sizes or colors</div>
+                    <p className="text-sm text-muted-foreground">Build a family, team or event order without recreating the design.</p>
+                  </div>
+                  <button type="button" onClick={addGroupGarment} className="text-accent text-sm font-bold inline-flex items-center gap-1 whitespace-nowrap"><Plus size={15}/> Add garment</button>
+                </div>
+                {groupGarments.map((item,index) => (
+                  <GroupRow
+                    key={index}
+                    item={item}
+                    product={product}
+                    onChange={patch => updateGroup(index,patch)}
+                    onRemove={() => removeGroup(index)}
+                  />
+                ))}
+              </div>
+
+              {!selectedAvailable && product?.variants?.length > 0 && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose an available size before continuing.</div>
+              )}
+            </>}
+          </div>}
+
+          {step === 3 && <div className="mt-8 border-t border-[#e3ddd4] pt-8">
+            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "â€“" + maxPhotos + " photos. We check resolution before you order so poor source images do not become surprise print problems."} />
+            <label className={"border-2 border-dashed border-border min-h-44 flex flex-col items-center justify-center hover:border-accent " + (uploading ? "cursor-wait opacity-80" : "cursor-pointer")}>
+              <Upload size={28}/>
+              <div className="font-bold mt-2">{uploading ? "Optimizing & uploadingâ€¦" : designPath === "upload" ? "Upload artwork" : "Upload photos"}</div>
+              {uploading && uploadProgress.total > 0 && <div className="font-mono text-xs mt-1">{uploadProgress.done}/{uploadProgress.total} complete Â· {Math.round((uploadProgress.done / uploadProgress.total) * 100)}%</div>}
+              <div className="text-xs text-muted-foreground mt-1">JPG, PNG or WEBP Â· max {MAX_MB}MB each</div>
+              <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploading} onChange={e => uploadFiles(e.target.files)} />
+            </label>
+            {warn && <div className="mt-3 bg-destructive/10 text-destructive px-3 py-2 text-sm flex items-center gap-2"><AlertTriangle size={15}/>{warn}</div>}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+              {photos.map((photo,index) => <PhotoCard key={photo.url} photo={photo} onPrimary={() => setPrimary(index)} onRemove={() => removePhoto(index)} />)}
+            </div>
+            <div className="font-mono text-xs text-muted-foreground mt-3">{photos.length}/{maxPhotos} photos</div>
+
+            <div className="mt-7 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 md:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#64788A]">Design intensity</div>
+                  <div className="mt-1 font-bold text-[#17324D]">{designPath === "upload" ? "Confirm the artwork treatment" : "How bold should the finished design feel?"}</div>
+                  <p className="mt-1 text-xs leading-relaxed text-[#64707C]">{designPath === "upload" ? "Choose Clean to preserve a print-ready file without adding visual density." : "Choose the visual density after selecting your photos. 3/5 Balanced is the recommended starting point."}</p>
+                </div>
+                {intensityExamplesEnabled && <button type="button" onClick={() => setShowIntensityExamples(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#C9D4DE] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] hover:border-[#17324D]"><Info size={13}/> View examples</button>}
+              </div>
+              <div className="mt-4 grid grid-cols-5 gap-2">
+                {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => <button
+                  key={level}
+                  type="button"
+                  onClick={() => setDesignIntensity(Number(level))}
+                  className={"rounded-xl border px-1.5 py-3 text-center transition " + (Number(level) === designIntensity ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#C9D4DE] bg-white text-[#44515D] hover:border-[#17324D]")}
+                >
+                  <div className="text-sm font-black">{level}/5</div>
+                  <div className="mt-1 hidden text-[9px] font-semibold uppercase sm:block">{item.label}</div>
+                </button>)}
+              </div>
+              <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white p-3">
+                <div className="text-sm font-bold text-[#17324D]">{designIntensity ? `${designIntensity}/5 Â· ${intensityLevel.label}` : `Not selected Â· ${recommendedIntensity}/5 recommended`}</div>
+                <p className="mt-1 text-[12px] leading-relaxed text-[#64707C]">{designIntensity ? intensityLevel.description : "Choose an intensity after reviewing your uploaded photos."}</p>
+              </div>
+            </div>
+          </div>}
+
+          {step === 4 && <div>
+            <StepTitle eyebrow="Make it yours" title="TEXT + STORY" text="Separate printed text from designer notes so instructions never accidentally appear on the shirt." />
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Main name / headline" value={personalization.name} onChange={v => setPersonalization({...personalization,name:v})} placeholder="BIG MIKE" />
+              <Field label="Nickname" value={personalization.nickname} onChange={v => setPersonalization({...personalization,nickname:v})} placeholder="THE LEGEND" />
+              <Field label="Dates / year" value={personalization.dates} onChange={v => setPersonalization({...personalization,dates:v})} placeholder="1966 Â· 2026" />
+              <Field label="Number" value={personalization.number} onChange={v => setPersonalization({...personalization,number:v})} placeholder="23" />
+              <Field label="Quote or printed message" value={personalization.quote} onChange={v => setPersonalization({...personalization,quote:v})} placeholder="Forever in our hearts" />
+              <Field label="Additional printed text" value={personalization.message} onChange={v => setPersonalization({...personalization,message:v})} placeholder="Optional" />
+            </div>
+            <TextArea label="Tell us the story" value={story} onChange={setStory} placeholder="Dad loves fishing, classic cars, and embarrassing us with dad jokesâ€¦" />
+            <TextArea label="Notes for our designer â€” NOT printed" value={personalization.instructions} onChange={v => setPersonalization({...personalization,instructions:v})} placeholder="Use photo #1 in the center. Make the name large. Keep the overall look vintage." />
+          </div>}
+
+          {step === 5 && <div>
+            <StepTitle eyebrow="Set expectations" title="TIMING + DESIGN PROOF" text="We would rather be transparent about timing than promise a date we cannot meet." />
+            <div className="grid md:grid-cols-2 gap-4">
+              <div><label className="font-mono text-xs uppercase text-muted-foreground">Need it by</label><input type="date" value={needByDate} onChange={e => setNeedByDate(e.target.value)} className="w-full border border-border bg-background px-3 py-2 mt-1"/></div>
+              <div><label className="font-mono text-xs uppercase text-muted-foreground">Priority</label><div className="flex gap-2 mt-1"><Choice active={priority === "standard"} onClick={() => setPriority("standard")}>Standard</Choice><Choice active={priority === "rush"} onClick={() => setPriority("rush")}>Rush (+{"$" + rushFee})</Choice></div></div>
+            </div>
+            <div className="mt-6 border border-border p-4"><div className="flex items-start gap-3"><ShieldCheck size={22} className="text-accent shrink-0"/><div><div className="font-bold">GDP Design Guarantee</div><p className="text-sm text-muted-foreground mt-1">{proofRequired ? "You receive a proof before printing with " + revisions + " included revision(s)." : "This product is configured to skip proofing."}</p></div></div></div>
+            <label className="flex items-start gap-3 mt-5 text-sm"><input type="checkbox" checked={rightsConfirmed} onChange={e => setRightsConfirmed(e.target.checked)} className="mt-1"/><span>I confirm I own or have permission to reproduce the photos and artwork I submitted. <Link to="/pages/custom-artwork-policy" target="_blank" className="font-semibold text-accent hover:underline">Upload policy</Link></span></label>
+            <label className="flex items-start gap-3 mt-3 text-sm"><input type="checkbox" checked={approvalAcknowledged} onChange={e => setApprovalAcknowledged(e.target.checked)} className="mt-1"/><span>I understand production begins after artwork approval and approved artwork cannot be changed after production starts. Customer uploads follow the <Link to="/pages/data-retention" target="_blank" className="font-semibold text-accent hover:underline">retention policy</Link>.</span></label>
+          </div>}
+
+          {step === 6 && <div>
+            <StepTitle eyebrow="Final check" title="REVIEW YOUR CUSTOM ORDER" text="Nothing is printed yet. This saves your design and adds the selected garments to your cart." />
+            <div className="grid md:grid-cols-2 gap-4">
+              <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={occasion || recipientType} />
+              <ReviewCard label={designPath === "upload" ? "Artwork treatment" : "Artwork"} value={(designStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designStyle ? `${designMood || "No mood"} Â· ${designIntensity ? `Intensity ${designIntensity}/5` : "Intensity not selected"}` : ""} />
+              <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} Â· ${size || "No size"} Â· Qty ${qty}` : ""} />
+              <ReviewCard
+                label="Print"
+                value={placement === "front_back" ? "Front + back" : placement === "back" ? "Back only" : "Front only"}
+                sub={placement === "front_back" ? "Two independent artwork placements saved." : "One print side selected."}
+              />
+              {placement !== "back" && <ReviewCard label="Front artwork" value={frontArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% Â· rotation " + Number(artworkStates.front?.rotation ?? 0) + "Â°"} />}
+              {placement !== "front" && <ReviewCard label="Back artwork" value={backArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% Â· rotation " + Number(artworkStates.back?.rotation ?? 0) + "Â°"} />}
+              <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? "One or more photos should ideally be replaced." : "Photo quality check complete."} />
+              <ReviewCard label="Proof" value={proofRequired ? "Required before print" : "Proof skipped"} sub={proofRequired ? revisions + " included revision(s)" : ""} />
+              <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
+            </div>
+            {groupGarments.length > 0 && <div className="mt-4 border border-border p-4"><div className="font-bold">Additional shirts using the same design</div>{groupGarments.map((g,i) => <div key={i} className="text-sm text-muted-foreground mt-1">{g.quantity}Ã— {g.color} Â· {g.size}</div>)}</div>}
+            {personalization.instructions && <div className="mt-4 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-4"><div className="font-mono text-[10px] uppercase tracking-wide text-[#64788A]">Designer notes Â· not printed</div><div className="mt-1 text-sm leading-relaxed text-[#44515D]">{personalization.instructions}</div></div>}
+            {showOrderPrice && <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Before cart discounts, shipping, tax or coupon.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>}
+            <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide disabled:opacity-50">{saving ? "Saving custom designâ€¦" : "Add Custom Order to Cart â†’"}</button>
+          </div>}
+        </section>
+
+          <aside className="h-fit lg:sticky lg:top-24 space-y-4">
+            <div className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
+              <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#FFFFFF]">
+                <div>
+                  <div className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.18em] text-accent">Live garment preview</div>
+                  <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || "Choose a garment"}</div>
+                </div>
+                <button type="button" onClick={() => setFullscreenPreview(true)} className="h-9 w-9 grid place-items-center rounded-xl border border-[#ddd6cc] bg-white text-[#5d5851] hover:border-accent hover:text-accent" aria-label="Open full screen preview"><Maximize2 size={15} /></button>
+              </div>
+
+              <StudioPreview
+                garment={garment}
+                color={previewColor}
+                side={previewSide}
+                placement={placement}
+                photo={previewArtworkPhoto}
+                uploading={uploading}
+                personalization={personalization}
+                zoom={previewZoom}
+                setZoom={setPreviewZoom}
+                artworkScale={artworkScale}
+                artworkRotation={artworkRotation}
+                artworkOffset={artworkOffset}
+                setArtworkOffset={setArtworkOffset}
+                artworkFitMode={artworkFitMode}
+                showGuides={showGuides}
+                showMeasurements={showMeasurements}
+                size={size}
+                previewConfig={config.preview || {}}
+                styleTemplate={activeStyleTemplate}
+                mood={designMood}
+              />
+
+              <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="inline-flex rounded-xl border border-[#ddd6cc] bg-[#f5f0e9] p-1">
+                    <button type="button" onClick={() => setPreviewSide("front")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "front" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Front</button>
+                    <button type="button" onClick={() => setPreviewSide("back")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "back" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Back</button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom out"><ZoomOut size={14} /></button>
+                    <span className="w-10 text-center font-mono text-[10px] text-[#746e66]">{Math.round(previewZoom * 100)}%</span>
+                    <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom in"><ZoomIn size={14} /></button>
+                  </div>
+                </div>
+
+                {previewArtworkPhoto && activeSideHasPrint && <div className="mt-4 space-y-3">
+                  {photos.length > 1 && <div>
+                    <div className="font-mono text-[9px] uppercase text-[#756f67]">Artwork photo</div>
+                    <select
+                      value={Number(activeArtworkState.sourcePhotoIndex || 0)}
+                      onChange={(e) => setArtworkSourcePhotoIndex(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-[#DCE3EA] bg-white px-2.5 py-2 text-xs text-[#44515D]"
+                    >
+                      {photos.map((photo, index) => <option key={photo.url || index} value={index}>{index + 1}. {photo.name || "Uploaded photo"}</option>)}
+                    </select>
+                  </div>}
+                  <div>
+                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Design size</span><span>{artworkScale}%</span></div>
+                    <input type="range" min="55" max="145" value={artworkScale} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
+                    <div className="mt-2 inline-flex rounded-lg border border-[#DCE3EA] bg-[#F4F7FA] p-1">
+                      <button type="button" onClick={() => setArtworkFitMode("fit")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fit" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit Â· no crop</button>
+                      <button type="button" onClick={() => setArtworkFitMode("crop")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop to fill</button>
+                    </div>
+                    {artworkFitMode === "crop" && <p className="mt-2 text-[10px] leading-relaxed text-[#8A5A48]">Crop to Fill intentionally trims image edges to fill the artwork box. Use Fit Â· No Crop to keep the complete image visible.</p>}
+                  </div>
+                  <div>
+                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Rotation</span><span>{artworkRotation}Â°</span></div>
+                    <input type="range" min="-12" max="12" value={artworkRotation} onChange={e => setArtworkRotation(Number(e.target.value))} className="w-full accent-[#d9273e]" />
+                  </div>
+                </div>}
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
+                    <button type="button" onClick={() => setShowMeasurements(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}</button>
+                  </div>
+                  <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
+                </div>
+                <p className="mt-2 text-[10px] font-mono uppercase tracking-wide text-[#8f887f]">Recommended print zone updates after you choose a garment and size.</p>
+                <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">Artwork controls activate after you choose a GDP style and upload a photo. Nothing is applied automatically.</p>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-[#ddd6cc] bg-[#17212B] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
+              <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">Your order</div>
+              <div className="font-display text-3xl mt-2">{occasion || "Build your order"}</div>
+              <SummaryRow label="Style" value={designStyle ? designStyle.replace("GDP ","") : "Not selected"} />
+              <SummaryRow label="Garment" value={product?.name || "Not selected"} />
+              <SummaryRow label="Size / Color" value={size && color ? `${size} / ${color}` : "Not selected"} />
+              <SummaryRow label="Photos" value={photos.length + "/" + maxPhotos} />
+              <SummaryRow label="Total shirts" value={totalUnits} />
+              <SummaryRow label="Proof" value={proofRequired ? "Before print" : "Skipped"} />
+              {showOrderPrice && <div className="border-t border-white/15 mt-5 pt-4 flex justify-between items-end"><span className="text-[10px] uppercase font-mono text-white/45">{priceVisibility === "total" ? "Estimated subtotal" : "Unit price"}</span><span className="font-display text-3xl">{"$" + (priceVisibility === "total" ? estimatedSubtotal : unitPrice).toFixed(2)}</span></div>}
+            </div>
+          </aside>
+      </div>
+
+        <div ref={mobileEndRef} className="mt-6 flex justify-between gap-3 pb-8 md:pb-0">
+          <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="inline-flex items-center gap-2 rounded-xl border border-[#d9d2c8] bg-white px-5 py-3 font-bold uppercase text-xs text-[#332f2a] shadow-sm hover:border-[#aaa198]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
+          {step < STEPS.length && <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="inline-flex items-center gap-2 rounded-xl bg-[#17324D] text-white px-6 py-3 font-bold uppercase text-xs shadow-lg disabled:opacity-40">Continue <ArrowRight size={16}/></button>}
+        </div>
+
+        {mobileFloatingCtaEnabled && mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#17324D]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
+          <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{showOrderPrice ? "$" + (priceVisibility === "total" ? estimatedSubtotal : unitPrice).toFixed(2) : "GDP Studio"}</div></div>
+          {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#17324D] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue â†’</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Savingâ€¦" : "Add to cart â†’"}</button>}
+        </div>}
+
+        {showIntensityExamples && <div className="fixed inset-0 z-[96] flex items-end justify-center bg-black/70 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Design intensity examples">
+          <button type="button" className="absolute inset-0" onClick={() => setShowIntensityExamples(false)} aria-label="Close design intensity examples" />
+          <div className="relative z-10 w-full max-h-[92dvh] overflow-y-auto rounded-t-[28px] border border-white/10 bg-[#F4F7FA] shadow-2xl sm:max-w-5xl sm:rounded-[28px]">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-[#ded8cf] bg-[#F4F7FA]/95 px-4 py-3.5 backdrop-blur sm:px-5">
+              <div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-accent">Design intensity guide</div>
+                <div className="mt-0.5 font-bold text-[#24211e]">From clean to full bootleg energy</div>
+              </div>
+              <button type="button" onClick={() => setShowIntensityExamples(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#d8d1c7] bg-white text-[#39342f]" aria-label="Close"><X size={16}/></button>
+            </div>
+            <div className="p-3 sm:p-5">
+              {showCombinedIntensityGuide ? (
+                !hasIntensityOverrides ? (
+                  <div className="overflow-hidden rounded-2xl border border-[#ddd6cd] bg-white">
+                    <img
+                      src={intensityExampleImageUrl}
+                      alt="Five bootleg rap T-shirt examples showing design intensity from 1 out of 5 clean to 5 out of 5 maximum chaos"
+                      className="block h-auto w-full"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(event) => {
+                        const fallback = DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
+                        if (event.currentTarget.getAttribute("src") !== fallback) {
+                          event.currentTarget.src = fallback;
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => { setDesignIntensity(Number(level)); setShowIntensityExamples(false); }}
+                        className={"grid w-full grid-cols-[68px_1fr] gap-3 overflow-hidden rounded-2xl border text-left transition sm:grid-cols-[78px_1fr_210px] " + (Number(level) === designIntensity ? "border-accent bg-accent/[0.045]" : "border-[#ddd6cd] bg-white hover:border-accent")}
+                      >
+                        <div className="grid place-items-center bg-[#1c1b19] px-2 py-4 text-white">
+                          <div className="text-center">
+                            <div className="text-xl font-black">{level}/5</div>
+                            <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-white/60">{item.label}</div>
+                          </div>
+                        </div>
+                        <div className="self-center py-3 pr-3 sm:pr-0">
+                          <div className="text-sm font-bold text-[#292622]">{item.label}</div>
+                          <div className="mt-1 text-[11px] leading-relaxed text-[#746d64]">{item.description}</div>
+                        </div>
+                        <div className="col-span-2 aspect-[16/9] bg-[#181818] sm:col-span-1 sm:aspect-auto sm:min-h-[118px]">
+                          <IntensityExampleVisual src={intensityImages[level]} label={`${level}/5 ${item.label}`} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-[#ddd6cd] bg-[#181818]">
+                  <div className="aspect-[4/5] sm:aspect-[16/9]">
+                    <IntensityExampleVisual src={selectedIntensityImage} label={`${designIntensity}/5 ${intensityLevel.label}`} large />
+                  </div>
+                  <div className="bg-white p-4">
+                    <div className="text-sm font-bold">{designIntensity}/5 Â· {intensityLevel.label}</div>
+                    <div className="mt-1 text-xs leading-relaxed text-[#746d64]">{intensityLevel.description}</div>
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 grid grid-cols-5 gap-1.5 sm:gap-2">
+                {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => <button
+                  key={level}
+                  type="button"
+                  onClick={() => {
+                    setDesignIntensity(Number(level));
+                    if (showCombinedIntensityGuide) setShowIntensityExamples(false);
+                  }}
+                  className={"rounded-xl border px-1 py-2 text-center transition sm:p-3 sm:text-left " + (Number(level) === designIntensity ? "border-accent bg-accent/[0.06]" : "border-[#ddd6cd] bg-white hover:border-accent")}
+                >
+                  <div className="text-[10px] font-bold sm:text-xs">{level}/5<span className="hidden sm:inline"> Â· {item.label}</span></div>
+                </button>)}
+              </div>
+              <p className="mt-3 text-[10px] leading-relaxed text-[#817970]">Examples are visual direction only. Your final GDP artwork is customized to your photos, story and selected style.</p>
+            </div>
+          </div>
+        </div>}
+
+        {fullscreenPreview && <div className="fixed inset-0 z-[90] bg-[#111]/95 backdrop-blur-sm p-3 md:p-7">
+          <div className="h-full max-w-5xl mx-auto rounded-[28px] overflow-hidden bg-[#f4efe7] border border-white/10 flex flex-col">
+            <div className="h-16 shrink-0 flex items-center justify-between gap-4 px-4 md:px-6 bg-[#17324D] text-white">
+              <div><div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">GDP Custom Studio</div><div className="font-semibold">Full-screen garment preview</div></div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setShowMeasurements(v => !v)} className={"h-9 w-9 grid place-items-center rounded-xl border " + (showMeasurements ? "border-accent bg-accent/15 text-white" : "border-white/15 text-white/75")} aria-label={showMeasurements ? "Hide measurements" : "Show measurements"}><Ruler size={15}/></button>
+                <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomOut size={15}/></button>
+                <span className="w-12 text-center font-mono text-[10px]">{Math.round(previewZoom * 100)}%</span>
+                <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-9 w-9 grid place-items-center rounded-xl border border-white/15"><ZoomIn size={15}/></button>
+                <button type="button" onClick={() => setFullscreenPreview(false)} className="h-9 w-9 grid place-items-center rounded-xl bg-white text-[#17324D]" aria-label="Close full screen preview"><X size={16}/></button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0">
+              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
+            </div>
+          </div>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+function IntensityExampleVisual({ src, label, className = "", large = false }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+
+  if (src === HIDDEN_INTENSITY_IMAGE) {
+    return (
+      <div className={"h-full w-full grid place-items-center bg-[#222] text-center text-white/55 " + className}>
+        <div><X size={large ? 26 : 18} className="mx-auto"/><div className="mt-1 text-[9px] uppercase tracking-wide">Example removed</div></div>
+      </div>
+    );
+  }
+
+  if (src && !failed) {
+    return <img src={src} alt={label} className={"h-full w-full object-cover " + className} loading="lazy" decoding="async" onError={() => setFailed(true)} />;
+  }
+
+  return (
+    <div className={"h-full w-full grid place-items-center bg-[radial-gradient(circle_at_50%_32%,#393939_0%,#191919_55%,#101010_100%)] text-white text-center " + className}>
+      <div className="px-4">
+        <Shirt size={large ? 34 : 24} className="mx-auto text-white/45"/>
+        <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em]">GDP default</div>
+        <div className="mt-1 text-[9px] text-white/45">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function clampPreview(value) {
+  return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
+}
+
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null }) {
+  const dragRef = useRef(null);
+  const [failedMockupUrl, setFailedMockupUrl] = useState("");
+  const blankArtwork =
+    (side === "back" && placement === "front") ||
+    (side === "front" && placement === "back");
+  const hasPreviewText = Boolean(
+    String(personalization?.name || "").trim() ||
+    String(personalization?.dates || "").trim() ||
+    String(personalization?.quote || "").trim()
+  );
+  // The selected GDP style is itself printable artwork, so it should appear
+  // immediately in the garment preview even before the customer uploads a photo.
+  const canDrag = Boolean(photo && styleTemplate && !blankArtwork && setArtworkOffset);
+  const previewSettings = /** @type {any} */ (previewConfig || {});
+  const colorPreview = previewSettings?.colorMockups?.[color] || {};
+  const frontMockupUrl =
+    colorPreview.frontUrl ||
+    (
+      color === garment?.defaultColor
+        ? (previewSettings.cardImageUrl || "")
+        : ""
+    ) ||
+    previewSettings.frontMockupUrl ||
+    previewImageForGarment(garment, color, "front");
+  const backMockupUrl =
+    colorPreview.backUrl ||
+    previewSettings.backMockupUrl ||
+    previewImageForGarment(garment, color, "back");
+  const mockupUrl = side === "back" ? backMockupUrl : frontMockupUrl;
+  const showMockup = Boolean(mockupUrl && failedMockupUrl !== mockupUrl);
+  const previewCanvas = resolvePreviewCanvas(previewSettings);
+  const mockupNormalization = resolveMockupNormalization(previewSettings, side);
+  const mockupLayerStyle = getMockupLayerStyle(mockupNormalization);
+
+  useEffect(() => {
+    preloadPreviewImages([frontMockupUrl, backMockupUrl]);
+  }, [frontMockupUrl, backMockupUrl]);
+  const configuredNumber = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+  const defaultProfile = recommendedPrintProfile(garment?.previewType || garment?.type, size, side);
+  const configuredGuide = previewSettings?.printGuide?.[side] || {};
+  const sizeKey = String(size || "").toUpperCase().replace(/\s+/g, "");
+  const configuredSizeGuide = configuredGuide?.sizeScalingEnabled === false
+    ? {}
+    : (configuredGuide?.sizeOverrides?.[sizeKey] || configuredGuide?.sizeOverrides?.[size] || {});
+  const profile = {
+    ...defaultProfile,
+    collarIn: configuredNumber(configuredSizeGuide.collarIn ?? configuredGuide.collarIn, defaultProfile.collarIn),
+    widthIn: configuredNumber(configuredSizeGuide.widthIn ?? configuredGuide.widthIn, defaultProfile.widthIn),
+    heightIn: configuredNumber(configuredSizeGuide.heightIn ?? configuredGuide.heightIn, defaultProfile.heightIn),
+    maxWidthIn: configuredNumber(configuredGuide.maxWidthIn, defaultProfile.maxWidthIn || defaultProfile.widthIn),
+    maxHeightIn: configuredNumber(configuredGuide.maxHeightIn, defaultProfile.maxHeightIn || defaultProfile.heightIn),
+  };
+  const configuredArea = previewSettings?.printArea?.[side] || {};
+  const useCustomArea = previewSettings?.printAreaMode === "custom" || configuredArea?.mode === "custom" || profile.generic === true;
+  const printArea = {
+    top: useCustomArea ? configuredNumber(configuredArea.top, profile.top) : profile.top,
+    width: useCustomArea ? configuredNumber(configuredArea.width, profile.width) : profile.width,
+    height: useCustomArea ? configuredNumber(configuredArea.height, profile.height) : profile.height
+  };
+  const printAreaStyle = {
+    top: printArea.top + "%",
+    width: printArea.width + "%",
+    height: seasonalOverlay ? "auto" : printArea.height + "%",
+    ...(seasonalOverlay ? {aspectRatio: `${profile.widthIn} / ${profile.heightIn}`} : {})
+  };
+  const maxAreaWidth = Math.min(78, printArea.width * (configuredNumber(profile.maxWidthIn, profile.widthIn) / Math.max(0.1, profile.widthIn)));
+  const maxAreaHeight = Math.min(70, printArea.height * (configuredNumber(profile.maxHeightIn, profile.heightIn) / Math.max(0.1, profile.heightIn)));
+  const maxPrintAreaStyle = {
+    top: printArea.top + "%",
+    width: maxAreaWidth + "%",
+    height: seasonalOverlay ? "auto" : maxAreaHeight + "%",
+    ...(seasonalOverlay ? {aspectRatio: `${profile.widthIn} / ${profile.heightIn}`} : {})
+  };
+  const artworkLayerStyle = {
+    left: (50 + Number(artworkOffset?.x || 0)) + "%",
+    top: (50 + Number(artworkOffset?.y || 0)) + "%",
+    transform: `translate(-50%, -50%) scale(${artworkScale / 100}) rotate(${artworkRotation}deg)`,
+    transformOrigin: "center center"
+  };
+  const template = styleTemplate || null;
+  const moodTreatment = moodPreviewTreatment(mood);
+  const photoZone = template?.photoZone || { x: 10, y: 8, width: 80, height: 64, shape: "rounded", radius: 10 };
+  const textZone = template?.textZone || { x: 10, y: 80, width: 80, height: 15, align: "center", tone: "light" };
+  const zoneRadius = photoZone.shape === "circle" || photoZone.shape === "oval"
+    ? "50%"
+    : photoZone.shape === "rect"
+      ? "0"
+      : `${Number(photoZone.radius || 8)}%`;
+  const photoZoneStyle = {
+    left: `${Number(photoZone.x || 0)}%`,
+    top: `${Number(photoZone.y || 0)}%`,
+    width: `${Number(photoZone.width || 100)}%`,
+    height: `${Number(photoZone.height || 100)}%`,
+    borderRadius: zoneRadius,
+  };
+  const textZoneStyle = {
+    left: `${Number(textZone.x || 0)}%`,
+    top: `${Number(textZone.y || 0)}%`,
+    width: `${Number(textZone.width || 100)}%`,
+    height: `${Number(textZone.height || 15)}%`,
+  };
+  const collarAnchor = Math.min(printArea.top - 2, Number(profile.collarAnchor || 20));
+  const collarGuideHeight = Math.max(2, printArea.top - collarAnchor);
+
+  const onPointerDown = (event) => {
+    if (!canDrag) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = { x: event.clientX, y: event.clientY, startX: artworkOffset.x, startY: artworkOffset.y, width: rect.width, height: rect.height };
+  };
+  const onPointerMove = (event) => {
+    if (!dragRef.current || !canDrag) return;
+    const start = dragRef.current;
+    const clamp = (v) => Math.min(42, Math.max(-42, v));
+    setArtworkOffset({
+      x: clamp(start.startX + ((event.clientX - start.x) / Math.max(1, start.width)) * 100),
+      y: clamp(start.startY + ((event.clientY - start.y) / Math.max(1, start.height)) * 100)
+    });
+  };
+  const stopDrag = () => { dragRef.current = null; };
+  const onWheel = (event) => {
+    if (!setZoom) return;
+    event.preventDefault();
+    setZoom(value => clampPreview(value + (event.deltaY < 0 ? .08 : -.08)));
+  };
+
+  return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
+    <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
+
+    {showMeasurements && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
+      <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">{side === "back" ? "Back print guide" : "Front print guide"} Â· {size || "â€”"}</div>
+      <div className="mt-1 text-[10px] font-bold text-[#292621]">Recommended Â· {measurementPair(profile.widthIn, profile.heightIn)}</div>
+      <div className="mt-1 text-[8px] font-semibold text-[#6f6a63]">Maximum safe area Â· {measurementPair(profile.maxWidthIn, profile.maxHeightIn)}</div>
+      <div className="mt-1 text-[8px] leading-relaxed text-[#625c54]">{profile.placementLabel} Â· â†“ {measurementSingle(profile.collarIn)} from {String(garment?.previewType || garment?.type || "").toLowerCase().includes("hoodie") ? "hood seam" : "collar"}</div>
+      {configuredGuide?.sizeScalingEnabled !== false && <div className="mt-1 text-[8px] text-[#7a746c]">Size-aware preset is active for {size || "this size"}.</div>}
+      {profile.bottomClearanceIn && <div className="mt-1 text-[8px] font-semibold text-[#8a514b]">Keep â‰¥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
+    </div>}
+
+    <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={Number(zoom) === 1 ? undefined : { transform: `scale(${zoom})` }}>
+      <div
+        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}
+        style={{ aspectRatio: `${previewCanvas.width} / ${previewCanvas.height}` }}
+      >
+        {showMockup ? (
+          <img
+            src={mockupUrl}
+            alt={(garment?.label || "Custom garment") + " " + side + " mockup"}
+            className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]"
+            style={mockupLayerStyle}
+            draggable="false"
+            onError={() => setFailedMockupUrl(mockupUrl)}
+          />
+        ) : (
+          <GarmentShape type={garment?.previewType || garment?.type || "T-Shirt"} color={color} side={side} />
+        )}
+
+        {showMeasurements && <div className="absolute inset-0 z-20 pointer-events-none select-none">
+          <div className="absolute w-px bg-accent/65" style={{ left: "50%", top: collarAnchor + "%", height: collarGuideHeight + "%" }}>
+            <span className="absolute -left-1 top-0 h-px w-2 bg-accent/70" />
+            <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/90 px-1 py-0.5 font-mono text-[7px] text-accent">{formatMeasurementNumber(profile.collarIn)}"</span>
+          </div>
+
+          <div className="absolute left-1/2 -translate-x-1/2 rounded-sm border border-dotted border-[#7b8794]/75 bg-[#17324D]/[0.015]" style={maxPrintAreaStyle}>
+            <span className="absolute bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-white/90 px-1.5 py-0.5 font-mono text-[6px] uppercase tracking-wide text-[#65717d]">maximum safe area</span>
+          </div>
+
+          <div className="absolute left-1/2 -translate-x-1/2" style={printAreaStyle}>
+            <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-accent/55" />
+            <span className="absolute left-1/2 top-1 -translate-x-1/2 rounded-md bg-[#FFFFFF]/90 px-1 py-0.5 font-mono text-[7px] uppercase tracking-wide text-[#8b565c]">center</span>
+
+            <div className="absolute -top-2 left-0 right-0 h-px bg-accent/70">
+              <span className="absolute left-0 -top-1 h-2 w-px bg-accent/70" />
+              <span className="absolute right-0 -top-1 h-2 w-px bg-accent/70" />
+              <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[7px] font-semibold text-accent">{formatMeasurementNumber(profile.widthIn)}" wide</span>
+            </div>
+
+            <div className="absolute -right-2 top-0 bottom-0 w-px bg-accent/70">
+              <span className="absolute -left-1 top-0 h-px w-2 bg-accent/70" />
+              <span className="absolute -left-1 bottom-0 h-px w-2 bg-accent/70" />
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1 py-0.5 font-mono text-[7px] font-semibold text-accent">{formatMeasurementNumber(profile.heightIn)}" high</span>
+            </div>
+
+            {profile.bottomClearanceIn && <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-[#ead3d6] bg-white/95 px-1.5 py-0.5 font-mono text-[7px] text-[#8a514b]">â†‘ {formatMeasurementNumber(profile.bottomClearanceIn)}" pocket clearance</span>}
+          </div>
+        </div>}
+
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={stopDrag}
+          onPointerCancel={stopDrag}
+          style={printAreaStyle}
+          className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
+        >
+          {seasonalOverlay || (!styleTemplate ? null : blankArtwork ? (
+            <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
+          ) : (
+            <>
+              <div
+                className={"absolute z-10 overflow-hidden transition-all duration-200 " + (showGuides ? "ring-1 ring-white/35" : "")}
+                style={photoZoneStyle}
+              >
+                {photo ? (
+                  artworkFitMode === "crop" ? (
+                    <div className="absolute h-full w-full pointer-events-none" style={artworkLayerStyle}>
+                      <img
+                        src={photo.url}
+                        alt="Customer photo preview"
+                        draggable="false"
+                        className="h-full w-full object-cover pointer-events-none transition-[filter] duration-200"
+                        style={{ filter: moodTreatment.photoFilter }}
+                      />
+                    </div>
+                  ) : (
+                    <img
+                      src={photo.url}
+                      alt="Customer photo preview"
+                      draggable="false"
+                      className="absolute max-h-full max-w-full object-contain pointer-events-none transition-[filter] duration-200"
+                      style={{ ...artworkLayerStyle, filter: moodTreatment.photoFilter }}
+                    />
+                  )
+                ) : (
+                  <div className="absolute inset-0 grid place-items-center rounded-[inherit] border border-dashed border-white/45 bg-[#17324D]/[0.08] text-center px-3 pointer-events-none">
+                    <div>
+                      <Upload size={16} className="mx-auto text-white/85 drop-shadow"/>
+                      <div className="mt-1 text-[6px] font-bold uppercase tracking-[0.14em] text-white/90 drop-shadow">Photo goes here</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {template?.assetUrl && (
+                <img
+                  key={template.id}
+                  src={template.assetUrl}
+                  alt={template.name + " artwork overlay"}
+                  draggable="false"
+                  className="absolute inset-0 z-20 h-full w-full object-fill pointer-events-none transition-[filter,opacity] duration-200"
+                  style={{ filter: moodTreatment.templateFilter }}
+                />
+              )}
+
+              {hasPreviewText && (
+                <div
+                  className={"absolute z-30 grid content-center px-2 pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.75)] " + (textZone?.tone === "dark" ? "text-[#26211d]" : "text-white")}
+                  style={textZoneStyle}
+                >
+                  <div className={textZone?.align === "left" ? "text-left" : textZone?.align === "right" ? "text-right" : "text-center"}>
+                    {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
+                    {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
+                    {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
+                  </div>
+                </div>
+              )}
+            </>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    {uploading && photo && styleTemplate && !blankArtwork && <div className="absolute left-1/2 top-12 z-40 -translate-x-1/2 pointer-events-none">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[#C9D4DE] bg-white/90 px-3 py-1.5 text-[9px] font-semibold text-[#17324D] shadow-sm backdrop-blur">
+        <Upload size={11} /> Uploading new artworkâ€¦ current preview stays visible
+      </span>
+    </div>}
+
+    <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
+      <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} Â· {garment?.label || "Custom garment"}</span>
+      {!blankArtwork && !seasonalOverlay && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{photo ? <><Move size={10}/> Drag to position</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","")} Â· {mood}</>}</span>}
+    </div>
+  </div>;
+}
+
+function GarmentShape({ type, color, side }) {
+  const palette = garmentPalette(color);
+  const key = normalizePreviewToken(type);
+  const isHoodie = key.includes("hoodie");
+  const isCrew = key.includes("crewneck") || key.includes("crew neck") || key.includes("sweatshirt") || key.includes("sweater");
+  const isLongSleeve = key.includes("long sleeve");
+  const isBaby = key.includes("baby") || key.includes("bodysuit") || key.includes("onesie");
+  const isToddler = key.includes("toddler");
+  const isYouth = key.includes("youth") || key === "kids";
+
+  const longSleeveBody = "M123 70 L84 86 L49 112 L18 271 L63 280 L94 151 L98 392 L262 392 L266 151 L297 280 L342 271 L311 112 L276 86 L237 70 C224 91 204 101 180 101 C156 101 136 91 123 70 Z";
+  // Traced from the approved Adult Long Sleeve Tee mockup so fallback views
+  // preserve the same sleeve length, shoulder width and body proportions.
+  const longSleeveTeeFrontBody = "M147 114 L107 201 L68 421 L55 632 L72 769 L144 768 L188 462 L213 375 L195 761 L341 779 L533 775 L603 761 L588 382 L612 470 L651 768 L720 773 L739 707 L744 602 L735 449 L701 237 L664 126 L490 33 L413 46 L309 33 Z";
+  const longSleeveTeeBackBody = "M145 116 L103 212 L68 412 L54 624 L72 768 L139 766 L193 425 L214 359 L190 754 L222 769 L327 778 L529 775 L605 758 L584 359 L607 432 L660 766 L726 769 L746 609 L734 433 L701 238 L660 124 L491 32 L307 32 Z";
+  const longSleeveTeeTransform = "translate(0 35) scale(.45)";
+
+  return <svg viewBox="0 0 360 430" role="img" aria-label={color + " " + type + " " + side + " mockup"} className="w-full h-auto drop-shadow-[0_18px_22px_rgba(0,0,0,.18)]">
+    {isHoodie ? <>
+      <path d="M124 89 C130 48 151 25 180 25 C209 25 230 48 236 89 L216 111 C208 82 197 68 180 68 C163 68 152 82 144 111 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d={longSleeveBody} fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      {side === "front" && <>
+        <path d="M139 284 Q180 266 221 284 L214 340 H146 Z" fill="none" stroke={palette.seam} strokeWidth="2" opacity=".55" />
+        <path d="M158 87 L174 131 M202 87 L186 131" stroke={palette.seam} strokeWidth="2" opacity=".55" />
+      </>}
+    </> : isBaby ? <>
+      <path d="M132 72 L94 87 L57 136 L87 158 L110 134 L110 292 L136 322 L151 392 L180 369 L209 392 L224 322 L250 292 L250 134 L273 158 L303 136 L266 87 L228 72 C218 91 201 101 180 101 C159 101 142 91 132 72 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M151 72 C156 88 166 94 180 94 C194 94 204 88 209 72" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".62" />
+      <path d="M151 392 Q180 405 209 392" fill="none" stroke={palette.seam} strokeWidth="2" opacity=".5" />
+      {side === "front" && <>
+        <circle cx="166" cy="384" r="2.4" fill={palette.seam} />
+        <circle cx="180" cy="388" r="2.4" fill={palette.seam} />
+        <circle cx="194" cy="384" r="2.4" fill={palette.seam} />
+      </>}
+    </> : isCrew ? <>
+      <path d={longSleeveBody} fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M149 69 C154 86 165 93 180 93 C195 93 206 86 211 69" fill="none" stroke={palette.seam} strokeWidth="6" opacity=".62" />
+      <path d="M98 365 L262 365" stroke={palette.seam} strokeWidth="6" opacity=".42" />
+      <path d="M20 258 L64 268 M296 268 L340 258" stroke={palette.seam} strokeWidth="6" opacity=".42" />
+    </> : isLongSleeve ? <>
+      <path
+        d={side === "back" ? longSleeveTeeBackBody : longSleeveTeeFrontBody}
+        transform={longSleeveTeeTransform}
+        fill={palette.base}
+        stroke={palette.stroke}
+        strokeWidth="4"
+      />
+      <path
+        d={side === "back"
+          ? "M307 43 C342 58 367 64 400 64 C433 64 458 58 491 43"
+          : "M309 43 C336 73 365 87 400 87 C435 87 464 73 490 43"}
+        transform={longSleeveTeeTransform}
+        fill="none"
+        stroke={palette.seam}
+        strokeWidth="10"
+        opacity=".62"
+      />
+      <path d="M74 730 L143 730 M657 730 L722 730" transform={longSleeveTeeTransform} fill="none" stroke={palette.seam} strokeWidth="9" opacity=".4" />
+      <path d="M205 742 C300 765 500 765 594 742" transform={longSleeveTeeTransform} fill="none" stroke={palette.seam} strokeWidth="5" opacity=".28" />
+    </> : isToddler ? <>
+      <path d="M132 78 L93 94 L52 148 L84 171 L108 146 L108 358 L252 358 L252 146 L276 171 L308 148 L267 94 L228 78 C218 96 201 105 180 105 C159 105 142 96 132 78 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M153 77 C157 92 166 99 180 99 C194 99 203 92 207 77" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
+    </> : isYouth ? <>
+      <path d="M128 74 L86 91 L38 151 L76 178 L103 148 L103 376 L257 376 L257 148 L284 178 L322 151 L274 91 L232 74 C221 93 203 102 180 102 C157 102 139 93 128 74 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M151 73 C155 88 165 95 180 95 C195 95 205 88 209 73" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
+    </> : <>
+      <path d="M123 70 L78 88 L27 154 L70 184 L96 151 L96 392 L264 392 L264 151 L290 184 L333 154 L282 88 L237 70 C224 91 204 101 180 101 C156 101 136 91 123 70 Z" fill={palette.base} stroke={palette.stroke} strokeWidth="2" />
+      <path d="M149 69 C154 85 164 92 180 92 C196 92 206 85 211 69" fill="none" stroke={palette.seam} strokeWidth="3" opacity=".6" />
+    </>}
+    <path d="M116 93 C139 105 157 112 180 112 C203 112 221 105 244 93" fill="none" stroke={palette.highlight} strokeWidth="13" opacity=".2" />
+  </svg>;
+}
+
+function garmentPalette(color) {
+  const key = String(color || "Black").toLowerCase();
+  if (key.includes("black")) return { base: "#171717", stroke: "#050505", seam: "#4f4f4f", highlight: "#6a6a6a" };
+  if (key.includes("white")) return { base: "#f4f1eb", stroke: "#c8c2b8", seam: "#aaa49a", highlight: "#ffffff" };
+  if (key.includes("sport grey") || key.includes("sport gray") || key === "grey" || key === "gray") return { base: "#b8b9b5", stroke: "#858682", seam: "#777874", highlight: "#ddddda" };
+  if (key.includes("sand")) return { base: "#c8b79b", stroke: "#958166", seam: "#8f7a5f", highlight: "#f0e1c8" };
+  if (key.includes("navy")) return { base: "#202b3b", stroke: "#0b1220", seam: "#667085", highlight: "#64748b" };
+  if (key.includes("royal")) return { base: "#2857a6", stroke: "#17376f", seam: "#6f91cd", highlight: "#7aa0df" };
+  if (key.includes("red")) return { base: "#ad2735", stroke: "#68151e", seam: "#ce6873", highlight: "#df7d87" };
+  if (key.includes("pink")) return { base: "#e9afc3", stroke: "#b6788d", seam: "#d38fa6", highlight: "#f8d6e1" };
+  if (key.includes("forest") || key.includes("green")) return { base: "#29463b", stroke: "#10231c", seam: "#72877f", highlight: "#6f9385" };
+  if (key.includes("charcoal") || key.includes("heather")) return { base: "#414141", stroke: "#222", seam: "#707070", highlight: "#7b7b7b" };
+  if (key.includes("vintage")) return { base: "#272422", stroke: "#101010", seam: "#595553", highlight: "#68615e" };
+  return { base: "#17324D", stroke: "#050505", seam: "#4b4b4b", highlight: "#555555" };
+}
+
+function StepTitle({ eyebrow, title, text }) {
+  return <div className="mb-7"><div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent">{eyebrow}</div><h2 className="font-display text-4xl md:text-5xl leading-none mt-1.5 text-[#1d1b18]">{title}</h2><p className="text-sm text-[#716b63] mt-2.5 max-w-2xl leading-relaxed">{text}</p></div>;
+}
+function Field({ label, value, onChange, placeholder }) {
+  return <div className="mt-4"><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10"/></div>;
+}
+function TextArea({ label, value, onChange, placeholder }) {
+  return <div className="mt-5"><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><textarea rows={4} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10"/></div>;
+}
+function SelectField({ label, value, onChange, options }) {
+  return <div><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><select value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none focus:border-accent">{options.map(option => <option key={option}>{option}</option>)}</select></div>;
+}
+function Choice({ active, onClick, children }) {
+  return <button type="button" onClick={onClick} className={"rounded-xl border px-3.5 py-2.5 text-sm transition " + (active ? "border-accent bg-accent/[0.06] text-accent shadow-sm" : "border-[#ddd6cc] bg-white/60 text-[#5f5a53] hover:border-[#aaa198]")}>{children}</button>;
+}
+function ReviewCard({ label, value, sub }) {
+  return <div className="rounded-2xl border border-[#dfd8cf] bg-white/65 p-4"><div className="font-mono text-[9px] uppercase tracking-wide text-[#867f76]">{label}</div><div className="font-bold mt-1 text-[#292621]">{value}</div>{sub && <div className="text-xs text-[#7a746c] mt-1">{sub}</div>}</div>;
+}
+function SummaryRow({ label, value }) {
+  return <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:justify-between sm:gap-3"><span className="opacity-55">{label}</span><span className="break-words font-medium sm:max-w-[68%] sm:text-right">{value}</span></div>;
+}
+function GroupRow({ item, product, onChange, onRemove }) {
+  const colors = productColors(product);
+  const sizes = productSizes(product, item.color);
+  const changeColor = (nextColor) => {
+    const nextSizes = productSizes(product, nextColor);
+    const nextSize = nextSizes.includes(item.size) ? item.size : (nextSizes[0] || item.size);
+    onChange({ color: nextColor, size: nextSize });
+  };
+
+  return <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_36px] gap-2 mt-3">
+    <select value={item.color} onChange={e => changeColor(e.target.value)} className="rounded-lg border border-border bg-background px-2 py-2 text-sm">
+      {colors.map(v => <option key={v}>{v}</option>)}
+    </select>
+    <select value={item.size} onChange={e => onChange({size:e.target.value})} className="rounded-lg border border-border bg-background px-2 py-2 text-sm">
+      {sizes.map(v => {
+        const variant = variantFor(product, item.color, v);
+        return <option key={v} value={v} disabled={!variantAvailable(product, variant)}>{v}{!variantAvailable(product, variant) ? " â€” unavailable" : ""}</option>;
+      })}
+    </select>
+    <input type="number" min="1" max="99" value={item.quantity} onChange={e => onChange({quantity:Math.max(1, Math.min(99, Number(e.target.value) || 1))})} className="rounded-lg border border-border bg-background px-2 py-2 text-sm"/>
+    <button type="button" onClick={onRemove} className="rounded-lg border border-border hover:bg-[#f4f1ec]" aria-label="Remove garment"><X size={14} className="mx-auto"/></button>
+  </div>;
+}
+function PhotoCard({ photo, onPrimary, onRemove }) {
+  const qClass = photo.quality === "excellent" ? "text-green-600" : photo.quality === "usable" ? "text-amber-600" : "text-destructive";
+  const qLabel = photo.quality === "excellent" ? "Great quality" : photo.quality === "usable" ? "May look slightly soft" : "Low resolution";
+  return <div className="rounded-2xl border border-[#ddd6cc] bg-white relative overflow-hidden shadow-sm"><div className="aspect-square overflow-hidden bg-[#f3efe8]"><img src={photo.url} alt={photo.name} className="w-full h-full object-cover"/></div><button onClick={onRemove} className="absolute top-2 right-2 rounded-lg bg-white/90 p-1.5 shadow-sm"><X size={13}/></button><div className="p-3"><button onClick={onPrimary} className={"text-[9px] uppercase font-mono flex items-center gap-1 " + (photo.isPrimary ? "text-accent" : "text-[#7c766e]")}><Star size={12} className={photo.isPrimary ? "fill-accent" : ""}/>{photo.isPrimary ? "Primary photo" : "Make primary"}</button><div className={"mt-1.5 text-[9px] uppercase font-mono " + qClass}>{qLabel}</div><div className="text-[9px] text-[#8a847c]">{photo.width}Ã—{photo.height}</div></div></div>;
+}

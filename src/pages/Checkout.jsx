@@ -56,7 +56,7 @@ export default function Checkout() {
   const checkoutStorageKey = scopedStorageKey("gdp_checkout_session_v2", user);
   const [form, setForm] = useState({
     email: "", phone: "", firstName: "", lastName: "",
-    address: "", city: "", province: "Saskatchewan", postalCode: "", country: "Canada",
+    address: "", address2: "", city: "", province: "Saskatchewan", postalCode: "", country: "Canada",
     shippingMethod: "standard", notes: "", discountCode: "",
     termsAccepted: false, marketingConsent: false
   });
@@ -200,7 +200,7 @@ export default function Checkout() {
     setError("");
 
     if (!checkoutActions) {
-      if (!form.email || !form.firstName || !form.address || !form.city || !form.postalCode) {
+      if (!form.email || !form.firstName || !form.lastName || !form.address || !form.city || !form.postalCode) {
         setError("Please fill in all required fields before continuing to payment.");
         return;
       }
@@ -345,6 +345,15 @@ export default function Checkout() {
   return (
     <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">
       <h1 className="font-display text-5xl md:text-6xl leading-none mb-8">CHECKOUT</h1>
+      <div className="mb-8 flex flex-col gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-bold">{user ? `Checking out as ${user.email}` : "Guest checkout is ready"}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {user ? "Your order will also appear in your account." : "No account required. Enter your contact and delivery information below."}
+          </p>
+        </div>
+        {!user && <Link to="/login?returnTo=/checkout" className="shrink-0 text-sm font-semibold text-accent hover:underline">Already have an account? Sign in</Link>}
+      </div>
       <div className="grid lg:grid-cols-[1fr_400px] gap-8">
         <div className="space-y-8">
           <Section n="01" title="Contact">
@@ -371,6 +380,7 @@ export default function Checkout() {
               <Input label="First name" value={form.firstName} onChange={v => set("firstName", v)} />
               <Input label="Last name" value={form.lastName} onChange={v => set("lastName", v)} />
               <div className="sm:col-span-2"><Input label="Address" value={form.address} onChange={v => set("address", v)} /></div>
+              <div className="sm:col-span-2"><Input label="Apartment, suite, etc. (optional)" value={form.address2} onChange={v => set("address2", v)} /></div>
               <Input label="City" value={form.city} onChange={v => set("city", v)} />
               <SelectInput label="Province/Territory" value={form.province} onChange={v => set("province", v)} options={PROVINCES} />
               <Input label="Postal Code" value={form.postalCode} onChange={v => set("postalCode", v)} />
@@ -437,8 +447,11 @@ export default function Checkout() {
           <h2 className="font-display text-3xl mb-4">YOUR ORDER</h2>
           <div className="space-y-3 max-h-72 overflow-y-auto mb-4">
             {items.map(i => (
-              <div key={i.key} className="flex justify-between text-sm">
-                <span className="pr-2">
+              <div key={i.key} className="flex justify-between gap-2 text-sm">
+                {i.isDtf && i.image && (
+                  <img src={i.image} alt={`${i.name} layout preview`} className="h-14 w-12 shrink-0 border border-border bg-white object-contain" />
+                )}
+                <span className="min-w-0 flex-1 pr-2">
                   {i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span>
                   {i.isCustom && <span className="block text-[10px] font-mono uppercase text-accent">{i.occasion || "Custom"} · {i.proofRequired === false ? "Proof skipped" : "Proof before print"}</span>}
                   {i.isDtf && i.dtfSpec && (

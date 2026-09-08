@@ -25,6 +25,7 @@ export default function SettingsModule() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [savedAt, setSavedAt] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -57,12 +58,14 @@ export default function SettingsModule() {
         lowStockThreshold: Number(form.lowStockThreshold || 0),
       });
       setNotice("Store settings saved.");
+      setError("");
+      setSavedAt(new Date());
       window.setTimeout(() => setNotice(""), 2500);
       await load();
       return true;
     } catch (err) {
       console.error("Settings save failed:", err);
-      window.alert(err?.message || "Settings save failed.");
+      setError(err?.message || "Settings save failed. Your changes are still on this page.");
       return false;
     } finally {
       setSaving(false);
@@ -96,9 +99,15 @@ export default function SettingsModule() {
         </div>
       )}
 
-      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="text-xs text-[#777]">
-          Store-wide identity and commerce defaults. Module-specific settings now live inside their owning admin modules.
+      <div className="sticky top-16 z-20 -mx-4 md:-mx-6 lg:-mx-8 mb-6 border-y border-[#e1e2e5] bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-6 lg:px-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="text-sm text-[#555961] flex flex-wrap items-center gap-2">
+          <span>Store-wide identity and commerce defaults.</span>
+          {hasUnsavedSettings ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Unsaved changes</span>
+          ) : (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">All changes saved</span>
+          )}
+          {savedAt && <span className="text-xs text-[#686b72]">Saved {savedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => requestSettingsAction(load, { title: "Reload with unsaved changes?" })} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
@@ -154,13 +163,16 @@ export default function SettingsModule() {
             </div>
           </SettingsSection>
 
-          <SettingsSection icon={Palette} title="Brand & social" description="Store logo, brand color and social channels">
+          <SettingsSection icon={Palette} title="Brand & social" description="One source of truth for the storefront logo, brand color and social channels">
             <div className="grid sm:grid-cols-2 gap-3">
               <Field label="Logo URL">
                 <input value={form.logo || ""} onChange={(event) => set("logo", event.target.value)} className={inputClass} />
               </Field>
               <Field label="Primary color">
-                <input value={form.primaryColor || ""} onChange={(event) => set("primaryColor", event.target.value)} className={inputClass} placeholder="#000000" />
+                <div className="flex gap-2">
+                  <input type="color" aria-label="Choose primary brand color" value={/^#[0-9a-f]{6}$/i.test(form.primaryColor || "") ? form.primaryColor : "#d7193f"} onChange={(event) => set("primaryColor", event.target.value)} className="h-10 w-12 shrink-0 cursor-pointer rounded-lg border border-[#d4d4d4] bg-white p-1" />
+                  <input value={form.primaryColor || ""} onChange={(event) => set("primaryColor", event.target.value)} className={inputClass} placeholder="#d7193f" pattern="^#[0-9A-Fa-f]{6}$" />
+                </div>
               </Field>
               <Field label="Instagram">
                 <input value={form.instagram || ""} onChange={(event) => set("instagram", event.target.value)} className={inputClass} />

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Copy,
+  Download,
   FileCheck,
   Layers3,
   Maximize2,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/dtfGangSheet";
 import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
 import { advancedNestArtwork } from "@/lib/dtfNesting";
+import { downloadFilmPreview, drawWatermark, watermarkApplies } from "@/lib/dtfFilmExport";
 
 const round = (value, decimals = 2) => {
   const power = 10 ** decimals;
@@ -375,6 +377,78 @@ function checkerboardStyle() {
   };
 }
 
+function loadPreviewImage(source) {
+  return new Promise((resolve) => {
+    if (!source) return resolve(null);
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = source;
+  });
+}
+
+async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings) {
+  const width = Math.max(1, Number(sheetWidth || 1));
+  const length = Math.max(1, Number(sheetLength || 1));
+  const previewScale = Math.min(720 / width, 1400 / length);
+  const outputWidth = Math.max(1, Math.round(width * previewScale));
+  const outputHeight = Math.max(1, Math.round(length * previewScale));
+  const canvas = document.createElement("canvas");
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+  const context = canvas.getContext("2d");
+  if (!context) return "";
+
+  context.fillStyle = "#f8f8f6";
+  context.fillRect(0, 0, outputWidth, outputHeight);
+  context.strokeStyle = "rgba(0,0,0,0.08)";
+  context.lineWidth = 1;
+  const gridStep = Math.max(8, outputWidth / width);
+  for (let x = gridStep; x < outputWidth; x += gridStep) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, outputHeight);
+    context.stroke();
+  }
+  for (let y = gridStep; y < outputHeight; y += gridStep) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(outputWidth, y);
+    context.stroke();
+  }
+
+  const previews = await Promise.all(items.map((item) => loadPreviewImage(item.previewUrl)));
+  items.forEach((item, index) => {
+    const centerX = ((Number(item.x || 0) + Number(item.width || 0) / 2) / width) * outputWidth;
+    const centerY = ((Number(item.y || 0) + Number(item.height || 0) / 2) / length) * outputHeight;
+    const itemWidth = (Number(item.width || 0) / width) * outputWidth;
+    const itemHeight = (Number(item.height || 0) / length) * outputHeight;
+    context.save();
+    context.translate(centerX, centerY);
+    context.rotate((normalizeArtworkRotation(item.rotation) * Math.PI) / 180);
+    if (previews[index]) {
+      context.drawImage(previews[index], -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight);
+    } else {
+      context.fillStyle = "#ffffff";
+      context.fillRect(-itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight);
+      context.strokeStyle = "#111111";
+      context.strokeRect(-itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight);
+      context.fillStyle = "#111111";
+      context.font = `${Math.max(9, Math.min(18, itemWidth / 6))}px sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText("PDF", 0, 0);
+    }
+    context.restore();
+  });
+
+  context.strokeStyle = "#111111";
+  context.lineWidth = 3;
+  context.strokeRect(1.5, 1.5, outputWidth - 3, outputHeight - 3);
+  if (watermarkApplies(settings, "cart")) drawWatermark(context, outputWidth, outputHeight, settings);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
 export default function DTFGangSheet() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -464,6 +538,15 @@ export default function DTFGangSheet() {
   const usedLength = usedArtworkLength(artworks, settings.spacing);
   const fitLength = fitLengthToArtwork(artworks, settings);
   const displayHeight = Math.min(1600, Math.max(520, (sheetLength / Math.max(1, sheetWidth)) * 500));
+  const showUnusedFilmWarning = hasArtwork && utilization < 90;
+
+  useEffect(() => {
+    const clearSelection = (event) => {
+      if (event.key === "Escape") setSelectedId("");
+    };
+    window.addEventListener("keydown", clearSelection);
+    return () => window.removeEventListener("keydown", clearSelection);
+  }, []);
 
   const clampArtworkPosition = (item, x = item.x, y = item.y, rotation = item.rotation) => {
     const candidate = { ...item, x, y, rotation: normalizeArtworkRotation(rotation) };
@@ -482,6 +565,8 @@ export default function DTFGangSheet() {
   const validation = useMemo(() => {
     const errors = [];
     const warnings = [];
+    const lowResolutionFiles = new Map();
+    const jpegFiles = new Map();
     if (!artworks.length) errors.push("Upload at least one artwork file.");
     if (sheetWidth <= 0 || sheetWidth > settings.maxWidth) {
       errors.push(`Film width must be between 1" and ${settings.maxWidth}".`);
@@ -507,8 +592,19 @@ export default function DTFGangSheet() {
       ) {
         errors.push(`${item.name} extends outside the selected film after rotation.`);
       }
-      if (quality.tone === "bad") warnings.push(`${item.name} is below ${settings.minimumDpi} DPI at its current print size.`);
-      if (item.type === "image/jpeg") warnings.push(`${item.name} is a JPEG and may include a background.`);
+      if (quality.tone === "bad") {
+        lowResolutionFiles.set(item.name, (lowResolutionFiles.get(item.name) || 0) + 1);
+      }
+      if (item.type === "image/jpeg") {
+        jpegFiles.set(item.name, (jpegFiles.get(item.name) || 0) + 1);
+      }
+    });
+
+    lowResolutionFiles.forEach((count, name) => {
+      warnings.push(`${name}${count > 1 ? ` — ${count} copies are` : " is"} below ${settings.minimumDpi} DPI at the current print size.`);
+    });
+    jpegFiles.forEach((count, name) => {
+      warnings.push(`${name}${count > 1 ? ` — ${count} copies are JPEGs and may` : " is a JPEG and may"} include a background.`);
     });
 
     return { errors, warnings };
@@ -861,17 +957,56 @@ export default function DTFGangSheet() {
 
   const duplicateSelected = () => {
     if (!selectedArtwork || mode === "upload") return;
+    const gap = Math.max(0.05, Number(settings.spacing || 0.25));
+    const selectedBounds = getArtworkRotatedBounds(selectedArtwork);
     const copy = {
       ...selectedArtwork,
       id: createArtworkId(),
-      x: Math.min(sheetWidth - selectedArtwork.width, selectedArtwork.x + settings.spacing * 2),
-      y: Math.min(sheetLength - selectedArtwork.height, selectedArtwork.y + settings.spacing * 2),
     };
-    const nested = runNesting([...artworks, copy], sheetLength);
-    setSheetLength(Math.max(sheetLength, nested.recommendedLength));
-    setArtworks(nested.items);
+
+    const fitsWithoutMovingArtwork = (candidate) => {
+      const bounds = getArtworkRotatedBounds(candidate);
+      return bounds.left >= -0.001 &&
+        bounds.top >= -0.001 &&
+        bounds.right <= sheetWidth + 0.001 &&
+        bounds.bottom <= sheetLength + 0.001 &&
+        artworkOverlaps([...artworks, candidate]).length === 0;
+    };
+
+    const preferredPositions = [
+      { x: selectedArtwork.x + selectedBounds.width + gap, y: selectedArtwork.y },
+      { x: selectedArtwork.x, y: selectedArtwork.y + selectedBounds.height + gap },
+      { x: selectedArtwork.x - selectedBounds.width - gap, y: selectedArtwork.y },
+      { x: selectedArtwork.x, y: selectedArtwork.y - selectedBounds.height - gap },
+    ];
+
+    let placed = preferredPositions
+      .map((position) => ({ ...copy, ...position }))
+      .find(fitsWithoutMovingArtwork);
+
+    if (!placed) {
+      const step = Math.max(0.25, gap);
+      for (let y = gap; y <= sheetLength && !placed; y += step) {
+        for (let x = gap; x <= sheetWidth; x += step) {
+          const candidate = { ...copy, x, y };
+          if (fitsWithoutMovingArtwork(candidate)) {
+            placed = candidate;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!placed) {
+      setPageError("There is no open space for another copy at this size and rotation. Increase the film length, reduce the artwork size, or use Advanced Nest.");
+      return;
+    }
+
+    setArtworks([...artworks, placed]);
     setSelectedId(copy.id);
     setApproval(false);
+    setPageError("");
+    setNotice("Artwork duplicated beside the original without rotating or rearranging existing designs.");
   };
 
   const removeArtwork = (artworkId) => {
@@ -884,7 +1019,7 @@ export default function DTFGangSheet() {
     }
 
     setArtworks(next);
-    setSelectedId((current) => (current === artworkId ? next[0]?.id || "" : current));
+    setSelectedId((current) => (current === artworkId ? "" : current));
     setApproval(false);
     setPageError("");
     if (!next.length) {
@@ -1167,6 +1302,15 @@ export default function DTFGangSheet() {
       setPageError("Confirm that you own or have permission to reproduce the DTF artwork before adding it to cart.");
       return;
     }
+    if (
+      showUnusedFilmWarning &&
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Your artwork uses ${round(utilization, 1)}% of the ${round(sheetWidth, 2)}\" × ${round(sheetLength, 2)}\" film. You will still be charged $${price.price.toFixed(2)} for the entire selected sheet. Continue with the full sheet?`
+      )
+    ) {
+      return;
+    }
 
     setSaving(true);
     try {
@@ -1204,12 +1348,13 @@ export default function DTFGangSheet() {
         ? Number(settings.artworkReviewPrice || 0)
         : 0;
       const linePrice = round(price.price + reviewFee, 2);
+      const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength, settings);
 
       addItem({
         productId: product.id,
         variantId: null,
         name: product.name || "Custom DTF Gang Sheet",
-        image: product.images?.[0] || "/images/dtf-gang-sheet.svg",
+        image: layoutThumbnail || product.images?.[0] || "/images/dtf-gang-sheet.svg",
         variant: mode === "upload" ? "Upload Print-Ready Gang Sheet" : "Build My Gang Sheet",
         size: `${round(sheetWidth, 2)}" × ${round(sheetLength, 2)}"`,
         color: "DTF Film",
@@ -1237,6 +1382,11 @@ export default function DTFGangSheet() {
           rightsTimestamp: approvalTimestamp,
           approvalAcknowledged: true,
           approvalTimestamp,
+          exportPolicy: {
+            watermarkedPreviewEnabled: settings.watermarkedPreviewEnabled,
+            fullResolutionDownloadAfterPayment: settings.fullResolutionDownloadAfterPayment,
+            watermarkText: settings.watermarkText,
+          },
           layout,
         },
       });
@@ -1518,6 +1668,7 @@ export default function DTFGangSheet() {
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
                     onPointerLeave={endDrag}
+                    onPointerDown={() => setSelectedId("")}
                   >
                     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-between bg-black/70 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.08em] text-white">
                       <span>{round(sheetWidth, 1)}" wide DTF film</span>
@@ -1526,6 +1677,7 @@ export default function DTFGangSheet() {
                     {artworks.map((item) => {
                       const selected = item.id === selectedId;
                       const quality = getArtworkQuality(item, settings);
+                      const controlsAbove = item.y + item.height > sheetLength * 0.82;
                       return (
                         <div
                           role="button"
@@ -1577,66 +1729,39 @@ export default function DTFGangSheet() {
                           {selected && (
                             <>
                               <span
-                                className="pointer-events-none absolute -left-0.5 -top-5 bg-black px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white"
+                                className="pointer-events-none absolute left-1 top-1 z-30 bg-black/85 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white shadow"
                                 style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
                               >
                                 {round(item.width, 1)}" × {round(item.height, 1)}" · {round(normalizeArtworkRotation(item.rotation), 1)}°
                               </span>
-                              <button
-                                type="button"
-                                aria-label={`Delete ${item.name}`}
-                                title="Delete selected artwork"
-                                onPointerDown={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
+                              <div
+                                className="absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-black/20 bg-white p-1 text-black shadow-xl"
+                                style={{
+                                  top: controlsAbove ? "auto" : "calc(100% + 6px)",
+                                  bottom: controlsAbove ? "calc(100% + 6px)" : "auto",
+                                  transform: `translateX(-50%) rotate(${-normalizeArtworkRotation(item.rotation)}deg)`,
                                 }}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  removeArtwork(item.id);
-                                }}
-                                className="absolute -right-3 -top-3 z-30 grid h-7 w-7 place-items-center rounded-full border border-white bg-red-600 text-white shadow-lg transition hover:bg-red-700"
-                                style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
                               >
-                                <Trash2 size={13} />
-                              </button>
-                              {mode === "build" && (
-                                <>
-                                  <span
-                                    className="pointer-events-none absolute left-1/2 h-7 border-l border-black/40"
-                                    style={{ top: "-29px" }}
-                                  />
-                                  <button
-                                    type="button"
-                                    aria-label={`Rotate ${item.name} freely`}
-                                    title="Drag to rotate freely · Hold Shift to snap by 15°"
-                                    onPointerDown={(event) => onRotatePointerDown(event, item)}
-                                    className="absolute z-30 grid h-8 w-8 cursor-grab place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg transition active:cursor-grabbing hover:bg-black hover:text-white"
-                                    style={{
-                                      left: "50%",
-                                      top: "-43px",
-                                      transform: `translateX(-50%) rotate(${-normalizeArtworkRotation(item.rotation)}deg)`,
-                                    }}
-                                  >
+                                {mode === "build" && (
+                                  <button type="button" aria-label={`Rotate ${item.name} freely`} title="Drag to rotate freely · Hold Shift to snap by 15°" onPointerDown={(event) => onRotatePointerDown(event, item)} className="grid h-8 w-8 cursor-grab place-items-center rounded-full hover:bg-black hover:text-white">
                                     <RotateCw size={14} />
                                   </button>
-                                </>
-                              )}
-                              <button
-                                type="button"
-                                aria-label={`Resize ${item.name}`}
-                                title="Drag to resize artwork"
-                                onPointerDown={(event) => onResizePointerDown(event, item)}
-                                className="absolute -bottom-4 -right-4 z-30 grid h-8 w-8 cursor-nwse-resize place-items-center rounded-full border border-black/20 bg-white text-black shadow-lg"
-                                style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
-                              >
-                                <Maximize2 size={14} />
-                              </button>
+                                )}
+                                <button type="button" aria-label={`Resize ${item.name}`} title="Drag to resize artwork" onPointerDown={(event) => onResizePointerDown(event, item)} className="grid h-8 w-8 cursor-nwse-resize place-items-center rounded-full hover:bg-black hover:text-white">
+                                  <Maximize2 size={14} />
+                                </button>
+                                <button type="button" aria-label={`Delete ${item.name}`} title="Delete selected artwork" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} onClick={(event) => { event.preventDefault(); event.stopPropagation(); removeArtwork(item.id); }} className="grid h-8 w-8 place-items-center rounded-full text-red-700 hover:bg-red-600 hover:text-white">
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </>
                           )}
                         </div>
                       );
                     })}
+                    {watermarkApplies(settings, "builder") && artworks.length > 0 && (
+                      <WorkspaceWatermark settings={settings} />
+                    )}
                     {!artworks.length && (
                       <div className="absolute inset-0 grid place-items-center px-8 text-center">
                         <div>
@@ -1662,6 +1787,15 @@ export default function DTFGangSheet() {
               <Metric label="Artwork length" value={`${round(usedLength, 1)}"`} helper={usedLength && usedLength < sheetLength ? `${round(sheetLength - usedLength, 1)}" remaining` : "Current layout"} />
               <Metric label="Production segments" value={String(hasArtwork ? Math.max(1, Math.ceil(sheetLength / settings.productionSegmentLength)) : 0)} helper={hasArtwork ? `Internally split at ${settings.productionSegmentLength}" when needed` : "No artwork loaded"} />
             </div>
+            {showUnusedFilmWarning && (
+              <div className="mt-3 flex items-start gap-3 border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.08em]">You are paying for the full selected film</div>
+                  <div className="mt-1 text-[11px] leading-5">Your artwork uses {round(utilization, 1)}% of this {round(sheetWidth, 2)}\" × {round(sheetLength, 2)}\" sheet. The full film price remains ${price.price.toFixed(2)}.</div>
+                </div>
+              </div>
+            )}
           </main>
 
           <aside className="space-y-4 xl:sticky xl:top-[110px] xl:self-start xl:max-h-[calc(100vh-130px)] xl:overflow-y-auto xl:pr-1">
@@ -1877,6 +2011,38 @@ export default function DTFGangSheet() {
               ))}
             </Panel>
 
+            <Panel title="Export film preview" icon={Download}>
+              <div className="text-[11px] leading-5 text-black/55">
+                Download a low-resolution proof of the exact film placement. Production files remain clean and are available to GDP administrators.
+              </div>
+              {settings.previewDownloadBeforePayment ? (
+                <button
+                  type="button"
+                  disabled={!artworks.length || Boolean(validation.errors.length)}
+                  onClick={async () => {
+                    setPageError("");
+                    try {
+                      await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-preview.jpg` });
+                    } catch (error) {
+                      setPageError(error?.message || "Could not download the film preview.");
+                    }
+                  }}
+                  className="mt-3 flex h-11 w-full items-center justify-center gap-2 border border-black bg-white text-[9px] font-black uppercase tracking-[0.1em] hover:bg-black hover:text-white disabled:opacity-30"
+                >
+                  <Download size={15} /> Download preview
+                </button>
+              ) : (
+                <div className="mt-3 border border-black/10 bg-black/[0.03] p-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-black/50">Preview download is disabled before payment</div>
+              )}
+            </Panel>
+
+            {showUnusedFilmWarning && (
+              <div className="border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                <div className="flex items-start gap-2 text-xs font-black uppercase tracking-[0.07em]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> Unused film charge</div>
+                <div className="mt-2 text-[11px] leading-5">Only {round(utilization, 1)}% is occupied, but the full selected gang sheet costs ${price.price.toFixed(2)}. You can return to the layout or continue with the entire sheet.</div>
+              </div>
+            )}
+
 
 
             {settings.artworkReviewEnabled && (
@@ -2012,6 +2178,22 @@ export default function DTFGangSheet() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function WorkspaceWatermark({ settings }) {
+  const text = settings.watermarkText || "GDP Clothing Preview";
+  const common = { opacity: settings.watermarkOpacity, fontSize: `${Math.max(10, settings.watermarkSize * 0.55)}px` };
+  if (settings.watermarkPosition === "corner") {
+    return <div className="pointer-events-none absolute bottom-3 right-3 z-30 font-black uppercase text-black" style={common}>{text}</div>;
+  }
+  if (settings.watermarkPosition === "centered") {
+    return <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 -rotate-[30deg] whitespace-nowrap font-black uppercase text-black" style={common}>{text}</div>;
+  }
+  return (
+    <div className="pointer-events-none absolute inset-0 z-30 grid grid-cols-2 content-around overflow-hidden">
+      {Array.from({ length: 12 }, (_, index) => <span key={index} className="-rotate-[30deg] whitespace-nowrap text-center font-black uppercase text-black" style={common}>{text}</span>)}
     </div>
   );
 }

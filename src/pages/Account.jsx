@@ -797,7 +797,7 @@ function CustomerWorkflowProgress({ order }) {
       <ol className="grid grid-cols-2 md:grid-cols-3 gap-2" aria-label="Order progress">
         {steps.map((step, index) => (
           <li
-            key={step.id}
+            key={String(step.id)}
             className={
               "border px-3 py-3 text-xs font-semibold " +
               (step.complete

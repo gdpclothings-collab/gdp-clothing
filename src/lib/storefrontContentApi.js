@@ -1,10 +1,41 @@
 import { supabase } from "@/lib/supabaseClient";
 import { DEFAULT_LANDING_PAGE, mergeLandingPageConfig } from "@/lib/landingPageDefaults";
 
+const SOCIAL_COLUMNS = "instagram, facebook, tiktok, youtube";
+
+function safeSocialUrl(value) {
+  const candidate = String(value || "").trim();
+  if (!candidate) return "";
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function withStorewideSocial(homepage, settings) {
+  const content = mergeLandingPageConfig(homepage);
+  if (!settings) return content;
+
+  return {
+    ...content,
+    footer: {
+      ...content.footer,
+      social: {
+        instagram: safeSocialUrl(settings.instagram),
+        facebook: safeSocialUrl(settings.facebook),
+        tiktok: safeSocialUrl(settings.tiktok),
+        youtube: safeSocialUrl(settings.youtube),
+      },
+    },
+  };
+}
+
 async function getPublishedHomepage() {
   const { data, error } = await supabase
     .from("store_settings")
-    .select("homepage")
+    .select(`homepage, ${SOCIAL_COLUMNS}`)
     .eq("id", 1)
     .maybeSingle();
 
@@ -15,20 +46,19 @@ async function getPublishedHomepage() {
     throw error;
   }
 
-  return mergeLandingPageConfig(data?.homepage);
+  return withStorewideSocial(data?.homepage, data);
 }
 
 export const storefrontContentApi = {
   async getHomepage(options = {}) {
     if (options.previewDraft) {
-      const { data, error } = await supabase
-        .from("landing_page_draft")
-        .select("content")
-        .eq("id", 1)
-        .maybeSingle();
+      const [draftResult, settingsResult] = await Promise.all([
+        supabase.from("landing_page_draft").select("content").eq("id", 1).maybeSingle(),
+        supabase.from("store_settings").select(SOCIAL_COLUMNS).eq("id", 1).maybeSingle(),
+      ]);
 
-      if (!error && data?.content) {
-        return mergeLandingPageConfig(data.content);
+      if (!draftResult.error && draftResult.data?.content && !settingsResult.error) {
+        return withStorewideSocial(draftResult.data.content, settingsResult.data);
       }
     }
 

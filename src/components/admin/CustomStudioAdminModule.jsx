@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import SeasonalProductionDetails from "./SeasonalProductionDetails";
 import {
   Sparkles,
   Image as ImageIcon,
@@ -357,6 +358,7 @@ export default function CustomStudioAdminModule() {
                       {[design?.color, design?.size].filter(Boolean).join(" · ") || "Garment details pending"}
                     </div>
 
+                    <SeasonalProductionDetails design={design} />
                     {design?.personalization?.previewState && (
                       <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3">
                         <div className="text-[10px] uppercase tracking-wide font-semibold text-violet-700">Customer preview intent</div>

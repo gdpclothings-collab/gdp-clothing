@@ -1,6 +1,21 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Mail, MapPin, Phone, Send } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
+import { contactApi } from "@/lib/contactApi";
+
+const DEFAULT_CONTACT = {
+  email: "hello@gdpclothing.ca",
+  phone: "3068363345",
+  address: "Saskatoon, Saskatchewan, Canada",
+};
+
+function formatPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const local = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  return local.length === 10
+    ? `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`
+    : value;
+}
 
 const FAQS = [
   { q: "How does the custom design process work?", a: "Upload 1–5 photos, choose a style, personalize with names/dates, pick placement, color & size, then preview and order. Our designer creates a digital proof you approve before anything is printed." },
@@ -19,9 +34,22 @@ const POLICIES = [
 
 export default function FAQ() {
   const [open, setOpen] = useState(null);
+  const [contact, setContact] = useState(DEFAULT_CONTACT);
   const [form, setForm] = useState({ customerEmail: "", customerName: "", subject: "", message: "" });
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    contactApi.getStoreContact()
+      .then((value) => {
+        if (active) setContact({ ...DEFAULT_CONTACT, ...value });
+      })
+      .catch((loadError) => {
+        console.error("FAQ contact settings load failed:", loadError);
+      });
+    return () => { active = false; };
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -30,8 +58,10 @@ export default function FAQ() {
       await customerApi.createSupportTicket(form);
       setSent(true);
       setForm({ customerEmail: "", customerName: "", subject: "", message: "" });
-    } catch { setError("Could not submit. Please email hello@gdpclothing.ca."); }
+    } catch { setError(`Could not submit. Please email ${contact.email}.`); }
   };
+
+  const telHref = String(contact.phone || "").replace(/[^+\d]/g, "");
 
   return (
     <div className="max-w-[900px] mx-auto px-4 py-12">
@@ -63,9 +93,17 @@ export default function FAQ() {
       <h2 className="font-display text-3xl mb-4">CONTACT US</h2>
       <div className="grid md:grid-cols-2 gap-8">
         <div className="space-y-3 text-sm">
-          <p className="flex items-center gap-2"><MapPin size={16} className="text-accent" /> Saskatoon, SK, Canada</p>
-          <p className="flex items-center gap-2"><Phone size={16} className="text-accent" /> (306) 555-GDP1</p>
-          <p className="flex items-center gap-2"><Mail size={16} className="text-accent" /> hello@gdpclothing.ca</p>
+          <p className="flex items-center gap-2"><MapPin size={16} className="text-accent" /> {contact.address}</p>
+          {contact.phone && (
+            <p className="flex items-center gap-2">
+              <Phone size={16} className="text-accent" />
+              <a href={`tel:${telHref}`} className="hover:text-accent hover:underline">{formatPhone(contact.phone)}</a>
+            </p>
+          )}
+          <p className="flex items-center gap-2">
+            <Mail size={16} className="text-accent" />
+            <a href={`mailto:${contact.email}`} className="hover:text-accent hover:underline">{contact.email}</a>
+          </p>
         </div>
         {sent ? (
           <div className="border border-accent bg-accent/10 p-6 text-center">

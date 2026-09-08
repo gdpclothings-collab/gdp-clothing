@@ -24,8 +24,8 @@ const defaultDtfSettings = {
   minLength: 6,
   standardMaxLength: 36,
   pricingMode: "graduated",
-  standardRate: 0.028,
-  volumeRate: 0.025,
+  standardRate: 0.049,
+  volumeRate: 0.04375,
   breakpointArea: 1224,
   spacing: 0.25,
   minimumDpi: 200,
@@ -33,6 +33,11 @@ const defaultDtfSettings = {
   artworkReviewEnabled: true,
   artworkReviewPrice: 0,
   maxUploadMb: 100,
+  watermarkedPreviewEnabled: true,
+  previewDownloadBeforePayment: false,
+  fullResolutionDownloadAfterPayment: false,
+  adminProductionExportEnabled: true,
+  watermarkText: "GDP Clothing Preview",
   acceptedMimeTypes: [
     "image/png",
     "image/jpeg",
@@ -52,8 +57,8 @@ function normalizeDtfSettings(raw: any = {}) {
   next.maxWidth = Math.max(1, numberOr(next.maxWidth, 34));
   next.defaultWidth = Math.min(next.maxWidth, Math.max(1, numberOr(next.defaultWidth, next.maxWidth)));
   next.minLength = Math.max(1, numberOr(next.minLength, 6));
-  next.standardRate = Math.max(0, numberOr(next.standardRate, 0.028));
-  next.volumeRate = Math.max(0, numberOr(next.volumeRate, 0.025));
+  next.standardRate = Math.max(0, numberOr(next.standardRate, 0.049));
+  next.volumeRate = Math.max(0, numberOr(next.volumeRate, 0.04375));
   next.breakpointArea = Math.max(1, numberOr(next.breakpointArea, 1224));
   next.spacing = Math.max(0, numberOr(next.spacing, 0.25));
   next.artworkReviewPrice = Math.max(0, numberOr(next.artworkReviewPrice, 0));
@@ -95,6 +100,24 @@ function safeUploadFileName(value: unknown) {
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 120) || "artwork";
+}
+
+function isAccountUser(user: any) {
+  return Boolean(user && user.is_anonymous !== true);
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function guestUploadPath(value: unknown) {
+  const path = String(value || "");
+  return /^guest\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(path) ? path : null;
+}
+
+function cleanText(value: unknown, max = 500) {
+  return String(value || "").trim().slice(0, max) || null;
 }
 
 function isDtfProduct(product: any) {
@@ -349,6 +372,18 @@ async function releaseCheckoutReservations(service: any, orderId: string, status
   if (coupon.error) console.error("coupon reservation release failed", coupon.error);
 }
 
+async function releaseGuestDesignClaims(service: any, orderId: string) {
+  const { error } = await service
+    .from("guest_design_sessions")
+    .update({
+      converted_order_id: null,
+      converted_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("converted_order_id", orderId);
+  if (error) console.error("guest design claim release failed", error);
+}
+
 function reservationErrorMessage(error: any, fallback: string) {
   const message = String(error?.message || "");
   if (message.includes("INSUFFICIENT_INVENTORY")) {
@@ -376,6 +411,200 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const action = body?.action;
+
+    if (action === "createGuestCustomUpload") {
+      const files = Array.isArray(body?.files) ? body.files.slice(0, 8) : [];
+      if (!files.length) {
+        return respond(req, { error: true, message: "Choose at least one artwork file." }, 400);
+      }
+
+      const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+      const uploads: Array<{ path: string; token: string; signedUrl: string }> = [];
+      for (const descriptor of files) {
+        const mimeType = String(descriptor?.type || "");
+        const size = Number(descriptor?.size || 0);
+        if (!acceptedTypes.has(mimeType)) {
+          return respond(req, { error: true, message: "Guest artwork must be a JPG, PNG, or WEBP image." }, 400);
+        }
+        if (!Number.isFinite(size) || size <= 0 || size > 20 * 1024 * 1024) {
+          return respond(req, { error: true, message: "Each guest artwork file must be 20 MB or smaller." }, 400);
+        }
+
+        const path = `guest/${crypto.randomUUID()}/${safeUploadFileName(descriptor?.name)}`;
+        const { data: signed, error: signedError } = await service.storage
+          .from("customer-uploads")
+          .createSignedUploadUrl(path);
+        if (signedError || !signed?.token) throw signedError || new Error("Could not create an artwork upload token.");
+        const { data: preview, error: previewError } = await service.storage
+          .from("customer-uploads")
+          .createSignedUrl(path, 3600);
+        if (previewError || !preview?.signedUrl) throw previewError || new Error("Could not create an artwork preview URL.");
+        uploads.push({ path, token: signed.token, signedUrl: preview.signedUrl });
+      }
+
+      return respond(req, { uploads });
+    }
+
+    if (action === "createGuestCustomDesign") {
+      const requestUser = await optionalUser(req, supabaseUrl, anonKey);
+      const accountUser = isAccountUser(requestUser) ? requestUser : null;
+
+      const raw = body?.design || {};
+      if (JSON.stringify(raw).length > 100_000) {
+        return respond(req, { error: true, message: "The custom design details are too large." }, 413);
+      }
+
+      const productId = uuidRe.test(String(raw.product_id || "")) ? String(raw.product_id) : null;
+      if (!productId) return respond(req, { error: true, message: "Choose a valid garment." }, 400);
+
+      const { data: product, error: productError } = await service
+        .from("products")
+        .select("id,name")
+        .eq("id", productId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (productError) throw productError;
+      if (!product) return respond(req, { error: true, message: "That garment is no longer available." }, 409);
+
+      if (raw.customer_confirmed_rights !== true || raw.approval_policy_acknowledged !== true) {
+        return respond(req, { error: true, message: "Confirm artwork rights and the proof policy before saving." }, 400);
+      }
+
+      const photoAssets = (Array.isArray(raw.photo_assets) ? raw.photo_assets : [])
+        .slice(0, 8)
+        .map((asset: any) => ({
+          path: guestUploadPath(asset?.path || asset?.storage_path),
+          name: cleanText(asset?.name, 160) || "artwork",
+          width: Math.max(0, Number(asset?.width || 0)) || null,
+          height: Math.max(0, Number(asset?.height || 0)) || null,
+          quality: cleanText(asset?.quality, 40),
+          isPrimary: asset?.isPrimary === true,
+        }))
+        .filter((asset: any) => asset.path);
+      const photoPaths = photoAssets.map((asset: any) => asset.path);
+      const seasonalArtworkId = uuidRe.test(String(raw.seasonal_artwork_id || ""))
+        ? String(raw.seasonal_artwork_id)
+        : null;
+      if (!photoPaths.length && !seasonalArtworkId) {
+        return respond(req, { error: true, message: "Add artwork before saving this custom design." }, 400);
+      }
+
+      const placement = ["front", "front_back", "back", "left_chest", "large_front", "large_back", "sleeve"].includes(String(raw.placement))
+        ? String(raw.placement)
+        : "front";
+      const garmentTier = ["classic", "premium_vintage", "oversized"].includes(String(raw.garment_tier))
+        ? String(raw.garment_tier)
+        : "classic";
+      const priority = raw.priority === "rush" ? "rush" : "standard";
+      const primaryPhotoIndex = Math.min(Math.max(0, Number(raw.primary_photo_index || 0)), Math.max(0, photoPaths.length - 1));
+      const clientRequestId = uuidRe.test(String(raw.seasonal_configuration?.client_request_id || ""))
+        ? String(raw.seasonal_configuration.client_request_id)
+        : crypto.randomUUID();
+      const guestToken = clientRequestId;
+      const guestTokenHash = await sha256Hex(guestToken);
+
+      if (accountUser && seasonalArtworkId) {
+        const { data: existing, error: existingError } = await service
+          .from("custom_designs")
+          .select("id,product_id,product_name,name,status")
+          .eq("user_id", accountUser.id)
+          .contains("seasonal_configuration", { client_request_id: clientRequestId })
+          .maybeSingle();
+        if (existingError) throw existingError;
+        if (existing) return respond(req, { design: existing });
+      }
+
+      if (!accountUser) {
+        const { data: existingSession, error: existingSessionError } = await service
+          .from("guest_design_sessions")
+          .select("design_id,expires_at,converted_at")
+          .eq("token_hash", guestTokenHash)
+          .maybeSingle();
+        if (existingSessionError) throw existingSessionError;
+        if (existingSession && !existingSession.converted_at && new Date(existingSession.expires_at).getTime() > Date.now()) {
+          const { data: existingDesign, error: existingDesignError } = await service
+            .from("custom_designs")
+            .select("id,product_id,product_name,name,status")
+            .eq("id", existingSession.design_id)
+            .maybeSingle();
+          if (existingDesignError) throw existingDesignError;
+          if (existingDesign) return respond(req, { design: existingDesign, guestToken });
+        }
+        if (existingSession?.converted_at) {
+          return respond(req, { error: true, message: "This custom design is already attached to a checkout." }, 409);
+        }
+        if (existingSession && new Date(existingSession.expires_at).getTime() <= Date.now()) {
+          return respond(req, { error: true, message: "This saved design attempt expired. Edit the design once, then try again." }, 410);
+        }
+      }
+
+      const { data: design, error: designError } = await service
+        .from("custom_designs")
+        .insert({
+          user_id: accountUser?.id || null,
+          product_id: product.id,
+          product_name: product.name,
+          name: cleanText(raw.name, 180),
+          design_style: cleanText(raw.design_style, 180),
+          photos: photoPaths,
+          personalization: raw.personalization && typeof raw.personalization === "object" ? raw.personalization : {},
+          placement,
+          color: cleanText(raw.color, 100),
+          size: cleanText(raw.size, 40),
+          preview_url: photoPaths[primaryPhotoIndex] || null,
+          photo_assets: photoAssets,
+          occasion: cleanText(raw.occasion, 180),
+          recipient_type: cleanText(raw.recipient_type, 100),
+          design_mood: cleanText(raw.design_mood, 180),
+          story: cleanText(raw.story, 4000),
+          design_intensity: Math.min(5, Math.max(1, Number(raw.design_intensity || 3))),
+          garment_tier: garmentTier,
+          need_by_date: raw.need_by_date || null,
+          priority,
+          proof_required: raw.proof_required !== false,
+          revision_allowance: Math.min(10, Math.max(0, Number(raw.revision_allowance ?? 2))),
+          primary_photo_index: primaryPhotoIndex,
+          customer_confirmed_rights: true,
+          approval_policy_acknowledged: true,
+          additional_garments: Array.isArray(raw.additional_garments) ? raw.additional_garments.slice(0, 50) : [],
+          status: "in_cart",
+          ...(seasonalArtworkId ? {
+            seasonal_artwork_id: seasonalArtworkId,
+            seasonal_configuration: raw.seasonal_configuration && typeof raw.seasonal_configuration === "object"
+              ? raw.seasonal_configuration
+              : {},
+          } : {}),
+        })
+        .select("id,product_id,product_name,name,status")
+        .single();
+      if (designError) throw designError;
+
+      if (!accountUser) {
+        const { error: sessionError } = await service.from("guest_design_sessions").insert({
+          design_id: design.id,
+          token_hash: guestTokenHash,
+        });
+        if (sessionError) {
+          await service.from("custom_designs").delete().eq("id", design.id);
+          const { data: racedSession } = await service
+            .from("guest_design_sessions")
+            .select("design_id,expires_at,converted_at")
+            .eq("token_hash", guestTokenHash)
+            .maybeSingle();
+          if (racedSession?.design_id && !racedSession.converted_at && new Date(racedSession.expires_at).getTime() > Date.now()) {
+            const { data: racedDesign } = await service
+              .from("custom_designs")
+              .select("id,product_id,product_name,name,status")
+              .eq("id", racedSession.design_id)
+              .maybeSingle();
+            if (racedDesign) return respond(req, { design: racedDesign, guestToken });
+          }
+          throw sessionError;
+        }
+      }
+
+      return respond(req, { design, ...(accountUser ? {} : { guestToken }) });
+    }
 
     if (action === "createDtfUpload") {
       const files = Array.isArray(body?.files) ? body.files.slice(0, 30) : [];
@@ -597,6 +826,7 @@ Deno.serve(async (req: Request) => {
 
       const shippingAddress = {
         address: customer.address || "",
+        address2: customer.address2 || "",
         city: customer.city || "",
         province: customer.province || "",
         postalCode: customer.postalCode || "",
@@ -662,7 +892,7 @@ Deno.serve(async (req: Request) => {
     if (!cart.length || cart.length > 100) {
       return respond(req, { error: true, message: "Cart is empty or too large." }, 400);
     }
-    if (!customer.email || !customer.firstName || !customer.address || !customer.city || !customer.postalCode) {
+    if (!customer.email || !customer.firstName || !customer.lastName || !customer.address || !customer.city || !customer.postalCode) {
       return respond(req, { error: true, message: "Missing required customer fields." }, 400);
     }
 
@@ -735,23 +965,52 @@ Deno.serve(async (req: Request) => {
       variantsByProduct.get(variant.product_id)!.push(variant);
     }
 
-    const user = await optionalUser(req, supabaseUrl, anonKey);
+    const requestUser = await optionalUser(req, supabaseUrl, anonKey);
+    const user = isAccountUser(requestUser) ? requestUser : null;
     const customIds = [...new Set(cart.map((item: any) => String(item?.customDesignId || "")).filter((id: string) => uuidRe.test(id)))];
     const customDesigns = new Map<string, any>();
+    const guestDesignSessions = new Map<string, any>();
 
     if (customIds.length) {
-      if (!user) return respond(req, { error: true, message: "Sign in before checking out a custom design." }, 401);
-
       const { data: designs, error: designError } = await service
         .from("custom_designs")
         .select("*")
-        .in("id", customIds)
-        .eq("user_id", user.id);
+        .in("id", customIds);
       if (designError) throw designError;
       for (const design of designs || []) customDesigns.set(design.id, design);
 
       if (customDesigns.size !== customIds.length) {
-        return respond(req, { error: true, message: "A custom design is missing or does not belong to this account." }, 403);
+        return respond(req, { error: true, message: "A custom design is missing or no longer available." }, 403);
+      }
+
+      const guestDesignIds = customIds.filter((id) => customDesigns.get(id)?.user_id !== user?.id);
+      if (guestDesignIds.length) {
+        const { data: sessions, error: sessionError } = await service
+          .from("guest_design_sessions")
+          .select("id,design_id,token_hash,expires_at,converted_at")
+          .in("design_id", guestDesignIds);
+        if (sessionError) throw sessionError;
+        for (const session of sessions || []) guestDesignSessions.set(session.design_id, session);
+      }
+
+      for (const designId of customIds) {
+        const design = customDesigns.get(designId);
+        if (user && design?.user_id === user.id) continue;
+
+        const cartItem = cart.find((item: any) => String(item?.customDesignId || "") === designId);
+        const guestToken = String(cartItem?.guestDesignToken || "");
+        const session = guestDesignSessions.get(designId);
+        const validSession = uuidRe.test(guestToken)
+          && session
+          && !session.converted_at
+          && new Date(session.expires_at).getTime() > Date.now()
+          && session.token_hash === await sha256Hex(guestToken);
+        if (!validSession) {
+          return respond(req, {
+            error: true,
+            message: "A guest custom design has expired or cannot be verified. Please add it to cart again.",
+          }, 403);
+        }
       }
     }
 
@@ -951,6 +1210,11 @@ Deno.serve(async (req: Request) => {
           rightsTimestamp: String(spec.rightsTimestamp || new Date().toISOString()),
           approvalAcknowledged: true,
           approvalTimestamp: String(spec.approvalTimestamp || new Date().toISOString()),
+          exportPolicy: {
+            watermarkedPreviewEnabled: dtfSettings.watermarkedPreviewEnabled === true,
+            fullResolutionDownloadAfterPayment: dtfSettings.fullResolutionDownloadAfterPayment === true,
+            watermarkText: String(dtfSettings.watermarkText || "GDP Clothing Preview"),
+          },
           utilization: Math.max(0, Math.min(100, Number(spec.utilization || 0))),
           usedLength: Math.max(0, Number(spec.usedLength || 0)),
           layout: cleanLayout,
@@ -1023,6 +1287,7 @@ Deno.serve(async (req: Request) => {
     const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim();
     const shippingAddress = {
       address: customer.address,
+      address2: cleanText(customer.address2, 180) || "",
       city: customer.city,
       province: customer.province,
       postalCode: customer.postalCode,
@@ -1043,7 +1308,7 @@ Deno.serve(async (req: Request) => {
         tax,
         total,
         status: "pending_payment",
-        design_status: "not_required",
+        design_status: normalizedItems.some((item) => item.design) ? "design_in_progress" : "not_required",
         production_status: "not_started",
         fulfillment_status: "unfulfilled",
         shipping_address: shippingAddress,
@@ -1163,9 +1428,33 @@ Deno.serve(async (req: Request) => {
 
     const uniqueDesigns = [...new Map(normalizedItems.filter((x) => x.design).map((x) => [x.design.id, x.design])).values()];
     for (const design of uniqueDesigns as any[]) {
+      if (guestDesignSessions.has(design.id)) {
+        const convertedAt = new Date().toISOString();
+        const { data: claimedSession, error: claimError } = await service
+          .from("guest_design_sessions")
+          .update({
+            converted_order_id: order.id,
+            converted_at: convertedAt,
+            updated_at: convertedAt,
+          })
+          .eq("design_id", design.id)
+          .is("converted_at", null)
+          .select("design_id")
+          .maybeSingle();
+        if (claimError || !claimedSession) {
+          await releaseCheckoutReservations(service, order.id);
+          await releaseGuestDesignClaims(service, order.id);
+          await service.from("orders").delete().eq("id", order.id);
+          return respond(req, {
+            error: true,
+            message: "This guest custom design is already attached to another checkout.",
+          }, 409);
+        }
+      }
+
       await service
         .from("custom_designs")
-        .update({ order_id: order.id, status: "ordered" })
+        .update({ order_id: order.id, status: "ordered", ...(user && !design.user_id ? { user_id: user.id } : {}) })
         .eq("id", design.id);
 
       if (design.proof_required !== false) {
@@ -1263,6 +1552,7 @@ Deno.serve(async (req: Request) => {
     const stripeData = await stripeResponse.json();
     if (!stripeResponse.ok || !stripeData?.client_secret) {
       await releaseCheckoutReservations(service, order.id);
+      await releaseGuestDesignClaims(service, order.id);
 
       for (const design of uniqueDesigns as any[]) {
         await service
