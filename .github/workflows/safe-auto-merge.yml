@@ -1,0 +1,94 @@
+name: GDP Clothing Safe Auto Merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  checks: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: safe-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  merge-after-verification:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REPOSITORY: ${{ github.repository }}
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Wait for required checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_checks=(
+            "Cloudflare Pages"
+            "standalone-build"
+            "static-quality"
+            "Browser secret guard"
+            "CodeQL"
+          )
+
+          for attempt in {1..60}; do
+            current_sha="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+            if [[ "${current_sha}" != "${EXPECTED_SHA}" ]]; then
+              echo "Pull request head changed; the synchronize event will start a fresh verification."
+              exit 0
+            fi
+
+            check_runs="$(gh api --paginate "repos/${REPOSITORY}/commits/${EXPECTED_SHA}/check-runs?per_page=100")"
+            all_passed=true
+
+            for check_name in "${required_checks[@]}"; do
+              matching_count="$(jq --arg name "${check_name}" '[.check_runs[] | select(.name == $name)] | length' <<<"${check_runs}")"
+              passing_count="$(jq --arg name "${check_name}" '[.check_runs[] | select(.name == $name and .status == "completed" and .conclusion == "success")] | length' <<<"${check_runs}")"
+              failing_count="$(jq --arg name "${check_name}" '[.check_runs[] | select(.name == $name and .status == "completed" and (.conclusion != "success" and .conclusion != "skipped"))] | length' <<<"${check_runs}")"
+
+              if (( failing_count > 0 )); then
+                echo "Required check failed: ${check_name}"
+                exit 1
+              fi
+
+              if (( matching_count == 0 || passing_count == 0 )); then
+                all_passed=false
+              fi
+            done
+
+            if [[ "${all_passed}" == "true" ]]; then
+              echo "All required checks passed."
+              break
+            fi
+
+            if (( attempt == 60 )); then
+              echo "Timed out waiting for required checks."
+              exit 1
+            fi
+
+            sleep 20
+          done
+
+      - name: Confirm clean merge state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mergeable_state="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" --jq '.mergeable_state')"
+          if [[ "${mergeable_state}" != "clean" ]]; then
+            echo "Pull request is not in a clean merge state: ${mergeable_state}"
+            exit 1
+          fi
+
+      - name: Squash merge verified pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr merge "${PR_NUMBER}" --repo "${REPOSITORY}" --squash --match-head-commit "${EXPECTED_SHA}"
