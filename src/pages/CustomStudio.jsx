@@ -1228,6 +1228,8 @@ export default function CustomStudio() {
         fulfillmentMode: product?.fulfillmentMode || "in_house",
         designStyle,
         designPath,
+        designMood,
+        placement,
         occasion: occasion || designPath,
         needByDate,
         priority,
