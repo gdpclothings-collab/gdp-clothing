@@ -255,14 +255,30 @@ export const customerApi = {
       const { data, error } = await supabase.functions.invoke("checkout", {
         body: { action: "createGuestCustomUpload", files: [{ name: safeName, type: file.type, size: file.size }] },
       });
-      if (error) throw error;
-      if (data?.error || !data?.uploads?.[0]) throw new Error(data?.message || "Could not prepare guest artwork upload.");
+      if (error) {
+        throw new Error(await functionErrorMessage(error, "Could not prepare this photo for upload."));
+      }
+      if (data?.error || !data?.uploads?.[0]) {
+        throw new Error(data?.message || "Could not prepare this photo for upload.");
+      }
+
       const upload = data.uploads[0];
       const { error: uploadError } = await supabase.storage
         .from("customer-uploads")
         .uploadToSignedUrl(upload.path, upload.token, file, { contentType: file.type || undefined });
       if (uploadError) throw uploadError;
-      return { file_url: upload.signedUrl || upload.path, storage_path: upload.path };
+
+      const { data: preview, error: previewError } = await supabase.functions.invoke("checkout", {
+        body: { action: "signGuestCustomUpload", path: upload.path },
+      });
+      if (previewError) {
+        throw new Error(await functionErrorMessage(previewError, "The photo uploaded, but its preview could not be opened."));
+      }
+      if (preview?.error || !preview?.signedUrl) {
+        throw new Error(preview?.message || "The photo uploaded, but its preview could not be opened.");
+      }
+
+      return { file_url: preview.signedUrl, storage_path: upload.path };
     }
 
     const path = `${user.id}/${crypto.randomUUID()}-${safeName}`;
