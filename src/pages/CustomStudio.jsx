@@ -1489,7 +1489,7 @@ export default function CustomStudio() {
                       className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
                     >
                       <span
-                        className="h-5 w-5 rounded-full border border-black/15 shadow-inner"
+                        className="h-5 w-5 rounded-full border border-slate-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.75),0_0_0_1px_rgba(15,23,42,0.18)]"
                         style={{ backgroundColor: swatchFor(product, optionColor) }}
                       />
                       {optionColor}
