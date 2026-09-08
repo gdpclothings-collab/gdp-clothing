@@ -335,7 +335,7 @@ export default function Home() {
   };
 
   return (
-    <div className="bg-white text-black">
+    <div className="overflow-x-hidden bg-white text-black">
       {landing.hero?.enabled !== false && (
         <section className="relative min-h-[540px] overflow-hidden bg-black text-white sm:min-h-[610px] lg:min-h-[650px]">
           <ManagedImage src={landing.hero.imageUrl} fallbackSrc="/images/gdp-hero-approved.webp" alt="GDP Clothing" className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center" />

@@ -1,0 +1,82 @@
+name: GDP Clothing Production Smoke Bot
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "13 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Production URL to test"
+        required: false
+        default: "https://gdpclothing.ca"
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: production-smoke-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    name: Production smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      PRODUCTION_BASE_URL: ${{ github.event.inputs.base_url || 'https://gdpclothing.ca' }}
+      SMOKE_ARTIFACT_DIR: production-smoke-results
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up supported Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install Playwright runner
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for Cloudflare production deployment
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 36); do
+            payload="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100")"
+            status="$(printf '%s' "$payload" | jq -r '[.check_runs[] | select(.name == "Cloudflare Pages")][0].status // "missing"')"
+            conclusion="$(printf '%s' "$payload" | jq -r '[.check_runs[] | select(.name == "Cloudflare Pages")][0].conclusion // ""')"
+            echo "Cloudflare Pages check: status=${status} conclusion=${conclusion:-pending}"
+            if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
+              exit 0
+            fi
+            if [[ "$status" == "completed" && -n "$conclusion" && "$conclusion" != "success" ]]; then
+              echo "Cloudflare production deployment failed with conclusion: $conclusion"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for Cloudflare Pages production deployment."
+          exit 1
+
+      - name: Run non-destructive production canary
+        run: node scripts/production-smoke.mjs
+
+      - name: Upload production smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: production-smoke-${{ github.run_id }}
+          path: production-smoke-results
+          if-no-files-found: ignore
+          retention-days: 7
