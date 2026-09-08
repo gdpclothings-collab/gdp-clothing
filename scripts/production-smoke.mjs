@@ -143,10 +143,42 @@ async function assertNoHorizontalOverflow(page, viewport) {
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
   }));
-  assert(
-    metrics.scrollWidth <= Math.max(metrics.clientWidth, viewport.width) + 3,
-    "Horizontal overflow detected: " + metrics.scrollWidth + "px content in " + metrics.clientWidth + "px viewport."
-  );
+
+  if (metrics.scrollWidth > Math.max(metrics.clientWidth, viewport.width) + 3) {
+    const offenders = await page.evaluate(() => {
+      const viewportWidth = document.documentElement.clientWidth;
+      return Array.from(document.querySelectorAll("body *"))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          const className = typeof element.className === "string" ? element.className : "";
+          const label = (element.getAttribute("aria-label") || element.textContent || "")
+            .replace(/\\s+/g, " ")
+            .trim()
+            .slice(0, 50);
+          return {
+            tag: element.tagName.toLowerCase(),
+            className: className.slice(0, 80),
+            label,
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+          };
+        })
+        .filter((item) => item.width > 0 && (item.left < -3 || item.right > viewportWidth + 3))
+        .sort((a, b) => Math.max(b.right - viewportWidth, -b.left) - Math.max(a.right - viewportWidth, -a.left))
+        .slice(0, 5);
+    });
+
+    const details = offenders.length
+      ? " Offenders: " + offenders.map((item) =>
+          item.tag + "." + item.className + " [" + item.left + ".." + item.right + "] " + item.label
+        ).join(" | ")
+      : "";
+
+    throw new Error(
+      "Horizontal overflow detected: " + metrics.scrollWidth + "px content in " + metrics.clientWidth + "px viewport." + details
+    );
+  }
 }
 
 async function main() {
@@ -235,6 +267,26 @@ async function main() {
     });
 
     await runCheck(browser, "checkout dry-run surface", DESKTOP, async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem("gdp_cart_v2__guest", JSON.stringify([
+          {
+            productId: "production-smoke-product",
+            variantId: "production-smoke-variant",
+            key: "production-smoke-item",
+            name: "Production smoke dry-run",
+            price: 1,
+            quantity: 1,
+            size: "M",
+            color: "Black",
+            image: "/images/gdp-tshirt.svg",
+          },
+        ]));
+      });
+
+      // Exercise the production checkout UI without creating a checkout session,
+      // inventory reservation, Stripe session, or order in production.
+      await page.route("**/functions/v1/checkout", (route) => route.abort("blockedbyclient"));
+
       await navigate(page, "/checkout");
       await page.getByRole("heading", { name: "CHECKOUT" }).waitFor();
       await page.getByText("Guest checkout is ready", { exact: false }).waitFor();
