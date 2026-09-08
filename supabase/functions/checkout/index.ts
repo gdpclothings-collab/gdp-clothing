@@ -428,7 +428,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-      const uploads: Array<{ path: string; token: string; signedUrl: string }> = [];
+      const uploads: Array<{ path: string; token: string }> = [];
       for (const descriptor of files) {
         const mimeType = String(descriptor?.type || "");
         const size = Number(descriptor?.size || 0);
@@ -444,14 +444,26 @@ Deno.serve(async (req: Request) => {
           .from("customer-uploads")
           .createSignedUploadUrl(path);
         if (signedError || !signed?.token) throw signedError || new Error("Could not create an artwork upload token.");
-        const { data: preview, error: previewError } = await service.storage
-          .from("customer-uploads")
-          .createSignedUrl(path, 3600);
-        if (previewError || !preview?.signedUrl) throw previewError || new Error("Could not create an artwork preview URL.");
-        uploads.push({ path, token: signed.token, signedUrl: preview.signedUrl });
+        uploads.push({ path, token: signed.token });
       }
 
       return respond(req, { uploads });
+    }
+
+    if (action === "signGuestCustomUpload") {
+      const path = guestUploadPath(body?.path);
+      if (!path) {
+        return respond(req, { error: true, message: "That guest artwork path is invalid." }, 400);
+      }
+
+      const { data: preview, error: previewError } = await service.storage
+        .from("customer-uploads")
+        .createSignedUrl(path, 3600);
+      if (previewError || !preview?.signedUrl) {
+        return respond(req, { error: true, message: "The photo uploaded, but its preview could not be opened. Please try again." }, 409);
+      }
+
+      return respond(req, { path, signedUrl: preview.signedUrl });
     }
 
     if (action === "createGuestCustomDesign") {
