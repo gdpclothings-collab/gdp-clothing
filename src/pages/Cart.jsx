@@ -151,7 +151,7 @@ export default function Cart() {
           <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t border-border">
             <span>Estimated total</span><span className="font-mono">${total.toFixed(2)}</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 font-mono">CAD · Saskatchewan estimate · Free shipping over ${freeShippingThreshold.toFixed(0)} · Final tax updates with delivery province</p>
+          <p className="text-xs text-muted-foreground mt-2 font-mono">CAD · Saskatchewan estimate · Free shipping over {`${freeShippingThreshold.toFixed(0)}`} · Final tax updates with delivery province</p>
           <button onClick={() => navigate("/checkout")} className="w-full mt-5 bg-primary text-primary-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90">
             Checkout →
           </button>
