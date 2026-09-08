@@ -243,11 +243,14 @@ export default function DTFGangSheetAdminModule() {
             </div>
             <ToggleField label="Watermarked customer preview" helper="Show a configurable watermark on selected customer-facing previews." checked={form.watermarkedPreviewEnabled} onChange={(value) => set("watermarkedPreviewEnabled", value)} />
             <ToggleField label="Preview download before payment" helper="Allow customers to download the low-resolution preview from the builder." checked={form.previewDownloadBeforePayment} onChange={(value) => set("previewDownloadBeforePayment", value)} />
+            <ToggleField label="Admin preview bypass" helper="Let signed-in GDP administrators download proof and clean previews before payment. Each use is logged." checked={form.adminPreviewBypassEnabled} onChange={(value) => set("adminPreviewBypassEnabled", value)} />
             <ToggleField label="Full-resolution download after payment" helper="Reserve access for a future paid-order customer download flow." checked={form.fullResolutionDownloadAfterPayment} onChange={(value) => set("fullResolutionDownloadAfterPayment", value)} />
             <ToggleField label="Admin production export" helper="Allow clean PNG, PDF, manifest and ZIP production exports from the DTF queue." checked={form.adminProductionExportEnabled} onChange={(value) => set("adminProductionExportEnabled", value)} />
             <TextField label="Watermark text" value={form.watermarkText} onChange={(value) => set("watermarkText", value)} />
             <NumberField label="Watermark opacity" value={form.watermarkOpacity} step="0.05" min="0.05" suffix="0–0.8" onChange={(value) => set("watermarkOpacity", value)} />
             <NumberField label="Watermark text size" value={form.watermarkSize} step="1" min="10" suffix="px" onChange={(value) => set("watermarkSize", value)} />
+            <NumberField label="Preview resolution" value={form.previewDownloadDpi} step="1" min="36" suffix="DPI" onChange={(value) => set("previewDownloadDpi", value)} />
+            <NumberField label="JPEG proof quality" value={form.previewDownloadQuality} step="0.05" min="0.4" suffix="0.4–0.95" onChange={(value) => set("previewDownloadQuality", value)} />
             <SelectField label="Watermark position" value={form.watermarkPosition} onChange={(value) => set("watermarkPosition", value)} options={[['repeated','Repeated'],['centered','Centered'],['corner','Bottom corner']]} />
             <SelectField label="Apply watermark to" value={form.watermarkApplyTo} onChange={(value) => set("watermarkApplyTo", value)} options={[['all','All customer previews'],['builder','Builder workspace only'],['cart','Cart image only'],['download','Downloaded preview only']]} />
           </div>
