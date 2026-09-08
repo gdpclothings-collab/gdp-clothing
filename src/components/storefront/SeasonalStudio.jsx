@@ -16,6 +16,12 @@ function preferredTextColor(color, colorSwatch) {
   return (r*299+g*587+b*114)/1000 > 155 ? '#111111' : '#ffffff';
 }
 
+const canvasPng = canvas => new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not create the seasonal production PNG.')), 'image/png'));
+const digestSnapshot = async value => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)));
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
 export function SeasonalOverlay({ artwork, layout, area, text, rotation = 0, editable = false, showSelection = true, onMove = undefined, onResize = undefined, onRotate = undefined, onDelete = undefined }) {
   const action = useRef(null);
   if (!artwork || !layout) return null;
@@ -118,32 +124,40 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
       const configuration = seasonalSelection(selected,layout,text,area,rotation);
       const requestId=saveRequestId.current||crypto.randomUUID();
       saveRequestId.current=requestId;
-      let configuredPreview = selected.preview;
-      try {
-        setCapturing(true);
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        const {default:html2canvas} = await import('html2canvas');
-        const canvas = await html2canvas(previewRef.current, {backgroundColor:'#f3eee6',scale:0.8,useCORS:true,logging:false});
-        const output=document.createElement('canvas'); output.width=320; output.height=320;
-        const ctx=output.getContext('2d'); const side=Math.min(canvas.width,canvas.height);
-        ctx.drawImage(canvas,(canvas.width-side)/2,(canvas.height-side)/2,side,side,0,0,320,320);
-        configuredPreview=output.toDataURL('image/jpeg',0.82);
-      } catch { configuredPreview=selected.preview; }
-      finally { setCapturing(false); }
+      setCapturing(true);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await document.fonts?.ready;
+      const {default:html2canvas} = await import('html2canvas');
+      const printElement=document.getElementById('gdp-seasonal-production');
+      if(!printElement||!previewRef.current) throw new Error('The approved seasonal preview is not ready. Please try again.');
+      const printRect=printElement.getBoundingClientRect();
+      const printCanvas=await html2canvas(printElement,{backgroundColor:null,scale:Math.max(1,Number(area.width)*300/printRect.width),useCORS:true,logging:false,imageTimeout:15000});
+      const mockupCanvas=await html2canvas(previewRef.current,{backgroundColor:'#f3eee6',scale:Math.max(1,900/previewRef.current.getBoundingClientRect().width),useCORS:true,logging:false,imageTimeout:15000});
+      const approvedAt=new Date().toISOString();
+      const renderSnapshot={version:1,designPath:'seasonal',artworkId:selected.id,configuration,garment:{id:product.id,variantId:variant?.id||null,color,size}};
+      const lockedHash=await digestSnapshot(renderSnapshot);
+      const [productionUpload,mockupUpload]=await Promise.all([
+        customerApi.uploadArtwork(new File([await canvasPng(printCanvas)],`gdp-${lockedHash.slice(0,12)}-front-300dpi.png`,{type:'image/png'})),
+        customerApi.uploadArtwork(new File([await canvasPng(mockupCanvas)],`gdp-${lockedHash.slice(0,12)}-approved-mockup.png`,{type:'image/png'})),
+      ]);
+      setCapturing(false);
       const design = await customerApi.createCustomDesign({productId:product.id,productName:product.name,name:selected.title,
         designStyle:`Seasonal: ${selected.title}`,occasion:selected.category,designMood:'Original artwork',designIntensity:1,
         color,size,placement:'front',photoAssets:[],personalization:{name:configuration.name,message:configuration.message},
         seasonalArtworkId:selected.id,seasonalConfiguration:{...configuration,client_request_id:requestId},
-        customerConfirmedRights:true,approvalPolicyAcknowledged:approved,proofRequired:true,status:'in_cart',priority:'standard'});
-      const cartItem={productId:product.id,name:product.name,image:configuredPreview,isCustom:true,customDesignId:design.id,
+        designPath:'seasonal',renderSnapshot,productionFiles:{front:{path:productionUpload.storage_path,widthPx:printCanvas.width,heightPx:printCanvas.height,widthIn:Number(area.width),heightIn:Number(area.height),dpi:300,mimeType:'image/png'}},
+        customerMockupPath:mockupUpload.storage_path,renderStatus:'locked',lockedHash,customerApprovedAt:approvedAt,
+        preflight:{version:1,status:'passed',checkedAt:approvedAt,expectedSides:['front'],dpi:300},
+        customerConfirmedRights:true,approvalPolicyAcknowledged:approved,proofRequired:false,status:'in_cart',priority:'standard'});
+      const cartItem={productId:product.id,name:product.name,image:mockupUpload.file_url,isCustom:true,customDesignId:design.id,
         ...(design.guestDesignToken ? {guestDesignToken:design.guestDesignToken} : {}),
         variantId:variant?.id||null,variant:variant?.name||garment.label,color,size,quantity,price:unitPrice,
-        fulfillmentMode:product.fulfillmentMode||'in_house',designStyle:`Seasonal: ${selected.title}`,occasion:selected.category,proofRequired:true,
+        fulfillmentMode:product.fulfillmentMode||'in_house',designStyle:`Seasonal: ${selected.title}`,occasion:selected.category,proofRequired:false,renderStatus:'locked',
         fabric:fabricDescription,seasonalDraft:{artworkId:selected.id,width:layout.width,position:{x:layout.x,y:layout.y},rotation,text,category:selected.category}};
       if (editCartKey) replaceItem(editCartKey,cartItem); else addItem(cartItem);
       navigate('/cart');
     } catch (e) {setError(e.message || 'Could not save this design. Please try again.');window.setTimeout(()=>reviewErrorRef.current?.scrollIntoView({behavior:'smooth',block:'center'}),50);}
-    finally {setSaving(false);saveLock.current=false;}
+    finally {setCapturing(false);setSaving(false);saveLock.current=false;}
   };
   const previewConfig = area ? {...product.customization?.preview, printGuide:{...product.customization?.preview?.printGuide,front:{...product.customization?.preview?.printGuide?.front,widthIn:Number(area.width),heightIn:Number(area.height),maxWidthIn:Number(area.width),maxHeightIn:Number(area.height),sizeScalingEnabled:false}}} : product.customization?.preview;
   return <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_45%,#F8FAFC_100%)] px-3 py-3 sm:px-4 sm:py-6 lg:px-8 lg:py-9">
@@ -152,7 +166,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
       <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl" />
       <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div><button type="button" onClick={onBack} className="mb-1 text-xs font-semibold text-[#667788] hover:text-[#17324D] sm:mb-3">← Design options</button><p className="hidden font-mono text-[10px] uppercase tracking-[.26em] text-[#A66331] sm:block">GDP Custom Studio</p><h1 className="mt-1 font-display text-3xl leading-none text-[#17324D] sm:mt-2 sm:text-4xl md:text-5xl">SEASONAL DESIGN LAB</h1><p className="mt-3 hidden max-w-2xl text-sm leading-relaxed text-[#66717C] sm:block">Choose a print, style it directly on the garment, then review every detail before checkout.</p></div>
-        <div className="hidden items-center gap-2 self-start rounded-full border border-[#DCE3EA] bg-white/80 px-4 py-2 text-xs font-semibold text-[#52616F] shadow-sm sm:flex"><Check size={15} className="text-emerald-600"/> Designer reviewed before printing</div>
+        <div className="hidden items-center gap-2 self-start rounded-full border border-[#DCE3EA] bg-white/80 px-4 py-2 text-xs font-semibold text-[#52616F] shadow-sm sm:flex"><Check size={15} className="text-emerald-600"/> Your approved preview is the print result</div>
       </div>
     </header>
     <div className="mb-6 grid grid-cols-3 overflow-hidden rounded-2xl border border-[#DCE3EA] bg-white/75 p-1 text-center text-[10px] font-bold uppercase tracking-wide text-[#7B8793] shadow-sm">{['Choose design','Customize','Review'].map((label,index)=><div key={label} className={`rounded-xl px-3 py-2.5 transition ${studioStage===index+1?'bg-[#17324D] text-white shadow-sm':studioStage>index+1?'text-emerald-700':'text-[#7B8793]'}`}>{studioStage>index+1?<Check size={12} className="mr-1 inline"/>:null}{index+1} · {label}</div>)}</div>
@@ -160,10 +174,10 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
     {!catalog && !error && <p role="status">Loading seasonal designs…</p>}
     {catalog && artworks.length===0 && <div className="p-6 rounded border"><h2 className="font-semibold">Seasonal designs are being prepared</h2><p className="mt-2">New designs will appear here once approved for printing. You can continue with a photo design today.</p><button onClick={onBack} className="underline mt-4">Choose another design option</button></div>}
     {reviewMode && selected && layout && <section aria-label="Review seasonal design" className="mx-auto max-w-5xl rounded-3xl border border-[#CDD7E0] bg-white p-4 shadow-[0_24px_70px_rgba(23,50,77,.12)] sm:p-6">
-      <div className="mb-5 flex items-start justify-between gap-4"><div><p className="font-mono text-xs uppercase tracking-[.18em] text-[#A66331]">Final review</p><h2 className="mt-1 font-display text-3xl text-[#17324D] sm:text-4xl">CHECK EVERY DETAIL</h2><p className="mt-2 text-sm text-[#66717C]">Your production proof will still require approval before printing.</p></div><button type="button" onClick={()=>setReviewMode(false)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] px-3 text-sm font-bold text-[#52616F]"><Edit3 size={15}/> Edit</button></div>
+      <div className="mb-5 flex items-start justify-between gap-4"><div><p className="font-mono text-xs uppercase tracking-[.18em] text-[#A66331]">Final review</p><h2 className="mt-1 font-display text-3xl text-[#17324D] sm:text-4xl">CHECK EVERY DETAIL</h2><p className="mt-2 text-sm text-[#66717C]">This exact approved result becomes the locked production file after you add it to cart.</p></div><button type="button" onClick={()=>setReviewMode(false)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] px-3 text-sm font-bold text-[#52616F]"><Edit3 size={15}/> Edit</button></div>
       {error&&<div ref={reviewErrorRef} role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">{error}<span className="mt-1 block text-xs font-normal">Your design is preserved. Use Retry add to cart below.</span></div>}
       <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
-        <div ref={previewRef} className="overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#DCE4E9]"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig||{}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{x:0,y:0}} showGuides={false} showMeasurements={false} seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation}/>}/></div>
+        <div ref={previewRef} className="overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#DCE4E9]"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig||{}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{x:0,y:0}} showGuides={false} showMeasurements={false} printAreaId="gdp-seasonal-production" seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation}/>}/></div>
         <div className="flex flex-col gap-3">
           {[['Garment',garment.label],['Fabric',fabricDescription],['Colour & size',`${color} · ${size}`],['Artwork',selected.title],['Placement',`${layout.width.toFixed(2)} × ${layout.height.toFixed(2)} in · ${Math.round(rotation)}°`],['Personalization',[text.name,text.message].filter(Boolean).join(' · ')||'None']].map(([label,value])=><div key={label} className="rounded-2xl bg-[#F3F6F8] p-3"><div className="text-xs font-bold uppercase tracking-wide text-[#7A8792]">{label}</div><div className="mt-1 text-sm font-semibold text-[#17324D]">{value}</div></div>)}
           <button type="button" onClick={()=>setReviewMode(false)} className="mt-1 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#DCE3EA] px-4 text-sm font-bold text-[#52616F]"><Edit3 size={15}/> Edit design</button>
@@ -195,7 +209,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
         </div>
         {!selected && <p className="-mt-1 mb-3 text-right text-[11px] font-medium text-[#8A5A48] xl:hidden">Choose an artwork to continue.</p>}
         <div className="overflow-hidden rounded-3xl border border-[#CDD7E0] bg-white p-3 shadow-[0_24px_60px_rgba(23,50,77,.12)]"><div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#A66331]">Live garment preview</p><p className="mt-0.5 text-sm font-bold text-[#17324D]">{garment.label} · {color} · {size}</p></div><div className="flex gap-1.5"><button type="button" aria-pressed={showGuides} onClick={()=>setShowGuides(v=>!v)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold ${showGuides?'border-[#17324D] bg-[#17324D] text-white':'border-[#DCE3EA] bg-white text-[#607080]'}`}><Maximize2 size={14}/> Print area {showGuides?'on':'off'}</button><button type="button" aria-pressed={showMeasurements} onClick={()=>setShowMeasurements(v=>!v)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold ${showMeasurements?'border-[#A66331] bg-[#A66331] text-white':'border-[#DCE3EA] bg-white text-[#607080]'}`}><Ruler size={14}/> Measurements {showMeasurements?'on':'off'}</button></div></div>
-        <div ref={previewRef} className="overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#DCE4E9]"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig||{}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{x:0,y:0}} showGuides={capturing?false:showGuides} showMeasurements={capturing?false:showMeasurements} seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation} editable={!capturing} showSelection={showGuides} onMove={updatePosition} onResize={value=>{setRequested(value);setApproved(false);setReviewMode(false);}} onRotate={value=>{setRotation(value);setApproved(false);setReviewMode(false);}} onDelete={()=>{setSelected(null);setApproved(false);setReviewMode(false);}}/>}/></div>
+        <div ref={previewRef} className="overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#DCE4E9]"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig||{}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{x:0,y:0}} showGuides={capturing?false:showGuides} showMeasurements={capturing?false:showMeasurements} printAreaId="gdp-seasonal-production" seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation} editable={!capturing} showSelection={showGuides} onMove={updatePosition} onResize={value=>{setRequested(value);setApproved(false);setReviewMode(false);}} onRotate={value=>{setRotation(value);setApproved(false);setReviewMode(false);}} onDelete={()=>{setSelected(null);setApproved(false);setReviewMode(false);}}/>}/></div>
         <p className="px-2 pb-1 pt-3 text-center text-xs text-[#71808D]"><Move size={12} className="mr-1 inline"/>Drag artwork on the garment. Use the controls directly below on mobile.</p></div>
       </section>
       <section ref={controlsSectionRef} aria-label="Garment and artwork controls" className="order-3 min-w-0 w-full scroll-mt-20 space-y-4">
@@ -210,7 +224,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
           <div className="grid grid-cols-2 gap-2"><button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#DCE3EA] px-3 py-2.5 text-xs font-bold text-[#52616F]" onClick={()=>updatePosition({x:(area.width-layout.width)/2,y:(usableArea.height-layout.height)/2})}><Move size={14}/> Center</button><button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#DCE3EA] px-3 py-2.5 text-xs font-bold text-[#52616F]" onClick={resetArtwork}><RotateCcw size={14}/> Reset</button></div>
           {selected.customizable && <fieldset className="border rounded p-4 space-y-3"><legend>Personalization</legend><label className="block">Name {selected.requires_name?'(required)':'(optional)'}<input value={text.name} maxLength={32} onChange={e=>updateText({name:e.target.value})} className="block border rounded p-2 w-full"/></label><label className="block">Short message<input value={text.message} maxLength={60} onChange={e=>updateText({message:e.target.value})} className="block border rounded p-2 w-full"/></label><label className="block">Text colour<select value={text.color} onChange={e=>updateText({color:e.target.value})} className="block border rounded p-2"><option value="#111111">Black</option><option value="#ffffff">White</option></select></label><p className="text-xs">Names appear in the centre of personalization frames; other added text appears beneath the artwork. Original lettering stays unchanged.</p></fieldset>}
           {priceVisibility!=='hidden'&&<p className="rounded-xl bg-[#F3F6F8] p-3 text-xs">Front print · {Number(unitPrice).toFixed(2)} CAD each{priceVisibility==='total'&&` · ${(unitPrice*quantity).toFixed(2)} CAD total`} before shipping and tax.</p>}
-          <label className="flex items-start gap-2 text-sm leading-relaxed text-[#46596A]"><input type="checkbox" checked={approved} onChange={e=>{setApproved(e.target.checked);setReviewMode(false);if(e.target.checked){setShowGuides(false);setShowMeasurements(false);}}} className="mt-1"/><span>I have checked the garment, design, spelling and placement and have permission to use any text I added. I understand this preview is approximate and a production proof requires my approval.</span></label>
+          <label className="flex items-start gap-2 text-sm leading-relaxed text-[#46596A]"><input type="checkbox" checked={approved} onChange={e=>{setApproved(e.target.checked);setReviewMode(false);if(e.target.checked){setShowGuides(false);setShowMeasurements(false);}}} className="mt-1"/><span>I approve the exact garment preview, design, spelling and placement and have permission to use any text I added. I understand this result will be locked and printed after successful payment.</span></label>
           <button disabled={!approved||(selected.requires_name&&!text.name.trim())} onClick={()=>{setShowGuides(false);setShowMeasurements(false);setReviewMode(true);window.scrollTo({top:0,behavior:'smooth'});}} className="w-full rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40">Review design</button>
         </div>:<div className="rounded-3xl border border-dashed border-[#C9D3DC] bg-white/65 p-6 text-center"><Shirt className="mx-auto text-[#9AA7B2]"/><p className="mt-3 text-sm font-bold text-[#17324D]">Choose an artwork to begin</p><p className="mt-1 text-xs text-[#73818D]">Your editing tools will appear here.</p></div>}
       </section>

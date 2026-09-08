@@ -50,9 +50,12 @@ export default function OrderConfirmation() {
           <h2 className="font-display text-2xl mb-4">ORDER DETAILS</h2>
           <div className="space-y-2 text-sm">
             {order.items?.map((i, idx) => (
-              <div key={idx} className="flex justify-between border-b border-border pb-2">
-                <span>{i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span></span>
-                <span className="font-mono">${(i.price * i.quantity).toFixed(2)}</span>
+              <div key={idx} className="flex items-center justify-between gap-3 border-b border-border pb-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  {i.image && <img src={i.image} alt={i.isCustom ? "Approved final custom preview" : ""} className="h-20 w-20 shrink-0 rounded-lg border border-border bg-[#f3eee6] object-contain" />}
+                  <span>{i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span>{i.isCustom && <span className="mt-1 block text-xs font-semibold text-emerald-700">Approved final preview</span>}</span>
+                </div>
+                <span className="shrink-0 font-mono">${(i.price * i.quantity).toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -62,6 +65,11 @@ export default function OrderConfirmation() {
           {order.status === "artwork_needed" && (
             <div className="mt-4 bg-accent/10 p-3 text-sm flex items-center gap-2">
               <Package size={16} className="text-accent" /> Your order includes custom items. A designer will prepare a digital proof for your approval in your account portal.
+            </div>
+          )}
+          {paid && order.items?.some((item) => item.isCustom) && order.status !== "artwork_needed" && (
+            <div className="mt-4 bg-emerald-50 p-3 text-sm flex items-center gap-2 text-emerald-900">
+              <Package size={16} className="text-emerald-700" /> The approved preview shown above is locked. Its matching 300 DPI artwork is now in the production queue.
             </div>
           )}
         </div>

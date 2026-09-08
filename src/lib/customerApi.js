@@ -66,6 +66,14 @@ const normalizeCustomDesign = (row) => ({
   customerConfirmedRights: row.customer_confirmed_rights,
   approvalPolicyAcknowledged: row.approval_policy_acknowledged,
   additionalGarments: row.additional_garments,
+  designPath: row.design_path,
+  renderSnapshot: row.render_snapshot,
+  productionFiles: row.production_files,
+  customerMockupPath: row.customer_mockup_path,
+  renderStatus: row.render_status,
+  lockedHash: row.locked_hash,
+  customerApprovedAt: row.customer_approved_at,
+  preflight: row.preflight,
 });
 
 async function requireUser() {
@@ -127,7 +135,7 @@ function customDesignPayload(data, userId = null) {
     placement: data.placement || "front",
     color: data.color || null,
     size: data.size || null,
-    preview_url: primary?.path || photoPaths[0] || null,
+    preview_url: data.customerMockupPath || primary?.path || photoPaths[0] || null,
     photo_assets: photoAssets,
     occasion: data.occasion || null,
     recipient_type: data.recipientType || null,
@@ -143,6 +151,14 @@ function customDesignPayload(data, userId = null) {
     customer_confirmed_rights: Boolean(data.customerConfirmedRights),
     approval_policy_acknowledged: Boolean(data.approvalPolicyAcknowledged),
     additional_garments: data.additionalGarments || [],
+    design_path: data.designPath || null,
+    render_snapshot: data.renderSnapshot || {},
+    production_files: data.productionFiles || {},
+    customer_mockup_path: data.customerMockupPath || null,
+    render_status: data.renderStatus || "draft",
+    locked_hash: data.lockedHash || null,
+    customer_approved_at: data.customerApprovedAt || null,
+    preflight: data.preflight || {},
     status: data.status || "draft",
   };
 }
@@ -157,6 +173,17 @@ async function signedCustomerUpload(path, expiresIn = 3600) {
 
   if (error) return "";
   return data?.signedUrl || "";
+}
+
+async function normalizeOrderWithSignedImages(row) {
+  if (!row) return null;
+  const orderItems = await Promise.all((row.order_items || []).map(async (item) => ({
+    ...item,
+    image: item.is_custom && item.image && !/^https?:\/\//i.test(item.image)
+      ? await signedCustomerUpload(item.image)
+      : item.image,
+  })));
+  return normalizeOrder({ ...row, order_items: orderItems });
 }
 
 export const customerApi = {
@@ -278,7 +305,7 @@ export const customerApi = {
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) throw error;
-    return (data || []).map(normalizeOrder);
+    return Promise.all((data || []).map(normalizeOrderWithSignedImages));
   },
 
   async listSavedDesigns() {
@@ -333,7 +360,7 @@ export const customerApi = {
       .limit(100);
     if (activityError) throw activityError;
 
-    return normalizeOrder({ ...data, activity: activity || [] });
+    return normalizeOrderWithSignedImages({ ...data, activity: activity || [] });
   },
 
   async createSupportTicket(payload) {

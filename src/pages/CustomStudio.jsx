@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Users, Heart, PawPrint, Trophy, Gift, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
@@ -602,30 +602,25 @@ function recommendedBackPrintProfile(key, normalizedSize, frontProfile) {
   };
 }
 
-const MOODS = ["Funny","Emotional","Cool","Romantic","Loud","Vintage","Elegant","Designer's choice"];
+const MOODS = ["Original", "Warm", "Cool", "Vintage", "Vibrant", "Monochrome"];
 const MOOD_PREVIEW_TREATMENTS = {
-  Funny: {
-    description: "Brighter, playful color with extra pop.",
-    photoFilter: "saturate(1.2) contrast(1.04) brightness(1.03)",
-    templateFilter: "saturate(1.25) contrast(1.04)",
+  Original: {
+    description: "Keeps the artwork's original colors.",
+    photoFilter: "none",
+    templateFilter: "none",
   },
-  Emotional: {
-    description: "Softer contrast and warmer, more sentimental tones.",
-    photoFilter: "saturate(.82) sepia(.12) contrast(.96) brightness(1.04)",
-    templateFilter: "saturate(.9) brightness(1.03)",
+  Warm: {
+    description: "Adds a subtle warm finish to the complete print.",
+    photoFilter: "saturate(.92) sepia(.13) brightness(1.02)",
+    templateFilter: "saturate(.94) sepia(.08) brightness(1.01)",
   },
   Cool: {
     description: "Clean contrast with a cooler chrome-forward finish.",
     photoFilter: "saturate(.96) contrast(1.07) hue-rotate(3deg)",
     templateFilter: "saturate(1.06) contrast(1.05)",
   },
-  Romantic: {
-    description: "Warm rose, soft glow and richer skin-tone warmth.",
-    photoFilter: "saturate(1.04) sepia(.08) brightness(1.03)",
-    templateFilter: "saturate(1.12) sepia(.05)",
-  },
-  Loud: {
-    description: "Maximum color punch, stronger contrast and high-energy impact.",
+  Vibrant: {
+    description: "Increases saturation and contrast for a bolder print.",
     photoFilter: "saturate(1.34) contrast(1.12) brightness(1.02)",
     templateFilter: "saturate(1.35) contrast(1.1)",
   },
@@ -634,21 +629,16 @@ const MOOD_PREVIEW_TREATMENTS = {
     photoFilter: "sepia(.34) saturate(.72) contrast(.94) brightness(.98)",
     templateFilter: "sepia(.22) saturate(.78) contrast(.96)",
   },
-  Elegant: {
-    description: "Restrained saturation with clean black, cream and gold polish.",
-    photoFilter: "saturate(.72) contrast(1.04) brightness(1.03)",
-    templateFilter: "saturate(.78) contrast(1.04) brightness(1.02)",
-  },
-  "Designer's choice": {
-    description: "No forced filter — the GDP designer can choose the final treatment.",
-    photoFilter: "none",
-    templateFilter: "none",
+  Monochrome: {
+    description: "Converts the complete print to polished black and white.",
+    photoFilter: "grayscale(1) contrast(1.08)",
+    templateFilter: "grayscale(1) contrast(1.08)",
   },
 };
 
 function moodPreviewTreatment(mood) {
   return MOOD_PREVIEW_TREATMENTS[mood] || {
-    description: "Choose a mood to preview its color and contrast treatment.",
+    description: "Choose a color finish to apply to the exact printable result.",
     photoFilter: "none",
     templateFilter: "none",
   };
@@ -663,7 +653,7 @@ const ORDER_GUIDE_STEPS = [
   { title: "Timing & approval", detail: "Set your needed-by date and confirm artwork permissions." },
   { title: "Review & checkout", detail: "Final-check everything, add to cart and complete checkout." }
 ];
-const AFTER_ORDER_STEPS = ["Order received","Artwork review","Proof / approval when required","Printing","Quality check","Pickup / shipping"];
+const AFTER_ORDER_STEPS = ["Order received", "Payment confirmed", "Approved file locked", "Printing", "Quality check", "Pickup / shipping"];
 const MAX_MB = 12;
 const OPTIMIZE_ABOVE_MB = 2.5;
 const MAX_UPLOAD_DIMENSION = 3600;
@@ -691,9 +681,13 @@ function readLocalImage(file) {
   });
 }
 
-async function prepareImageForUpload(file) {
+async function prepareImageForUpload(file, preserveOriginal = false) {
   const local = await readLocalImage(file);
   const { img, width, height, url } = local;
+  if (preserveOriginal) {
+    URL.revokeObjectURL(url);
+    return { file, width, height };
+  }
   const longest = Math.max(width, height);
   const isPng = file.type === "image/png";
   const shouldOptimize = isPng || file.size > OPTIMIZE_ABOVE_MB * 1024 * 1024 || longest > MAX_UPLOAD_DIMENSION;
@@ -742,6 +736,38 @@ async function uploadWithRetry(file, attempts = 2) {
   throw lastError || new Error("Upload failed.");
 }
 
+async function captureElementAsPng(elementId, targetWidthPx, fileName) {
+  const element = document.getElementById(elementId);
+  if (!element) throw new Error("The final preview is not ready yet. Please try again.");
+  await document.fonts?.ready;
+  const images = [...element.querySelectorAll("img")];
+  await Promise.all(images.map(async (image) => {
+    if (!image.complete) await new Promise((resolve) => image.addEventListener("load", resolve, { once: true }));
+    try { await image.decode?.(); } catch { /* html2canvas reports unreadable assets below */ }
+  }));
+  const { default: html2canvas } = await import("html2canvas");
+  const rect = element.getBoundingClientRect();
+  if (!rect.width || !rect.height) throw new Error("The final preview has no printable area.");
+  const scale = Math.max(1, targetWidthPx / rect.width);
+  const canvas = await html2canvas(element, {
+    backgroundColor: null,
+    scale,
+    useCORS: true,
+    logging: false,
+    imageTimeout: 15000,
+  });
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("Could not create the production PNG.");
+  const upload = await uploadWithRetry(new File([blob], fileName, { type: "image/png" }));
+  return { upload, widthPx: canvas.width, heightPx: canvas.height };
+}
+
+async function sha256Snapshot(value) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export default function CustomStudio() {
   const [params] = useSearchParams();
   const location = useLocation();
@@ -754,10 +780,9 @@ export default function CustomStudio() {
   const [product, setProduct] = useState(null);
   const [occasionGroup, setOccasionGroup] = useState("");
   const [occasion, setOccasion] = useState("");
-  const [recipientType, setRecipientType] = useState("");
   const [designStyle, setDesignStyle] = useState("");
   const [designMood, setDesignMood] = useState("");
-  const [designIntensity, setDesignIntensity] = useState(null);
+  const [designIntensity, setDesignIntensity] = useState(3);
   const [garment, setGarment] = useState(FALLBACK_GARMENT);
   const [color, setColor] = useState("");
   const [size, setSize] = useState("");
@@ -769,10 +794,8 @@ export default function CustomStudio() {
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [warn, setWarn] = useState("");
   const [personalization, setPersonalization] = useState({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" });
-  const [story, setStory] = useState("");
   const [needByDate, setNeedByDate] = useState("");
   const [priority, setPriority] = useState("standard");
-  const [proofRequired, setProofRequired] = useState(true);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -811,7 +834,9 @@ export default function CustomStudio() {
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
   const styleTemplates = normalizeStyleTemplates(studioSettings.styleTemplates);
-  const activeStyleTemplate = designStyle ? styleTemplateForName(designStyle, studioSettings.styleTemplates) : null;
+  const activeStyleTemplate = designPath === "upload"
+    ? null
+    : (designStyle ? styleTemplateForName(designStyle, studioSettings.styleTemplates) : null);
 
   useEffect(() => {
     if (step > 1) setShowOrderGuide(false);
@@ -873,7 +898,6 @@ export default function CustomStudio() {
         setGarment(garmentFromProduct(p));
         setColor(initialColor);
         setSize(initialSize);
-        setProofRequired(p?.customization?.proofRequired !== false);
         if (location.state?.seasonalDraft) setSeasonalMode(true);
       } catch (error) {
         if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
@@ -896,7 +920,6 @@ export default function CustomStudio() {
     setColor(nextColor);
     setSize(nextSize);
     setGroupGarments([]);
-    setProofRequired(nextProduct?.customization?.proofRequired !== false);
     const allowedStyles = nextProduct?.customization?.allowedStyles || [];
     const styleStillAllowed = Boolean(designStyle) && (!allowedStyles.length || allowedStyles.includes(designStyle));
     if (designStyle && !styleStillAllowed) {
@@ -917,7 +940,6 @@ export default function CustomStudio() {
   const priceVisibility = ["hidden", "total", "all"].includes(studioSettings.priceVisibility) ? studioSettings.priceVisibility : "hidden";
   const showGarmentPrices = priceVisibility === "all";
   const showOrderPrice = priceVisibility !== "hidden";
-  const intensityExamplesEnabled = studioSettings.intensityExamplesEnabled !== false;
   const intensityExampleImageUrl = studioSettings.intensityExampleImageUrl || DEFAULT_STUDIO_SETTINGS.intensityExampleImageUrl;
   const intensityImages = normalizeIntensityExamples(studioSettings.intensityExamples);
   const recommendedIntensity = Math.min(5, Math.max(1, Number(studioSettings.defaultDesignIntensity || 3)));
@@ -1043,7 +1065,7 @@ export default function CustomStudio() {
         const index = cursor++;
         const original = valid[index];
         try {
-          const prepared = await prepareImageForUpload(original);
+          const prepared = await prepareImageForUpload(original, designPath === "upload");
           const uploaded = await uploadWithRetry(prepared.file);
           results[index] = {
             url: uploaded.file_url,
@@ -1120,7 +1142,7 @@ export default function CustomStudio() {
     if (step === 3) {
       if (designPath === "occasion" && (!occasionGroup || !occasion)) return "Choose an occasion to continue.";
       if (!designStyle) return "Choose an artwork style to continue.";
-      if (!designMood) return "Choose a design mood to continue.";
+      if (!designMood) return "Choose a color finish to continue.";
       if (photos.length < minPhotos) return `Upload at least ${minPhotos} photo${minPhotos === 1 ? "" : "s"} to continue.`;
       if (!designIntensity) return "Choose a design intensity to continue.";
     }
@@ -1139,7 +1161,7 @@ export default function CustomStudio() {
       return;
     }
     if (!designPath || !designStyle || !designMood || !designIntensity || (designPath === "occasion" && !occasion)) {
-      setWarn("Complete the design path, artwork, mood and design intensity before adding to cart.");
+      setWarn("Complete the design path, artwork, color finish and design intensity before adding to cart.");
       return;
     }
     if (product?.variants?.length && !selectedAvailable) {
@@ -1162,6 +1184,67 @@ export default function CustomStudio() {
         };
       });
 
+      const approvedAt = new Date().toISOString();
+      const renderSnapshot = {
+        version: 1,
+        designPath,
+        designStyle,
+        template: activeStyleTemplate ? {
+          id: activeStyleTemplate.id,
+          assetUrl: activeStyleTemplate.assetUrl || "",
+          photoZone: activeStyleTemplate.photoZone || null,
+          textZone: activeStyleTemplate.textZone || null,
+        } : null,
+        colorFinish: designMood,
+        placement,
+        garment: { id: productId, variantId: selectedVariant?.id || null, color, size },
+        personalization,
+        artworkBySide: {
+          front: { ...artworkStates.front, photoPath: frontArtworkPhoto?.path || null },
+          back: { ...artworkStates.back, photoPath: backArtworkPhoto?.path || null },
+        },
+      };
+      const lockedHash = await sha256Snapshot(renderSnapshot);
+      const printedSides = placement === "front_back" ? ["front", "back"] : [placement === "back" ? "back" : "front"];
+      const productionFiles = {};
+      for (const side of printedSides) {
+        const profile = recommendedPrintProfile(garment?.previewType || garment?.type, size, side);
+        const rendered = await captureElementAsPng(
+          `gdp-production-${side}`,
+          Math.round(Number(profile.widthIn || 12) * 300),
+          `gdp-${lockedHash.slice(0, 12)}-${side}-300dpi.png`
+        );
+        productionFiles[side] = {
+          path: rendered.upload.storage_path,
+          widthPx: rendered.widthPx,
+          heightPx: rendered.heightPx,
+          widthIn: Number(profile.widthIn || 12),
+          heightIn: Number(profile.heightIn || 16),
+          dpi: 300,
+          mimeType: "image/png",
+        };
+      }
+      const mockupSide = placement === "back" ? "back" : "front";
+      const customerMockup = await captureElementAsPng(
+        `gdp-mockup-${mockupSide}`,
+        900,
+        `gdp-${lockedHash.slice(0, 12)}-approved-mockup.png`
+      );
+      const preflight = {
+        version: 1,
+        status: "passed",
+        checkedAt: approvedAt,
+        expectedSides: printedSides,
+        dpi: 300,
+        files: Object.fromEntries(Object.entries(productionFiles).map(([side, file]) => [side, {
+          widthPx: file.widthPx,
+          heightPx: file.heightPx,
+          widthIn: file.widthIn,
+          heightIn: file.heightIn,
+          dpi: file.dpi,
+        }])),
+      };
+
       const design = await customerApi.createCustomDesign({
         productId,
         productName: product?.name || garment.label,
@@ -1173,7 +1256,7 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 5,
+            version: 6,
             side: previewSide,
             styleTemplateId: activeStyleTemplate?.id || null,
             styleTemplateAssetUrl: activeStyleTemplate?.assetUrl || "",
@@ -1193,35 +1276,42 @@ export default function CustomStudio() {
             },
             garmentId: productId,
             variantId: selectedVariant?.id || null,
-            conceptOnly: true,
-            templateComposite: true
+            productionReady: true,
+            templateComposite: designPath !== "upload"
           }
         },
         placement,
         color,
         size,
-        previewUrl: photos[primaryIndex]?.url || "",
+        previewUrl: customerMockup.upload.file_url,
         occasion: occasion || designPath,
-        recipientType,
+        recipientType: "",
         designMood,
-        story,
+        story: "",
         designIntensity,
         garmentTier: garment.tier,
         needByDate: needByDate || undefined,
         priority,
-        proofRequired,
+        proofRequired: false,
         revisionAllowance: revisions,
         primaryPhotoIndex: primaryIndex,
         customerConfirmedRights: rightsConfirmed,
         approvalPolicyAcknowledged: approvalAcknowledged,
         additionalGarments: normalizedGroups,
+        renderSnapshot,
+        productionFiles,
+        customerMockupPath: customerMockup.upload.storage_path,
+        renderStatus: "locked",
+        lockedHash,
+        customerApprovedAt: approvedAt,
+        preflight,
         status: "in_cart"
       });
 
       const common = {
         productId,
         name: product?.name || garment.label,
-        image: product?.images?.[0] || photos[primaryIndex]?.url || "",
+        image: customerMockup.upload.file_url,
         isCustom: true,
         customDesignId: design.id,
         ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
@@ -1233,7 +1323,8 @@ export default function CustomStudio() {
         occasion: occasion || designPath,
         needByDate,
         priority,
-        proofRequired
+        proofRequired: false,
+        renderStatus: "locked"
       };
 
       addItem({
@@ -1400,15 +1491,18 @@ export default function CustomStudio() {
                       return;
                     }
                     if (path.id === "upload") {
-                      const ownArtworkTemplate = styleOptions.find((style) => style.id === "designers-choice") || styleOptions[0];
-                      chooseStyleTemplate(ownArtworkTemplate);
-                      setDesignMood("Designer's choice");
+                      setDesignStyle("Own artwork");
+                      setArtworkStates(defaultArtworkStates());
+                      setDesignMood("Original");
                       setDesignIntensity(1);
                     } else if (path.id === "occasion") {
                       setDesignStyle("");
+                      setDesignMood("");
                     } else if (path.id === "bootleg") {
                       setOccasionGroup("");
                       setOccasion("");
+                      setDesignStyle("");
+                      setDesignMood("");
                     }
                     setStep(3);
                     window.requestAnimationFrame(() => {
@@ -1497,10 +1591,6 @@ export default function CustomStudio() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[20px] border border-[#e9e3db] bg-white px-4 pb-4 pt-1 md:px-5 md:pb-5">
-              <Field label="Who is this for? (optional)" value={recipientType} onChange={setRecipientType} placeholder="e.g. Dad, Sarah, Coach Mike, Milo the dog…" />
-              <p className="mt-2 text-xs leading-relaxed text-[#817a72]">A name or relationship gives the designer more context. You can add exact names, dates and wording later.</p>
-            </div>
           </div>}
 
           {step === 3 && <div>
@@ -1520,16 +1610,17 @@ export default function CustomStudio() {
               </button>)}
             </div>
             </>}
-            {(designPath !== "occasion" || (occasionGroup && occasion)) && <div className="mt-6">
-              <label className="font-mono text-xs uppercase text-muted-foreground">Mood</label>
-              <p className="mt-1 text-xs leading-relaxed text-[#7d766d]">Mood keeps the selected GDP layout but changes its live color, contrast and atmosphere.</p>
+            {designPath !== "upload" && (designPath !== "occasion" || (occasionGroup && occasion)) && <div className="mt-6">
+              <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>
+              <p className="mt-1 text-xs leading-relaxed text-[#7d766d]">This treatment changes the exact preview and is baked into the production file.</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {MOODS.map(mood => <button key={mood} onClick={() => setDesignMood(mood)} className={"px-3 py-2 border text-sm transition " + (designMood === mood ? "bg-[#17324D] text-white border-[#17324D] shadow-sm" : "border-border bg-white hover:border-[#9aa8b5]")}>{mood}</button>)}
               </div>
               <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5 text-xs text-[#52616F]">
-                {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} preview:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a mood to apply a live preview treatment.</span>}
+                {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} finish:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a color finish for the final print.</span>}
               </div>
             </div>}
+            {designPath === "upload" && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="font-semibold text-[#17324D]">Original artwork:</span> no GDP template or automatic color filter will be added.</div>}
           </div>}
 
           {step === 1 && <div>
@@ -1682,35 +1773,10 @@ export default function CustomStudio() {
             </div>
             <div className="font-mono text-xs text-muted-foreground mt-3">{photos.length}/{maxPhotos} photos</div>
 
-            <div className="mt-7 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 md:p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#64788A]">Design intensity</div>
-                  <div className="mt-1 font-bold text-[#17324D]">{designPath === "upload" ? "Confirm the artwork treatment" : "How bold should the finished design feel?"}</div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#64707C]">{designPath === "upload" ? "Choose Clean to preserve a print-ready file without adding visual density." : "Choose the visual density after selecting your photos. 3/5 Balanced is the recommended starting point."}</p>
-                </div>
-                {intensityExamplesEnabled && <button type="button" onClick={() => setShowIntensityExamples(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#C9D4DE] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] hover:border-[#17324D]"><Info size={13}/> View examples</button>}
-              </div>
-              <div className="mt-4 grid grid-cols-5 gap-2">
-                {Object.entries(DESIGN_INTENSITY_LEVELS).map(([level, item]) => <button
-                  key={level}
-                  type="button"
-                  onClick={() => setDesignIntensity(Number(level))}
-                  className={"rounded-xl border px-1.5 py-3 text-center transition " + (Number(level) === designIntensity ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#C9D4DE] bg-white text-[#44515D] hover:border-[#17324D]")}
-                >
-                  <div className="text-sm font-black">{level}/5</div>
-                  <div className="mt-1 hidden text-[9px] font-semibold uppercase sm:block">{item.label}</div>
-                </button>)}
-              </div>
-              <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white p-3">
-                <div className="text-sm font-bold text-[#17324D]">{designIntensity ? `${designIntensity}/5 · ${intensityLevel.label}` : `Not selected · ${recommendedIntensity}/5 recommended`}</div>
-                <p className="mt-1 text-[12px] leading-relaxed text-[#64707C]">{designIntensity ? intensityLevel.description : "Choose an intensity after reviewing your uploaded photos."}</p>
-              </div>
-            </div>
           </div>}
 
           {step === 4 && <div>
-            <StepTitle eyebrow="Make it yours" title="TEXT + STORY" text="Separate printed text from designer notes so instructions never accidentally appear on the shirt." />
+            <StepTitle eyebrow="Make it yours" title="TEXT ON THE DESIGN" text="Every value entered here appears in the live preview and is baked into the exact production file." />
             <div className="grid md:grid-cols-2 gap-4">
               <Field label="Main name / headline" value={personalization.name} onChange={v => setPersonalization({...personalization,name:v})} placeholder="BIG MIKE" />
               <Field label="Nickname" value={personalization.nickname} onChange={v => setPersonalization({...personalization,nickname:v})} placeholder="THE LEGEND" />
@@ -1719,26 +1785,24 @@ export default function CustomStudio() {
               <Field label="Quote or printed message" value={personalization.quote} onChange={v => setPersonalization({...personalization,quote:v})} placeholder="Forever in our hearts" />
               <Field label="Additional printed text" value={personalization.message} onChange={v => setPersonalization({...personalization,message:v})} placeholder="Optional" />
             </div>
-            <TextArea label="Tell us the story" value={story} onChange={setStory} placeholder="Dad loves fishing, classic cars, and embarrassing us with dad jokes…" />
-            <TextArea label="Notes for our designer — NOT printed" value={personalization.instructions} onChange={v => setPersonalization({...personalization,instructions:v})} placeholder="Use photo #1 in the center. Make the name large. Keep the overall look vintage." />
           </div>}
 
           {step === 5 && <div>
-            <StepTitle eyebrow="Set expectations" title="TIMING + DESIGN PROOF" text="We would rather be transparent about timing than promise a date we cannot meet." />
+            <StepTitle eyebrow="Approve the result" title="TIMING + FINAL APPROVAL" text="The preview you approve is converted into the exact 300 DPI production file before it enters your cart." />
             <div className="grid md:grid-cols-2 gap-4">
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Need it by</label><input type="date" value={needByDate} onChange={e => setNeedByDate(e.target.value)} className="w-full border border-border bg-background px-3 py-2 mt-1"/></div>
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Priority</label><div className="flex gap-2 mt-1"><Choice active={priority === "standard"} onClick={() => setPriority("standard")}>Standard</Choice><Choice active={priority === "rush"} onClick={() => setPriority("rush")}>Rush (+{"$" + rushFee})</Choice></div></div>
             </div>
-            <div className="mt-6 border border-border p-4"><div className="flex items-start gap-3"><ShieldCheck size={22} className="text-accent shrink-0"/><div><div className="font-bold">GDP Design Guarantee</div><p className="text-sm text-muted-foreground mt-1">{proofRequired ? "You receive a proof before printing with " + revisions + " included revision(s)." : "This product is configured to skip proofing."}</p></div></div></div>
+            <div className="mt-6 border border-border p-4"><div className="flex items-start gap-3"><ShieldCheck size={22} className="text-accent shrink-0"/><div><div className="font-bold">Preview-to-print guarantee</div><p className="text-sm text-muted-foreground mt-1">After approval, GDP locks the preview and its matching production PNG. Production prints that locked file—there is no separate designer interpretation.</p></div></div></div>
             <label className="flex items-start gap-3 mt-5 text-sm"><input type="checkbox" checked={rightsConfirmed} onChange={e => setRightsConfirmed(e.target.checked)} className="mt-1"/><span>I confirm I own or have permission to reproduce the photos and artwork I submitted. <Link to="/pages/custom-artwork-policy" target="_blank" className="font-semibold text-accent hover:underline">Upload policy</Link></span></label>
-            <label className="flex items-start gap-3 mt-3 text-sm"><input type="checkbox" checked={approvalAcknowledged} onChange={e => setApprovalAcknowledged(e.target.checked)} className="mt-1"/><span>I understand production begins after artwork approval and approved artwork cannot be changed after production starts. Customer uploads follow the <Link to="/pages/data-retention" target="_blank" className="font-semibold text-accent hover:underline">retention policy</Link>.</span></label>
+            <label className="flex items-start gap-3 mt-3 text-sm"><input type="checkbox" checked={approvalAcknowledged} onChange={e => setApprovalAcknowledged(e.target.checked)} className="mt-1"/><span><strong>I approve the exact live preview shown.</strong> I understand this result will be locked when added to cart and printed after successful payment. To change it, I must create a new design before checkout. Customer uploads follow the <Link to="/pages/data-retention" target="_blank" className="font-semibold text-accent hover:underline">retention policy</Link>.</span></label>
           </div>}
 
           {step === 6 && <div>
-            <StepTitle eyebrow="Final check" title="REVIEW YOUR CUSTOM ORDER" text="Nothing is printed yet. This saves your design and adds the selected garments to your cart." />
+            <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text="Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue." />
             <div className="grid md:grid-cols-2 gap-4">
-              <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={occasion || recipientType} />
-              <ReviewCard label={designPath === "upload" ? "Artwork treatment" : "Artwork"} value={(designStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designStyle ? `${designMood || "No mood"} · ${designIntensity ? `Intensity ${designIntensity}/5` : "Intensity not selected"}` : ""} />
+              <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={occasion} />
+              <ReviewCard label={designPath === "upload" ? "Artwork" : "Ready layout"} value={(designStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designStyle ? `${designMood || "Original"} finish` : ""} />
               <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} · ${size || "No size"} · Qty ${qty}` : ""} />
               <ReviewCard
                 label="Print"
@@ -1748,13 +1812,12 @@ export default function CustomStudio() {
               {placement !== "back" && <ReviewCard label="Front artwork" value={frontArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
               {placement !== "front" && <ReviewCard label="Back artwork" value={backArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
               <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? "One or more photos should ideally be replaced." : "Photo quality check complete."} />
-              <ReviewCard label="Proof" value={proofRequired ? "Required before print" : "Proof skipped"} sub={proofRequired ? revisions + " included revision(s)" : ""} />
+              <ReviewCard label="Production result" value="Customer-approved preview" sub="Locked 300 DPI PNG is generated when added to cart." />
               <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
             </div>
             {groupGarments.length > 0 && <div className="mt-4 border border-border p-4"><div className="font-bold">Additional shirts using the same design</div>{groupGarments.map((g,i) => <div key={i} className="text-sm text-muted-foreground mt-1">{g.quantity}× {g.color} · {g.size}</div>)}</div>}
-            {personalization.instructions && <div className="mt-4 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-4"><div className="font-mono text-[10px] uppercase tracking-wide text-[#64788A]">Designer notes · not printed</div><div className="mt-1 text-sm leading-relaxed text-[#44515D]">{personalization.instructions}</div></div>}
             {showOrderPrice && <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Before cart discounts, shipping, tax or coupon.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>}
-            <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide disabled:opacity-50">{saving ? "Saving custom design…" : "Add Custom Order to Cart →"}</button>
+            <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide disabled:opacity-50">{saving ? "Generating production artwork…" : "Approve, Lock & Add to Cart →"}</button>
           </div>}
         </section>
 
@@ -1865,7 +1928,7 @@ export default function CustomStudio() {
               <SummaryRow label="Size / Color" value={size && color ? `${size} / ${color}` : "Not selected"} />
               <SummaryRow label="Photos" value={photos.length + "/" + maxPhotos} />
               <SummaryRow label="Total shirts" value={totalUnits} />
-              <SummaryRow label="Proof" value={proofRequired ? "Before print" : "Skipped"} />
+              <SummaryRow label="Production file" value="Locked after approval" />
               {showOrderPrice && <div className="border-t border-white/15 mt-5 pt-4 flex justify-between items-end"><span className="text-[10px] uppercase font-mono text-white/45">{priceVisibility === "total" ? "Estimated subtotal" : "Unit price"}</span><span className="font-display text-3xl">{"$" + (priceVisibility === "total" ? estimatedSubtotal : unitPrice).toFixed(2)}</span></div>}
             </div>
           </aside>
@@ -1954,10 +2017,38 @@ export default function CustomStudio() {
                   <div className="text-[10px] font-bold sm:text-xs">{level}/5<span className="hidden sm:inline"> · {item.label}</span></div>
                 </button>)}
               </div>
-              <p className="mt-3 text-[10px] leading-relaxed text-[#817970]">Examples are visual direction only. Your final GDP artwork is customized to your photos, story and selected style.</p>
+              <p className="mt-3 text-[10px] leading-relaxed text-[#817970]">These examples explain visual density. Your selected ready layout and exact live preview determine the final print.</p>
             </div>
           </div>
         </div>}
+
+        <div className="pointer-events-none fixed left-[-10000px] top-0 w-[500px]" aria-hidden="true">
+          {(["front", "back"]).map((side) => {
+            const state = artworkStates[side] || defaultArtworkState(activeStyleTemplate);
+            return <StudioPreview
+              key={side}
+              containerId={`gdp-mockup-${side}`}
+              printAreaId={`gdp-production-${side}`}
+              garment={garment}
+              color={previewColor}
+              side={side}
+              placement={placement}
+              photo={side === "front" ? frontArtworkPhoto : backArtworkPhoto}
+              personalization={personalization}
+              zoom={1}
+              artworkScale={Number(state.scale ?? 92)}
+              artworkRotation={Number(state.rotation ?? 0)}
+              artworkOffset={state.offset || { x: 0, y: 0 }}
+              artworkFitMode={state.fitMode || "fit"}
+              showGuides={false}
+              showMeasurements={false}
+              size={size}
+              previewConfig={config.preview || {}}
+              styleTemplate={activeStyleTemplate}
+              mood={designMood}
+            />;
+          })}
+        </div>
 
         {fullscreenPreview && <div className="fixed inset-0 z-[90] bg-[#111]/95 backdrop-blur-sm p-3 md:p-7">
           <div className="h-full max-w-5xl mx-auto rounded-[28px] overflow-hidden bg-[#f4efe7] border border-white/10 flex flex-col">
@@ -2012,7 +2103,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom, artworkScale, artworkRotation, artworkOffset, setArtworkOffset, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId, printAreaId }) {
   const dragRef = useRef(null);
   const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
@@ -2020,12 +2111,15 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     (side === "front" && placement === "back");
   const hasPreviewText = Boolean(
     String(personalization?.name || "").trim() ||
+    String(personalization?.nickname || "").trim() ||
     String(personalization?.dates || "").trim() ||
-    String(personalization?.quote || "").trim()
+    String(personalization?.number || "").trim() ||
+    String(personalization?.quote || "").trim() ||
+    String(personalization?.message || "").trim()
   );
   // The selected GDP style is itself printable artwork, so it should appear
   // immediately in the garment preview even before the customer uploads a photo.
-  const canDrag = Boolean(photo && styleTemplate && !blankArtwork && setArtworkOffset);
+  const canDrag = Boolean(photo && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
   const frontMockupUrl =
@@ -2078,16 +2172,15 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
   const printAreaStyle = {
     top: printArea.top + "%",
     width: printArea.width + "%",
-    height: seasonalOverlay ? "auto" : printArea.height + "%",
-    ...(seasonalOverlay ? {aspectRatio: `${profile.widthIn} / ${profile.heightIn}`} : {})
+    height: "auto",
+    aspectRatio: `${profile.widthIn} / ${profile.heightIn}`,
   };
   const maxAreaWidth = Math.min(78, printArea.width * (configuredNumber(profile.maxWidthIn, profile.widthIn) / Math.max(0.1, profile.widthIn)));
-  const maxAreaHeight = Math.min(70, printArea.height * (configuredNumber(profile.maxHeightIn, profile.heightIn) / Math.max(0.1, profile.heightIn)));
   const maxPrintAreaStyle = {
     top: printArea.top + "%",
     width: maxAreaWidth + "%",
-    height: seasonalOverlay ? "auto" : maxAreaHeight + "%",
-    ...(seasonalOverlay ? {aspectRatio: `${profile.widthIn} / ${profile.heightIn}`} : {})
+    height: "auto",
+    aspectRatio: `${profile.maxWidthIn || profile.widthIn} / ${profile.maxHeightIn || profile.heightIn}`,
   };
   const artworkLayerStyle = {
     left: (50 + Number(artworkOffset?.x || 0)) + "%",
@@ -2143,7 +2236,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     setZoom(value => clampPreview(value + (event.deltaY < 0 ? .08 : -.08)));
   };
 
-  return <div onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
+  return <div id={containerId} onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
     {showMeasurements && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
@@ -2205,6 +2298,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
         </div>}
 
         <div
+          id={printAreaId}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={stopDrag}
@@ -2212,8 +2306,18 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
           style={printAreaStyle}
           className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
-          {seasonalOverlay || (!styleTemplate ? null : blankArtwork ? (
+          {seasonalOverlay || (blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
+          ) : !styleTemplate ? (
+            photo ? (
+              artworkFitMode === "crop" ? (
+                <div className="absolute h-full w-full pointer-events-none" style={artworkLayerStyle}>
+                  <img src={photo.url} alt="Customer print artwork" draggable="false" className="h-full w-full object-cover pointer-events-none" style={{ filter: moodTreatment.photoFilter }} />
+                </div>
+              ) : (
+                <img src={photo.url} alt="Customer print artwork" draggable="false" className="absolute max-h-full max-w-full object-contain pointer-events-none" style={{ ...artworkLayerStyle, filter: moodTreatment.photoFilter }} />
+              )
+            ) : null
           ) : (
             <>
               <div
@@ -2268,8 +2372,10 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                 >
                   <div className={textZone?.align === "left" ? "text-left" : textZone?.align === "right" ? "text-right" : "text-center"}>
                     {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
-                    {personalization?.dates && <div className="font-mono text-[6px] mt-0.5">{personalization.dates}</div>}
+                    {personalization?.nickname && <div className="text-[7px] font-bold uppercase tracking-wider mt-0.5">{personalization.nickname}</div>}
+                    {(personalization?.dates || personalization?.number) && <div className="font-mono text-[6px] mt-0.5">{[personalization.dates, personalization.number].filter(Boolean).join(" · ")}</div>}
                     {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
+                    {personalization?.message && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.message}</div>}
                   </div>
                 </div>
               )}
@@ -2287,7 +2393,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
 
     <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
       <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
-      {!blankArtwork && !seasonalOverlay && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{photo ? <><Move size={10}/> Drag to position</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","")} · {mood}</>}</span>}
+      {!blankArtwork && !seasonalOverlay && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{photo ? <><Move size={10}/> Drag to position</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","") || "Own artwork"} · {mood || "Original"}</>}</span>}
     </div>
   </div>;
 }
@@ -2393,7 +2499,7 @@ function StudioStepNav({ step, totalSteps, canContinue, hint, saving, finalDisab
         onClick={isFinal ? onFinal : onContinue}
         className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold uppercase text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-40 " + (isFinal ? "bg-accent" : "bg-[#17324D]")}
       >
-        {isFinal ? (saving ? "Saving…" : "Add to cart") : "Continue"} <ArrowRight size={16}/>
+        {isFinal ? (saving ? "Generating…" : "Approve & add") : "Continue"} <ArrowRight size={16}/>
       </button>
     </div>
     {!isFinal && !canContinue && hint && <p className="mt-2 text-right text-[11px] font-medium text-[#8A5A48]" role="status">{hint}</p>}
@@ -2405,9 +2511,6 @@ function StepTitle({ eyebrow, title, text }) {
 }
 function Field({ label, value, onChange, placeholder }) {
   return <div className="mt-4"><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10"/></div>;
-}
-function TextArea({ label, value, onChange, placeholder }) {
-  return <div className="mt-5"><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><textarea rows={4} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10"/></div>;
 }
 function SelectField({ label, value, onChange, options }) {
   return <div><label className="font-mono text-[10px] uppercase tracking-wide text-[#756f67]">{label}</label><select value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-[#dcd5cc] bg-white/70 px-3.5 py-3 mt-1.5 outline-none focus:border-accent">{options.map(option => <option key={option}>{option}</option>)}</select></div>;

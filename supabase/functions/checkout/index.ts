@@ -116,6 +116,15 @@ function guestUploadPath(value: unknown) {
   return /^guest\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(path) ? path : null;
 }
 
+function customerUploadPath(value: unknown, accountUserId?: string | null) {
+  const path = String(value || "");
+  if (guestUploadPath(path)) return path;
+  if (accountUserId && path.startsWith(`${accountUserId}/`) && /^[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(path)) {
+    return path;
+  }
+  return null;
+}
+
 function cleanText(value: unknown, max = 500) {
   return String(value || "").trim().slice(0, max) || null;
 }
@@ -426,8 +435,8 @@ Deno.serve(async (req: Request) => {
         if (!acceptedTypes.has(mimeType)) {
           return respond(req, { error: true, message: "Guest artwork must be a JPG, PNG, or WEBP image." }, 400);
         }
-        if (!Number.isFinite(size) || size <= 0 || size > 20 * 1024 * 1024) {
-          return respond(req, { error: true, message: "Each guest artwork file must be 20 MB or smaller." }, 400);
+        if (!Number.isFinite(size) || size <= 0 || size > 40 * 1024 * 1024) {
+          return respond(req, { error: true, message: "Each guest artwork or generated production file must be 40 MB or smaller." }, 400);
         }
 
         const path = `guest/${crypto.randomUUID()}/${safeUploadFileName(descriptor?.name)}`;
@@ -473,7 +482,7 @@ Deno.serve(async (req: Request) => {
       const photoAssets = (Array.isArray(raw.photo_assets) ? raw.photo_assets : [])
         .slice(0, 8)
         .map((asset: any) => ({
-          path: guestUploadPath(asset?.path || asset?.storage_path),
+          path: customerUploadPath(asset?.path || asset?.storage_path, accountUser?.id),
           name: cleanText(asset?.name, 160) || "artwork",
           width: Math.max(0, Number(asset?.width || 0)) || null,
           height: Math.max(0, Number(asset?.height || 0)) || null,
@@ -488,6 +497,53 @@ Deno.serve(async (req: Request) => {
       if (!photoPaths.length && !seasonalArtworkId) {
         return respond(req, { error: true, message: "Add artwork before saving this custom design." }, 400);
       }
+
+      const designPath = ["seasonal", "bootleg", "occasion", "upload"].includes(String(raw.design_path))
+        ? String(raw.design_path)
+        : (seasonalArtworkId ? "seasonal" : null);
+      const renderSnapshot = raw.render_snapshot && typeof raw.render_snapshot === "object"
+        ? raw.render_snapshot
+        : {};
+      const requestedProductionFiles = raw.production_files && typeof raw.production_files === "object"
+        ? raw.production_files
+        : {};
+      const productionFiles: Record<string, any> = {};
+      for (const side of ["front", "back"]) {
+        const requested = requestedProductionFiles?.[side];
+        if (!requested) continue;
+        const path = customerUploadPath(requested?.path || requested?.storage_path, accountUser?.id);
+        if (!path) {
+          return respond(req, { error: true, message: `The ${side} production artwork path is invalid.` }, 400);
+        }
+        const widthPx = Math.round(Number(requested?.width_px || requested?.widthPx || 0));
+        const heightPx = Math.round(Number(requested?.height_px || requested?.heightPx || 0));
+        const dpi = Math.round(Number(requested?.dpi || 300));
+        if (widthPx < 600 || heightPx < 600 || dpi !== 300) {
+          return respond(req, { error: true, message: `The ${side} production artwork did not pass the 300 DPI preflight.` }, 400);
+        }
+        productionFiles[side] = {
+          path,
+          width_px: widthPx,
+          height_px: heightPx,
+          width_in: Math.max(0, Number(requested?.width_in || requested?.widthIn || 0)) || null,
+          height_in: Math.max(0, Number(requested?.height_in || requested?.heightIn || 0)) || null,
+          dpi,
+          mime_type: "image/png",
+        };
+      }
+      const expectedSides = String(raw.placement) === "front_back"
+        ? ["front", "back"]
+        : [String(raw.placement) === "back" ? "back" : "front"];
+      const customerMockupPath = customerUploadPath(raw.customer_mockup_path, accountUser?.id);
+      const lockedHash = /^[0-9a-f]{64}$/.test(String(raw.locked_hash || "")) ? String(raw.locked_hash) : null;
+      const customerApprovedAt = raw.customer_approved_at && !Number.isNaN(Date.parse(String(raw.customer_approved_at)))
+        ? new Date(String(raw.customer_approved_at)).toISOString()
+        : null;
+      const isLockedRender = raw.render_status === "locked"
+        && Boolean(customerMockupPath)
+        && Boolean(lockedHash)
+        && Boolean(customerApprovedAt)
+        && expectedSides.every((side) => Boolean(productionFiles[side]));
 
       const placement = ["front", "front_back", "back", "left_chest", "large_front", "large_back", "sleeve"].includes(String(raw.placement))
         ? String(raw.placement)
@@ -546,12 +602,13 @@ Deno.serve(async (req: Request) => {
           product_name: product.name,
           name: cleanText(raw.name, 180),
           design_style: cleanText(raw.design_style, 180),
+          design_path: designPath,
           photos: photoPaths,
           personalization: raw.personalization && typeof raw.personalization === "object" ? raw.personalization : {},
           placement,
           color: cleanText(raw.color, 100),
           size: cleanText(raw.size, 40),
-          preview_url: photoPaths[primaryPhotoIndex] || null,
+          preview_url: customerMockupPath || photoPaths[primaryPhotoIndex] || null,
           photo_assets: photoAssets,
           occasion: cleanText(raw.occasion, 180),
           recipient_type: cleanText(raw.recipient_type, 100),
@@ -561,12 +618,19 @@ Deno.serve(async (req: Request) => {
           garment_tier: garmentTier,
           need_by_date: raw.need_by_date || null,
           priority,
-          proof_required: raw.proof_required !== false,
+          proof_required: isLockedRender ? false : raw.proof_required !== false,
           revision_allowance: Math.min(10, Math.max(0, Number(raw.revision_allowance ?? 2))),
           primary_photo_index: primaryPhotoIndex,
           customer_confirmed_rights: true,
           approval_policy_acknowledged: true,
           additional_garments: Array.isArray(raw.additional_garments) ? raw.additional_garments.slice(0, 50) : [],
+          render_snapshot: renderSnapshot,
+          production_files: productionFiles,
+          customer_mockup_path: customerMockupPath,
+          render_status: isLockedRender ? "locked" : "draft",
+          locked_hash: isLockedRender ? lockedHash : null,
+          customer_approved_at: isLockedRender ? customerApprovedAt : null,
+          preflight: raw.preflight && typeof raw.preflight === "object" ? raw.preflight : {},
           status: "in_cart",
           ...(seasonalArtworkId ? {
             seasonal_artwork_id: seasonalArtworkId,
@@ -801,7 +865,15 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await query.maybeSingle();
       if (error) throw error;
       if (!data) return respond(req, { error: true, message: "Order not found." }, 404);
-      return respond(req, { order: data });
+      const signedItems = await Promise.all((data.order_items || []).map(async (item: any) => {
+        const imagePath = customerUploadPath(item.image, data.user_id);
+        if (!item.is_custom || !imagePath) return item;
+        const { data: signed } = await service.storage
+          .from("customer-uploads")
+          .createSignedUrl(imagePath, 3600);
+        return { ...item, image: signed?.signedUrl || item.image };
+      }));
+      return respond(req, { order: { ...data, order_items: signedItems } });
     }
 
 
@@ -1371,7 +1443,7 @@ Deno.serve(async (req: Request) => {
       variant_id: variantRow?.id || null,
       custom_design_id: design?.id || null,
       name: product.name,
-      image: product.images?.[0] || null,
+      image: design?.customer_mockup_path || product.images?.[0] || null,
       variant,
       size,
       color,
