@@ -388,8 +388,9 @@ function loadPreviewImage(source) {
 async function createGangSheetThumbnail(items, sheetWidth, sheetLength) {
   const width = Math.max(1, Number(sheetWidth || 1));
   const length = Math.max(1, Number(sheetLength || 1));
-  const outputWidth = 720;
-  const outputHeight = Math.max(160, Math.min(1400, Math.round(outputWidth * (length / width))));
+  const previewScale = Math.min(720 / width, 1400 / length);
+  const outputWidth = Math.max(1, Math.round(width * previewScale));
+  const outputHeight = Math.max(1, Math.round(length * previewScale));
   const canvas = document.createElement("canvas");
   canvas.width = outputWidth;
   canvas.height = outputHeight;
