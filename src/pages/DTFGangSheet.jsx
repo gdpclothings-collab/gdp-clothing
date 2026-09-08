@@ -19,6 +19,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
+import { useAuth } from "@/lib/AuthContext";
 import {
   artworkOverlaps,
   autoArrangeArtwork,
@@ -35,6 +36,7 @@ import {
 import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
 import { advancedNestArtwork } from "@/lib/dtfNesting";
 import { downloadFilmPreview, drawWatermark, watermarkApplies } from "@/lib/dtfFilmExport";
+import { dtfExportAuditApi } from "@/lib/dtfExportAuditApi";
 
 const round = (value, decimals = 2) => {
   const power = 10 ** decimals;
@@ -450,6 +452,7 @@ async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings
 }
 
 export default function DTFGangSheet() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addItem } = useCart();
@@ -457,6 +460,7 @@ export default function DTFGangSheet() {
   const dragRef = useRef(null);
   const selectedPanelRef = useRef(null);
   const [settings, setSettings] = useState(() => normalizeDtfSettings({}));
+  const adminPreviewBypass = user?.role === "admin" && settings.adminPreviewBypassEnabled !== false;
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -2015,7 +2019,8 @@ export default function DTFGangSheet() {
               <div className="text-[11px] leading-5 text-black/55">
                 Download a low-resolution proof of the exact film placement. Production files remain clean and are available to GDP administrators.
               </div>
-              {settings.previewDownloadBeforePayment ? (
+              {(settings.previewDownloadBeforePayment || adminPreviewBypass) ? (
+                <>
                 <button
                   type="button"
                   disabled={!artworks.length || Boolean(validation.errors.length)}
@@ -2023,14 +2028,35 @@ export default function DTFGangSheet() {
                     setPageError("");
                     try {
                       await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-preview.jpg` });
+                      if (adminPreviewBypass) await dtfExportAuditApi.record({ exportType: "watermarked_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
                     } catch (error) {
                       setPageError(error?.message || "Could not download the film preview.");
                     }
                   }}
                   className="mt-3 flex h-11 w-full items-center justify-center gap-2 border border-black bg-white text-[9px] font-black uppercase tracking-[0.1em] hover:bg-black hover:text-white disabled:opacity-30"
                 >
-                  <Download size={15} /> Download preview
+                  <Download size={15} /> {adminPreviewBypass ? "Download proof" : "Download preview"}
                 </button>
+                {adminPreviewBypass && (
+                  <button
+                    type="button"
+                    disabled={!artworks.length || Boolean(validation.errors.length)}
+                    onClick={async () => {
+                      setPageError("");
+                      try {
+                        await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, clean: true, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-clean-preview.jpg` });
+                        await dtfExportAuditApi.record({ exportType: "clean_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
+                      } catch (error) {
+                        setPageError(error?.message || "Could not download the clean film preview.");
+                      }
+                    }}
+                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 border border-black bg-black text-[9px] font-black uppercase tracking-[0.1em] text-white hover:bg-white hover:text-black disabled:opacity-30"
+                  >
+                    <Download size={15} /> Download clean preview
+                  </button>
+                )}
+                {adminPreviewBypass && <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.05em] text-emerald-700">Admin bypass active · downloads are logged</div>}
+                </>
               ) : (
                 <div className="mt-3 border border-black/10 bg-black/[0.03] p-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-black/50">Preview download is disabled before payment</div>
               )}

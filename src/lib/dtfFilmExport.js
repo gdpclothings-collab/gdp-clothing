@@ -95,13 +95,14 @@ export function downloadBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function downloadFilmPreview({ items, width, length, settings, filename = "dtf-film-preview.jpg" }) {
-  const dpi = Math.max(20, Math.min(96, Math.floor(Math.min(1400 / length, 900 / width))));
+export async function downloadFilmPreview({ items, width, length, settings, filename = "dtf-film-preview.jpg", clean = false }) {
+  const configuredDpi = Number(settings?.previewDownloadDpi || 72);
+  const dpi = Math.max(20, Math.min(configuredDpi, Math.floor(Math.min(2400 / length, 1800 / width))));
   const canvas = await renderFilmSegment({
     items, width, length, dpi, background: "#f8f8f6",
-    watermark: watermarkApplies(settings, "download") ? settings : null,
+    watermark: !clean && watermarkApplies(settings, "download") ? settings : null,
   });
-  downloadBlob(await canvasBlob(canvas, "image/jpeg", 0.9), filename);
+  downloadBlob(await canvasBlob(canvas, "image/jpeg", Number(settings?.previewDownloadQuality || 0.85)), filename);
 }
 
 export async function exportProductionPackage({ items, width, length, settings, orderNumber = "DTF", itemId = "film" }) {
