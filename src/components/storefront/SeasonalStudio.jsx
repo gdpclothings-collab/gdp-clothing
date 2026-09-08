@@ -62,13 +62,14 @@ export function SeasonalOverlay({ artwork, layout, area, text, rotation = 0, edi
 export default function SeasonalStudio({ product, garment, color, size, variant, quantity, unitPrice, Preview, onBack, catalog: garmentCatalog = [], availableColors = [], availableSizes = [], onProductChange, onColorChange, onSizeChange, colorSwatch, priceVisibility = 'hidden', initialDraft = null, editCartKey = '' }) {
   const [catalog, setCatalog] = useState(null), [error, setError] = useState(''), [selected, setSelected] = useState(null);
   const [category, setCategory] = useState(''), [query, setQuery] = useState('');
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false), [categoryQuery, setCategoryQuery] = useState('');
   const [requested, setRequested] = useState(0), [position, setPosition] = useState({x:0,y:0});
   const [rotation, setRotation] = useState(0), [showGarmentOptions, setShowGarmentOptions] = useState(false);
   const [showGuides, setShowGuides] = useState(true), [showMeasurements, setShowMeasurements] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [text, setText] = useState({name:'',message:'',color:'#111111'});
   const [approved, setApproved] = useState(false), [saving, setSaving] = useState(false), [capturing, setCapturing] = useState(false);
-  const previewRef = useRef(null), previewSectionRef = useRef(null), reviewErrorRef = useRef(null), saveLock = useRef(false), saveRequestId = useRef('');
+  const previewRef = useRef(null), previewSectionRef = useRef(null), controlsSectionRef = useRef(null), reviewErrorRef = useRef(null), saveLock = useRef(false), saveRequestId = useRef('');
   const navigate = useNavigate(), { addItem, replaceItem } = useCart();
   useEffect(() => {
     window.scrollTo({top:0,behavior:'instant'});
@@ -84,6 +85,8 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
   const hasText = selected?.customizable && Boolean(text.name.trim() || text.message.trim());
   const usableArea = area ? {...area, height:Number(area.height) - (hasText ? .8 : 0)} : null;
   const layout = fitSeasonalArtwork(selected, usableArea, requested, position.x, position.y);
+  const categories = [...new Set(artworks.map(a => a.category))].filter(Boolean).sort();
+  const visibleCategories = categories.filter(value => value.toLowerCase().includes(categoryQuery.trim().toLowerCase()));
   const visible = artworks.filter(a => (!category || category === a.category) && [a.title,a.category,...a.tags].join(' ').toLowerCase().includes(query.trim().toLowerCase()));
   const studioStage = !selected ? 1 : reviewMode ? 3 : 2;
   const fabricDescription = [product?.metafields?.fabric_blend, product?.metafields?.fabric_weight].filter(Boolean).join(' · ') || 'Fabric details vary by garment';
@@ -169,20 +172,33 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
       </div>
     </section>}
     {artworks.length>0 && !reviewMode && <div className="grid min-w-0 w-full items-start gap-4 xl:grid-cols-[minmax(300px,0.78fr)_minmax(520px,1.3fr)_minmax(285px,0.72fr)] xl:gap-5">
-      <section aria-label="Choose seasonal artwork" className="order-3 min-w-0 w-full rounded-3xl border border-[#DCE3EA] bg-white/85 p-4 shadow-[0_14px_40px_rgba(23,50,77,.07)] lg:p-5 xl:order-1">
+      <section aria-label="Choose seasonal artwork" className="order-1 min-w-0 w-full rounded-3xl border border-[#DCE3EA] bg-white/85 p-4 shadow-[0_14px_40px_rgba(23,50,77,.07)] lg:p-5">
         <div className="mb-4"><p className="font-mono text-[9px] uppercase tracking-[.2em] text-[#A66331]">Artwork library</p><h2 className="mt-1 text-xl font-bold text-[#17324D]">Find your design</h2></div>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1"><label className="text-[10px] font-bold uppercase tracking-wide text-[#697784]">Season or holiday<select value={category} onChange={e=>setCategory(e.target.value)} className="mt-1 block w-full rounded-xl border border-[#DCE3EA] bg-white p-2.5 text-sm font-normal normal-case"><option value="">All collections</option>{[...new Set(artworks.map(a=>a.category))].sort().map(c=><option key={c}>{c}</option>)}</select></label>
-          <label className="text-[10px] font-bold uppercase tracking-wide text-[#697784]">Search designs<div className="relative mt-1"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A96A1]"/><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search artwork" className="block w-full rounded-xl border border-[#DCE3EA] bg-white py-2.5 pl-9 pr-3 text-sm font-normal normal-case" /></div></label></div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-[#697784] sm:hidden">
+            Season or holiday
+            <button type="button" onClick={()=>setCategorySheetOpen(true)} className="mt-1 flex min-h-11 w-full items-center justify-between rounded-xl border border-[#DCE3EA] bg-white px-3 py-2.5 text-left text-sm font-normal normal-case text-[#273B4E]">
+              <span>{category || "All collections"}</span><ChevronDown size={16}/>
+            </button>
+          </div>
+          <label className="hidden text-[10px] font-bold uppercase tracking-wide text-[#697784] sm:block">Season or holiday<select value={category} onChange={e=>setCategory(e.target.value)} className="mt-1 block w-full rounded-xl border border-[#DCE3EA] bg-white p-2.5 text-sm font-normal normal-case"><option value="">All collections</option>{categories.map(c=><option key={c}>{c}</option>)}</select></label>
+          <label className="text-[10px] font-bold uppercase tracking-wide text-[#697784]">Search designs<div className="relative mt-1"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A96A1]"/><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search artwork" className="block w-full rounded-xl border border-[#DCE3EA] bg-white py-2.5 pl-9 pr-3 text-sm font-normal normal-case" /></div></label>
+        </div>
         <p role="status" className="my-3 text-xs text-[#7B8793]">{visible.length} designs available</p>
         {!visible.length && <p>No designs match. Try another collection or search.</p>}
         <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2 pr-1 xl:grid xl:grid-cols-2 xl:overflow-visible">{visible.map(a=><button type="button" key={a.id} aria-pressed={selected?.id===a.id} onClick={()=>choose(a)} className={`group w-36 shrink-0 snap-start rounded-2xl border p-2 text-left transition hover:-translate-y-0.5 hover:shadow-md xl:w-auto ${selected?.id===a.id?'border-[#17324D] bg-[#EEF3F7] ring-2 ring-[#17324D]/15':'border-[#E1E6EB] bg-white'}`}><div className="relative overflow-hidden rounded-xl bg-[linear-gradient(45deg,#f0ede8_25%,transparent_25%),linear-gradient(-45deg,#f0ede8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f0ede8_75%),linear-gradient(-45deg,transparent_75%,#f0ede8_75%)] bg-[length:14px_14px]"><img src={a.preview} alt={a.title} loading="lazy" className="h-28 w-full object-contain transition group-hover:scale-105"/>{selected?.id===a.id&&<span className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-[#17324D] text-white"><Check size={13}/></span>}</div><span className="mt-2 block text-xs font-bold text-[#273B4E]">{a.title}</span><span className="text-[9px] uppercase tracking-wide text-[#84909B]">{a.category}</span></button>)}</div>
       </section>
-      <section ref={previewSectionRef} aria-label="Garment preview" className="order-1 sticky top-[74px] z-20 min-w-0 w-full scroll-mt-20 xl:order-2 xl:top-4">
+      <section ref={previewSectionRef} aria-label="Garment preview" className="order-2 min-w-0 w-full scroll-mt-20 xl:sticky xl:top-4">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-[#DCE3EA] bg-white p-3 shadow-sm xl:hidden">
+          <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center rounded-xl border border-[#DCE3EA] px-4 text-xs font-bold uppercase text-[#17324D]">Previous</button>
+          <button type="button" disabled={!selected} onClick={()=>controlsSectionRef.current?.scrollIntoView({behavior:'smooth',block:'start'})} className="inline-flex min-h-11 items-center rounded-xl bg-[#17324D] px-5 text-xs font-bold uppercase text-white disabled:cursor-not-allowed disabled:opacity-40">Continue</button>
+        </div>
+        {!selected && <p className="-mt-1 mb-3 text-right text-[11px] font-medium text-[#8A5A48] xl:hidden">Choose an artwork to continue.</p>}
         <div className="overflow-hidden rounded-3xl border border-[#CDD7E0] bg-white p-3 shadow-[0_24px_60px_rgba(23,50,77,.12)]"><div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#A66331]">Live garment preview</p><p className="mt-0.5 text-sm font-bold text-[#17324D]">{garment.label} · {color} · {size}</p></div><div className="flex gap-1.5"><button type="button" aria-pressed={showGuides} onClick={()=>setShowGuides(v=>!v)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold ${showGuides?'border-[#17324D] bg-[#17324D] text-white':'border-[#DCE3EA] bg-white text-[#607080]'}`}><Maximize2 size={14}/> Print area {showGuides?'on':'off'}</button><button type="button" aria-pressed={showMeasurements} onClick={()=>setShowMeasurements(v=>!v)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold ${showMeasurements?'border-[#A66331] bg-[#A66331] text-white':'border-[#DCE3EA] bg-white text-[#607080]'}`}><Ruler size={14}/> Measurements {showMeasurements?'on':'off'}</button></div></div>
         <div ref={previewRef} className="overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#DCE4E9]"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig||{}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{x:0,y:0}} showGuides={capturing?false:showGuides} showMeasurements={capturing?false:showMeasurements} seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation} editable={!capturing} showSelection={showGuides} onMove={updatePosition} onResize={value=>{setRequested(value);setApproved(false);setReviewMode(false);}} onRotate={value=>{setRotation(value);setApproved(false);setReviewMode(false);}} onDelete={()=>{setSelected(null);setApproved(false);setReviewMode(false);}}/>}/></div>
         <p className="px-2 pb-1 pt-3 text-center text-xs text-[#71808D]"><Move size={12} className="mr-1 inline"/>Drag artwork on the garment. Use the controls directly below on mobile.</p></div>
       </section>
-      <section aria-label="Garment and artwork controls" className="order-2 min-w-0 w-full space-y-4 xl:order-3">
+      <section ref={controlsSectionRef} aria-label="Garment and artwork controls" className="order-3 min-w-0 w-full scroll-mt-20 space-y-4">
         <div className="rounded-3xl border border-[#DCE3EA] bg-white/90 p-4 shadow-[0_14px_40px_rgba(23,50,77,.07)]">
           <button type="button" onClick={()=>setShowGarmentOptions(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="font-mono text-[9px] uppercase tracking-[.18em] text-[#A66331]">Your blank</span><span className="mt-1 block text-sm font-bold text-[#17324D]">Change garment, fabric, color or size</span><span className="mt-1 block text-[10px] text-[#778591]">{fabricDescription}</span></span><ChevronDown size={18} className={`transition ${showGarmentOptions?'rotate-180':''}`}/></button>
           {showGarmentOptions&&<div className="mt-4 space-y-4 border-t border-[#E5E9ED] pt-4"><label className="block text-[10px] font-bold uppercase tracking-wide text-[#6F7D89]">Garment & fabric<select value={product.id} onChange={e=>onProductChange?.(garmentCatalog.find(item=>String(item.id)===e.target.value))} className="mt-1 block w-full rounded-xl border border-[#DCE3EA] bg-white p-2.5 text-sm normal-case">{garmentCatalog.map(item=>{const fabric=[item?.metafields?.fabric_blend,item?.metafields?.fabric_weight].filter(Boolean).join(' · ');return <option key={item.id} value={item.id}>{item.name}{fabric?` — ${fabric}`:''}</option>})}</select></label><div><p className="text-[10px] font-bold uppercase tracking-wide text-[#6F7D89]">Color · {color}</p><div className="mt-2 flex flex-wrap gap-2">{availableColors.map(value=><button key={value} type="button" onClick={()=>onColorChange?.(value)} title={value} aria-label={`Choose ${value}`} aria-pressed={color===value} className={`h-9 w-9 rounded-full border-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.75),0_0_0_1px_rgba(15,23,42,0.65)] transition ${color===value?'border-[#17324D] ring-2 ring-[#17324D]/25 ring-offset-2':'border-transparent hover:ring-2 hover:ring-[#17324D]/25 hover:ring-offset-1'}`} style={{backgroundColor:colorSwatch?.(value)||value}} />)}</div></div><div><p className="text-[10px] font-bold uppercase tracking-wide text-[#6F7D89]">Size</p><div className="mt-2 flex flex-wrap gap-2">{availableSizes.map(value=><button key={value} type="button" onClick={()=>onSizeChange?.(value)} className={`min-w-11 rounded-xl border px-3 py-2.5 text-xs font-bold ${size===value?'border-[#17324D] bg-[#17324D] text-white':'border-[#DCE3EA] bg-white text-[#52616F]'}`}>{value}</button>)}</div></div><p className="rounded-xl bg-[#F3F6F8] p-2.5 text-[10px] leading-relaxed text-[#657481]">Your artwork remains selected when the new blank supports it and is safely fitted inside the new print area.</p></div>}
@@ -198,6 +214,23 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
           <button disabled={!approved||(selected.requires_name&&!text.name.trim())} onClick={()=>{setShowGuides(false);setShowMeasurements(false);setReviewMode(true);window.scrollTo({top:0,behavior:'smooth'});}} className="w-full rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40">Review design</button>
         </div>:<div className="rounded-3xl border border-dashed border-[#C9D3DC] bg-white/65 p-6 text-center"><Shirt className="mx-auto text-[#9AA7B2]"/><p className="mt-3 text-sm font-bold text-[#17324D]">Choose an artwork to begin</p><p className="mt-1 text-xs text-[#73818D]">Your editing tools will appear here.</p></div>}
       </section>
+    </div>}
+    {categorySheetOpen && <div className="fixed inset-0 z-[110] flex items-end bg-black/50 sm:hidden" role="dialog" aria-modal="true" aria-label="Choose season or holiday">
+      <button type="button" className="absolute inset-0" onClick={()=>setCategorySheetOpen(false)} aria-label="Close season selector"/>
+      <div className="relative z-10 max-h-[78dvh] w-full overflow-hidden rounded-t-[28px] border border-[#DCE3EA] bg-[#F8FAFC] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#DCE3EA] px-4 py-4">
+          <div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#A66331]">Artwork collections</p><h3 className="mt-1 text-lg font-bold text-[#17324D]">Season or holiday</h3></div>
+          <button type="button" onClick={()=>setCategorySheetOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl border border-[#DCE3EA] bg-white text-[#52616F]" aria-label="Close"><X size={17}/></button>
+        </div>
+        <div className="p-4">
+          <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A96A1]"/><input autoFocus type="search" value={categoryQuery} onChange={e=>setCategoryQuery(e.target.value)} placeholder="Search collections" className="w-full rounded-xl border border-[#DCE3EA] bg-white py-3 pl-10 pr-3 text-sm"/></div>
+          <div className="mt-3 max-h-[52dvh] space-y-2 overflow-y-auto pb-[max(12px,env(safe-area-inset-bottom))]">
+            <button type="button" onClick={()=>{setCategory('');setCategorySheetOpen(false);setCategoryQuery('');}} className={"flex min-h-12 w-full items-center justify-between rounded-xl border px-4 text-left text-sm font-semibold " + (!category?'border-[#17324D] bg-[#EEF3F7] text-[#17324D]':'border-[#DCE3EA] bg-white text-[#52616F]')}><span>All collections</span>{!category&&<Check size={16}/>}</button>
+            {visibleCategories.map(value=><button key={value} type="button" onClick={()=>{setCategory(value);setCategorySheetOpen(false);setCategoryQuery('');}} className={"flex min-h-12 w-full items-center justify-between rounded-xl border px-4 text-left text-sm font-semibold " + (category===value?'border-[#17324D] bg-[#EEF3F7] text-[#17324D]':'border-[#DCE3EA] bg-white text-[#52616F]')}><span>{value}</span>{category===value&&<Check size={16}/>}</button>)}
+            {!visibleCategories.length&&<p className="py-6 text-center text-sm text-[#73818D]">No matching collections.</p>}
+          </div>
+        </div>
+      </div>
     </div>}
     </div>
   </main>;
