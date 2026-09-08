@@ -27,6 +27,9 @@ export const DEFAULT_DTF_SETTINGS = {
   maxUploadMb: 100,
   watermarkedPreviewEnabled: true,
   previewDownloadBeforePayment: false,
+  adminPreviewBypassEnabled: true,
+  previewDownloadDpi: 72,
+  previewDownloadQuality: 0.85,
   fullResolutionDownloadAfterPayment: false,
   adminProductionExportEnabled: true,
   watermarkText: "GDP Clothing Preview",
@@ -58,6 +61,8 @@ export function normalizeDtfSettings(raw = {}) {
   next.productionSegmentLength = Math.max(1, numberOr(next.productionSegmentLength, 120));
   next.artworkReviewPrice = Math.max(0, numberOr(next.artworkReviewPrice, 0));
   next.maxUploadMb = Math.max(1, numberOr(next.maxUploadMb, 100));
+  next.previewDownloadDpi = Math.min(150, Math.max(36, numberOr(next.previewDownloadDpi, 72)));
+  next.previewDownloadQuality = Math.min(0.95, Math.max(0.4, numberOr(next.previewDownloadQuality, 0.85)));
   next.watermarkOpacity = Math.min(0.8, Math.max(0.05, numberOr(next.watermarkOpacity, 0.2)));
   next.watermarkSize = Math.min(96, Math.max(10, numberOr(next.watermarkSize, 28)));
   next.watermarkPosition = ["repeated", "centered", "corner"].includes(next.watermarkPosition)
