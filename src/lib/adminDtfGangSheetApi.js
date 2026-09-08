@@ -3,15 +3,13 @@ import { adminSettingsApi } from "@/lib/adminSettingsApi";
 
 const mapDtfItem = async (order, item) => {
   const spec = item.custom_data || {};
-  const firstArtwork = Array.isArray(spec.layout) ? spec.layout.find((entry) => entry?.storagePath) : null;
-  let artworkUrl = "";
-
-  if (firstArtwork?.storagePath) {
-    const { data } = await supabase.storage
-      .from("dtf-artwork")
-      .createSignedUrl(firstArtwork.storagePath, 3600);
-    artworkUrl = data?.signedUrl || "";
-  }
+  const layout = Array.isArray(spec.layout) ? spec.layout : [];
+  const paths = layout.map((entry) => entry?.storagePath).filter(Boolean);
+  const signed = paths.length
+    ? await supabase.storage.from("dtf-artwork").createSignedUrls(paths, 3600)
+    : { data: [] };
+  const urlByPath = new Map((signed.data || []).map((entry, index) => [paths[index], entry?.signedUrl || ""]));
+  const exportLayout = layout.map((entry) => ({ ...entry, exportUrl: urlByPath.get(entry.storagePath) || "" }));
 
   return {
     orderId: order.id,
@@ -25,8 +23,8 @@ const mapDtfItem = async (order, item) => {
     orderItemId: item.id,
     quantity: Number(item.quantity || 1),
     unitPrice: Number(item.unit_price || 0),
-    spec,
-    artworkUrl,
+    spec: { ...spec, layout: exportLayout },
+    artworkUrl: exportLayout.find((entry) => entry.exportUrl)?.exportUrl || "",
   };
 };
 
