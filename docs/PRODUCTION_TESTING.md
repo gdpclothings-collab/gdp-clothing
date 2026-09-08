@@ -6,10 +6,9 @@ GDP Clothing uses a non-destructive production smoke canary against https://gdpc
 
 The GitHub Actions workflow .github/workflows/production-smoke.yml runs:
 
-- after pushes to main
+- after pushes to main, once the matching Cloudflare Pages deployment is successful
 - every six hours
 - manually through workflow_dispatch
-- on pull requests that change the smoke bot itself
 
 It verifies:
 
@@ -18,7 +17,7 @@ It verifies:
 3. Published Shop catalog and product discovery.
 4. Product detail and variant/customization controls.
 5. Empty-cart safety state.
-6. Guest checkout surface without initiating payment.
+6. Guest checkout surface using a temporary browser-only cart while production checkout API calls are blocked.
 7. Custom Studio on desktop and mobile.
 8. DTF landing page and both DTF builder modes.
 9. Login and registration surfaces.
@@ -51,8 +50,9 @@ Before merging:
 
 After merge/deploy:
 
-1. Production Smoke Bot passes.
-2. Supabase project is healthy and expected Edge Functions are active.
-3. Supabase security/performance advisors are reviewed for new warnings.
+1. Cloudflare Pages reports a successful production deployment for the merged commit.
+2. Production Smoke Bot passes.
+3. Supabase project is healthy and expected Edge Functions are active.
+4. Supabase security/performance advisors are reviewed for new warnings.
 
 A production smoke failure should be treated as a release incident until the failure is explained or repaired.
