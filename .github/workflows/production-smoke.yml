@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-smoke-\${{ github.event_name }}-\${{ github.ref }}
+  group: production-smoke-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,15 +32,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 18
     env:
-      PRODUCTION_BASE_URL: \${{ github.event.inputs.base_url || 'https://gdpclothing.ca' }}
+      PRODUCTION_BASE_URL: ${{ github.event.inputs.base_url || 'https://gdpclothing.ca' }}
       SMOKE_ARTIFACT_DIR: production-smoke-results
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up supported Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -55,9 +55,9 @@ jobs:
 
       - name: Upload production smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: production-smoke-\${{ github.run_id }}
+          name: production-smoke-${{ github.run_id }}
           path: production-smoke-results
           if-no-files-found: ignore
           retention-days: 7
