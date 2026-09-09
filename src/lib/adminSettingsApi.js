@@ -165,6 +165,39 @@ export const adminSettingsApi = {
     return data.publicUrl;
   },
 
+  async uploadStickerAsset(file, stickerId) {
+    if (!file) throw new Error("Choose a transparent sticker file to upload.");
+    const allowedTypes = ["image/png", "image/webp"];
+    if (!allowedTypes.includes(String(file.type || ""))) {
+      throw new Error("Sticker artwork supports transparent PNG or WEBP files.");
+    }
+    if (Number(file.size || 0) > 8 * 1024 * 1024) {
+      throw new Error("Sticker artwork must be 8 MB or smaller.");
+    }
+
+    const safeSticker = String(stickerId || "sticker").replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+    const safeName = String(file.name || "sticker")
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const unique = typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+    const path = `custom-studio/stickers/${safeSticker}/${Date.now()}-${unique}-${safeName || "sticker"}`;
+
+    const { error } = await supabase.storage
+      .from("product-images")
+      .upload(path, file, {
+        upsert: false,
+        cacheControl: "3600",
+        contentType: file.type || undefined,
+      });
+    if (error) throw error;
+
+    const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error("Could not create a public sticker artwork URL.");
+    return data.publicUrl;
+  },
+
   async saveCustomStudioSettings(settings) {
     const { error } = await supabase
       .from("store_settings")
