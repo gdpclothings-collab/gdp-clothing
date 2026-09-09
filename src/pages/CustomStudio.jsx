@@ -668,7 +668,7 @@ async function prepareImageForUpload(file, preserveOriginal = false) {
   return { file: optimized, width: outputWidth, height: outputHeight };
 }
 
-async function removeLightBackground(file, threshold = 238) {
+async function removePhotoBackground(file) {
   if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
     throw new Error("Automatic background cleanup supports PNG, JPG and WEBP photos.");
   }
@@ -686,9 +686,9 @@ async function removeLightBackground(file, threshold = 238) {
     const height = Number(image.naturalHeight || 0);
     if (!width || !height) throw new Error("Photo dimensions could not be detected.");
 
-    const sampleScale = Math.min(1, 1000 / Math.max(width, height));
-    const sampleWidth = Math.max(1, Math.round(width * sampleScale));
-    const sampleHeight = Math.max(1, Math.round(height * sampleScale));
+    const sampleScale = Math.min(1, 760 / Math.max(width, height));
+    const sampleWidth = Math.max(2, Math.round(width * sampleScale));
+    const sampleHeight = Math.max(2, Math.round(height * sampleScale));
     const sampleCanvas = document.createElement("canvas");
     sampleCanvas.width = sampleWidth;
     sampleCanvas.height = sampleHeight;
@@ -697,46 +697,96 @@ async function removeLightBackground(file, threshold = 238) {
     sampleContext.drawImage(image, 0, 0, sampleWidth, sampleHeight);
     const samplePixels = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight).data;
 
-    const isLightSample = (pixelIndex) => {
-      const offset = pixelIndex * 4;
-      return samplePixels[offset + 3] > 8 &&
-        samplePixels[offset] >= threshold &&
-        samplePixels[offset + 1] >= threshold &&
-        samplePixels[offset + 2] >= threshold;
+    const rgbAt = (index) => {
+      const offset = index * 4;
+      return [samplePixels[offset], samplePixels[offset + 1], samplePixels[offset + 2]];
+    };
+    const colorDistance = (a, b) => {
+      const dr = a[0] - b[0];
+      const dg = a[1] - b[1];
+      const db = a[2] - b[2];
+      return Math.sqrt(dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11);
+    };
+    const lightness = (rgb) => rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114;
+
+    const borderPalette = [];
+    const strideX = Math.max(1, Math.floor(sampleWidth / 28));
+    const strideY = Math.max(1, Math.floor(sampleHeight / 28));
+    for (let x = 0; x < sampleWidth; x += strideX) {
+      borderPalette.push(rgbAt(x));
+      borderPalette.push(rgbAt((sampleHeight - 1) * sampleWidth + x));
+    }
+    for (let y = 0; y < sampleHeight; y += strideY) {
+      borderPalette.push(rgbAt(y * sampleWidth));
+      borderPalette.push(rgbAt(y * sampleWidth + sampleWidth - 1));
+    }
+
+    const paletteDistance = (rgb) => {
+      let best = Infinity;
+      for (const sample of borderPalette) {
+        best = Math.min(best, colorDistance(rgb, sample));
+        if (best < 10) break;
+      }
+      return best;
     };
 
     const mask = new Uint8Array(sampleWidth * sampleHeight);
     const queue = new Uint32Array(sampleWidth * sampleHeight);
     let head = 0;
     let tail = 0;
-    const enqueue = (index) => {
-      if (index < 0 || index >= mask.length || mask[index] || !isLightSample(index)) return;
+    const seed = (index) => {
+      if (index < 0 || index >= mask.length || mask[index]) return;
       mask[index] = 1;
-      queue[tail] = index;
-      tail += 1;
+      queue[tail++] = index;
     };
 
     for (let x = 0; x < sampleWidth; x += 1) {
-      enqueue(x);
-      enqueue((sampleHeight - 1) * sampleWidth + x);
+      seed(x);
+      seed((sampleHeight - 1) * sampleWidth + x);
     }
-    for (let y = 0; y < sampleHeight; y += 1) {
-      enqueue(y * sampleWidth);
-      enqueue(y * sampleWidth + sampleWidth - 1);
+    for (let y = 1; y < sampleHeight - 1; y += 1) {
+      seed(y * sampleWidth);
+      seed(y * sampleWidth + sampleWidth - 1);
     }
+
+    const canJoinBackground = (fromIndex, nextIndex) => {
+      if (nextIndex < 0 || nextIndex >= mask.length || mask[nextIndex]) return false;
+      const from = rgbAt(fromIndex);
+      const next = rgbAt(nextIndex);
+      const localDistance = colorDistance(from, next);
+      const nextLight = lightness(next);
+      const fromLight = lightness(from);
+      const borderDistance = paletteDistance(next);
+
+      // Strong subject edges stop the flood. Background gradients and room
+      // colors can still connect to the border palette, unlike the previous
+      // light-background-only cleanup.
+      if (localDistance <= 24 && borderDistance <= 105) return true;
+      if (localDistance <= 15 && borderDistance <= 135) return true;
+      if (nextLight >= 235 && fromLight >= 205) return true;
+      return false;
+    };
 
     while (head < tail) {
-      const index = queue[head];
-      head += 1;
+      const index = queue[head++];
       const x = index % sampleWidth;
       const y = Math.floor(index / sampleWidth);
-      if (x > 0) enqueue(index - 1);
-      if (x + 1 < sampleWidth) enqueue(index + 1);
-      if (y > 0) enqueue(index - sampleWidth);
-      if (y + 1 < sampleHeight) enqueue(index + sampleWidth);
+      const neighbors = [];
+      if (x > 0) neighbors.push(index - 1);
+      if (x + 1 < sampleWidth) neighbors.push(index + 1);
+      if (y > 0) neighbors.push(index - sampleWidth);
+      if (y + 1 < sampleHeight) neighbors.push(index + sampleWidth);
+      for (const neighbor of neighbors) {
+        if (!canJoinBackground(index, neighbor)) continue;
+        mask[neighbor] = 1;
+        queue[tail++] = neighbor;
+      }
     }
 
-    if (!tail) throw new Error("No safe light background was detected, so the original photo was preserved.");
+    const removedRatio = tail / Math.max(1, mask.length);
+    if (removedRatio < 0.04 || removedRatio > 0.92) {
+      throw new Error("Automatic background cleanup was not confident enough, so the original photo was preserved.");
+    }
 
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -746,28 +796,38 @@ async function removeLightBackground(file, threshold = 238) {
     context.drawImage(image, 0, 0);
     const imageData = context.getImageData(0, 0, width, height);
     const pixels = imageData.data;
-    const edgeThreshold = Math.max(205, threshold - 8);
     let removed = 0;
+
+    const sampleMaskAt = (sx, sy) => {
+      const x = Math.min(sampleWidth - 1, Math.max(0, sx));
+      const y = Math.min(sampleHeight - 1, Math.max(0, sy));
+      return mask[y * sampleWidth + x] === 1;
+    };
 
     for (let y = 0; y < height; y += 1) {
       const sampleY = Math.min(sampleHeight - 1, Math.floor((y / height) * sampleHeight));
       for (let x = 0; x < width; x += 1) {
         const sampleX = Math.min(sampleWidth - 1, Math.floor((x / width) * sampleWidth));
         const offset = (y * width + x) * 4;
-        if (
-          mask[sampleY * sampleWidth + sampleX] &&
-          pixels[offset] >= edgeThreshold &&
-          pixels[offset + 1] >= edgeThreshold &&
-          pixels[offset + 2] >= edgeThreshold
-        ) {
+        if (sampleMaskAt(sampleX, sampleY)) {
           pixels[offset + 3] = 0;
           removed += 1;
+          continue;
         }
+
+        // Feather one sample-pixel around the cutout instead of leaving a
+        // visibly harsh halo on the garment preview.
+        const touchesBackground =
+          sampleMaskAt(sampleX - 1, sampleY) ||
+          sampleMaskAt(sampleX + 1, sampleY) ||
+          sampleMaskAt(sampleX, sampleY - 1) ||
+          sampleMaskAt(sampleX, sampleY + 1);
+        if (touchesBackground) pixels[offset + 3] = Math.min(pixels[offset + 3], 190);
       }
     }
 
-    if (removed < Math.max(24, width * height * 0.005)) {
-      throw new Error("Background cleanup was not confident enough, so the original photo was preserved.");
+    if (removed < Math.max(24, width * height * 0.03)) {
+      throw new Error("Automatic background cleanup was not confident enough, so the original photo was preserved.");
     }
 
     context.putImageData(imageData, 0, 0);
@@ -779,7 +839,6 @@ async function removeLightBackground(file, threshold = 238) {
     URL.revokeObjectURL(sourceUrl);
   }
 }
-
 async function uploadWithRetry(file, attempts = 2) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -1251,7 +1310,7 @@ export default function CustomStudio() {
 
           if (designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false) {
             try {
-              const cleanedFile = await removeLightBackground(prepared.file, 238);
+              const cleanedFile = await removePhotoBackground(prepared.file);
               cleanedPrepared = await prepareImageForUpload(cleanedFile, true);
               cleanedUpload = await uploadWithRetry(cleanedPrepared.file);
               activeUpload = cleanedUpload;
