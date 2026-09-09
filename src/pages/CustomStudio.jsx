@@ -1597,7 +1597,7 @@ export default function CustomStudio() {
           </div>}
           {step === 3 && <div>
             <StepTitle eyebrow="Build and personalize in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE LOCKED ARTWORK & CUSTOMIZE"} text={designPath === "upload" ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result." : "Choose a protected GDP layout. The template stays locked while your photo and text remain fully editable."} />
-            {designPath !== "upload" && <>}
+            {designPath !== "upload" && <>
             <div className="grid md:grid-cols-2 gap-3">
               {matchingStyleOptions.map((style) => <button key={style.id} onClick={() => chooseStyleTemplate(style)} className={"grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
                 <div className="min-w-0">
