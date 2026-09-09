@@ -2143,6 +2143,7 @@ export default function CustomStudio() {
                 personalization={personalization}
                 editorLayers={editorLayers}
                 stickerLibrary={stickerLibrary}
+                photoAssets={photos}
                 selectedEditorLayerId={selectedEditorLayerId}
                 onSelectEditorLayer={setSelectedEditorLayerId}
                 onPatchEditorLayer={patchEditorLayer}
@@ -2179,7 +2180,7 @@ export default function CustomStudio() {
                   </div>
                 </div>
 
-                {previewArtworkPhoto && activeSideHasPrint && <div className="mt-4 space-y-3">
+                {previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && <div className="mt-4 space-y-3">
                   {photos.length > 1 && <div>
                     <div className="font-mono text-[9px] uppercase text-[#756f67]">Artwork photo</div>
                     <select
@@ -2219,6 +2220,7 @@ export default function CustomStudio() {
                   enabledTools={editorTools}
                   stickerLibrary={stickerLibrary}
                   editorLayers={editorLayers}
+                  photoAssets={photos}
                   selectedLayerId={selectedEditorLayerId}
                   onSelectLayer={setSelectedEditorLayerId}
                   onAddText={addTextLayer}
@@ -2235,8 +2237,9 @@ export default function CustomStudio() {
                   onOpenPhotoEditor={() => setPhotoBrushOpen(true)}
                   onResetPhoto={resetActivePhoto}
                   onDeletePhoto={deleteActivePhoto}
+                  onTogglePhotoBackground={togglePhotoBackgroundById}
                   onResetAll={resetAllEditable}
-                  hasPhoto={Boolean(previewArtworkPhoto)}
+                  hasPhoto={Boolean(selectedPhotoAsset)}
                   templateName={designPath === "bootleg" ? activeStyleTemplate?.name || "" : ""}
                   outsideWarning={editorOutsideWarning}
                 />}
@@ -2370,6 +2373,7 @@ export default function CustomStudio() {
               personalization={personalization}
               editorLayers={editorLayers}
               stickerLibrary={stickerLibrary}
+              photoAssets={photos}
               interactiveEditor={false}
               zoom={1}
               artworkScale={Number(state.scale ?? 92)}
@@ -2390,7 +2394,7 @@ export default function CustomStudio() {
 
         <PhotoBrushEditor
           open={photoBrushOpen}
-          photo={previewArtworkPhoto}
+          photo={selectedPhotoAsset}
           tools={editorTools}
           onClose={() => setPhotoBrushOpen(false)}
           onApply={applyPhotoBrushEdit}
@@ -2409,7 +2413,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
+              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} photoAssets={photos} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
             </div>
           </div>
         </div>}
@@ -2449,7 +2453,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
   const dragRef = useRef(null);
   const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
@@ -2463,9 +2467,10 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     String(personalization?.quote || "").trim() ||
     String(personalization?.message || "").trim()
   );
-  // The selected GDP style is itself printable artwork, so it should appear
-  // immediately in the garment preview even before the customer uploads a photo.
-  const canDrag = Boolean(photo && !blankArtwork && setArtworkOffset);
+  // Bootleg photos are independent editable layers. The legacy artwork drag
+  // remains only for Upload My Own Artwork and older saved designs.
+  const hasEditablePhotoLayers = editorLayers.some((layer) => layer?.type === "photo" && layer?.visible !== false);
+  const canDrag = Boolean(photo && !hasEditablePhotoLayers && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
   const frontMockupUrl =
@@ -2679,7 +2684,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                 />
               )}
 
-              {photo ? (
+              {photo && !hasEditablePhotoLayers ? (
                 artworkFitMode === "crop" ? (
                   <div className="absolute inset-0 z-20 pointer-events-none" style={artworkLayerStyle}>
                     <img
@@ -2731,6 +2736,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
           {!seasonalOverlay && !blankArtwork && <EditableOverlayLayers
             layers={editorLayers}
             stickerLibrary={stickerLibrary}
+            photoAssets={photoAssets}
             interactive={interactiveEditor}
             selectedLayerId={selectedEditorLayerId}
             onSelectLayer={onSelectEditorLayer}
