@@ -1186,6 +1186,24 @@ export default function CustomStudio() {
   const activeSideHasPrint =
     (previewSide === "front" && placement !== "back") ||
     (previewSide === "back" && placement !== "front");
+  const activePhotoIndex = photos.length
+    ? Math.min(Math.max(0, Number(activeArtworkState.sourcePhotoIndex || 0)), photos.length - 1)
+    : -1;
+  const selectedEditorLayer = editorLayers.find((layer) => layer.id === selectedEditorLayerId) || null;
+  const editorOutsideWarning = selectedEditorLayer
+    ? (
+        Number(selectedEditorLayer.x || 50) < 7 ||
+        Number(selectedEditorLayer.x || 50) > 93 ||
+        Number(selectedEditorLayer.y || 50) < 7 ||
+        Number(selectedEditorLayer.y || 50) > 93
+          ? "Part of your design is outside the printable area. Reposition it before approval."
+          : ""
+      )
+    : (
+        previewArtworkPhoto && (Math.abs(Number(artworkOffset.x || 0)) > 34 || Math.abs(Number(artworkOffset.y || 0)) > 34 || artworkScale > 132)
+          ? "Part of your design may be outside the printable area. Reposition or resize it before approval."
+          : ""
+      );
 
   const resetPreviewPlacement = () => {
     setArtworkStates((current) => ({
@@ -1231,7 +1249,7 @@ export default function CustomStudio() {
           let cleanedUpload = null;
           let cleanedPrepared = null;
 
-          if (designPath === "bootleg") {
+          if (designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false) {
             try {
               const cleanedFile = await removeLightBackground(prepared.file, 238);
               cleanedPrepared = await prepareImageForUpload(cleanedFile, true);
@@ -1259,7 +1277,7 @@ export default function CustomStudio() {
             cleanedWidth: cleanedPrepared?.width || 0,
             cleanedHeight: cleanedPrepared?.height || 0,
             backgroundRemoved: Boolean(cleanedUpload),
-            autoBackgroundRemoval: designPath === "bootleg"
+            autoBackgroundRemoval: designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false
           };
         } catch (error) {
           errors.push(error?.message || ("Upload failed for " + original.name + "."));
@@ -1315,6 +1333,47 @@ export default function CustomStudio() {
         back: adjustSourceIndex(current.back),
       };
     });
+  };
+
+  const applyPhotoBrushEdit = async ({ file, width, height }) => {
+    if (activePhotoIndex < 0 || !file) return;
+    const uploaded = await customerApi.uploadArtwork(file);
+    setPhotos((current) => current.map((photo, index) => index === activePhotoIndex ? {
+      ...photo,
+      url: uploaded.file_url,
+      path: uploaded.storage_path,
+      editedUrl: uploaded.file_url,
+      editedPath: uploaded.storage_path,
+      editedWidth: Number(width || photo.width || 0),
+      editedHeight: Number(height || photo.height || 0),
+      width: Number(width || photo.width || 0),
+      height: Number(height || photo.height || 0),
+      quality: qualityFor(Number(width || photo.width || 0), Number(height || photo.height || 0)),
+    } : photo));
+  };
+
+  const resetActivePhoto = () => {
+    if (activePhotoIndex < 0) return;
+    checkpointEditor();
+    setPhotos((current) => current.map((photo, index) => {
+      if (index !== activePhotoIndex) return photo;
+      const useCleaned = Boolean(photo.backgroundRemoved && photo.cleanedUrl);
+      return {
+        ...photo,
+        url: useCleaned ? photo.cleanedUrl : (photo.originalUrl || photo.url),
+        path: useCleaned ? photo.cleanedPath : (photo.originalPath || photo.path),
+        width: useCleaned ? photo.cleanedWidth : (photo.originalWidth || photo.width),
+        height: useCleaned ? photo.cleanedHeight : (photo.originalHeight || photo.height),
+      };
+    }));
+    resetPreviewPlacement();
+  };
+
+  const deleteActivePhoto = () => {
+    if (activePhotoIndex < 0) return;
+    checkpointEditor();
+    removePhoto(activePhotoIndex);
+    setSelectedEditorLayerId("photo");
   };
 
   const addGroupGarment = () => setGroupGarments(prev => [...prev, { size, color, quantity: 1 }]);
