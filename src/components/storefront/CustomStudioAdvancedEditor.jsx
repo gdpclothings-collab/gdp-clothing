@@ -193,7 +193,7 @@ export function EditableOverlayLayers({
           top: clamp(layer.y, 0, 100) + "%",
           transform: `translate(-50%, -50%) rotate(${Number(layer.rotation || 0)}deg)`,
           transformOrigin: "center center",
-          zIndex: 30 + index,
+          zIndex: (layer.type === "photo" ? 20 : layer.type === "text" ? 40 : 50) + index,
           cursor: interactive ? "move" : "default",
           pointerEvents: interactive ? "auto" : "none",
           touchAction: "none",
