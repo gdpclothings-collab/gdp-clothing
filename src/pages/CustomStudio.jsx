@@ -1458,6 +1458,8 @@ export default function CustomStudio() {
         placement,
         garment: { id: productId, variantId: selectedVariant?.id || null, color, size },
         personalization,
+        editableLayers: editorLayers.map((layer) => ({ ...layer })),
+        stickerLibrary: stickerLibrary.map((item) => ({ ...item })),
         artworkBySide: {
           front: { ...artworkStates.front, photoPath: frontArtworkPhoto?.path || null },
           back: { ...artworkStates.back, photoPath: backArtworkPhoto?.path || null },
@@ -1515,8 +1517,10 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 6,
+            version: 7,
             side: previewSide,
+            editableLayers: editorLayers.map((layer) => ({ ...layer })),
+            stickerLibrary: stickerLibrary.map((item) => ({ ...item })),
             styleTemplateId: activeStyleTemplate?.id || null,
             styleTemplateAssetUrl: activeStyleTemplate?.assetUrl || "",
             styleTemplatePhotoZone: activeStyleTemplate?.photoZone || null,
