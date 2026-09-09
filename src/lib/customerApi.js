@@ -295,6 +295,14 @@ export const customerApi = {
     return { file_url: signedUrl, storage_path: path };
   },
 
+  async removePhotoBackground(file) {
+    const form = new FormData();
+    form.append("photo", file, file.name || "photo");
+    const { data, error } = await supabase.functions.invoke("remove-photo-background", { body: form });
+    if (error) throw new Error(await functionErrorMessage(error, "Background removal failed. Please retry."));
+    return data || { ok: false, retryable: true, message: "Background removal failed. Please retry." };
+  },
+
   async createCustomDesign(data) {
     // The Edge Function is the single authority for account-versus-guest
     // ownership. The Supabase client forwards any active session token.

@@ -1328,23 +1328,34 @@ export default function CustomStudio() {
         const original = valid[index];
         try {
           const prepared = await prepareImageForUpload(original, designPath === "upload");
-          const originalUpload = await uploadWithRetry(prepared.file);
-          let activeUpload = originalUpload;
+          let originalUpload = null;
+          let activeUpload = null;
           let activePrepared = prepared;
           let cleanedUpload = null;
           let cleanedPrepared = null;
+          let removalMessage = "";
 
           if (designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false) {
             try {
-              const cleanedFile = await removePhotoBackground(prepared.file);
-              cleanedPrepared = await prepareImageForUpload(cleanedFile, true);
-              cleanedUpload = await uploadWithRetry(cleanedPrepared.file);
-              activeUpload = cleanedUpload;
-              activePrepared = cleanedPrepared;
-            } catch {
-              // Conservative cleanup intentionally falls back to the untouched source.
+              const processed = await customerApi.removePhotoBackground(prepared.file);
+              originalUpload = processed?.originalPath
+                ? { file_url: processed.originalUrl, storage_path: processed.originalPath }
+                : null;
+              if (processed?.ok && processed?.cleanedUrl && processed?.cleanedPath) {
+                cleanedUpload = { file_url: processed.cleanedUrl, storage_path: processed.cleanedPath };
+                cleanedPrepared = { file: prepared.file, width: prepared.width, height: prepared.height };
+                activeUpload = cleanedUpload;
+                activePrepared = cleanedPrepared;
+              } else {
+                removalMessage = processed?.message || "Background removal failed. Please retry.";
+              }
+            } catch (error) {
+              removalMessage = error?.message || "Background removal failed. Please retry.";
             }
           }
+
+          if (!originalUpload) originalUpload = await uploadWithRetry(prepared.file);
+          if (!activeUpload) activeUpload = originalUpload;
 
           results[index] = {
             id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `photo-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
@@ -1363,7 +1374,10 @@ export default function CustomStudio() {
             cleanedWidth: cleanedPrepared?.width || 0,
             cleanedHeight: cleanedPrepared?.height || 0,
             backgroundRemoved: Boolean(cleanedUpload),
-            autoBackgroundRemoval: designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false
+            autoBackgroundRemoval: designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false,
+            processingStatus: cleanedUpload ? "removed" : (removalMessage ? "failed" : "original"),
+            processingMessage: removalMessage,
+            sourceFile: prepared.file,
           };
         } catch (error) {
           errors.push(error?.message || ("Upload failed for " + original.name + "."));
@@ -1384,7 +1398,10 @@ export default function CustomStudio() {
     });
     if (designPath === "bootleg" && uploadedPhotos.length) {
       const photoLayerStart = editorLayers.filter((layer) => layer.type === "photo").length;
-      const nextPhotoLayers = uploadedPhotos.map((photo, index) => createPhotoLayer(photo, photoLayerStart + index));
+      // A failed AI result remains available for retry/manual refinement but is
+      // never placed on the garment with its rectangular original background.
+      const readyPhotos = uploadedPhotos.filter((photo) => photo.processingStatus !== "failed");
+      const nextPhotoLayers = readyPhotos.map((photo, index) => createPhotoLayer(photo, photoLayerStart + index));
       setEditorLayers((current) => [...current, ...nextPhotoLayers]);
       setSelectedEditorLayerId(nextPhotoLayers[0]?.id || "photo");
     }
@@ -1416,6 +1433,44 @@ export default function CustomStudio() {
   const togglePhotoBackgroundById = photoId => {
     const index = photos.findIndex((photo) => String(photo?.id || "") === String(photoId || ""));
     if (index >= 0) togglePhotoBackground(index);
+  };
+  const retryPhotoBackground = async (index) => {
+    const photo = photos[index];
+    if (!photo?.sourceFile || photo.processingStatus === "processing") return;
+    setPhotos((current) => current.map((item, i) => i === index ? { ...item, processingStatus: "processing", processingMessage: "" } : item));
+    try {
+      const processed = await customerApi.removePhotoBackground(photo.sourceFile);
+      if (!processed?.ok || !processed?.cleanedUrl || !processed?.cleanedPath) {
+        throw new Error(processed?.message || "Background removal failed. Please retry.");
+      }
+      const updated = {
+        ...photo,
+        url: processed.cleanedUrl,
+        path: processed.cleanedPath,
+        originalUrl: processed.originalUrl || photo.originalUrl,
+        originalPath: processed.originalPath || photo.originalPath,
+        cleanedUrl: processed.cleanedUrl,
+        cleanedPath: processed.cleanedPath,
+        cleanedWidth: photo.originalWidth || photo.width,
+        cleanedHeight: photo.originalHeight || photo.height,
+        backgroundRemoved: true,
+        processingStatus: "removed",
+        processingMessage: "",
+      };
+      checkpointEditor();
+      setPhotos((current) => current.map((item, i) => i === index ? updated : item));
+      if (!editorLayers.some((layer) => layer.type === "photo" && String(layer.photoId) === String(photo.id))) {
+        const layer = createPhotoLayer(updated, editorLayers.filter((item) => item.type === "photo").length);
+        setEditorLayers((current) => [...current, layer]);
+        setSelectedEditorLayerId(layer.id);
+      }
+    } catch (error) {
+      setPhotos((current) => current.map((item, i) => i === index ? {
+        ...item,
+        processingStatus: "failed",
+        processingMessage: error?.message || "Background removal failed. Please retry.",
+      } : item));
+    }
   };
   const removePhoto = index => {
     if (index < 0 || index >= photos.length) return;
@@ -2068,7 +2123,7 @@ export default function CustomStudio() {
             </label>
             {warn && <div className="mt-3 bg-destructive/10 text-destructive px-3 py-2 text-sm flex items-center gap-2"><AlertTriangle size={15}/>{warn}</div>}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
-              {photos.map((photo,index) => <PhotoCard key={photo.originalUrl || photo.url} photo={photo} onPrimary={() => setPrimary(index)} onRemove={() => removePhoto(index)} onToggleBackground={() => togglePhotoBackground(index)} />)}
+              {photos.map((photo,index) => <PhotoCard key={photo.id || photo.originalUrl || photo.url} photo={photo} onPrimary={() => setPrimary(index)} onRemove={() => removePhoto(index)} onToggleBackground={() => togglePhotoBackground(index)} onRetry={() => retryPhotoBackground(index)} />)}
             </div>
             <div className="font-mono text-xs text-muted-foreground mt-3">{photos.length}/{maxPhotos} photos</div>
 
@@ -2909,7 +2964,7 @@ function GroupRow({ item, product, onChange, onRemove }) {
     <button type="button" onClick={onRemove} className="rounded-lg border border-border hover:bg-[#f4f1ec]" aria-label="Remove garment"><X size={14} className="mx-auto"/></button>
   </div>;
 }
-function PhotoCard({ photo, onPrimary, onRemove, onToggleBackground }) {
+function PhotoCard({ photo, onPrimary, onRemove, onToggleBackground, onRetry }) {
   const qClass = photo.quality === "excellent" ? "text-green-600" : photo.quality === "usable" ? "text-amber-600" : "text-destructive";
   const qLabel = photo.quality === "excellent" ? "Great quality" : photo.quality === "usable" ? "May look slightly soft" : "Low resolution";
   return <div className="rounded-2xl border border-[#ddd6cc] bg-white relative overflow-hidden shadow-sm">
@@ -2919,7 +2974,9 @@ function PhotoCard({ photo, onPrimary, onRemove, onToggleBackground }) {
     <div className="p-3">
       <button onClick={onPrimary} className={"text-[9px] uppercase font-mono flex items-center gap-1 " + (photo.isPrimary ? "text-accent" : "text-[#7c766e]")}><Star size={12} className={photo.isPrimary ? "fill-accent" : ""}/>{photo.isPrimary ? "Primary photo" : "Make primary"}</button>
       {photo.cleanedUrl && <button type="button" onClick={onToggleBackground} className="mt-2 text-[9px] font-bold uppercase text-[#17324D] hover:text-accent">{photo.backgroundRemoved ? "Restore original background" : "Use removed background"}</button>}
-      {photo.autoBackgroundRemoval && !photo.cleanedUrl && <div className="mt-2 text-[9px] leading-relaxed text-[#7a746c]">Original preserved — automatic cleanup did not find a safe removable light background.</div>}
+      {photo.processingStatus === "processing" && <div className="mt-2 text-[9px] font-bold uppercase text-[#17324D]">Removing background…</div>}
+      {photo.processingStatus === "removed" && <div className="mt-2 text-[9px] font-bold uppercase text-green-700">Background removed ✓</div>}
+      {photo.processingStatus === "failed" && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[9px] leading-relaxed text-amber-900"><div>{photo.processingMessage || "Background removal failed. The rectangular original was not placed on the garment."}</div><button type="button" onClick={onRetry} className="mt-1 font-bold uppercase underline">Retry removal</button><span className="mx-1">·</span><span>Use Refine manually to erase/restore.</span></div>}
       <div className={"mt-1.5 text-[9px] uppercase font-mono " + qClass}>{qLabel}</div>
       <div className="text-[9px] text-[#8a847c]">{photo.width}×{photo.height}</div>
     </div>
