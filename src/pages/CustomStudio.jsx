@@ -845,6 +845,12 @@ export default function CustomStudio() {
   const [placement, setPlacement] = useState("front");
   const [groupGarments, setGroupGarments] = useState([]);
   const [photos, setPhotos] = useState([]);
+  const [editorLayers, setEditorLayers] = useState([]);
+  const [selectedEditorLayerId, setSelectedEditorLayerId] = useState("photo");
+  const [photoBrushOpen, setPhotoBrushOpen] = useState(false);
+  const editorHistoryRef = useRef([]);
+  const editorRedoRef = useRef([]);
+  const [editorHistoryVersion, setEditorHistoryVersion] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [warn, setWarn] = useState("");
@@ -904,6 +910,98 @@ export default function CustomStudio() {
   const activeStyleTemplate = designStyle ?
     (designPath === "upload" ? null : styleTemplateForName(designStyle, studioSettings.styleTemplates))
     : null;
+  const editorTools = normalizeEditorTools(studioSettings.editorTools);
+  const stickerLibrary = normalizeStickerLibrary(studioSettings.stickerLibrary);
+
+  const currentEditorSnapshot = () => ({
+    layers: JSON.parse(JSON.stringify(editorLayers || [])),
+    artworkStates: JSON.parse(JSON.stringify(artworkStates || defaultArtworkStates(activeStyleTemplate))),
+  });
+  const checkpointEditor = () => {
+    editorHistoryRef.current = [...editorHistoryRef.current, currentEditorSnapshot()].slice(-40);
+    editorRedoRef.current = [];
+    setEditorHistoryVersion((value) => value + 1);
+  };
+  const restoreEditorSnapshot = (snapshot) => {
+    if (!snapshot) return;
+    setEditorLayers(Array.isArray(snapshot.layers) ? snapshot.layers : []);
+    setArtworkStates(snapshot.artworkStates || defaultArtworkStates(activeStyleTemplate));
+    setSelectedEditorLayerId("photo");
+  };
+  const undoEditor = () => {
+    const previous = editorHistoryRef.current.pop();
+    if (!previous) return;
+    editorRedoRef.current.push(currentEditorSnapshot());
+    restoreEditorSnapshot(previous);
+    setEditorHistoryVersion((value) => value + 1);
+  };
+  const redoEditor = () => {
+    const next = editorRedoRef.current.pop();
+    if (!next) return;
+    editorHistoryRef.current.push(currentEditorSnapshot());
+    restoreEditorSnapshot(next);
+    setEditorHistoryVersion((value) => value + 1);
+  };
+  const patchEditorLayer = (layerId, patch, options = {}) => {
+    if (!layerId || !patch) return;
+    if (options.history !== false) checkpointEditor();
+    setEditorLayers((current) => current.map((layer) => layer.id === layerId ? { ...layer, ...patch } : layer));
+  };
+  const addTextLayer = () => {
+    checkpointEditor();
+    const layer = createTextLayer();
+    setEditorLayers((current) => [...current, layer]);
+    setSelectedEditorLayerId(layer.id);
+  };
+  const addStickerLayer = (sticker) => {
+    checkpointEditor();
+    const layer = createStickerLayer(sticker);
+    setEditorLayers((current) => [...current, layer]);
+    setSelectedEditorLayerId(layer.id);
+  };
+  const duplicateEditorLayer = (layerId) => {
+    const source = editorLayers.find((layer) => layer.id === layerId);
+    if (!source) return;
+    checkpointEditor();
+    const duplicate = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    Object.assign(duplicate, source, { id: duplicate.id, x: Math.min(96, Number(source.x || 50) + 4), y: Math.min(96, Number(source.y || 50) + 4) });
+    setEditorLayers((current) => [...current, duplicate]);
+    setSelectedEditorLayerId(duplicate.id);
+  };
+  const deleteEditorLayer = (layerId) => {
+    if (!editorLayers.some((layer) => layer.id === layerId)) return;
+    checkpointEditor();
+    setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));
+    setSelectedEditorLayerId("photo");
+  };
+  const moveEditorLayer = (layerId, direction) => {
+    const index = editorLayers.findIndex((layer) => layer.id === layerId);
+    if (index < 0) return;
+    const target = Math.min(editorLayers.length - 1, Math.max(0, index + Number(direction || 0)));
+    if (target === index) return;
+    checkpointEditor();
+    setEditorLayers((current) => {
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(target, 0, item);
+      return next;
+    });
+  };
+  const resetEditorLayer = (layerId) => {
+    const source = editorLayers.find((layer) => layer.id === layerId);
+    if (!source) return;
+    checkpointEditor();
+    const reset = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    reset.id = source.id;
+    setEditorLayers((current) => current.map((layer) => layer.id === layerId ? reset : layer));
+  };
+  const resetAllEditable = () => {
+    checkpointEditor();
+    setEditorLayers([]);
+    setArtworkStates(defaultArtworkStates(activeStyleTemplate));
+    setPreviewZoom(1);
+    setSelectedEditorLayerId("photo");
+  };
 
   useEffect(() => {
     if (step > 1) setShowOrderGuide(false);
