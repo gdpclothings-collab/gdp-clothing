@@ -540,6 +540,8 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
       const file = new File([blob], String(photo?.name || "photo").replace(/\.[^.]+$/, "") + "-edited.png", { type: "image/png", lastModified: Date.now() });
       await onApply({ file, width: canvas.width, height: canvas.height });
       onClose?.();
+    } catch (error) {
+      window.alert(error?.message || "Could not apply the edited photo. Your current photo is unchanged.");
     } finally {
       setApplying(false);
     }
