@@ -2,6 +2,15 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
+import {
+  AdvancedEditorPanel,
+  EditableOverlayLayers,
+  PhotoBrushEditor,
+  createStickerLayer,
+  createTextLayer,
+  normalizeEditorTools,
+  normalizeStickerLibrary,
+} from "@/components/storefront/CustomStudioAdvancedEditor";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
@@ -50,6 +59,15 @@ const DEFAULT_STUDIO_SETTINGS = {
   frontBackEnabled: true,
   frontBackFee: 10,
   styleTemplates: {},
+  editorTools: {
+    erase: true,
+    restore: true,
+    stickers: true,
+    text: true,
+    freeStretch: true,
+    autoBackgroundRemoval: true,
+  },
+  stickerLibrary: [],
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -68,6 +86,8 @@ function normalizeStudioSettings(settings = {}) {
     ...(settings || {}),
     intensityExamples: normalizeIntensityExamples(settings?.intensityExamples),
     styleTemplates: settings?.styleTemplates && typeof settings.styleTemplates === "object" ? settings.styleTemplates : {},
+    editorTools: normalizeEditorTools(settings?.editorTools),
+    stickerLibrary: normalizeStickerLibrary(settings?.stickerLibrary),
   };
 }
 
@@ -825,6 +845,12 @@ export default function CustomStudio() {
   const [placement, setPlacement] = useState("front");
   const [groupGarments, setGroupGarments] = useState([]);
   const [photos, setPhotos] = useState([]);
+  const [editorLayers, setEditorLayers] = useState([]);
+  const [selectedEditorLayerId, setSelectedEditorLayerId] = useState("photo");
+  const [photoBrushOpen, setPhotoBrushOpen] = useState(false);
+  const editorHistoryRef = useRef([]);
+  const editorRedoRef = useRef([]);
+  const [editorHistoryVersion, setEditorHistoryVersion] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [warn, setWarn] = useState("");
@@ -884,6 +910,98 @@ export default function CustomStudio() {
   const activeStyleTemplate = designStyle ?
     (designPath === "upload" ? null : styleTemplateForName(designStyle, studioSettings.styleTemplates))
     : null;
+  const editorTools = normalizeEditorTools(studioSettings.editorTools);
+  const stickerLibrary = normalizeStickerLibrary(studioSettings.stickerLibrary);
+
+  const currentEditorSnapshot = () => ({
+    layers: JSON.parse(JSON.stringify(editorLayers || [])),
+    artworkStates: JSON.parse(JSON.stringify(artworkStates || defaultArtworkStates(activeStyleTemplate))),
+  });
+  const checkpointEditor = () => {
+    editorHistoryRef.current = [...editorHistoryRef.current, currentEditorSnapshot()].slice(-40);
+    editorRedoRef.current = [];
+    setEditorHistoryVersion((value) => value + 1);
+  };
+  const restoreEditorSnapshot = (snapshot) => {
+    if (!snapshot) return;
+    setEditorLayers(Array.isArray(snapshot.layers) ? snapshot.layers : []);
+    setArtworkStates(snapshot.artworkStates || defaultArtworkStates(activeStyleTemplate));
+    setSelectedEditorLayerId("photo");
+  };
+  const undoEditor = () => {
+    const previous = editorHistoryRef.current.pop();
+    if (!previous) return;
+    editorRedoRef.current.push(currentEditorSnapshot());
+    restoreEditorSnapshot(previous);
+    setEditorHistoryVersion((value) => value + 1);
+  };
+  const redoEditor = () => {
+    const next = editorRedoRef.current.pop();
+    if (!next) return;
+    editorHistoryRef.current.push(currentEditorSnapshot());
+    restoreEditorSnapshot(next);
+    setEditorHistoryVersion((value) => value + 1);
+  };
+  const patchEditorLayer = (layerId, patch, options = {}) => {
+    if (!layerId || !patch) return;
+    if (options.history !== false) checkpointEditor();
+    setEditorLayers((current) => current.map((layer) => layer.id === layerId ? { ...layer, ...patch } : layer));
+  };
+  const addTextLayer = () => {
+    checkpointEditor();
+    const layer = createTextLayer();
+    setEditorLayers((current) => [...current, layer]);
+    setSelectedEditorLayerId(layer.id);
+  };
+  const addStickerLayer = (sticker) => {
+    checkpointEditor();
+    const layer = createStickerLayer(sticker);
+    setEditorLayers((current) => [...current, layer]);
+    setSelectedEditorLayerId(layer.id);
+  };
+  const duplicateEditorLayer = (layerId) => {
+    const source = editorLayers.find((layer) => layer.id === layerId);
+    if (!source) return;
+    checkpointEditor();
+    const duplicate = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    Object.assign(duplicate, source, { id: duplicate.id, x: Math.min(96, Number(source.x || 50) + 4), y: Math.min(96, Number(source.y || 50) + 4) });
+    setEditorLayers((current) => [...current, duplicate]);
+    setSelectedEditorLayerId(duplicate.id);
+  };
+  const deleteEditorLayer = (layerId) => {
+    if (!editorLayers.some((layer) => layer.id === layerId)) return;
+    checkpointEditor();
+    setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));
+    setSelectedEditorLayerId("photo");
+  };
+  const moveEditorLayer = (layerId, direction) => {
+    const index = editorLayers.findIndex((layer) => layer.id === layerId);
+    if (index < 0) return;
+    const target = Math.min(editorLayers.length - 1, Math.max(0, index + Number(direction || 0)));
+    if (target === index) return;
+    checkpointEditor();
+    setEditorLayers((current) => {
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(target, 0, item);
+      return next;
+    });
+  };
+  const resetEditorLayer = (layerId) => {
+    const source = editorLayers.find((layer) => layer.id === layerId);
+    if (!source) return;
+    checkpointEditor();
+    const reset = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    reset.id = source.id;
+    setEditorLayers((current) => current.map((layer) => layer.id === layerId ? reset : layer));
+  };
+  const resetAllEditable = () => {
+    checkpointEditor();
+    setEditorLayers([]);
+    setArtworkStates(defaultArtworkStates(activeStyleTemplate));
+    setPreviewZoom(1);
+    setSelectedEditorLayerId("photo");
+  };
 
   useEffect(() => {
     if (step > 1) setShowOrderGuide(false);
@@ -998,7 +1116,7 @@ export default function CustomStudio() {
     ? configuredStyleOptions
     : styleTemplates.filter((style) => style.enabled);
   const matchingStyleOptions = designPath === "bootleg"
-    ? styleOptions.filter((style) => ["classic-90s", "y2k", "vintage-wash", "sports-hype", "love-story", "pet-legend", "minimal"].includes(style.id))
+    ? styleOptions.filter((style) => style.category === "photo_bootleg" && style.locked !== false)
     : styleOptions;
   const chooseStyleTemplate = (style) => {
     if (!style) return;
@@ -1068,6 +1186,24 @@ export default function CustomStudio() {
   const activeSideHasPrint =
     (previewSide === "front" && placement !== "back") ||
     (previewSide === "back" && placement !== "front");
+  const activePhotoIndex = photos.length
+    ? Math.min(Math.max(0, Number(activeArtworkState.sourcePhotoIndex || 0)), photos.length - 1)
+    : -1;
+  const selectedEditorLayer = editorLayers.find((layer) => layer.id === selectedEditorLayerId) || null;
+  const editorOutsideWarning = selectedEditorLayer
+    ? (
+        Number(selectedEditorLayer.x || 50) < 7 ||
+        Number(selectedEditorLayer.x || 50) > 93 ||
+        Number(selectedEditorLayer.y || 50) < 7 ||
+        Number(selectedEditorLayer.y || 50) > 93
+          ? "Part of your design is outside the printable area. Reposition it before approval."
+          : ""
+      )
+    : (
+        previewArtworkPhoto && (Math.abs(Number(artworkOffset.x || 0)) > 34 || Math.abs(Number(artworkOffset.y || 0)) > 34 || artworkScale > 132)
+          ? "Part of your design may be outside the printable area. Reposition or resize it before approval."
+          : ""
+      );
 
   const resetPreviewPlacement = () => {
     setArtworkStates((current) => ({
@@ -1113,7 +1249,7 @@ export default function CustomStudio() {
           let cleanedUpload = null;
           let cleanedPrepared = null;
 
-          if (designPath === "bootleg") {
+          if (designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false) {
             try {
               const cleanedFile = await removeLightBackground(prepared.file, 238);
               cleanedPrepared = await prepareImageForUpload(cleanedFile, true);
@@ -1141,7 +1277,7 @@ export default function CustomStudio() {
             cleanedWidth: cleanedPrepared?.width || 0,
             cleanedHeight: cleanedPrepared?.height || 0,
             backgroundRemoved: Boolean(cleanedUpload),
-            autoBackgroundRemoval: designPath === "bootleg"
+            autoBackgroundRemoval: designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false
           };
         } catch (error) {
           errors.push(error?.message || ("Upload failed for " + original.name + "."));
@@ -1197,6 +1333,47 @@ export default function CustomStudio() {
         back: adjustSourceIndex(current.back),
       };
     });
+  };
+
+  const applyPhotoBrushEdit = async ({ file, width, height }) => {
+    if (activePhotoIndex < 0 || !file) return;
+    const uploaded = await customerApi.uploadArtwork(file);
+    setPhotos((current) => current.map((photo, index) => index === activePhotoIndex ? {
+      ...photo,
+      url: uploaded.file_url,
+      path: uploaded.storage_path,
+      editedUrl: uploaded.file_url,
+      editedPath: uploaded.storage_path,
+      editedWidth: Number(width || photo.width || 0),
+      editedHeight: Number(height || photo.height || 0),
+      width: Number(width || photo.width || 0),
+      height: Number(height || photo.height || 0),
+      quality: qualityFor(Number(width || photo.width || 0), Number(height || photo.height || 0)),
+    } : photo));
+  };
+
+  const resetActivePhoto = () => {
+    if (activePhotoIndex < 0) return;
+    checkpointEditor();
+    setPhotos((current) => current.map((photo, index) => {
+      if (index !== activePhotoIndex) return photo;
+      const useCleaned = Boolean(photo.backgroundRemoved && photo.cleanedUrl);
+      return {
+        ...photo,
+        url: useCleaned ? photo.cleanedUrl : (photo.originalUrl || photo.url),
+        path: useCleaned ? photo.cleanedPath : (photo.originalPath || photo.path),
+        width: useCleaned ? photo.cleanedWidth : (photo.originalWidth || photo.width),
+        height: useCleaned ? photo.cleanedHeight : (photo.originalHeight || photo.height),
+      };
+    }));
+    resetPreviewPlacement();
+  };
+
+  const deleteActivePhoto = () => {
+    if (activePhotoIndex < 0) return;
+    checkpointEditor();
+    removePhoto(activePhotoIndex);
+    setSelectedEditorLayerId("photo");
   };
 
   const addGroupGarment = () => setGroupGarments(prev => [...prev, { size, color, quantity: 1 }]);
@@ -1281,6 +1458,8 @@ export default function CustomStudio() {
         placement,
         garment: { id: productId, variantId: selectedVariant?.id || null, color, size },
         personalization,
+        editableLayers: editorLayers.map((layer) => ({ ...layer })),
+        stickerLibrary: stickerLibrary.map((item) => ({ ...item })),
         artworkBySide: {
           front: { ...artworkStates.front, photoPath: frontArtworkPhoto?.path || null },
           back: { ...artworkStates.back, photoPath: backArtworkPhoto?.path || null },
@@ -1338,8 +1517,10 @@ export default function CustomStudio() {
         personalization: {
           ...personalization,
           previewState: {
-            version: 6,
+            version: 7,
             side: previewSide,
+            editableLayers: editorLayers.map((layer) => ({ ...layer })),
+            stickerLibrary: stickerLibrary.map((item) => ({ ...item })),
             styleTemplateId: activeStyleTemplate?.id || null,
             styleTemplateAssetUrl: activeStyleTemplate?.assetUrl || "",
             styleTemplatePhotoZone: activeStyleTemplate?.photoZone || null,
@@ -1855,6 +2036,14 @@ export default function CustomStudio() {
                 photo={previewArtworkPhoto}
                 uploading={uploading}
                 personalization={personalization}
+                editorLayers={editorLayers}
+                stickerLibrary={stickerLibrary}
+                selectedEditorLayerId={selectedEditorLayerId}
+                onSelectEditorLayer={setSelectedEditorLayerId}
+                onPatchEditorLayer={patchEditorLayer}
+                onEditorDragStart={checkpointEditor}
+                interactiveEditor={step === 3}
+                onArtworkDragStart={checkpointEditor}
                 zoom={previewZoom}
                 setZoom={setPreviewZoom}
                 artworkScale={artworkScale}
@@ -1890,7 +2079,7 @@ export default function CustomStudio() {
                     <div className="font-mono text-[9px] uppercase text-[#756f67]">Artwork photo</div>
                     <select
                       value={Number(activeArtworkState.sourcePhotoIndex || 0)}
-                      onChange={(e) => setArtworkSourcePhotoIndex(Number(e.target.value))}
+                      onChange={(e) => { checkpointEditor(); setArtworkSourcePhotoIndex(Number(e.target.value)); }}
                       className="mt-1 w-full rounded-lg border border-[#DCE3EA] bg-white px-2.5 py-2 text-xs text-[#44515D]"
                     >
                       {photos.map((photo, index) => <option key={photo.url || index} value={index}>{index + 1}. {photo.name || "Uploaded photo"}</option>)}
@@ -1898,35 +2087,61 @@ export default function CustomStudio() {
                   </div>}
                   <div>
                     <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Design size</span><span>{artworkScale}%</span></div>
-                    <input type="range" min="55" max="145" value={artworkScale} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
+                    <input type="range" min="55" max="180" value={artworkScale} onPointerDown={checkpointEditor} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
                     <div className="mt-2 inline-flex rounded-lg border border-[#DCE3EA] bg-[#F4F7FA] p-1">
-                      <button type="button" onClick={() => setArtworkFitMode("fit")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fit" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
-                      <button type="button" onClick={() => setArtworkFitMode("crop")} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop to fill</button>
+                      <button type="button" onClick={() => { checkpointEditor(); setArtworkFitMode("fit"); }} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fit" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
+                      <button type="button" onClick={() => { checkpointEditor(); setArtworkFitMode("crop"); }} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop to fill</button>
                     </div>
                     {artworkFitMode === "crop" && <p className="mt-2 text-[10px] leading-relaxed text-[#8A5A48]">Crop to Fill intentionally trims image edges to fill the artwork box. Use Fit · No Crop to keep the complete image visible.</p>}
-                    {designPath === "upload" && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-3">
-                      <button type="button" onClick={() => setArtworkConstrainRatio(!artworkConstrainRatio)} className="inline-flex items-center gap-2 text-[10px] font-bold uppercase text-[#17324D]">
+                    {designPath === "upload" && editorTools.freeStretch !== false && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-3">
+                      <button type="button" onClick={() => { checkpointEditor(); setArtworkConstrainRatio(!artworkConstrainRatio); }} className="inline-flex items-center gap-2 text-[10px] font-bold uppercase text-[#17324D]">
                         {artworkConstrainRatio ? <Lock size={13}/> : <Unlock size={13}/>} {artworkConstrainRatio ? "Constrain aspect ratio" : "Free stretch enabled"}
                       </button>
                       <p className="mt-1 text-[9px] leading-relaxed text-[#6C7883]">{artworkConstrainRatio ? "Recommended: resizing keeps the original proportions." : "Advanced: width and height can be stretched independently."}</p>
                       {!artworkConstrainRatio && <div className="mt-3 grid grid-cols-2 gap-3">
-                        <label className="text-[9px] font-mono uppercase text-[#756f67]">Width {artworkStretchX}%<input type="range" min="60" max="160" value={artworkStretchX} onChange={e => setArtworkStretchX(Number(e.target.value))} className="mt-1 w-full accent-[#17324D]" /></label>
-                        <label className="text-[9px] font-mono uppercase text-[#756f67]">Height {artworkStretchY}%<input type="range" min="60" max="160" value={artworkStretchY} onChange={e => setArtworkStretchY(Number(e.target.value))} className="mt-1 w-full accent-[#17324D]" /></label>
+                        <label className="text-[9px] font-mono uppercase text-[#756f67]">Width {artworkStretchX}%<input type="range" min="60" max="160" value={artworkStretchX} onPointerDown={checkpointEditor} onChange={e => setArtworkStretchX(Number(e.target.value))} className="mt-1 w-full accent-[#17324D]" /></label>
+                        <label className="text-[9px] font-mono uppercase text-[#756f67]">Height {artworkStretchY}%<input type="range" min="60" max="160" value={artworkStretchY} onPointerDown={checkpointEditor} onChange={e => setArtworkStretchY(Number(e.target.value))} className="mt-1 w-full accent-[#17324D]" /></label>
                       </div>}
                     </div>}
                   </div>
                   <div>
                     <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Rotation</span><span>{artworkRotation}°</span></div>
-                    <input type="range" min="-12" max="12" value={artworkRotation} onChange={e => setArtworkRotation(Number(e.target.value))} className="w-full accent-[#d9273e]" />
+                    <input type="range" min="-180" max="180" value={artworkRotation} onPointerDown={checkpointEditor} onChange={e => setArtworkRotation(Number(e.target.value))} className="w-full accent-[#d9273e]" />
                   </div>
                 </div>}
+
+                {step === 3 && activeSideHasPrint && <AdvancedEditorPanel
+                  enabledTools={editorTools}
+                  stickerLibrary={stickerLibrary}
+                  editorLayers={editorLayers}
+                  selectedLayerId={selectedEditorLayerId}
+                  onSelectLayer={setSelectedEditorLayerId}
+                  onAddText={addTextLayer}
+                  onAddSticker={addStickerLayer}
+                  onPatchLayer={patchEditorLayer}
+                  onDuplicateLayer={duplicateEditorLayer}
+                  onDeleteLayer={deleteEditorLayer}
+                  onMoveLayer={moveEditorLayer}
+                  onResetLayer={resetEditorLayer}
+                  onUndo={undoEditor}
+                  onRedo={redoEditor}
+                  canUndo={editorHistoryVersion >= 0 && editorHistoryRef.current.length > 0}
+                  canRedo={editorHistoryVersion >= 0 && editorRedoRef.current.length > 0}
+                  onOpenPhotoEditor={() => setPhotoBrushOpen(true)}
+                  onResetPhoto={resetActivePhoto}
+                  onDeletePhoto={deleteActivePhoto}
+                  onResetAll={resetAllEditable}
+                  hasPhoto={Boolean(previewArtworkPhoto)}
+                  templateName={designPath === "bootleg" ? activeStyleTemplate?.name || "" : ""}
+                  outsideWarning={editorOutsideWarning}
+                />}
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
                     <button type="button" onClick={() => setShowMeasurements(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}</button>
                   </div>
-                  <button type="button" onClick={resetPreviewPlacement} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
+                  <button type="button" onClick={() => { checkpointEditor(); resetPreviewPlacement(); }} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
                 </div>
                 <p className="mt-2 text-[10px] font-mono uppercase tracking-wide text-[#8f887f]">Recommended print zone updates after you choose a garment and size.</p>
                 <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">{designPath === "bootleg" ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
@@ -2048,8 +2263,13 @@ export default function CustomStudio() {
               placement={placement}
               photo={side === "front" ? frontArtworkPhoto : backArtworkPhoto}
               personalization={personalization}
+              editorLayers={editorLayers}
+              stickerLibrary={stickerLibrary}
+              interactiveEditor={false}
               zoom={1}
               artworkScale={Number(state.scale ?? 92)}
+              artworkStretchX={Number(state.stretchX ?? 100)}
+              artworkStretchY={Number(state.stretchY ?? 100)}
               artworkRotation={Number(state.rotation ?? 0)}
               artworkOffset={state.offset || { x: 0, y: 0 }}
               artworkFitMode={state.fitMode || "fit"}
@@ -2062,6 +2282,14 @@ export default function CustomStudio() {
             />;
           })}
         </div>
+
+        <PhotoBrushEditor
+          open={photoBrushOpen}
+          photo={previewArtworkPhoto}
+          tools={editorTools}
+          onClose={() => setPhotoBrushOpen(false)}
+          onApply={applyPhotoBrushEdit}
+        />
 
         {fullscreenPreview && <div className="fixed inset-0 z-[90] bg-[#111]/95 backdrop-blur-sm p-3 md:p-7">
           <div className="h-full max-w-5xl mx-auto rounded-[28px] overflow-hidden bg-[#f4efe7] border border-white/10 flex flex-col">
@@ -2076,7 +2304,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
+              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
             </div>
           </div>
         </div>}
@@ -2116,7 +2344,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
   const dragRef = useRef(null);
   const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
@@ -2229,6 +2457,8 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
   const onPointerDown = (event) => {
     if (!canDrag) return;
     event.preventDefault();
+    onSelectEditorLayer?.("photo");
+    onArtworkDragStart?.();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const rect = event.currentTarget.getBoundingClientRect();
     dragRef.current = { x: event.clientX, y: event.clientY, startX: artworkOffset.x, startY: artworkOffset.y, width: rect.width, height: rect.height };
@@ -2339,7 +2569,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                   src={template.assetUrl}
                   alt={template.name + " locked artwork"}
                   draggable="false"
-                  className="absolute inset-0 z-10 h-full w-full object-fill pointer-events-none transition-[filter,opacity] duration-200"
+                  className="absolute inset-0 z-10 h-full w-full object-contain pointer-events-none transition-[filter,opacity] duration-200"
                   style={{ filter: moodTreatment.templateFilter }}
                 />
               )}
@@ -2389,8 +2619,19 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                   </div>
                 </div>
               )}
+
             </>
           ))}
+
+          {!seasonalOverlay && !blankArtwork && <EditableOverlayLayers
+            layers={editorLayers}
+            stickerLibrary={stickerLibrary}
+            interactive={interactiveEditor}
+            selectedLayerId={selectedEditorLayerId}
+            onSelectLayer={onSelectEditorLayer}
+            onPatchLayer={onPatchEditorLayer}
+            onDragStart={onEditorDragStart}
+          />}
         </div>
       </div>
     </div>
