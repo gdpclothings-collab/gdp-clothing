@@ -1402,7 +1402,7 @@ export default function CustomStudio() {
         designPath,
         designMood,
         placement,
-        occasion: occasion || designPath,
+        occasion: designPath,
         needByDate,
         priority,
         proofRequired: false,
