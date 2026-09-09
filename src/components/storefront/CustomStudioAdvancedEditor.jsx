@@ -106,6 +106,22 @@ export function createStickerLayer(sticker) {
   };
 }
 
+export function createPhotoLayer(photo, index = 0) {
+  const offset = (Number(index || 0) % 5) - 2;
+  return {
+    id: uid("photo"),
+    type: "photo",
+    photoId: String(photo?.id || ""),
+    x: clamp(50 + offset * 7, 12, 88),
+    y: clamp(50 + (Number(index || 0) % 2 ? 4 : -4), 12, 88),
+    size: 62,
+    rotation: 0,
+    opacity: 1,
+    fitMode: "fit",
+    visible: true,
+  };
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number(value || 0)));
 }
@@ -113,6 +129,7 @@ function clamp(value, min, max) {
 export function EditableOverlayLayers({
   layers = [],
   stickerLibrary = [],
+  photoAssets = [],
   interactive = false,
   selectedLayerId = "",
   onSelectLayer = null,
@@ -123,6 +140,10 @@ export function EditableOverlayLayers({
   const stickers = useMemo(
     () => Object.fromEntries(normalizeStickerLibrary(stickerLibrary).map((item) => [item.id, item])),
     [stickerLibrary]
+  );
+  const photosById = useMemo(
+    () => Object.fromEntries((photoAssets || []).filter((item) => item?.id).map((item) => [String(item.id), item])),
+    [photoAssets]
   );
 
   const startDrag = (event, layer) => {
@@ -172,11 +193,46 @@ export function EditableOverlayLayers({
           top: clamp(layer.y, 0, 100) + "%",
           transform: `translate(-50%, -50%) rotate(${Number(layer.rotation || 0)}deg)`,
           transformOrigin: "center center",
-          zIndex: 30 + index,
+          zIndex: (layer.type === "photo" ? 20 : layer.type === "text" ? 40 : 50) + index,
           cursor: interactive ? "move" : "default",
           pointerEvents: interactive ? "auto" : "none",
           touchAction: "none",
         });
+
+        if (layer.type === "photo") {
+          const asset = photosById[String(layer.photoId || "")] || null;
+          if (!asset?.url) return null;
+          const cropMode = layer.fitMode === "crop";
+          return (
+            <div
+              key={layer.id}
+              data-editor-layer={layer.id}
+              style={{
+                ...baseStyle,
+                width: clamp(layer.size || 62, 10, 180) + "%",
+                opacity: clamp(layer.opacity ?? 1, 0.1, 1),
+                outline: selected ? "1px dashed rgba(255,255,255,.95)" : "none",
+                outlineOffset: selected ? "4px" : "0",
+              }}
+              onPointerDown={(event) => startDrag(event, layer)}
+              onPointerMove={moveDrag}
+              onPointerUp={stopDrag}
+              onPointerCancel={stopDrag}
+            >
+              <div
+                className={cropMode ? "aspect-[4/5] w-full overflow-hidden" : "w-full"}
+                style={cropMode ? { borderRadius: "2%" } : undefined}
+              >
+                <img
+                  src={asset.url}
+                  alt={asset.name || "Customer photo"}
+                  draggable="false"
+                  className={cropMode ? "h-full w-full select-none object-cover pointer-events-none" : "h-auto w-full select-none object-contain pointer-events-none"}
+                />
+              </div>
+            </div>
+          );
+        }
 
         if (layer.type === "text") {
           return (
@@ -242,6 +298,7 @@ export function AdvancedEditorPanel({
   enabledTools = DEFAULT_EDITOR_TOOLS,
   stickerLibrary = DEFAULT_STICKER_LIBRARY,
   editorLayers = [],
+  photoAssets = [],
   selectedLayerId = "photo",
   onSelectLayer,
   onAddText,
@@ -258,6 +315,7 @@ export function AdvancedEditorPanel({
   onOpenPhotoEditor,
   onResetPhoto,
   onDeletePhoto,
+  onTogglePhotoBackground,
   onResetAll,
   hasPhoto,
   templateName,
@@ -266,7 +324,10 @@ export function AdvancedEditorPanel({
   const tools = normalizeEditorTools(enabledTools);
   const stickers = normalizeStickerLibrary(stickerLibrary).filter((item) => item.enabled !== false);
   const selectedLayer = editorLayers.find((layer) => layer.id === selectedLayerId) || null;
-  const photoSelected = selectedLayerId === "photo" || !selectedLayer;
+  const selectedPhotoAsset = selectedLayer?.type === "photo"
+    ? (photoAssets || []).find((photo) => String(photo?.id || "") === String(selectedLayer.photoId || "")) || null
+    : null;
+  const photoSelected = selectedLayer?.type === "photo" || selectedLayerId === "photo" || !selectedLayer;
   const patch = (value) => selectedLayer && onPatchLayer?.(selectedLayer.id, value);
 
   return (
@@ -288,18 +349,44 @@ export function AdvancedEditorPanel({
       </div>}
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <button type="button" onClick={() => onSelectLayer?.("photo")} className={"rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (photoSelected ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>Photo</button>
-        {editorLayers.map((layer) => <button key={layer.id} type="button" onClick={() => onSelectLayer?.(layer.id)} className={"max-w-[120px] truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (selectedLayerId === layer.id ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>{layer.type === "text" ? layer.text || "Text" : "Sticker"}</button>)}
+        {!editorLayers.some((layer) => layer.type === "photo") && <button type="button" onClick={() => onSelectLayer?.("photo")} className={"rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (photoSelected ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>Photo</button>}
+        {editorLayers.map((layer) => {
+          const asset = layer.type === "photo"
+            ? (photoAssets || []).find((photo) => String(photo?.id || "") === String(layer.photoId || ""))
+            : null;
+          const label = layer.type === "text"
+            ? (layer.text || "Text")
+            : layer.type === "photo"
+              ? (asset?.name || "Photo")
+              : "Sticker";
+          return <button key={layer.id} type="button" onClick={() => onSelectLayer?.(layer.id)} className={"max-w-[120px] truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (selectedLayerId === layer.id ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>{label}</button>;
+        })}
       </div>
 
       {outsideWarning && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-semibold text-amber-800">{outsideWarning}</div>}
 
       {photoSelected ? (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {(tools.erase || tools.restore) && <button type="button" disabled={!hasPhoto} onClick={onOpenPhotoEditor} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><Eraser size={13}/> Erase / Restore</button>}
-          <button type="button" disabled={!hasPhoto} onClick={onResetPhoto} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><RotateCcw size={13}/> Reset photo</button>
-          <button type="button" disabled={!hasPhoto} onClick={onDeletePhoto} className="rounded-xl border border-[#E4C9CC] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#A63D4A] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><Trash2 size={13}/> Delete photo</button>
-          <button type="button" onClick={onResetAll} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/> Reset editable</button>
+        <div className="mt-3 space-y-3">
+          {selectedLayer?.type === "photo" && <>
+            <RangeRow label="Photo size" value={selectedLayer.size} min={10} max={180} suffix="%" onChange={(value) => patch({ size: value })}/>
+            <RangeRow label="Rotation" value={selectedLayer.rotation} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[9px] font-mono uppercase text-[#6C7883]">X position<input type="range" min="0" max="100" value={selectedLayer.x} onChange={(event) => patch({ x: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
+              <label className="text-[9px] font-mono uppercase text-[#6C7883]">Y position<input type="range" min="0" max="100" value={selectedLayer.y} onChange={(event) => patch({ y: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
+            </div>
+            <div className="inline-flex rounded-lg border border-[#D5DDE4] bg-white p-1">
+              <button type="button" onClick={() => patch({ fitMode: "fit" })} className={"rounded-md px-3 py-1.5 text-[9px] font-bold uppercase " + (selectedLayer.fitMode !== "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
+              <button type="button" onClick={() => patch({ fitMode: "crop" })} className={"rounded-md px-3 py-1.5 text-[9px] font-bold uppercase " + (selectedLayer.fitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop 4:5</button>
+            </div>
+          </>}
+          <div className="grid grid-cols-2 gap-2">
+            {(tools.erase || tools.restore) && <button type="button" disabled={!hasPhoto} onClick={onOpenPhotoEditor} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><Eraser size={13}/> Erase / Restore</button>}
+            {selectedPhotoAsset?.cleanedUrl && <button type="button" onClick={() => onTogglePhotoBackground?.(selectedPhotoAsset.id)} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/>{selectedPhotoAsset.backgroundRemoved ? "Restore background" : "Remove background"}</button>}
+            <button type="button" disabled={!hasPhoto} onClick={onResetPhoto} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><RotateCcw size={13}/> Reset photo</button>
+            <button type="button" disabled={!hasPhoto} onClick={onDeletePhoto} className="rounded-xl border border-[#E4C9CC] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#A63D4A] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><Trash2 size={13}/> Delete photo</button>
+            <button type="button" onClick={onResetAll} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/> Reset editable</button>
+          </div>
+          {selectedLayer?.type === "photo" && <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>}
         </div>
       ) : selectedLayer?.type === "text" ? (
         <div className="mt-3 space-y-3">

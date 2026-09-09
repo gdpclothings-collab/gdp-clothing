@@ -6,6 +6,7 @@ import {
   AdvancedEditorPanel,
   EditableOverlayLayers,
   PhotoBrushEditor,
+  createPhotoLayer,
   createStickerLayer,
   createTextLayer,
   normalizeEditorTools,
@@ -668,7 +669,7 @@ async function prepareImageForUpload(file, preserveOriginal = false) {
   return { file: optimized, width: outputWidth, height: outputHeight };
 }
 
-async function removeLightBackground(file, threshold = 238) {
+async function removePhotoBackground(file) {
   if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
     throw new Error("Automatic background cleanup supports PNG, JPG and WEBP photos.");
   }
@@ -686,9 +687,9 @@ async function removeLightBackground(file, threshold = 238) {
     const height = Number(image.naturalHeight || 0);
     if (!width || !height) throw new Error("Photo dimensions could not be detected.");
 
-    const sampleScale = Math.min(1, 1000 / Math.max(width, height));
-    const sampleWidth = Math.max(1, Math.round(width * sampleScale));
-    const sampleHeight = Math.max(1, Math.round(height * sampleScale));
+    const sampleScale = Math.min(1, 760 / Math.max(width, height));
+    const sampleWidth = Math.max(2, Math.round(width * sampleScale));
+    const sampleHeight = Math.max(2, Math.round(height * sampleScale));
     const sampleCanvas = document.createElement("canvas");
     sampleCanvas.width = sampleWidth;
     sampleCanvas.height = sampleHeight;
@@ -697,46 +698,96 @@ async function removeLightBackground(file, threshold = 238) {
     sampleContext.drawImage(image, 0, 0, sampleWidth, sampleHeight);
     const samplePixels = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight).data;
 
-    const isLightSample = (pixelIndex) => {
-      const offset = pixelIndex * 4;
-      return samplePixels[offset + 3] > 8 &&
-        samplePixels[offset] >= threshold &&
-        samplePixels[offset + 1] >= threshold &&
-        samplePixels[offset + 2] >= threshold;
+    const rgbAt = (index) => {
+      const offset = index * 4;
+      return [samplePixels[offset], samplePixels[offset + 1], samplePixels[offset + 2]];
+    };
+    const colorDistance = (a, b) => {
+      const dr = a[0] - b[0];
+      const dg = a[1] - b[1];
+      const db = a[2] - b[2];
+      return Math.sqrt(dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11);
+    };
+    const lightness = (rgb) => rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114;
+
+    const borderPalette = [];
+    const strideX = Math.max(1, Math.floor(sampleWidth / 28));
+    const strideY = Math.max(1, Math.floor(sampleHeight / 28));
+    for (let x = 0; x < sampleWidth; x += strideX) {
+      borderPalette.push(rgbAt(x));
+      borderPalette.push(rgbAt((sampleHeight - 1) * sampleWidth + x));
+    }
+    for (let y = 0; y < sampleHeight; y += strideY) {
+      borderPalette.push(rgbAt(y * sampleWidth));
+      borderPalette.push(rgbAt(y * sampleWidth + sampleWidth - 1));
+    }
+
+    const paletteDistance = (rgb) => {
+      let best = Infinity;
+      for (const sample of borderPalette) {
+        best = Math.min(best, colorDistance(rgb, sample));
+        if (best < 10) break;
+      }
+      return best;
     };
 
     const mask = new Uint8Array(sampleWidth * sampleHeight);
     const queue = new Uint32Array(sampleWidth * sampleHeight);
     let head = 0;
     let tail = 0;
-    const enqueue = (index) => {
-      if (index < 0 || index >= mask.length || mask[index] || !isLightSample(index)) return;
+    const seed = (index) => {
+      if (index < 0 || index >= mask.length || mask[index]) return;
       mask[index] = 1;
-      queue[tail] = index;
-      tail += 1;
+      queue[tail++] = index;
     };
 
     for (let x = 0; x < sampleWidth; x += 1) {
-      enqueue(x);
-      enqueue((sampleHeight - 1) * sampleWidth + x);
+      seed(x);
+      seed((sampleHeight - 1) * sampleWidth + x);
     }
-    for (let y = 0; y < sampleHeight; y += 1) {
-      enqueue(y * sampleWidth);
-      enqueue(y * sampleWidth + sampleWidth - 1);
+    for (let y = 1; y < sampleHeight - 1; y += 1) {
+      seed(y * sampleWidth);
+      seed(y * sampleWidth + sampleWidth - 1);
     }
+
+    const canJoinBackground = (fromIndex, nextIndex) => {
+      if (nextIndex < 0 || nextIndex >= mask.length || mask[nextIndex]) return false;
+      const from = rgbAt(fromIndex);
+      const next = rgbAt(nextIndex);
+      const localDistance = colorDistance(from, next);
+      const nextLight = lightness(next);
+      const fromLight = lightness(from);
+      const borderDistance = paletteDistance(next);
+
+      // Strong subject edges stop the flood. Background gradients and room
+      // colors can still connect to the border palette, unlike the previous
+      // light-background-only cleanup.
+      if (localDistance <= 24 && borderDistance <= 105) return true;
+      if (localDistance <= 15 && borderDistance <= 135) return true;
+      if (nextLight >= 235 && fromLight >= 205) return true;
+      return false;
+    };
 
     while (head < tail) {
-      const index = queue[head];
-      head += 1;
+      const index = queue[head++];
       const x = index % sampleWidth;
       const y = Math.floor(index / sampleWidth);
-      if (x > 0) enqueue(index - 1);
-      if (x + 1 < sampleWidth) enqueue(index + 1);
-      if (y > 0) enqueue(index - sampleWidth);
-      if (y + 1 < sampleHeight) enqueue(index + sampleWidth);
+      const neighbors = [];
+      if (x > 0) neighbors.push(index - 1);
+      if (x + 1 < sampleWidth) neighbors.push(index + 1);
+      if (y > 0) neighbors.push(index - sampleWidth);
+      if (y + 1 < sampleHeight) neighbors.push(index + sampleWidth);
+      for (const neighbor of neighbors) {
+        if (!canJoinBackground(index, neighbor)) continue;
+        mask[neighbor] = 1;
+        queue[tail++] = neighbor;
+      }
     }
 
-    if (!tail) throw new Error("No safe light background was detected, so the original photo was preserved.");
+    const removedRatio = tail / Math.max(1, mask.length);
+    if (removedRatio < 0.04 || removedRatio > 0.92) {
+      throw new Error("Automatic background cleanup was not confident enough, so the original photo was preserved.");
+    }
 
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -746,28 +797,38 @@ async function removeLightBackground(file, threshold = 238) {
     context.drawImage(image, 0, 0);
     const imageData = context.getImageData(0, 0, width, height);
     const pixels = imageData.data;
-    const edgeThreshold = Math.max(205, threshold - 8);
     let removed = 0;
+
+    const sampleMaskAt = (sx, sy) => {
+      const x = Math.min(sampleWidth - 1, Math.max(0, sx));
+      const y = Math.min(sampleHeight - 1, Math.max(0, sy));
+      return mask[y * sampleWidth + x] === 1;
+    };
 
     for (let y = 0; y < height; y += 1) {
       const sampleY = Math.min(sampleHeight - 1, Math.floor((y / height) * sampleHeight));
       for (let x = 0; x < width; x += 1) {
         const sampleX = Math.min(sampleWidth - 1, Math.floor((x / width) * sampleWidth));
         const offset = (y * width + x) * 4;
-        if (
-          mask[sampleY * sampleWidth + sampleX] &&
-          pixels[offset] >= edgeThreshold &&
-          pixels[offset + 1] >= edgeThreshold &&
-          pixels[offset + 2] >= edgeThreshold
-        ) {
+        if (sampleMaskAt(sampleX, sampleY)) {
           pixels[offset + 3] = 0;
           removed += 1;
+          continue;
         }
+
+        // Feather one sample-pixel around the cutout instead of leaving a
+        // visibly harsh halo on the garment preview.
+        const touchesBackground =
+          sampleMaskAt(sampleX - 1, sampleY) ||
+          sampleMaskAt(sampleX + 1, sampleY) ||
+          sampleMaskAt(sampleX, sampleY - 1) ||
+          sampleMaskAt(sampleX, sampleY + 1);
+        if (touchesBackground) pixels[offset + 3] = Math.min(pixels[offset + 3], 190);
       }
     }
 
-    if (removed < Math.max(24, width * height * 0.005)) {
-      throw new Error("Background cleanup was not confident enough, so the original photo was preserved.");
+    if (removed < Math.max(24, width * height * 0.03)) {
+      throw new Error("Automatic background cleanup was not confident enough, so the original photo was preserved.");
     }
 
     context.putImageData(imageData, 0, 0);
@@ -779,7 +840,6 @@ async function removeLightBackground(file, threshold = 238) {
     URL.revokeObjectURL(sourceUrl);
   }
 }
-
 async function uploadWithRetry(file, attempts = 2) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -915,6 +975,7 @@ export default function CustomStudio() {
 
   const currentEditorSnapshot = () => ({
     layers: JSON.parse(JSON.stringify(editorLayers || [])),
+    photos: JSON.parse(JSON.stringify(photos || [])),
     artworkStates: JSON.parse(JSON.stringify(artworkStates || defaultArtworkStates(activeStyleTemplate))),
   });
   const checkpointEditor = () => {
@@ -924,9 +985,11 @@ export default function CustomStudio() {
   };
   const restoreEditorSnapshot = (snapshot) => {
     if (!snapshot) return;
-    setEditorLayers(Array.isArray(snapshot.layers) ? snapshot.layers : []);
+    const nextLayers = Array.isArray(snapshot.layers) ? snapshot.layers : [];
+    setEditorLayers(nextLayers);
+    if (Array.isArray(snapshot.photos)) setPhotos(snapshot.photos);
     setArtworkStates(snapshot.artworkStates || defaultArtworkStates(activeStyleTemplate));
-    setSelectedEditorLayerId("photo");
+    setSelectedEditorLayerId(nextLayers.find((layer) => layer.type === "photo")?.id || "photo");
   };
   const undoEditor = () => {
     const previous = editorHistoryRef.current.pop();
@@ -963,7 +1026,11 @@ export default function CustomStudio() {
     const source = editorLayers.find((layer) => layer.id === layerId);
     if (!source) return;
     checkpointEditor();
-    const duplicate = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    const duplicate = source.type === "text"
+      ? createTextLayer(source.text)
+      : source.type === "photo"
+        ? createPhotoLayer(photos.find((photo) => String(photo.id || "") === String(source.photoId || "")), editorLayers.filter((layer) => layer.type === "photo").length)
+        : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
     Object.assign(duplicate, source, { id: duplicate.id, x: Math.min(96, Number(source.x || 50) + 4), y: Math.min(96, Number(source.y || 50) + 4) });
     setEditorLayers((current) => [...current, duplicate]);
     setSelectedEditorLayerId(duplicate.id);
@@ -991,16 +1058,28 @@ export default function CustomStudio() {
     const source = editorLayers.find((layer) => layer.id === layerId);
     if (!source) return;
     checkpointEditor();
-    const reset = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    const reset = source.type === "text"
+      ? createTextLayer(source.text)
+      : source.type === "photo"
+        ? createPhotoLayer(photos.find((photo) => String(photo.id || "") === String(source.photoId || "")), editorLayers.filter((layer) => layer.type === "photo").findIndex((layer) => layer.id === source.id))
+        : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
     reset.id = source.id;
     setEditorLayers((current) => current.map((layer) => layer.id === layerId ? reset : layer));
   };
   const resetAllEditable = () => {
     checkpointEditor();
-    setEditorLayers([]);
+    setEditorLayers((current) => current
+      .filter((layer) => layer.type === "photo")
+      .map((layer, index) => {
+        const photo = photos.find((item) => String(item.id || "") === String(layer.photoId || ""));
+        const reset = createPhotoLayer(photo, index);
+        reset.id = layer.id;
+        return reset;
+      }));
     setArtworkStates(defaultArtworkStates(activeStyleTemplate));
     setPreviewZoom(1);
-    setSelectedEditorLayerId("photo");
+    const firstPhotoLayer = editorLayers.find((layer) => layer.type === "photo");
+    setSelectedEditorLayerId(firstPhotoLayer?.id || "photo");
   };
 
   useEffect(() => {
@@ -1190,13 +1269,19 @@ export default function CustomStudio() {
     ? Math.min(Math.max(0, Number(activeArtworkState.sourcePhotoIndex || 0)), photos.length - 1)
     : -1;
   const selectedEditorLayer = editorLayers.find((layer) => layer.id === selectedEditorLayerId) || null;
+  const selectedPhotoLayer = selectedEditorLayer?.type === "photo" ? selectedEditorLayer : null;
+  const selectedPhotoIndex = selectedPhotoLayer
+    ? photos.findIndex((photo) => String(photo?.id || "") === String(selectedPhotoLayer.photoId || ""))
+    : activePhotoIndex;
+  const selectedPhotoAsset = selectedPhotoIndex >= 0 ? photos[selectedPhotoIndex] : previewArtworkPhoto;
   const editorOutsideWarning = selectedEditorLayer
     ? (
         Number(selectedEditorLayer.x || 50) < 7 ||
         Number(selectedEditorLayer.x || 50) > 93 ||
         Number(selectedEditorLayer.y || 50) < 7 ||
-        Number(selectedEditorLayer.y || 50) > 93
-          ? "Part of your design is outside the printable area. Reposition it before approval."
+        Number(selectedEditorLayer.y || 50) > 93 ||
+        (selectedEditorLayer.type === "photo" && Number(selectedEditorLayer.size || 62) > 135)
+          ? "Part of your design is outside the printable area. Reposition or resize it before approval."
           : ""
       )
     : (
@@ -1251,7 +1336,7 @@ export default function CustomStudio() {
 
           if (designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false) {
             try {
-              const cleanedFile = await removeLightBackground(prepared.file, 238);
+              const cleanedFile = await removePhotoBackground(prepared.file);
               cleanedPrepared = await prepareImageForUpload(cleanedFile, true);
               cleanedUpload = await uploadWithRetry(cleanedPrepared.file);
               activeUpload = cleanedUpload;
@@ -1262,6 +1347,7 @@ export default function CustomStudio() {
           }
 
           results[index] = {
+            id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `photo-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
             url: activeUpload.file_url,
             path: activeUpload.storage_path,
             name: original.name,
@@ -1291,37 +1377,62 @@ export default function CustomStudio() {
     const workerCount = window.innerWidth < 768 ? 1 : Math.min(2, valid.length);
     await Promise.all(Array.from({ length: workerCount }, () => worker()));
     const uploadedPhotos = results.filter(Boolean);
+    if (uploadedPhotos.length) checkpointEditor();
     setPhotos(prev => {
       const hadPrimary = prev.some(p => p.isPrimary);
       return [...prev, ...uploadedPhotos.map((photo, index) => ({ ...photo, isPrimary: !hadPrimary && index === 0 }))];
     });
+    if (designPath === "bootleg" && uploadedPhotos.length) {
+      const photoLayerStart = editorLayers.filter((layer) => layer.type === "photo").length;
+      const nextPhotoLayers = uploadedPhotos.map((photo, index) => createPhotoLayer(photo, photoLayerStart + index));
+      setEditorLayers((current) => [...current, ...nextPhotoLayers]);
+      setSelectedEditorLayerId(nextPhotoLayers[0]?.id || "photo");
+    }
     if (errors.length) setWarn(errors.join(" "));
     setUploading(false);
   }
 
   const setPrimary = index => setPhotos(prev => prev.map((photo, i) => ({ ...photo, isPrimary: i === index })));
-  const togglePhotoBackground = index => setPhotos(prev => prev.map((photo, i) => {
-    if (i !== index || !photo.cleanedUrl || !photo.originalUrl) return photo;
-    const useCleaned = !photo.backgroundRemoved;
-    return {
-      ...photo,
-      backgroundRemoved: useCleaned,
-      url: useCleaned ? photo.cleanedUrl : photo.originalUrl,
-      path: useCleaned ? photo.cleanedPath : photo.originalPath,
-      width: useCleaned ? photo.cleanedWidth : photo.originalWidth,
-      height: useCleaned ? photo.cleanedHeight : photo.originalHeight,
-      quality: qualityFor(
-        useCleaned ? photo.cleanedWidth : photo.originalWidth,
-        useCleaned ? photo.cleanedHeight : photo.originalHeight
-      )
-    };
-  }));
+  const togglePhotoBackground = index => {
+    if (index < 0 || !photos[index]?.cleanedUrl || !photos[index]?.originalUrl) return;
+    checkpointEditor();
+    setPhotos(prev => prev.map((photo, i) => {
+      if (i !== index || !photo.cleanedUrl || !photo.originalUrl) return photo;
+      const useCleaned = !photo.backgroundRemoved;
+      return {
+        ...photo,
+        backgroundRemoved: useCleaned,
+        url: useCleaned ? photo.cleanedUrl : photo.originalUrl,
+        path: useCleaned ? photo.cleanedPath : photo.originalPath,
+        width: useCleaned ? photo.cleanedWidth : photo.originalWidth,
+        height: useCleaned ? photo.cleanedHeight : photo.originalHeight,
+        quality: qualityFor(
+          useCleaned ? photo.cleanedWidth : photo.originalWidth,
+          useCleaned ? photo.cleanedHeight : photo.originalHeight
+        )
+      };
+    }));
+  };
+  const togglePhotoBackgroundById = photoId => {
+    const index = photos.findIndex((photo) => String(photo?.id || "") === String(photoId || ""));
+    if (index >= 0) togglePhotoBackground(index);
+  };
   const removePhoto = index => {
+    if (index < 0 || index >= photos.length) return;
+    checkpointEditor();
+    const removedPhotoId = String(photos[index]?.id || "");
     setPhotos(prev => {
       const next = prev.filter((_, i) => i !== index);
       if (next.length && !next.some(p => p.isPrimary)) next[0] = { ...next[0], isPrimary: true };
       return next;
     });
+    if (removedPhotoId) {
+      setEditorLayers((current) => current.filter((layer) => !(layer.type === "photo" && String(layer.photoId || "") === removedPhotoId)));
+      if (selectedPhotoLayer && String(selectedPhotoLayer.photoId || "") === removedPhotoId) {
+        const nextPhotoLayer = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") !== removedPhotoId);
+        setSelectedEditorLayerId(nextPhotoLayer?.id || "photo");
+      }
+    }
     setArtworkStates((current) => {
       const adjustSourceIndex = (state) => {
         const sourceIndex = Number(state?.sourcePhotoIndex || 0);
@@ -1336,9 +1447,10 @@ export default function CustomStudio() {
   };
 
   const applyPhotoBrushEdit = async ({ file, width, height }) => {
-    if (activePhotoIndex < 0 || !file) return;
+    if (selectedPhotoIndex < 0 || !file) return;
     const uploaded = await customerApi.uploadArtwork(file);
-    setPhotos((current) => current.map((photo, index) => index === activePhotoIndex ? {
+    checkpointEditor();
+    setPhotos((current) => current.map((photo, index) => index === selectedPhotoIndex ? {
       ...photo,
       url: uploaded.file_url,
       path: uploaded.storage_path,
@@ -1353,10 +1465,10 @@ export default function CustomStudio() {
   };
 
   const resetActivePhoto = () => {
-    if (activePhotoIndex < 0) return;
+    if (selectedPhotoIndex < 0) return;
     checkpointEditor();
     setPhotos((current) => current.map((photo, index) => {
-      if (index !== activePhotoIndex) return photo;
+      if (index !== selectedPhotoIndex) return photo;
       const useCleaned = Boolean(photo.backgroundRemoved && photo.cleanedUrl);
       return {
         ...photo,
@@ -1366,14 +1478,18 @@ export default function CustomStudio() {
         height: useCleaned ? photo.cleanedHeight : (photo.originalHeight || photo.height),
       };
     }));
-    resetPreviewPlacement();
+    if (selectedPhotoLayer) {
+      const reset = createPhotoLayer(photos[selectedPhotoIndex], editorLayers.filter((layer) => layer.type === "photo").findIndex((layer) => layer.id === selectedPhotoLayer.id));
+      reset.id = selectedPhotoLayer.id;
+      setEditorLayers((current) => current.map((layer) => layer.id === selectedPhotoLayer.id ? reset : layer));
+    } else {
+      resetPreviewPlacement();
+    }
   };
 
   const deleteActivePhoto = () => {
-    if (activePhotoIndex < 0) return;
-    checkpointEditor();
-    removePhoto(activePhotoIndex);
-    setSelectedEditorLayerId("photo");
+    if (selectedPhotoIndex < 0) return;
+    removePhoto(selectedPhotoIndex);
   };
 
   const addGroupGarment = () => setGroupGarments(prev => [...prev, { size, color, quantity: 1 }]);
@@ -2027,6 +2143,7 @@ export default function CustomStudio() {
                 personalization={personalization}
                 editorLayers={editorLayers}
                 stickerLibrary={stickerLibrary}
+                photoAssets={photos}
                 selectedEditorLayerId={selectedEditorLayerId}
                 onSelectEditorLayer={setSelectedEditorLayerId}
                 onPatchEditorLayer={patchEditorLayer}
@@ -2063,7 +2180,7 @@ export default function CustomStudio() {
                   </div>
                 </div>
 
-                {previewArtworkPhoto && activeSideHasPrint && <div className="mt-4 space-y-3">
+                {previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && <div className="mt-4 space-y-3">
                   {photos.length > 1 && <div>
                     <div className="font-mono text-[9px] uppercase text-[#756f67]">Artwork photo</div>
                     <select
@@ -2103,6 +2220,7 @@ export default function CustomStudio() {
                   enabledTools={editorTools}
                   stickerLibrary={stickerLibrary}
                   editorLayers={editorLayers}
+                  photoAssets={photos}
                   selectedLayerId={selectedEditorLayerId}
                   onSelectLayer={setSelectedEditorLayerId}
                   onAddText={addTextLayer}
@@ -2119,8 +2237,9 @@ export default function CustomStudio() {
                   onOpenPhotoEditor={() => setPhotoBrushOpen(true)}
                   onResetPhoto={resetActivePhoto}
                   onDeletePhoto={deleteActivePhoto}
+                  onTogglePhotoBackground={togglePhotoBackgroundById}
                   onResetAll={resetAllEditable}
-                  hasPhoto={Boolean(previewArtworkPhoto)}
+                  hasPhoto={Boolean(selectedPhotoAsset)}
                   templateName={designPath === "bootleg" ? activeStyleTemplate?.name || "" : ""}
                   outsideWarning={editorOutsideWarning}
                 />}
@@ -2254,6 +2373,7 @@ export default function CustomStudio() {
               personalization={personalization}
               editorLayers={editorLayers}
               stickerLibrary={stickerLibrary}
+              photoAssets={photos}
               interactiveEditor={false}
               zoom={1}
               artworkScale={Number(state.scale ?? 92)}
@@ -2274,7 +2394,7 @@ export default function CustomStudio() {
 
         <PhotoBrushEditor
           open={photoBrushOpen}
-          photo={previewArtworkPhoto}
+          photo={selectedPhotoAsset}
           tools={editorTools}
           onClose={() => setPhotoBrushOpen(false)}
           onApply={applyPhotoBrushEdit}
@@ -2293,7 +2413,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
+              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} photoAssets={photos} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
             </div>
           </div>
         </div>}
@@ -2333,7 +2453,7 @@ function clampPreview(value) {
   return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
   const dragRef = useRef(null);
   const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
@@ -2347,9 +2467,10 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     String(personalization?.quote || "").trim() ||
     String(personalization?.message || "").trim()
   );
-  // The selected GDP style is itself printable artwork, so it should appear
-  // immediately in the garment preview even before the customer uploads a photo.
-  const canDrag = Boolean(photo && !blankArtwork && setArtworkOffset);
+  // Bootleg photos are independent editable layers. The legacy artwork drag
+  // remains only for Upload My Own Artwork and older saved designs.
+  const hasEditablePhotoLayers = editorLayers.some((layer) => layer?.type === "photo" && layer?.visible !== false);
+  const canDrag = Boolean(photo && !hasEditablePhotoLayers && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
   const frontMockupUrl =
@@ -2563,7 +2684,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                 />
               )}
 
-              {photo ? (
+              {photo && !hasEditablePhotoLayers ? (
                 artworkFitMode === "crop" ? (
                   <div className="absolute inset-0 z-20 pointer-events-none" style={artworkLayerStyle}>
                     <img
@@ -2615,6 +2736,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
           {!seasonalOverlay && !blankArtwork && <EditableOverlayLayers
             layers={editorLayers}
             stickerLibrary={stickerLibrary}
+            photoAssets={photoAssets}
             interactive={interactiveEditor}
             selectedLayerId={selectedEditorLayerId}
             onSelectLayer={onSelectEditorLayer}
