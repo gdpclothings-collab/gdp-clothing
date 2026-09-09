@@ -2087,7 +2087,7 @@ export default function CustomStudio() {
                   </div>}
                   <div>
                     <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Design size</span><span>{artworkScale}%</span></div>
-                    <input type="range" min="55" max="145" value={artworkScale} onPointerDown={checkpointEditor} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
+                    <input type="range" min="55" max="180" value={artworkScale} onPointerDown={checkpointEditor} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
                     <div className="mt-2 inline-flex rounded-lg border border-[#DCE3EA] bg-[#F4F7FA] p-1">
                       <button type="button" onClick={() => { checkpointEditor(); setArtworkFitMode("fit"); }} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fit" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
                       <button type="button" onClick={() => { checkpointEditor(); setArtworkFitMode("crop"); }} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop to fill</button>
@@ -2106,7 +2106,7 @@ export default function CustomStudio() {
                   </div>
                   <div>
                     <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Rotation</span><span>{artworkRotation}°</span></div>
-                    <input type="range" min="-12" max="12" value={artworkRotation} onPointerDown={checkpointEditor} onChange={e => setArtworkRotation(Number(e.target.value))} className="w-full accent-[#d9273e]" />
+                    <input type="range" min="-180" max="180" value={artworkRotation} onPointerDown={checkpointEditor} onChange={e => setArtworkRotation(Number(e.target.value))} className="w-full accent-[#d9273e]" />
                   </div>
                 </div>}
 
