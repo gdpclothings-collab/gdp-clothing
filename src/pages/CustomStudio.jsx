@@ -2,6 +2,15 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
+import {
+  AdvancedEditorPanel,
+  EditableOverlayLayers,
+  PhotoBrushEditor,
+  createStickerLayer,
+  createTextLayer,
+  normalizeEditorTools,
+  normalizeStickerLibrary,
+} from "@/components/storefront/CustomStudioAdvancedEditor";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
@@ -50,6 +59,15 @@ const DEFAULT_STUDIO_SETTINGS = {
   frontBackEnabled: true,
   frontBackFee: 10,
   styleTemplates: {},
+  editorTools: {
+    erase: true,
+    restore: true,
+    stickers: true,
+    text: true,
+    freeStretch: true,
+    autoBackgroundRemoval: true,
+  },
+  stickerLibrary: [],
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -68,6 +86,8 @@ function normalizeStudioSettings(settings = {}) {
     ...(settings || {}),
     intensityExamples: normalizeIntensityExamples(settings?.intensityExamples),
     styleTemplates: settings?.styleTemplates && typeof settings.styleTemplates === "object" ? settings.styleTemplates : {},
+    editorTools: normalizeEditorTools(settings?.editorTools),
+    stickerLibrary: normalizeStickerLibrary(settings?.stickerLibrary),
   };
 }
 
@@ -998,7 +1018,7 @@ export default function CustomStudio() {
     ? configuredStyleOptions
     : styleTemplates.filter((style) => style.enabled);
   const matchingStyleOptions = designPath === "bootleg"
-    ? styleOptions.filter((style) => ["classic-90s", "y2k", "vintage-wash", "sports-hype", "love-story", "pet-legend", "minimal"].includes(style.id))
+    ? styleOptions.filter((style) => style.category === "photo_bootleg" && style.locked !== false)
     : styleOptions;
   const chooseStyleTemplate = (style) => {
     if (!style) return;
