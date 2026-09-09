@@ -1956,17 +1956,6 @@ export default function CustomStudio() {
             </div>
             <div className="font-mono text-xs text-muted-foreground mt-3">{photos.length}/{maxPhotos} photos</div>
 
-            <div className="mt-8 border-t border-[#e3ddd4] pt-8">
-              <StepTitle eyebrow="Personalize in the same workspace" title="TEXT ON THE DESIGN" text="Every value entered here appears in the live preview and is baked into the exact production file. The selected GDP template remains locked." />
-              <div className="grid md:grid-cols-2 gap-4">
-                <Field label="Main name / headline" value={personalization.name} onChange={v => setPersonalization({...personalization,name:v})} placeholder="BIG MIKE" />
-                <Field label="Nickname" value={personalization.nickname} onChange={v => setPersonalization({...personalization,nickname:v})} placeholder="THE LEGEND" />
-                <Field label="Dates / year" value={personalization.dates} onChange={v => setPersonalization({...personalization,dates:v})} placeholder="1966 · 2026" />
-                <Field label="Number" value={personalization.number} onChange={v => setPersonalization({...personalization,number:v})} placeholder="23" />
-                <Field label="Quote or printed message" value={personalization.quote} onChange={v => setPersonalization({...personalization,quote:v})} placeholder="Forever in our hearts" />
-                <Field label="Additional printed text" value={personalization.message} onChange={v => setPersonalization({...personalization,message:v})} placeholder="Optional" />
-              </div>
-            </div>
           </div>}
 
           {step === 4 && <div>
