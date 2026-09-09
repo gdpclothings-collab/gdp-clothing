@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -476,6 +477,7 @@ export default function DTFGangSheet() {
   const [notice, setNotice] = useState("");
   const [backgroundThreshold, setBackgroundThreshold] = useState(230);
   const [editingArtwork, setEditingArtwork] = useState(false);
+  const [filmUsageConfirmationOpen, setFilmUsageConfirmationOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1287,7 +1289,7 @@ export default function DTFGangSheet() {
     dragRef.current = null;
   };
 
-  const addToCart = async () => {
+  const addToCart = async (skipFilmUsageConfirmation = false) => {
     setPageError("");
     setNotice("");
     if (!product?.id) {
@@ -1306,13 +1308,8 @@ export default function DTFGangSheet() {
       setPageError("Confirm that you own or have permission to reproduce the DTF artwork before adding it to cart.");
       return;
     }
-    if (
-      showUnusedFilmWarning &&
-      typeof window !== "undefined" &&
-      !window.confirm(
-        `Your artwork uses ${round(utilization, 1)}% of the ${round(sheetWidth, 2)}\" × ${round(sheetLength, 2)}\" film. You will still be charged $${price.price.toFixed(2)} for the entire selected sheet. Continue with the full sheet?`
-      )
-    ) {
+    if (showUnusedFilmWarning && skipFilmUsageConfirmation !== true) {
+      setFilmUsageConfirmationOpen(true);
       return;
     }
 
@@ -1791,15 +1788,6 @@ export default function DTFGangSheet() {
               <Metric label="Artwork length" value={`${round(usedLength, 1)}"`} helper={usedLength && usedLength < sheetLength ? `${round(sheetLength - usedLength, 1)}" remaining` : "Current layout"} />
               <Metric label="Production segments" value={String(hasArtwork ? Math.max(1, Math.ceil(sheetLength / settings.productionSegmentLength)) : 0)} helper={hasArtwork ? `Internally split at ${settings.productionSegmentLength}" when needed` : "No artwork loaded"} />
             </div>
-            {showUnusedFilmWarning && (
-              <div className="mt-3 flex items-start gap-3 border border-amber-300 bg-amber-50 p-4 text-amber-950">
-                <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.08em]">You are paying for the full selected film</div>
-                  <div className="mt-1 text-[11px] leading-5">Your artwork uses {round(utilization, 1)}% of this {round(sheetWidth, 2)}\" × {round(sheetLength, 2)}\" sheet. The full film price remains ${price.price.toFixed(2)}.</div>
-                </div>
-              </div>
-            )}
           </main>
 
           <aside className="space-y-4 xl:sticky xl:top-[110px] xl:self-start xl:max-h-[calc(100vh-130px)] xl:overflow-y-auto xl:pr-1">
@@ -2062,15 +2050,6 @@ export default function DTFGangSheet() {
               )}
             </Panel>
 
-            {showUnusedFilmWarning && (
-              <div className="border border-amber-300 bg-amber-50 p-4 text-amber-950">
-                <div className="flex items-start gap-2 text-xs font-black uppercase tracking-[0.07em]"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> Unused film charge</div>
-                <div className="mt-2 text-[11px] leading-5">Only {round(utilization, 1)}% is occupied, but the full selected gang sheet costs ${price.price.toFixed(2)}. You can return to the layout or continue with the entire sheet.</div>
-              </div>
-            )}
-
-
-
             {settings.artworkReviewEnabled && (
               <label className="flex cursor-pointer items-start gap-3 border border-black/15 bg-white p-4">
                 <input
@@ -2134,7 +2113,7 @@ export default function DTFGangSheet() {
             <button
               type="button"
               disabled={saving || !approval || !rightsConfirmed || Boolean(validation.errors.length)}
-              onClick={addToCart}
+              onClick={() => addToCart()}
               className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/25"
             >
               <ShoppingBag size={17} />
@@ -2150,6 +2129,59 @@ export default function DTFGangSheet() {
             </div>
           </aside>
         </div>
+        <AlertDialog.Root open={filmUsageConfirmationOpen} onOpenChange={setFilmUsageConfirmationOpen}>
+          <AlertDialog.Portal>
+            <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/75 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+            <AlertDialog.Content className="fixed bottom-0 left-0 z-50 w-full max-w-none gap-0 rounded-t-2xl border-x-0 border-b-0 border-t border-black/15 bg-[#faf9f5] p-0 shadow-2xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:border sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95">
+            <div className="border-b border-black/10 px-5 py-5 sm:px-6">
+              <div className="space-y-1 text-left">
+                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                  <AlertTriangle size={20} aria-hidden="true" />
+                </div>
+                <AlertDialog.Title className="text-xl font-black tracking-tight text-black">
+                  Your film is {round(utilization, 1)}% filled
+                </AlertDialog.Title>
+                <AlertDialog.Description className="text-sm leading-6 text-black/60">
+                  You’re purchasing the complete {round(sheetWidth, 2)}&quot; × {round(sheetLength, 2)}&quot; film sheet, including the unused area.
+                </AlertDialog.Description>
+              </div>
+            </div>
+
+            <div className="px-5 py-5 sm:px-6">
+              <div className="h-2.5 overflow-hidden rounded-full bg-amber-100" aria-label={`${round(utilization, 1)}% of film filled`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={round(utilization, 1)}>
+                <div className="h-full rounded-full bg-black transition-[width]" style={{ width: `${Math.min(100, Math.max(0, utilization))}%` }} />
+              </div>
+              <div className="mt-2 flex justify-between text-[11px] font-bold">
+                <span>{round(utilization, 1)}% used</span>
+                <span className="text-amber-800">{round(Math.max(0, 100 - utilization), 1)}% available</span>
+              </div>
+
+              <dl className="mt-5 divide-y divide-black/10 border-y border-black/10 text-sm">
+                <div className="flex items-center justify-between py-3">
+                  <dt className="text-black/55">Remaining length</dt>
+                  <dd className="font-mono font-bold">{round(Math.max(0, sheetLength - usedLength), 1)}&quot;</dd>
+                </div>
+                <div className="flex items-center justify-between py-3">
+                  <dt className="text-black/55">Total price</dt>
+                  <dd className="font-mono text-base font-black">${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-black/10 bg-white px-5 py-4 sm:flex-row sm:px-6">
+              <AlertDialog.Cancel className="mt-0 min-h-12 flex-1 rounded-none border border-black/20 bg-white px-4 text-xs font-black uppercase tracking-[0.08em] hover:bg-black/5">
+                Continue editing
+              </AlertDialog.Cancel>
+              <AlertDialog.Action
+                onClick={() => addToCart(true)}
+                className="min-h-12 flex-1 rounded-none bg-black px-4 text-xs font-black uppercase tracking-[0.08em] text-white hover:bg-[#e11d2e]"
+              >
+                Add to cart · ${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}
+              </AlertDialog.Action>
+            </div>
+            </AlertDialog.Content>
+          </AlertDialog.Portal>
+        </AlertDialog.Root>
         {selectedArtwork && (
           <div className="fixed inset-x-3 bottom-3 z-40 border border-black/20 bg-white p-3 shadow-2xl xl:hidden">
             <div className="flex items-center justify-between gap-3">
