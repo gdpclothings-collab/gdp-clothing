@@ -6,6 +6,7 @@ import {
   AdvancedEditorPanel,
   EditableOverlayLayers,
   PhotoBrushEditor,
+  createPhotoLayer,
   createStickerLayer,
   createTextLayer,
   normalizeEditorTools,
@@ -974,6 +975,7 @@ export default function CustomStudio() {
 
   const currentEditorSnapshot = () => ({
     layers: JSON.parse(JSON.stringify(editorLayers || [])),
+    photos: JSON.parse(JSON.stringify(photos || [])),
     artworkStates: JSON.parse(JSON.stringify(artworkStates || defaultArtworkStates(activeStyleTemplate))),
   });
   const checkpointEditor = () => {
@@ -983,9 +985,11 @@ export default function CustomStudio() {
   };
   const restoreEditorSnapshot = (snapshot) => {
     if (!snapshot) return;
-    setEditorLayers(Array.isArray(snapshot.layers) ? snapshot.layers : []);
+    const nextLayers = Array.isArray(snapshot.layers) ? snapshot.layers : [];
+    setEditorLayers(nextLayers);
+    if (Array.isArray(snapshot.photos)) setPhotos(snapshot.photos);
     setArtworkStates(snapshot.artworkStates || defaultArtworkStates(activeStyleTemplate));
-    setSelectedEditorLayerId("photo");
+    setSelectedEditorLayerId(nextLayers.find((layer) => layer.type === "photo")?.id || "photo");
   };
   const undoEditor = () => {
     const previous = editorHistoryRef.current.pop();
@@ -1022,7 +1026,11 @@ export default function CustomStudio() {
     const source = editorLayers.find((layer) => layer.id === layerId);
     if (!source) return;
     checkpointEditor();
-    const duplicate = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    const duplicate = source.type === "text"
+      ? createTextLayer(source.text)
+      : source.type === "photo"
+        ? createPhotoLayer(photos.find((photo) => String(photo.id || "") === String(source.photoId || "")), editorLayers.filter((layer) => layer.type === "photo").length)
+        : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
     Object.assign(duplicate, source, { id: duplicate.id, x: Math.min(96, Number(source.x || 50) + 4), y: Math.min(96, Number(source.y || 50) + 4) });
     setEditorLayers((current) => [...current, duplicate]);
     setSelectedEditorLayerId(duplicate.id);
@@ -1050,16 +1058,28 @@ export default function CustomStudio() {
     const source = editorLayers.find((layer) => layer.id === layerId);
     if (!source) return;
     checkpointEditor();
-    const reset = source.type === "text" ? createTextLayer(source.text) : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
+    const reset = source.type === "text"
+      ? createTextLayer(source.text)
+      : source.type === "photo"
+        ? createPhotoLayer(photos.find((photo) => String(photo.id || "") === String(source.photoId || "")), editorLayers.filter((layer) => layer.type === "photo").findIndex((layer) => layer.id === source.id))
+        : createStickerLayer(stickerLibrary.find((item) => item.id === source.stickerId));
     reset.id = source.id;
     setEditorLayers((current) => current.map((layer) => layer.id === layerId ? reset : layer));
   };
   const resetAllEditable = () => {
     checkpointEditor();
-    setEditorLayers([]);
+    setEditorLayers((current) => current
+      .filter((layer) => layer.type === "photo")
+      .map((layer, index) => {
+        const photo = photos.find((item) => String(item.id || "") === String(layer.photoId || ""));
+        const reset = createPhotoLayer(photo, index);
+        reset.id = layer.id;
+        return reset;
+      }));
     setArtworkStates(defaultArtworkStates(activeStyleTemplate));
     setPreviewZoom(1);
-    setSelectedEditorLayerId("photo");
+    const firstPhotoLayer = editorLayers.find((layer) => layer.type === "photo");
+    setSelectedEditorLayerId(firstPhotoLayer?.id || "photo");
   };
 
   useEffect(() => {
