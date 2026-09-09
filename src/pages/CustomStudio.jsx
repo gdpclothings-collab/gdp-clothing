@@ -2620,17 +2620,18 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                 </div>
               )}
 
-              <EditableOverlayLayers
-                layers={editorLayers}
-                stickerLibrary={stickerLibrary}
-                interactive={interactiveEditor}
-                selectedLayerId={selectedEditorLayerId}
-                onSelectLayer={onSelectEditorLayer}
-                onPatchLayer={onPatchEditorLayer}
-                onDragStart={onEditorDragStart}
-              />
             </>
           ))}
+
+          {!seasonalOverlay && !blankArtwork && <EditableOverlayLayers
+            layers={editorLayers}
+            stickerLibrary={stickerLibrary}
+            interactive={interactiveEditor}
+            selectedLayerId={selectedEditorLayerId}
+            onSelectLayer={onSelectEditorLayer}
+            onPatchLayer={onPatchEditorLayer}
+            onDragStart={onEditorDragStart}
+          />}
         </div>
       </div>
     </div>
