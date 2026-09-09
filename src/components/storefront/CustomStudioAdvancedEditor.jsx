@@ -166,7 +166,7 @@ export function EditableOverlayLayers({
     <>
       {(layers || []).filter((layer) => layer?.visible !== false).map((layer, index) => {
         const selected = interactive && selectedLayerId === layer.id;
-        const baseStyle = {
+        const baseStyle = /** @type {React.CSSProperties} */ ({
           position: "absolute",
           left: clamp(layer.x, 0, 100) + "%",
           top: clamp(layer.y, 0, 100) + "%",
@@ -176,7 +176,7 @@ export function EditableOverlayLayers({
           cursor: interactive ? "move" : "default",
           pointerEvents: interactive ? "auto" : "none",
           touchAction: "none",
-        };
+        });
 
         if (layer.type === "text") {
           return (
