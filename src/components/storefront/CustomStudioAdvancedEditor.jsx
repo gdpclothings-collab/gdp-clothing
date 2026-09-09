@@ -4,18 +4,15 @@ import {
   ArrowUp,
   Copy,
   Eraser,
-  Heart,
   Lock,
   Redo2,
   RotateCcw,
   Sparkles,
-  Star,
   Trash2,
   Type,
   Undo2,
   WandSparkles,
   X,
-  Zap,
 } from "lucide-react";
 
 export const DEFAULT_EDITOR_TOOLS = {
@@ -385,7 +382,7 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
   const [brushSize, setBrushSize] = useState(44);
   const [soft, setSoft] = useState(true);
   const [ready, setReady] = useState(false);
-  const [historyVersion, setHistoryVersion] = useState(0);
+  const [, setHistoryVersion] = useState(0);
   const [applying, setApplying] = useState(false);
   const normalizedTools = normalizeEditorTools(tools);
 
