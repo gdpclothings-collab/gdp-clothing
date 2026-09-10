@@ -70,6 +70,7 @@ export default function Checkout() {
   const [checkoutSessionToken, setCheckoutSessionToken] = useState("");
   const [loadedCheckoutStorageKey, setLoadedCheckoutStorageKey] = useState("");
   const paymentHostRef = useRef(null);
+  const autoPreparingRef = useRef(false);
 
   const quantityPricing = calculateCartQuantityDiscount(items);
   const subtotal = quantityPricing.subtotal;
@@ -183,10 +184,6 @@ export default function Checkout() {
     loadedCheckoutStorageKey,
   ]);
 
-  if (items.length === 0) {
-    return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center"><h1 className="font-display text-4xl">Cart is empty</h1><Link to="/shop" className="text-accent mt-4 inline-block">Browse products</Link></div>;
-  }
-
   const applyCoupon = async () => {
     if (!form.discountCode) return;
     setError("");
@@ -201,11 +198,11 @@ export default function Checkout() {
 
     if (!checkoutActions) {
       if (!form.email || !form.firstName || !form.lastName || !form.address || !form.city || !form.postalCode) {
-        setError("Please fill in all required fields before continuing to payment.");
+        setError("Please complete the required contact and delivery fields.");
         return;
       }
       if (!form.termsAccepted) {
-        setError("Accept the Terms & Conditions and Privacy Policy before continuing to payment.");
+        setError("Accept the Terms & Conditions and acknowledge the Privacy Policy to place your order.");
         return;
       }
       const normalizedPostalCode = normalizeCanadianPostalCode(form.postalCode);
@@ -342,6 +339,26 @@ export default function Checkout() {
     setForm({ ...form, [k]: v });
   };
 
+  const checkoutDetailsComplete = Boolean(
+    form.email &&
+    form.firstName &&
+    form.lastName &&
+    form.address &&
+    form.city &&
+    normalizeCanadianPostalCode(form.postalCode) &&
+    form.termsAccepted
+  );
+
+  useEffect(() => {
+    if (!checkoutDetailsComplete || checkoutActions || placing || autoPreparingRef.current || isIframe) return;
+    autoPreparingRef.current = true;
+    void placeOrder();
+  }, [checkoutDetailsComplete]); // Stripe is prepared once, as soon as checkout details are complete.
+
+  if (items.length === 0) {
+    return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center"><h1 className="font-display text-4xl">Cart is empty</h1><Link to="/shop" className="text-accent mt-4 inline-block">Browse products</Link></div>;
+  }
+
   return (
     <div className="max-w-[1500px] mx-auto px-4 lg:px-8 py-8">
       <h1 className="font-display text-5xl md:text-6xl leading-none mb-8">CHECKOUT</h1>
@@ -354,7 +371,7 @@ export default function Checkout() {
         </div>
         {!user && <Link to="/login?returnTo=/checkout" className="shrink-0 text-sm font-semibold text-accent hover:underline">Already have an account? Sign in</Link>}
       </div>
-      <div className="grid lg:grid-cols-[1fr_400px] gap-8">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-8">
         <div className="space-y-8">
           <Section n="01" title="Contact">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -412,7 +429,7 @@ export default function Checkout() {
           </Section>
 
           <Section n="06" title="Payment">
-            <div className="border border-border p-4 bg-secondary flex items-center gap-3 mb-4">
+            <div className="rounded-xl border border-border p-4 bg-secondary/50 flex items-center gap-3 mb-4">
               <CreditCard size={22} />
               <div>
                 <div className="font-bold text-sm">Stripe Secure Payment</div>
@@ -422,17 +439,33 @@ export default function Checkout() {
               </div>
             </div>
 
+            <label className="mb-4 flex items-start gap-3 rounded-xl border border-border bg-background p-4 text-sm leading-5">
+              <input
+                type="checkbox"
+                checked={Boolean(form.termsAccepted)}
+                onChange={(e) => set("termsAccepted", e.target.checked)}
+                className="mt-1 h-4 w-4 accent-[hsl(var(--accent))]"
+              />
+              <span>
+                I agree to the <Link to="/pages/terms" target="_blank" className="font-semibold text-accent hover:underline">Terms & Conditions</Link> and acknowledge the <Link to="/pages/privacy" target="_blank" className="font-semibold text-accent hover:underline">Privacy Policy</Link>.
+              </span>
+            </label>
+
             {!checkoutActions && (
-              <div className="border border-dashed border-border p-5 bg-background text-sm text-muted-foreground">
-                Complete your contact and shipping information, then click
-                <span className="font-bold text-foreground"> Continue to Payment</span>.
-                Your secure card fields will appear here without leaving checkout.
+              <div className="min-h-[150px] rounded-xl border border-border bg-secondary/25 p-5 text-sm text-muted-foreground flex items-center justify-center text-center">
+                <div className="max-w-md">
+                  <Lock size={20} className="mx-auto mb-2 text-foreground" />
+                  <p className="font-semibold text-foreground">
+                    {placing ? "Loading secure payment…" : "Secure payment fields will open automatically"}
+                  </p>
+                  <p className="mt-1">Complete the required details above and accept the terms. You will stay on this page.</p>
+                </div>
               </div>
             )}
 
             <div
               ref={paymentHostRef}
-              className={`bg-background ${checkoutActions ? "border border-border p-4 min-h-[180px]" : "h-0 overflow-hidden"}`}
+              className={`bg-background ${checkoutActions ? "rounded-xl border border-border p-4 min-h-[180px]" : "h-0 overflow-hidden"}`}
             />
 
             {checkoutActions && (
@@ -443,7 +476,7 @@ export default function Checkout() {
           </Section>
         </div>
 
-        <aside className="bg-card border border-border p-6 h-fit sticky top-24">
+        <aside className="bg-card border border-border rounded-2xl p-6 h-fit sticky top-24 shadow-sm">
           <h2 className="font-display text-3xl mb-4">YOUR ORDER</h2>
           <div className="space-y-3 max-h-72 overflow-y-auto mb-4">
             {items.map(i => (
@@ -477,31 +510,18 @@ export default function Checkout() {
 
           {error && <div className="mt-3 flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2"><AlertTriangle size={16} />{error}</div>}
 
-          {!checkoutActions && (
-            <label className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-secondary/35 p-3 text-xs leading-5">
-              <input
-                type="checkbox"
-                checked={Boolean(form.termsAccepted)}
-                onChange={(e) => set("termsAccepted", e.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                I agree to the <Link to="/pages/terms" target="_blank" className="font-semibold text-accent hover:underline">Terms & Conditions</Link> and acknowledge the <Link to="/pages/privacy" target="_blank" className="font-semibold text-accent hover:underline">Privacy Policy</Link>.
-              </span>
-            </label>
-          )}
-
           <button
             onClick={placeOrder}
-            disabled={placing || (Boolean(checkoutActions) && !paymentCanConfirm)}
-            className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90 disabled:opacity-50"
+            disabled={placing || !checkoutDetailsComplete || (Boolean(checkoutActions) && !paymentCanConfirm)}
+            className="w-full mt-5 rounded-lg bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {placing
-              ? (checkoutActions ? "Processing Payment…" : "Loading Payment…")
-              : checkoutActions
-                ? `Pay Now · ${total.toFixed(2)}`
-                : `Continue to Payment · ${total.toFixed(2)}`}
+              ? (checkoutActions ? "Processing order…" : "Preparing secure payment…")
+              : `Place order · $${total.toFixed(2)}`}
           </button>
+          {!checkoutDetailsComplete && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">Complete the required fields and accept the terms to place your order.</p>
+          )}
           <p className="text-[11px] text-muted-foreground mt-2 text-center">
             Secure payment fields are provided by Stripe. GDP Clothing does not intentionally store full card numbers or card security codes.{" "}
             <Link to="/pages/payment-security" className="underline hover:text-foreground">Payment security</Link>
