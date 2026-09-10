@@ -1703,7 +1703,11 @@ export default function CustomStudio() {
         colorFinish: designMood,
         placement,
         garment: { id: productId, variantId: selectedVariant?.id || null, color, size },
-        personalization,
+        personalization: {
+          ...personalization,
+          memorialNameVerified: designPath === "memorial" ? memorialNameConfirmed : false,
+          memorialNameVerifiedAt: designPath === "memorial" && memorialNameConfirmed ? approvedAt : null,
+        },
         editableLayers: (editorLayersBySide.front || []).map((layer) => ({ ...layer })),
         editableLayersBySide: {
           front: (editorLayersBySide.front || []).map((layer) => ({ ...layer })),
@@ -1766,6 +1770,8 @@ export default function CustomStudio() {
         photoAssets: photos,
         personalization: {
           ...personalization,
+          memorialNameVerified: designPath === "memorial" ? memorialNameConfirmed : false,
+          memorialNameVerifiedAt: designPath === "memorial" && memorialNameConfirmed ? approvedAt : null,
           previewState: {
             version: 7,
             side: previewSide,

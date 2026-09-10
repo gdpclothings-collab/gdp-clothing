@@ -47,6 +47,7 @@ for (const required of [
   'id: "memorial"',
   'style.category === "memorial_tribute"',
   'memorialNameConfirmed',
+  'memorialNameVerifiedAt',
   'designPath === "bootleg" || designPath === "memorial"',
   'I verified the memorial name is spelled exactly as it should be printed.',
   'UPLOAD THE MEMORIAL PORTRAIT',
