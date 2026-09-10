@@ -180,7 +180,7 @@ export default function AIAssistant() {
                 <div className="font-display text-lg leading-none tracking-wide">GDP ASSISTANT</div>
                 <div className="mt-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground/65">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                  Free shopping + print help
+                  Shopping + print help
                 </div>
               </div>
             </div>
@@ -243,7 +243,7 @@ export default function AIAssistant() {
                 </div>
 
                 <div className="rounded-xl border border-border/70 bg-secondary/50 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                  This assistant uses GDP’s built-in help rules — no paid AI service. Don’t share passwords or payment details here. For private order information, use My Account.
+                  Don’t share passwords or payment details here. For private order information, use My Account.
                 </div>
               </div>
             )}
