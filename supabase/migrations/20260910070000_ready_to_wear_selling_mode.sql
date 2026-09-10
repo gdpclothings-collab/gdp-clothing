@@ -10,7 +10,7 @@ update public.products
 set selling_mode = case
   when slug = 'dtf-gang-sheet'
     or theme_template = 'dtf-gang-sheet'
-    or coalesce((metafields ->> 'dtf_gang_sheet')::boolean, false) = true
+    or lower(coalesce(metafields ->> 'dtf_gang_sheet', 'false')) = 'true'
     then 'service'
   when custom_designable = true then 'custom'
   else 'ready_to_wear'
