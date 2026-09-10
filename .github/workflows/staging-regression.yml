@@ -1,0 +1,62 @@
+name: GDP Clothing Staging Regression Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Dedicated staging URL. Production hosts are refused."
+        required: true
+      confirmation:
+        description: "Type RUN_STAGING_REGRESSION"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-regression-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  browser-regression:
+    name: Safe staging browser regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TEST_BASE_URL: ${{ github.event.inputs.base_url }}
+      PRODUCTION_BASE_URL: ${{ github.event.inputs.base_url }}
+      STAGING_REGRESSION_CONFIRMATION: ${{ github.event.inputs.confirmation }}
+      SMOKE_ARTIFACT_DIR: staging-regression-results
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Refuse production targets
+        run: node scripts/assert-safe-staging-target.mjs
+
+      - name: Install Playwright runner
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run staging storefront smoke suite
+        run: node scripts/production-smoke.mjs
+
+      - name: Run staging storefront wiring suite
+        run: node scripts/production-wiring-smoke.mjs
+
+      - name: Upload staging evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: staging-regression-${{ github.run_id }}
+          path: staging-regression-results
+          if-no-files-found: ignore
+          retention-days: 14

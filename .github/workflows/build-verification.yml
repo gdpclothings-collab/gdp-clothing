@@ -33,6 +33,12 @@ jobs:
           fi
           echo "No active Base44 runtime references found."
 
+      - name: Verify test harness syntax
+        run: |
+          node --check scripts/production-smoke.mjs
+          node --check scripts/production-wiring-smoke.mjs
+          node --check scripts/assert-safe-staging-target.mjs
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
