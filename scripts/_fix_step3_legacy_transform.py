@@ -14,7 +14,7 @@ editor = EDITOR.read_text()
 editor = replace_once(
     editor,
     'function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange }) {',
-    'function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange, onPointerDown }) {',
+    'function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange, onPointerDown = undefined }) {',
     'range row history prop'
 )
 editor = replace_once(
@@ -48,4 +48,4 @@ custom = replace_once(
     'pass legacy artwork controls'
 )
 CUSTOM.write_text(custom)
-print('Fallback artwork controls moved into GDP Touch Studio with undo checkpoints')
+print('Fallback artwork controls moved into GDP Touch Studio with optional history checkpoints')
