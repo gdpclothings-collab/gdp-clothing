@@ -37,4 +37,15 @@ sourceCheck(studioSource, "seasonalSummary", 'Seasonal cart items must retain st
 sourceCheck(cartSource, "state={{ seasonalDraft: item.seasonalDraft, editCartKey: item.key }}", 'Cart Edit design must pass the exact saved seasonal draft and cart key.');
 sourceCheck(cartSource, 'fittingType="contain"', 'Custom cart previews must remain uncropped.');
 
-console.log(`${checks} seasonal sizing, snapshot, and edit-design regression checks passed`);
+// Protect the refined personalization UX without changing production payload limits.
+sourceCheck(studioSource, 'Personalize this design', 'Personalization controls must keep the guided editing card.');
+sourceCheck(studioSource, 'maxLength={32}', 'Name input must preserve the 32-character production limit.');
+sourceCheck(studioSource, 'maxLength={60}', 'Message input must preserve the 60-character production limit.');
+sourceCheck(studioSource, '<textarea id="seasonal-personalization-message"', 'Personalization message should remain a multi-line editing control.');
+sourceCheck(studioSource, 'Clear personalization', 'Customers must be able to clear optional personalization in one action.');
+sourceCheck(studioSource, 'Recommended', 'Personalization text colours must surface a recommended contrast choice.');
+sourceCheck(studioSource, 'hasLowContrast', 'Personalization controls must warn when the chosen text colour may have weak garment contrast.');
+sourceCheck(studioSource, 'Applied to garment preview', 'Personalization controls must confirm live preview application.');
+check(!studioSource.includes('<select value={text.color}'), 'Text colour should use visual choices instead of the old native select.');
+
+console.log(`${checks} seasonal sizing, snapshot, edit-design, and personalization regression checks passed`);
