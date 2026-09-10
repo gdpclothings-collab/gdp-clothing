@@ -1,16 +1,32 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowDown,
   ArrowUp,
+  Check,
   Copy,
+  Crop,
   Eraser,
+  Eye,
+  EyeOff,
+  FlipHorizontal,
+  FlipVertical,
+  Image as ImageIcon,
+  Layers,
   Lock,
+  Maximize2,
+  Move,
+  Plus,
   Redo2,
   RotateCcw,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   Type,
   Undo2,
+  Unlock,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -22,6 +38,11 @@ export const DEFAULT_EDITOR_TOOLS = {
   text: true,
   freeStretch: true,
   autoBackgroundRemoval: true,
+  crop: true,
+  adjustments: true,
+  curveText: true,
+  textEffects: true,
+  layerControls: true,
 };
 
 export const DEFAULT_STICKER_LIBRARY = [
@@ -37,9 +58,36 @@ export const DEFAULT_STICKER_LIBRARY = [
   { id: "wings", label: "Wings", glyph: "𓆩♡𓆪", enabled: true, category: "memorial" },
 ];
 
+const FONT_PRESETS = [
+  { label: "Impact", family: "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif", group: "Bold" },
+  { label: "Arial Black", family: "'Arial Black', Arial, sans-serif", group: "Bold" },
+  { label: "Trebuchet", family: "'Trebuchet MS', sans-serif", group: "Modern" },
+  { label: "Georgia", family: "Georgia, serif", group: "Memorial" },
+  { label: "Times", family: "'Times New Roman', serif", group: "Classic" },
+  { label: "Courier", family: "'Courier New', monospace", group: "Retro" },
+  { label: "Arial", family: "Arial, Helvetica, sans-serif", group: "Clean" },
+];
+
+const TEXT_CURVES = [
+  { id: "straight", label: "Straight" },
+  { id: "arc-up", label: "Arc Up" },
+  { id: "arc-down", label: "Arc Down" },
+  { id: "wave", label: "Wave" },
+  { id: "circle", label: "Circle" },
+];
+
+const TEXT_EFFECTS = [
+  { id: "none", label: "None" },
+  { id: "outline", label: "Outline" },
+  { id: "shadow", label: "Shadow" },
+  { id: "glow", label: "Glow" },
+  { id: "3d", label: "3D" },
+  { id: "vintage", label: "Vintage" },
+];
+
 function uid(prefix) {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return prefix + "-" + crypto.randomUUID();
-  return prefix + "-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function clamp(value, min, max) {
@@ -71,14 +119,19 @@ function layerSizeBounds(layer) {
   return [14, 140];
 }
 
+function labelForLayer(layer, index, photosById = {}) {
+  if (!layer) return "Layer";
+  if (layer.type === "text") return String(layer.text || `Text ${index + 1}`).slice(0, 26);
+  if (layer.type === "photo") return photosById[String(layer.photoId || "")]?.name || `Photo ${index + 1}`;
+  return `Sticker ${index + 1}`;
+}
+
 const EDITOR_CENTER_SNAP_THRESHOLD = 2.4;
 const EDITOR_SAFE_EDGE = 7;
 
 function snapEditorCoordinate(value) {
   const next = clamp(value, 0, 100);
-  if (Math.abs(next - 50) <= EDITOR_CENTER_SNAP_THRESHOLD) {
-    return { value: 50, snapped: true };
-  }
+  if (Math.abs(next - 50) <= EDITOR_CENTER_SNAP_THRESHOLD) return { value: 50, snapped: true };
   return { value: next, snapped: false };
 }
 
@@ -88,6 +141,42 @@ function layerOutsideEditorSafeArea(layer) {
   const y = Number(layer.y ?? 50);
   const oversizedPhoto = layer.type === "photo" && Number(layer.size || 62) > 135;
   return x < EDITOR_SAFE_EDGE || x > 100 - EDITOR_SAFE_EDGE || y < EDITOR_SAFE_EDGE || y > 100 - EDITOR_SAFE_EDGE || oversizedPhoto;
+}
+
+function editorTextValue(layer) {
+  const raw = String(layer?.text || "YOUR TEXT");
+  return layer?.textTransform === "uppercase" ? raw.toUpperCase() : raw;
+}
+
+function textShadowFor(layer) {
+  const effect = layer?.effect || (layer?.shadow ? "shadow" : "none");
+  const strength = clamp(layer?.effectStrength ?? 50, 0, 100) / 100;
+  const color = layer?.shadowColor || "#000000";
+  const offset = Math.round(2 + strength * 7);
+  const blur = Math.round(2 + strength * 10);
+  if (effect === "outline" || effect === "none") return "none";
+  if (effect === "glow") return `0 0 ${Math.round(5 + strength * 14)}px ${layer?.glowColor || layer?.color || "#ffffff"}`;
+  if (effect === "3d") return `${offset}px ${offset}px 0 ${color}, ${offset + 2}px ${offset + 2}px 0 rgba(0,0,0,.35)`;
+  if (effect === "vintage") return `1px 1px 0 rgba(255,255,255,.22), ${offset}px ${offset}px ${blur}px rgba(0,0,0,.45)`;
+  return `${Number(layer?.shadowX ?? 2)}px ${Number(layer?.shadowY ?? 3)}px ${Number(layer?.shadowBlur ?? blur)}px ${color}`;
+}
+
+function photoFilterFor(layer) {
+  const brightness = clamp(layer?.brightness ?? 100, 25, 200);
+  const contrast = clamp(layer?.contrast ?? 100, 25, 200);
+  const saturation = clamp(layer?.saturation ?? 100, 0, 220);
+  const warmth = clamp(layer?.warmth ?? 0, -100, 100);
+  const sepia = Math.max(0, warmth) * 0.18;
+  const hue = warmth < 0 ? Math.abs(warmth) * 0.12 : warmth * -0.08;
+  return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) sepia(${sepia}%) hue-rotate(${hue}deg)`;
+}
+
+function safeVibrate() {
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(8);
+  } catch {
+    // Haptics are an optional enhancement only.
+  }
 }
 
 export function normalizeEditorTools(value = {}) {
@@ -129,14 +218,27 @@ export function createTextLayer(text = "YOUR TEXT") {
     size: 28,
     rotation: 0,
     color: "#ffffff",
-    fontFamily: "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif",
+    fontFamily: FONT_PRESETS[0].family,
+    fontWeight: 700,
+    fontStyle: "normal",
+    textTransform: "none",
     lineHeight: 1,
     letterSpacing: 1,
     align: "center",
     strokeWidth: 1,
     strokeColor: "#111111",
+    effect: "shadow",
+    effectStrength: 45,
     shadow: true,
+    shadowColor: "#000000",
+    shadowX: 2,
+    shadowY: 3,
+    shadowBlur: 5,
+    glowColor: "#ffffff",
+    curve: "straight",
+    curveAmount: 45,
     opacity: 1,
+    locked: false,
     visible: true,
   };
 }
@@ -151,6 +253,7 @@ export function createStickerLayer(sticker) {
     size: 34,
     rotation: 0,
     opacity: 1,
+    locked: false,
     visible: true,
   };
 }
@@ -167,8 +270,53 @@ export function createPhotoLayer(photo, index = 0) {
     rotation: 0,
     opacity: 1,
     fitMode: "fit",
+    cropX: 50,
+    cropY: 50,
+    cropZoom: 100,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    warmth: 0,
+    flipX: false,
+    flipY: false,
+    locked: false,
     visible: true,
   };
+}
+
+function CurvedText({ layer }) {
+  const text = editorTextValue(layer);
+  const curve = layer.curve || "straight";
+  if (curve === "straight") return <span>{text}</span>;
+
+  const amount = clamp(layer.curveAmount ?? 45, -100, 100);
+  const magnitude = Math.abs(amount) || 45;
+  let path = "M 12 72 Q 150 20 288 72";
+  if (curve === "arc-down") path = `M 12 42 Q 150 ${78 + magnitude * 0.38} 288 42`;
+  if (curve === "arc-up") path = `M 12 92 Q 150 ${66 - magnitude * 0.46} 288 92`;
+  if (curve === "wave") path = `M 10 70 C 72 ${52 - magnitude * 0.28}, 102 ${88 + magnitude * 0.18}, 150 70 C 198 ${52 - magnitude * 0.18}, 228 ${88 + magnitude * 0.28}, 290 70`;
+  if (curve === "circle") path = "M 35 104 A 116 86 0 0 1 265 104";
+  const pathId = `gdp-curve-${String(layer.id || "text").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+
+  return (
+    <svg viewBox="0 0 300 140" className="block h-auto w-full overflow-visible" aria-label={text} role="img">
+      <defs><path id={pathId} d={path} /></defs>
+      <text
+        fill={layer.color || "#ffffff"}
+        fontFamily={layer.fontFamily || FONT_PRESETS[0].family}
+        fontWeight={layer.fontWeight || 700}
+        fontStyle={layer.fontStyle || "normal"}
+        fontSize={clamp(layer.size || 28, 8, 78)}
+        letterSpacing={Number(layer.letterSpacing || 0)}
+        stroke={Number(layer.strokeWidth || 0) > 0 ? (layer.strokeColor || "#111111") : "none"}
+        strokeWidth={Number(layer.strokeWidth || 0)}
+        paintOrder="stroke"
+        style={{ filter: textShadowFor(layer) !== "none" ? `drop-shadow(${Number(layer.shadowX ?? 2)}px ${Number(layer.shadowY ?? 3)}px ${Math.max(1, Number(layer.shadowBlur ?? 4))}px ${layer.shadowColor || "#000000"})` : undefined }}
+      >
+        <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">{text}</textPath>
+      </text>
+    </svg>
+  );
 }
 
 export function EditableOverlayLayers({
@@ -185,8 +333,13 @@ export function EditableOverlayLayers({
   const resizeRef = useRef(null);
   const lastTapRef = useRef({ id: "", at: 0 });
   const editRef = useRef(null);
+  const lastSnapRef = useRef({ x: false, y: false });
   const [editingTextId, setEditingTextId] = useState("");
   const [snapGuides, setSnapGuides] = useState({ x: false, y: false });
+  const [showGestureHint, setShowGestureHint] = useState(() => {
+    try { return typeof window === "undefined" || window.localStorage.getItem("gdp-editor-gesture-hint-v2") !== "seen"; }
+    catch { return true; }
+  });
 
   const stickers = useMemo(
     () => Object.fromEntries(normalizeStickerLibrary(stickerLibrary).map((item) => [item.id, item])),
@@ -196,6 +349,12 @@ export function EditableOverlayLayers({
     () => Object.fromEntries((photoAssets || []).filter((item) => item?.id).map((item) => [String(item.id), item])),
     [photoAssets]
   );
+
+  const dismissGestureHint = () => {
+    if (!showGestureHint) return;
+    setShowGestureHint(false);
+    try { window.localStorage.setItem("gdp-editor-gesture-hint-v2", "seen"); } catch { /* optional */ }
+  };
 
   useEffect(() => {
     if (!editingTextId) return;
@@ -207,13 +366,11 @@ export function EditableOverlayLayers({
   }, [editingTextId]);
 
   useEffect(() => {
-    if (editingTextId && !layers.some((layer) => layer.id === editingTextId && layer.type === "text")) {
-      setEditingTextId("");
-    }
+    if (editingTextId && !layers.some((layer) => layer.id === editingTextId && layer.type === "text")) setEditingTextId("");
   }, [editingTextId, layers]);
 
   const beginGesture = (event, layer) => {
-    if (!interactive || !onPatchLayer || editingTextId === layer.id) return;
+    if (!interactive || !onPatchLayer || editingTextId === layer.id || layer.locked) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -222,15 +379,14 @@ export function EditableOverlayLayers({
     const rect = event.currentTarget.parentElement?.getBoundingClientRect();
     const point = { x: event.clientX, y: event.clientY };
     let gesture = gestureRef.current;
-
     if (!gesture || gesture.id !== layer.id) {
       onDragStart?.();
       gesture = {
         id: layer.id,
         rect,
         pointers: new Map(),
-        startX: Number(layer.x || 50),
-        startY: Number(layer.y || 50),
+        startX: Number(layer.x ?? 50),
+        startY: Number(layer.y ?? 50),
         startSize: Number(layer.size || (layer.type === "photo" ? 62 : 28)),
         startRotation: Number(layer.rotation || 0),
         startPoint: point,
@@ -246,8 +402,8 @@ export function EditableOverlayLayers({
     const points = [...gesture.pointers.values()];
     if (points.length >= 2) {
       const [a, b] = points;
-      gesture.startX = Number(layer.x || 50);
-      gesture.startY = Number(layer.y || 50);
+      gesture.startX = Number(layer.x ?? 50);
+      gesture.startY = Number(layer.y ?? 50);
       gesture.startSize = Number(layer.size || gesture.startSize);
       gesture.startRotation = Number(layer.rotation || 0);
       gesture.startMidpoint = midpoint(a, b);
@@ -256,17 +412,16 @@ export function EditableOverlayLayers({
     } else {
       gesture.startPoint = point;
       gesture.startMidpoint = point;
-      gesture.startX = Number(layer.x || 50);
-      gesture.startY = Number(layer.y || 50);
     }
   };
 
   const moveGesture = (event, layer) => {
     const gesture = gestureRef.current;
-    if (!gesture || gesture.id !== layer.id || !gesture.pointers.has(event.pointerId) || !onPatchLayer) return;
+    if (!gesture || gesture.id !== layer.id || !gesture.pointers.has(event.pointerId) || !onPatchLayer || layer.locked) return;
     event.preventDefault();
     event.stopPropagation();
     gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    dismissGestureHint();
 
     const rect = gesture.rect || event.currentTarget.parentElement?.getBoundingClientRect();
     const width = Math.max(1, rect?.width || 1);
@@ -297,7 +452,9 @@ export function EditableOverlayLayers({
       const snappedX = snapEditorCoordinate(patch.x);
       const snappedY = snapEditorCoordinate(patch.y);
       patch = { ...patch, x: snappedX.value, y: snappedY.value };
-      setSnapGuides({ x: snappedX.snapped, y: snappedY.snapped });
+      if ((snappedX.snapped && !lastSnapRef.current.x) || (snappedY.snapped && !lastSnapRef.current.y)) safeVibrate();
+      lastSnapRef.current = { x: snappedX.snapped, y: snappedY.snapped };
+      setSnapGuides(lastSnapRef.current);
     }
 
     gesture.moved = true;
@@ -312,12 +469,12 @@ export function EditableOverlayLayers({
 
     const wasTap = !gesture.moved && gesture.pointers.size === 1;
     gesture.pointers.delete(event.pointerId);
-
-    if (wasTap && layer.type === "text" && event.pointerType === "touch") {
+    if (wasTap && event.pointerType === "touch") {
       const now = Date.now();
       if (lastTapRef.current.id === layer.id && now - lastTapRef.current.at < 360) {
         onDragStart?.();
-        setEditingTextId(layer.id);
+        if (layer.type === "text") setEditingTextId(layer.id);
+        if (layer.type === "photo") onPatchLayer?.(layer.id, { fitMode: "crop" });
         lastTapRef.current = { id: "", at: 0 };
       } else {
         lastTapRef.current = { id: layer.id, at: now };
@@ -326,15 +483,15 @@ export function EditableOverlayLayers({
 
     if (!gesture.pointers.size) {
       gestureRef.current = null;
+      lastSnapRef.current = { x: false, y: false };
       setSnapGuides({ x: false, y: false });
       return;
     }
-
     const remaining = [...gesture.pointers.values()][0];
     gesture.startPoint = remaining;
     gesture.startMidpoint = remaining;
-    gesture.startX = Number(layer.x || 50);
-    gesture.startY = Number(layer.y || 50);
+    gesture.startX = Number(layer.x ?? 50);
+    gesture.startY = Number(layer.y ?? 50);
     gesture.startSize = Number(layer.size || gesture.startSize);
     gesture.startRotation = Number(layer.rotation || 0);
     gesture.startDistance = 0;
@@ -342,12 +499,13 @@ export function EditableOverlayLayers({
   };
 
   const beginResize = (event, layer) => {
-    if (!interactive || !onPatchLayer) return;
+    if (!interactive || !onPatchLayer || layer.locked) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     onSelectLayer?.(layer.id);
     onDragStart?.();
+    dismissGestureHint();
     const rect = event.currentTarget.parentElement?.parentElement?.getBoundingClientRect();
     resizeRef.current = {
       id: layer.id,
@@ -380,7 +538,7 @@ export function EditableOverlayLayers({
   };
 
   const beginTextEdit = (event, layer) => {
-    if (!interactive || layer.type !== "text") return;
+    if (!interactive || layer.type !== "text" || layer.locked) return;
     event.preventDefault();
     event.stopPropagation();
     onSelectLayer?.(layer.id);
@@ -388,24 +546,21 @@ export function EditableOverlayLayers({
     setEditingTextId(layer.id);
   };
 
-  const selectionChrome = (layer, selected) => selected ? (
+  const selectionChrome = (layer, selected, index) => selected ? (
     <>
-      <div
-        className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded-full bg-[#17324D] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] text-white shadow-lg"
-        style={{ WebkitTextStroke: "0 transparent", textShadow: "none" }}
-      >
-        {layer.type === "text" ? "Drag · pinch · double-tap to type" : "Drag · pinch to resize · twist to rotate"}
+      <div className="pointer-events-none absolute left-1/2 top-[-31px] -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-[#07131F]/95 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-white shadow-[0_8px_24px_rgba(0,0,0,.3)] backdrop-blur" style={{ WebkitTextStroke: "0 transparent", textShadow: "none" }}>
+        {layer.locked ? <span className="inline-flex items-center gap-1"><Lock size={9}/> Locked</span> : showGestureHint ? (layer.type === "text" ? "Drag · pinch · double-tap to type" : "Drag · pinch · twist") : `${layer.type} ${index + 1}`}
       </div>
-      <button
+      {!layer.locked && <button
         type="button"
         data-editor-control="true"
         aria-label="Resize selected layer"
-        className="absolute -bottom-3 -right-3 grid h-7 w-7 touch-none place-items-center rounded-full border-2 border-white bg-[#17324D] text-[11px] font-bold text-white shadow-lg"
+        className="absolute -bottom-3 -right-3 grid h-7 w-7 touch-none place-items-center rounded-full border-2 border-white bg-[#D9273E] text-white shadow-[0_5px_16px_rgba(0,0,0,.35)]"
         onPointerDown={(event) => beginResize(event, layer)}
         onPointerMove={moveResize}
         onPointerUp={endResize}
         onPointerCancel={endResize}
-      >↘</button>
+      ><Maximize2 size={12}/></button>}
     </>
   ) : null;
 
@@ -414,82 +569,82 @@ export function EditableOverlayLayers({
 
   return (
     <>
-      {interactive && selectedLayerForGuide && <div
-        className={"pointer-events-none absolute inset-[6%] z-[65] rounded-sm border border-dashed " + (selectedOutsideSafeArea ? "border-amber-500/90" : "border-white/35")}
-        aria-hidden="true"
-      />}
-      {interactive && snapGuides.x && <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[66] w-px -translate-x-1/2 bg-accent/85 shadow-[0_0_0_1px_rgba(255,255,255,.35)]" aria-hidden="true" />}
-      {interactive && snapGuides.y && <div className="pointer-events-none absolute inset-x-0 top-1/2 z-[66] h-px -translate-y-1/2 bg-accent/85 shadow-[0_0_0_1px_rgba(255,255,255,.35)]" aria-hidden="true" />}
-      {interactive && selectedOutsideSafeArea && <div className="pointer-events-none absolute left-2 top-2 z-[67] rounded-full border border-amber-300 bg-amber-50/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-amber-900 shadow-sm">Keep artwork inside safe area</div>}
+      {interactive && selectedLayerForGuide && <div className={`pointer-events-none absolute inset-[6%] z-[65] rounded-sm border border-dashed ${selectedOutsideSafeArea ? "border-amber-400/95" : "border-white/30"}`} aria-hidden="true" />}
+      {interactive && snapGuides.x && <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[66] w-px -translate-x-1/2 bg-[#D9273E] shadow-[0_0_10px_rgba(217,39,62,.7)]" aria-hidden="true" />}
+      {interactive && snapGuides.y && <div className="pointer-events-none absolute inset-x-0 top-1/2 z-[66] h-px -translate-y-1/2 bg-[#D9273E] shadow-[0_0_10px_rgba(217,39,62,.7)]" aria-hidden="true" />}
+      {interactive && selectedOutsideSafeArea && <div className="pointer-events-none absolute left-2 top-2 z-[67] rounded-full border border-amber-300 bg-[#17130C]/95 px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide text-amber-200 shadow-lg">Outside recommended print area</div>}
+
       {(layers || []).filter((layer) => layer?.visible !== false).map((layer, index) => {
         const selected = interactive && selectedLayerId === layer.id;
         const isEditingText = editingTextId === layer.id && layer.type === "text";
-        const baseStyle = /** @type {React.CSSProperties} */ ({
+        const baseStyle = {
           position: "absolute",
           left: clamp(layer.x, 0, 100) + "%",
           top: clamp(layer.y, 0, 100) + "%",
           transform: `translate(-50%, -50%) rotate(${Number(layer.rotation || 0)}deg)`,
           transformOrigin: "center center",
           zIndex: (layer.type === "photo" ? 20 : layer.type === "text" ? 40 : 50) + index,
-          cursor: interactive ? "move" : "default",
+          cursor: interactive && !layer.locked ? "move" : "default",
           pointerEvents: interactive ? "auto" : "none",
           touchAction: "none",
           userSelect: "none",
           WebkitUserSelect: "none",
-        });
+        };
 
         if (layer.type === "photo") {
           const asset = photosById[String(layer.photoId || "")] || null;
           if (!asset?.url) return null;
           const cropMode = layer.fitMode === "crop";
+          const imageTransform = `scale(${clamp(layer.cropZoom ?? 100, 100, 220) / 100}) scaleX(${layer.flipX ? -1 : 1}) scaleY(${layer.flipY ? -1 : 1})`;
           return (
             <div
               key={layer.id}
               data-editor-layer={layer.id}
-              style={{
-                ...baseStyle,
-                width: clamp(layer.size || 62, 10, 180) + "%",
-                opacity: clamp(layer.opacity ?? 1, 0.1, 1),
-                outline: selected ? "1px dashed rgba(255,255,255,.98)" : "none",
-                outlineOffset: selected ? "4px" : "0",
-              }}
+              style={{ ...baseStyle, width: clamp(layer.size || 62, 10, 180) + "%", opacity: clamp(layer.opacity ?? 1, 0.1, 1), outline: selected ? "1px solid rgba(255,255,255,.95)" : "none", outlineOffset: selected ? "4px" : "0" }}
               onPointerDown={(event) => beginGesture(event, layer)}
               onPointerMove={(event) => moveGesture(event, layer)}
               onPointerUp={(event) => endGesture(event, layer)}
               onPointerCancel={(event) => endGesture(event, layer)}
+              onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); onSelectLayer?.(layer.id); onPatchLayer?.(layer.id, { fitMode: "crop" }); }}
             >
-              <div className={cropMode ? "aspect-[4/5] w-full overflow-hidden" : "w-full"} style={cropMode ? { borderRadius: "2%" } : undefined}>
+              <div className={cropMode ? "aspect-[4/5] w-full overflow-hidden rounded-[3%]" : "w-full overflow-visible"}>
                 <img
                   src={asset.url}
                   alt={asset.name || "Customer photo"}
                   draggable="false"
                   className={cropMode ? "h-full w-full select-none object-cover pointer-events-none" : "h-auto w-full select-none object-contain pointer-events-none"}
+                  style={{ objectPosition: `${clamp(layer.cropX ?? 50, 0, 100)}% ${clamp(layer.cropY ?? 50, 0, 100)}%`, transform: imageTransform, transformOrigin: "center", filter: photoFilterFor(layer) }}
                 />
               </div>
-              {selectionChrome(layer, selected)}
+              {selectionChrome(layer, selected, index)}
             </div>
           );
         }
 
         if (layer.type === "text") {
+          const curved = (layer.curve || "straight") !== "straight";
           const textStyle = {
             ...baseStyle,
             fontSize: Math.max(8, Number(layer.size || 28)) + "px",
             lineHeight: Number(layer.lineHeight || 1),
             letterSpacing: Number(layer.letterSpacing || 0) + "px",
             color: layer.color || "#ffffff",
-            fontFamily: layer.fontFamily || "Impact, sans-serif",
+            fontFamily: layer.fontFamily || FONT_PRESETS[0].family,
+            fontWeight: layer.fontWeight || 700,
+            fontStyle: layer.fontStyle || "normal",
             textAlign: layer.align || "center",
             whiteSpace: "pre-wrap",
+            width: curved ? `${clamp(160 + editorTextValue(layer).length * Number(layer.size || 28) * 0.55, 180, 520)}px` : "max-content",
             maxWidth: "92%",
             opacity: clamp(layer.opacity ?? 1, 0.1, 1),
-            WebkitTextStroke: `${Number(layer.strokeWidth || 0)}px ${layer.strokeColor || "#111111"}`,
-            textShadow: layer.shadow ? "0 2px 4px rgba(0,0,0,.65)" : "none",
-            outline: selected ? "1px dashed rgba(255,255,255,.95)" : "none",
+            WebkitTextStroke: curved ? undefined : `${Number(layer.strokeWidth || 0)}px ${layer.strokeColor || "#111111"}`,
+            paintOrder: "stroke",
+            textShadow: curved ? "none" : textShadowFor(layer),
+            outline: selected ? "1px solid rgba(255,255,255,.95)" : "none",
             outlineOffset: selected ? "4px" : "0",
           };
 
-          if (isEditingText) {
+          if (isEditingText && !curved) {
             const rows = Math.max(1, String(layer.text || "").split("\n").length);
             return (
               <textarea
@@ -499,29 +654,11 @@ export function EditableOverlayLayers({
                 value={layer.text || ""}
                 rows={rows}
                 aria-label="Edit text directly on garment"
-                style={{
-                  ...textStyle,
-                  width: "min(76vw, 320px)",
-                  minWidth: "120px",
-                  minHeight: Math.max(44, Number(layer.size || 28) * Number(layer.lineHeight || 1) * rows + 16) + "px",
-                  resize: "none",
-                  overflow: "hidden",
-                  background: "rgba(23,50,77,.18)",
-                  border: "1px dashed rgba(255,255,255,.98)",
-                  padding: "6px 8px",
-                  cursor: "text",
-                  touchAction: "manipulation",
-                  userSelect: "text",
-                  WebkitUserSelect: "text",
-                }}
+                style={{ ...textStyle, width: "min(76vw, 340px)", minWidth: "120px", minHeight: Math.max(44, Number(layer.size || 28) * Number(layer.lineHeight || 1) * rows + 16) + "px", resize: "none", overflow: "hidden", background: "rgba(7,19,31,.62)", border: "1px solid rgba(255,255,255,.9)", borderRadius: "8px", padding: "6px 8px", cursor: "text", touchAction: "manipulation", userSelect: "text", WebkitUserSelect: "text" }}
                 onChange={(event) => onPatchLayer?.(layer.id, { text: event.target.value }, { history: false })}
                 onPointerDown={(event) => event.stopPropagation()}
                 onBlur={() => setEditingTextId("")}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
-                    event.currentTarget.blur();
-                  }
-                }}
+                onKeyDown={(event) => { if (event.key === "Escape" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) event.currentTarget.blur(); }}
               />
             );
           }
@@ -539,12 +676,10 @@ export function EditableOverlayLayers({
               onPointerUp={(event) => endGesture(event, layer)}
               onPointerCancel={(event) => endGesture(event, layer)}
               onDoubleClick={(event) => beginTextEdit(event, layer)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") beginTextEdit(event, layer);
-              }}
+              onKeyDown={(event) => { if (event.key === "Enter") beginTextEdit(event, layer); }}
             >
-              {layer.text || "YOUR TEXT"}
-              {selectionChrome(layer, selected)}
+              <CurvedText layer={layer}/>
+              {selectionChrome(layer, selected, index)}
             </div>
           );
         }
@@ -554,16 +689,7 @@ export function EditableOverlayLayers({
           <div
             key={layer.id}
             data-editor-layer={layer.id}
-            style={{
-              ...baseStyle,
-              width: Math.max(14, Number(layer.size || 34)) + "px",
-              height: Math.max(14, Number(layer.size || 34)) + "px",
-              display: "grid",
-              placeItems: "center",
-              opacity: clamp(layer.opacity ?? 1, 0.1, 1),
-              outline: selected ? "1px dashed rgba(255,255,255,.95)" : "none",
-              outlineOffset: selected ? "4px" : "0",
-            }}
+            style={{ ...baseStyle, width: Math.max(14, Number(layer.size || 34)) + "px", height: Math.max(14, Number(layer.size || 34)) + "px", display: "grid", placeItems: "center", opacity: clamp(layer.opacity ?? 1, 0.1, 1), outline: selected ? "1px solid rgba(255,255,255,.95)" : "none", outlineOffset: selected ? "4px" : "0" }}
             onPointerDown={(event) => beginGesture(event, layer)}
             onPointerMove={(event) => moveGesture(event, layer)}
             onPointerUp={(event) => endGesture(event, layer)}
@@ -572,11 +698,53 @@ export function EditableOverlayLayers({
             {sticker.assetUrl
               ? <img src={sticker.assetUrl} alt={sticker.label || "Sticker"} draggable="false" className="h-full w-full object-contain pointer-events-none" />
               : <span className="leading-none select-none pointer-events-none" style={{ fontSize: Math.max(14, Number(layer.size || 34)) + "px" }}>{sticker.glyph || "✦"}</span>}
-            {selectionChrome(layer, selected)}
+            {selectionChrome(layer, selected, index)}
           </div>
         );
       })}
     </>
+  );
+}
+
+function ToolButton({ active, icon: Icon, label, onClick, disabled = false }) {
+  return (
+    <button type="button" disabled={disabled} onClick={onClick} className={`flex min-w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border px-2.5 py-2 text-[9px] font-bold uppercase tracking-[.04em] transition disabled:opacity-35 ${active ? "border-[#D9273E] bg-[#D9273E]/15 text-white shadow-[0_0_22px_rgba(217,39,62,.16)]" : "border-white/10 bg-white/[.045] text-white/65 hover:border-white/20 hover:text-white"}`}>
+      {Icon && <Icon size={14}/>}<span>{label}</span>
+    </button>
+  );
+}
+
+function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange }) {
+  const numericValue = Number(value ?? 0);
+  const display = Number.isInteger(numericValue) ? numericValue : Number(numericValue.toFixed(2));
+  return (
+    <label className="block text-[9px] font-mono uppercase tracking-[.08em] text-white/48">
+      <span className="flex justify-between gap-3"><span>{label}</span><span className="text-white/80">{display}{suffix}</span></span>
+      <input type="range" min={min} max={max} step={step} value={numericValue} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1.5 w-full accent-[#D9273E]"/>
+    </label>
+  );
+}
+
+function PositionRows({ layer, patch }) {
+  if (!layer) return null;
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <RangeRow label="X position" value={Number(layer.x ?? 50)} min={0} max={100} suffix="%" onChange={(value) => patch({ x: value })}/>
+      <RangeRow label="Y position" value={Number(layer.y ?? 50)} min={0} max={100} suffix="%" onChange={(value) => patch({ y: value })}/>
+    </div>
+  );
+}
+
+function LayerActionRow({ layer, onDuplicate, onDelete, onMoveLayer, onReset }) {
+  if (!layer) return null;
+  return (
+    <div className="grid grid-cols-4 gap-1.5">
+      <button type="button" onClick={() => onDuplicate?.(layer.id)} className="grid h-9 place-items-center rounded-lg border border-white/10 bg-white/[.045] text-white/75" title="Duplicate"><Copy size={14}/></button>
+      <button type="button" onClick={() => onMoveLayer?.(layer.id, 1)} className="grid h-9 place-items-center rounded-lg border border-white/10 bg-white/[.045] text-white/75" title="Bring forward"><ArrowUp size={14}/></button>
+      <button type="button" onClick={() => onMoveLayer?.(layer.id, -1)} className="grid h-9 place-items-center rounded-lg border border-white/10 bg-white/[.045] text-white/75" title="Send backward"><ArrowDown size={14}/></button>
+      <button type="button" onClick={() => onDelete?.(layer.id)} className="grid h-9 place-items-center rounded-lg border border-[#D9273E]/30 bg-[#D9273E]/10 text-[#FF8898]" title="Delete"><Trash2 size={14}/></button>
+      <button type="button" onClick={() => onReset?.(layer.id)} className="col-span-4 mt-1 h-9 rounded-lg border border-white/10 bg-white/[.045] text-[9px] font-bold uppercase text-white/65 inline-flex items-center justify-center gap-1.5"><RotateCcw size={12}/> Reset selected layer</button>
+    </div>
   );
 }
 
@@ -610,178 +778,274 @@ export function AdvancedEditorPanel({
 }) {
   const tools = normalizeEditorTools(enabledTools);
   const stickers = normalizeStickerLibrary(stickerLibrary).filter((item) => item.enabled !== false);
+  const photosById = useMemo(() => Object.fromEntries((photoAssets || []).filter((item) => item?.id).map((item) => [String(item.id), item])), [photoAssets]);
   const selectedLayer = editorLayers.find((layer) => layer.id === selectedLayerId) || null;
   const selectedPhotoAsset = selectedLayer?.type === "photo"
-    ? (photoAssets || []).find((photo) => String(photo?.id || "") === String(selectedLayer.photoId || "")) || null
-    : null;
-  const photoSelected = selectedLayer?.type === "photo" || selectedLayerId === "photo" || !selectedLayer;
+    ? photosById[String(selectedLayer.photoId || "")] || null
+    : (selectedLayerId === "photo" ? (photoAssets || [])[0] || null : null);
+  const selectedType = selectedLayer?.type || (hasPhoto ? "photo" : "none");
   const patch = (value) => selectedLayer && onPatchLayer?.(selectedLayer.id, value);
-  const docked = Boolean(selectedLayer);
+  const [activeTool, setActiveTool] = useState("layers");
+  const [showStickers, setShowStickers] = useState(false);
+  const [showPhotoPicker, setShowPhotoPicker] = useState(false);
+
+  useEffect(() => {
+    if (selectedType === "text") setActiveTool("edit");
+    else if (selectedType === "photo") setActiveTool("transform");
+    else if (selectedType === "sticker") setActiveTool("transform");
+    else setActiveTool("layers");
+  }, [selectedLayerId, selectedType]);
+
+  const chooseLayer = (id) => {
+    onSelectLayer?.(id);
+    setShowStickers(false);
+    setShowPhotoPicker(false);
+  };
+
+  const renderLayers = () => (
+    <div className="space-y-2">
+      {templateName && <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-3 py-2.5 text-[10px] text-white/65"><Lock size={13} className="text-[#D9273E]"/><span><strong className="text-white">{templateName}</strong> is protected from accidental edits.</span></div>}
+      {!editorLayers.length && <div className="rounded-xl border border-dashed border-white/15 p-4 text-center text-[10px] text-white/45">Add a photo, text or sticker to create editable layers.</div>}
+      {[...editorLayers].map((layer, index) => {
+        const active = layer.id === selectedLayerId;
+        return (
+          <div key={layer.id} className={`grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border p-2 ${active ? "border-[#D9273E]/70 bg-[#D9273E]/10" : "border-white/10 bg-white/[.035]"}`}>
+            <button type="button" onClick={() => chooseLayer(layer.id)} className="min-w-0 text-left">
+              <div className="truncate text-[10px] font-bold text-white">{labelForLayer(layer, index, photosById)}</div>
+              <div className="mt-0.5 text-[8px] uppercase tracking-[.12em] text-white/35">{layer.type}{layer.locked ? " · locked" : ""}</div>
+            </button>
+            <div className="flex gap-1">
+              <button type="button" onClick={() => onPatchLayer?.(layer.id, { visible: layer.visible === false })} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[.04] text-white/65" title={layer.visible === false ? "Show layer" : "Hide layer"}>{layer.visible === false ? <EyeOff size={13}/> : <Eye size={13}/>}</button>
+              <button type="button" onClick={() => onPatchLayer?.(layer.id, { locked: !layer.locked })} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[.04] text-white/65" title={layer.locked ? "Unlock layer" : "Lock layer"}>{layer.locked ? <Lock size={13}/> : <Unlock size={13}/>}</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderPhotoTool = () => {
+    if (!selectedLayer && hasPhoto) {
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          {(tools.erase || tools.restore) && <button type="button" onClick={onOpenPhotoEditor} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><Eraser size={14} className="mx-auto mb-1"/>Erase / Restore</button>}
+          <button type="button" onClick={onResetPhoto} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><RotateCcw size={14} className="mx-auto mb-1"/>Reset photo</button>
+          <button type="button" onClick={onDeletePhoto} className="rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/10 px-3 py-3 text-[10px] font-bold uppercase text-[#FF8898]"><Trash2 size={14} className="mx-auto mb-1"/>Delete photo</button>
+          <button type="button" onClick={onResetAll} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><WandSparkles size={14} className="mx-auto mb-1"/>Reset layers</button>
+        </div>
+      );
+    }
+    if (!selectedLayer || selectedLayer.type !== "photo") return renderLayers();
+
+    if (activeTool === "replace") {
+      return (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {(photoAssets || []).map((photo, index) => <button key={photo.id || index} type="button" onClick={() => { patch({ photoId: String(photo.id || "") }); setActiveTool("transform"); }} className={`overflow-hidden rounded-xl border p-1.5 text-left ${String(selectedLayer.photoId) === String(photo.id) ? "border-[#D9273E] bg-[#D9273E]/10" : "border-white/10 bg-white/[.04]"}`}>
+            <img src={photo.url || photo.originalUrl} alt="" className="aspect-square w-full rounded-lg object-cover"/>
+            <div className="mt-1 truncate text-[9px] font-semibold text-white/75">{photo.name || `Photo ${index + 1}`}</div>
+          </button>)}
+        </div>
+      );
+    }
+
+    if (activeTool === "crop") {
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => patch({ fitMode: "fit" })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.fitMode !== "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fit · no crop</button>
+            <button type="button" onClick={() => patch({ fitMode: "crop" })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.fitMode === "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Crop 4:5</button>
+          </div>
+          {selectedLayer.fitMode === "crop" && <>
+            <RangeRow label="Crop left / right" value={selectedLayer.cropX ?? 50} min={0} max={100} suffix="%" onChange={(value) => patch({ cropX: value })}/>
+            <RangeRow label="Crop up / down" value={selectedLayer.cropY ?? 50} min={0} max={100} suffix="%" onChange={(value) => patch({ cropY: value })}/>
+            <RangeRow label="Crop zoom" value={selectedLayer.cropZoom ?? 100} min={100} max={220} suffix="%" onChange={(value) => patch({ cropZoom: value })}/>
+          </>}
+        </div>
+      );
+    }
+
+    if (activeTool === "adjust") {
+      return (
+        <div className="space-y-3">
+          <RangeRow label="Brightness" value={selectedLayer.brightness ?? 100} min={25} max={175} suffix="%" onChange={(value) => patch({ brightness: value })}/>
+          <RangeRow label="Contrast" value={selectedLayer.contrast ?? 100} min={25} max={175} suffix="%" onChange={(value) => patch({ contrast: value })}/>
+          <RangeRow label="Saturation" value={selectedLayer.saturation ?? 100} min={0} max={200} suffix="%" onChange={(value) => patch({ saturation: value })}/>
+          <RangeRow label="Warmth" value={selectedLayer.warmth ?? 0} min={-100} max={100} onChange={(value) => patch({ warmth: value })}/>
+          <button type="button" onClick={() => patch({ brightness: 100, contrast: 100, saturation: 100, warmth: 0 })} className="h-9 w-full rounded-xl border border-white/10 bg-white/[.04] text-[9px] font-bold uppercase text-white/65">Reset photo adjustments</button>
+        </div>
+      );
+    }
+
+    if (activeTool === "erase") {
+      return <button type="button" onClick={onOpenPhotoEditor} className="w-full rounded-xl border border-[#D9273E]/40 bg-[#D9273E]/10 px-4 py-3 text-[10px] font-bold uppercase text-white"><Eraser size={15} className="mr-2 inline"/>Open precision Erase / Restore</button>;
+    }
+
+    if (activeTool === "background") {
+      return (
+        <div className="space-y-2">
+          <div className="rounded-xl border border-white/10 bg-white/[.035] p-3 text-[10px] leading-relaxed text-white/55">GDP keeps the original photo available. Background removal switches the garment preview between the original and transparent cutout.</div>
+          <button type="button" disabled={!selectedPhotoAsset} onClick={() => selectedPhotoAsset && onTogglePhotoBackground?.(selectedPhotoAsset.id)} className="w-full rounded-xl border border-[#D9273E]/40 bg-[#D9273E]/10 px-4 py-3 text-[10px] font-bold uppercase text-white disabled:opacity-35"><WandSparkles size={15} className="mr-2 inline"/>{selectedPhotoAsset?.backgroundRemoved ? "Restore original background" : "Use transparent background"}</button>
+        </div>
+      );
+    }
+
+    if (activeTool === "more") return <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>;
+
+    return (
+      <div className="space-y-3">
+        <RangeRow label="Photo size" value={selectedLayer.size ?? 62} min={10} max={180} suffix="%" onChange={(value) => patch({ size: value })}/>
+        <RangeRow label="Rotation" value={selectedLayer.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
+        <RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/>
+        <PositionRows layer={selectedLayer} patch={patch}/>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => patch({ flipX: !selectedLayer.flipX })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.flipX ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><FlipHorizontal size={13} className="mr-1 inline"/>Flip H</button>
+          <button type="button" onClick={() => patch({ flipY: !selectedLayer.flipY })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.flipY ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><FlipVertical size={13} className="mr-1 inline"/>Flip V</button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTextTool = () => {
+    if (!selectedLayer || selectedLayer.type !== "text") return renderLayers();
+
+    if (activeTool === "font") {
+      return <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{FONT_PRESETS.map((font) => <button key={font.label} type="button" onClick={() => patch({ fontFamily: font.family })} className={`rounded-xl border p-3 text-left ${selectedLayer.fontFamily === font.family ? "border-[#D9273E] bg-[#D9273E]/10" : "border-white/10 bg-white/[.035]"}`}><div className="truncate text-base text-white" style={{ fontFamily: font.family }}>{font.label}</div><div className="mt-1 text-[8px] uppercase tracking-wide text-white/35">{font.group}</div></button>)}</div>;
+    }
+
+    if (activeTool === "style") {
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => patch({ fontWeight: Number(selectedLayer.fontWeight || 700) >= 700 ? 400 : 700 })} className={`rounded-xl border py-2 text-sm font-black ${Number(selectedLayer.fontWeight || 700) >= 700 ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>B</button>
+            <button type="button" onClick={() => patch({ fontStyle: selectedLayer.fontStyle === "italic" ? "normal" : "italic" })} className={`rounded-xl border py-2 text-sm italic ${selectedLayer.fontStyle === "italic" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>I</button>
+            <button type="button" onClick={() => patch({ textTransform: selectedLayer.textTransform === "uppercase" ? "none" : "uppercase" })} className={`rounded-xl border py-2 text-[10px] font-black ${selectedLayer.textTransform === "uppercase" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>ABC</button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => patch({ align: "left" })} className={`grid h-10 place-items-center rounded-xl border ${selectedLayer.align === "left" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}><AlignLeft size={15}/></button>
+            <button type="button" onClick={() => patch({ align: "center" })} className={`grid h-10 place-items-center rounded-xl border ${selectedLayer.align !== "left" && selectedLayer.align !== "right" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}><AlignCenter size={15}/></button>
+            <button type="button" onClick={() => patch({ align: "right" })} className={`grid h-10 place-items-center rounded-xl border ${selectedLayer.align === "right" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}><AlignRight size={15}/></button>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTool === "color") {
+      return <div className="grid grid-cols-2 gap-3"><label className="text-[9px] font-bold uppercase tracking-wide text-white/45">Text color<input type="color" value={selectedLayer.color || "#ffffff"} onChange={(event) => patch({ color: event.target.value })} className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-white/[.04] p-1"/></label><label className="text-[9px] font-bold uppercase tracking-wide text-white/45">Outline color<input type="color" value={selectedLayer.strokeColor || "#111111"} onChange={(event) => patch({ strokeColor: event.target.value })} className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-white/[.04] p-1"/></label></div>;
+    }
+
+    if (activeTool === "curve") {
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">{TEXT_CURVES.map((curve) => <button key={curve.id} type="button" onClick={() => patch({ curve: curve.id })} className={`rounded-xl border px-2 py-2 text-[8px] font-bold uppercase ${String(selectedLayer.curve || "straight") === curve.id ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>{curve.label}</button>)}</div>
+          {(selectedLayer.curve || "straight") !== "straight" && <RangeRow label="Curve intensity" value={selectedLayer.curveAmount ?? 45} min={-100} max={100} onChange={(value) => patch({ curveAmount: value })}/>} 
+        </div>
+      );
+    }
+
+    if (activeTool === "effects") {
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-1.5">{TEXT_EFFECTS.map((effect) => <button key={effect.id} type="button" onClick={() => patch({ effect: effect.id, shadow: effect.id !== "none" && effect.id !== "outline" })} className={`rounded-xl border px-2 py-2 text-[8px] font-bold uppercase ${String(selectedLayer.effect || "shadow") === effect.id ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>{effect.label}</button>)}</div>
+          <RangeRow label="Effect strength" value={selectedLayer.effectStrength ?? 45} min={0} max={100} suffix="%" onChange={(value) => patch({ effectStrength: value })}/>
+          <RangeRow label="Outline thickness" value={selectedLayer.strokeWidth ?? 1} min={0} max={8} step={0.5} suffix="px" onChange={(value) => patch({ strokeWidth: value })}/>
+        </div>
+      );
+    }
+
+    if (activeTool === "spacing") {
+      return <div className="space-y-3"><RangeRow label="Letter spacing" value={selectedLayer.letterSpacing ?? 1} min={-3} max={18} suffix="px" onChange={(value) => patch({ letterSpacing: value })}/><RangeRow label="Line height" value={selectedLayer.lineHeight ?? 1} min={0.7} max={2} step={0.05} suffix="×" onChange={(value) => patch({ lineHeight: value })}/></div>;
+    }
+
+    if (activeTool === "transform") {
+      return <div className="space-y-3"><RangeRow label="Size" value={selectedLayer.size ?? 28} min={8} max={144} suffix="px" onChange={(value) => patch({ size: value })}/><RangeRow label="Rotation" value={selectedLayer.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/><RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/><PositionRows layer={selectedLayer} patch={patch}/></div>;
+    }
+
+    if (activeTool === "more") return <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>;
+
+    return (
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-2 text-[9px] uppercase tracking-[.1em] text-white/45"><span>Wording</span><span>Double-tap text on garment</span></div>
+        <textarea value={selectedLayer.text || ""} onChange={(event) => patch({ text: event.target.value })} rows={3} className="w-full resize-none rounded-xl border border-white/10 bg-white/[.055] p-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#D9273E]/70" placeholder="Type your wording"/>
+      </div>
+    );
+  };
+
+  const renderStickerTool = () => {
+    if (!selectedLayer || selectedLayer.type !== "sticker") return renderLayers();
+    if (activeTool === "stickers") return <div className="grid grid-cols-5 gap-1.5">{stickers.map((sticker) => <button key={sticker.id} type="button" title={sticker.label} onClick={() => patch({ stickerId: sticker.id })} className={`grid aspect-square place-items-center overflow-hidden rounded-xl border text-lg ${selectedLayer.stickerId === sticker.id ? "border-[#D9273E] bg-[#D9273E]/15" : "border-white/10 bg-white/[.04]"}`}>{sticker.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} className="h-full w-full object-contain p-1"/> : sticker.glyph}</button>)}</div>;
+    if (activeTool === "more") return <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>;
+    return <div className="space-y-3"><RangeRow label="Sticker size" value={selectedLayer.size ?? 34} min={14} max={140} suffix="px" onChange={(value) => patch({ size: value })}/><RangeRow label="Rotation" value={selectedLayer.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/><RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/><PositionRows layer={selectedLayer} patch={patch}/></div>;
+  };
+
+  const contextTools = selectedType === "photo" ? [
+    ["replace", ImageIcon, "Replace"],
+    ["background", WandSparkles, "Remove BG"],
+    ["crop", Crop, "Crop"],
+    ["adjust", SlidersHorizontal, "Adjust"],
+    ["erase", Eraser, "Erase"],
+    ["transform", Move, "Transform"],
+    ["more", Layers, "More"],
+  ] : selectedType === "text" ? [
+    ["edit", Type, "Edit"],
+    ["font", Type, "Font"],
+    ["style", Sparkles, "Style"],
+    ["color", Sparkles, "Color"],
+    ["curve", RotateCcw, "Curve"],
+    ["effects", WandSparkles, "Effects"],
+    ["spacing", Maximize2, "Spacing"],
+    ["transform", Move, "Transform"],
+    ["more", Layers, "More"],
+  ] : selectedType === "sticker" ? [
+    ["stickers", Sparkles, "Replace"],
+    ["transform", Move, "Transform"],
+    ["more", Layers, "More"],
+  ] : [];
 
   return (
-    <div className={(docked ? "sticky bottom-2 z-30 max-h-[58dvh] overflow-y-auto md:static md:max-h-none md:overflow-visible " : "") + "mt-4 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC]/95 p-3 shadow-sm backdrop-blur md:bg-[#F8FAFC]"}>
-      <div className="mb-3 rounded-xl border border-[#D7E0E8] bg-white px-3 py-2 text-[10px] leading-relaxed text-[#53616D]">
-        <strong className="text-[#17324D]">Touch the design directly:</strong> drag to move · pinch to resize · twist with two fingers to rotate · double-tap text to type.
-      </div>
-
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="font-mono text-[9px] uppercase tracking-[0.15em] text-[#6C7883]">Layer tools</div>
-          <div className="mt-0.5 text-xs font-bold text-[#17324D]">{photoSelected ? "Photo tools" : selectedLayer?.type === "text" ? "Text tools" : "Sticker tools"}</div>
+    <div className="sticky bottom-2 z-30 mt-4 max-h-[62dvh] overflow-y-auto rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-mono text-[8px] uppercase tracking-[.22em] text-[#D9273E]">GDP Touch Studio</div>
+          <div className="mt-1 truncate text-xs font-bold text-white">{selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : hasPhoto ? "Photo tools" : "Tap an object to edit"}</div>
         </div>
-        <div className="flex gap-1">
-          <button type="button" onClick={onUndo} disabled={!canUndo} className="grid h-8 w-8 place-items-center rounded-lg border border-[#D5DDE4] bg-white disabled:opacity-35" aria-label="Undo"><Undo2 size={14}/></button>
-          <button type="button" onClick={onRedo} disabled={!canRedo} className="grid h-8 w-8 place-items-center rounded-lg border border-[#D5DDE4] bg-white disabled:opacity-35" aria-label="Redo"><Redo2 size={14}/></button>
+        <div className="flex shrink-0 gap-1">
+          <button type="button" onClick={onUndo} disabled={!canUndo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Undo"><Undo2 size={14}/></button>
+          <button type="button" onClick={onRedo} disabled={!canRedo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Redo"><Redo2 size={14}/></button>
+          <button type="button" onClick={() => setActiveTool("layers")} className={`grid h-9 w-9 place-items-center rounded-xl border ${activeTool === "layers" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.045] text-white/65"}`} aria-label="Layers"><Layers size={14}/></button>
         </div>
       </div>
 
-      {templateName && <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#D7E0E8] bg-white p-2.5 text-[10px] leading-relaxed text-[#5B6874]">
-        <Lock size={13} className="mt-0.5 shrink-0 text-[#17324D]"/>
-        <span><strong className="text-[#17324D]">{templateName}</strong> stays protected. Customer photos, text and stickers remain fully editable.</span>
+      <div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2 text-[9px] leading-relaxed text-white/48">
+        <strong className="text-white/80">Touch-first:</strong> drag to move · pinch to resize · twist to rotate · double-tap text to type · double-tap a photo for crop mode.
+      </div>
+
+      {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold text-amber-200">{outsideWarning}</div>}
+
+      {activeTool !== "layers" && contextTools.length > 0 && <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">{contextTools.map(([id, icon, label]) => <ToolButton key={id} active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
+
+      {activeTool === "layers" && <div className="mt-3">{renderLayers()}</div>}
+      {activeTool !== "layers" && <div className="mt-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
+        {selectedType === "photo" ? renderPhotoTool() : selectedType === "text" ? renderTextTool() : selectedType === "sticker" ? renderStickerTool() : renderLayers()}
       </div>}
 
-      <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
-        {!editorLayers.some((layer) => layer.type === "photo") && <button type="button" onClick={() => onSelectLayer?.("photo")} className={"shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (photoSelected ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>Photo</button>}
-        {editorLayers.map((layer) => {
-          const asset = layer.type === "photo"
-            ? (photoAssets || []).find((photo) => String(photo?.id || "") === String(layer.photoId || ""))
-            : null;
-          const label = layer.type === "text" ? (layer.text || "Text") : layer.type === "photo" ? (asset?.name || "Photo") : "Sticker";
-          return <button key={layer.id} type="button" onClick={() => onSelectLayer?.(layer.id)} className={"max-w-[140px] shrink-0 truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (selectedLayerId === layer.id ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>{label}</button>;
-        })}
-      </div>
+      <div className="mt-3 border-t border-white/10 pt-3">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {(photoAssets || []).length > 0 && <ToolButton icon={ImageIcon} label="Add photo" onClick={() => setShowPhotoPicker((value) => !value)} active={showPhotoPicker}/>} 
+          {tools.text && <ToolButton icon={Type} label="Add text" onClick={() => { onAddText?.(); setShowStickers(false); setShowPhotoPicker(false); }}/>} 
+          {tools.stickers && <ToolButton icon={Sparkles} label="Sticker" onClick={() => { setShowStickers((value) => !value); setShowPhotoPicker(false); }} active={showStickers}/>} 
+          <ToolButton icon={Layers} label="Layers" onClick={() => { setActiveTool("layers"); setShowStickers(false); setShowPhotoPicker(false); }} active={activeTool === "layers"}/>
+          <ToolButton icon={RotateCcw} label="Reset all" onClick={onResetAll}/>
+        </div>
 
-      {(photoAssets || []).length > 0 && <div className="mt-3">
-        <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#6C7883]">Add an uploaded photo to this side</div>
-        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-          {(photoAssets || []).map((photo, index) => {
-            const alreadyAdded = editorLayers.some((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || ""));
-            return <button key={photo.id || photo.url || index} type="button" disabled={alreadyAdded || photo.processingStatus === "failed"} onClick={() => onAddPhoto?.(photo)} className="inline-flex w-[150px] shrink-0 items-center gap-2 rounded-lg border border-[#D5DDE4] bg-white p-1.5 pr-2 text-left text-[9px] font-semibold text-[#17324D] disabled:opacity-40">
-              <img src={photo.url || photo.originalUrl} alt="" className="h-8 w-8 rounded object-cover" />
-              <span className="truncate">{alreadyAdded ? "Added" : `Add ${photo.name || `photo ${index + 1}`}`}</span>
-            </button>;
-          })}
-        </div>
-      </div>}
+        {showPhotoPicker && <div className="mt-2 flex gap-2 overflow-x-auto pb-1">{(photoAssets || []).map((photo, index) => {
+          const alreadyAdded = editorLayers.some((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || ""));
+          return <button key={photo.id || index} type="button" disabled={alreadyAdded || photo.processingStatus === "failed"} onClick={() => { onAddPhoto?.(photo); setShowPhotoPicker(false); }} className="inline-flex w-[148px] shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] p-1.5 pr-2 text-left text-[9px] font-semibold text-white/75 disabled:opacity-30"><img src={photo.url || photo.originalUrl} alt="" className="h-9 w-9 rounded-lg object-cover"/><span className="truncate">{alreadyAdded ? "Already added" : (photo.name || `Photo ${index + 1}`)}</span></button>;
+        })}</div>}
 
-      {outsideWarning && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-semibold text-amber-800">{outsideWarning}</div>}
-
-      {photoSelected ? (
-        <div className="mt-3 space-y-3">
-          {selectedLayer?.type === "photo" && <>
-            <RangeRow label="Photo size" value={selectedLayer.size} min={10} max={180} suffix="%" onChange={(value) => patch({ size: value })}/>
-            <RangeRow label="Rotation" value={selectedLayer.rotation} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
-            <PositionRows layer={selectedLayer} patch={patch}/>
-            <div className="inline-flex rounded-lg border border-[#D5DDE4] bg-white p-1">
-              <button type="button" onClick={() => patch({ fitMode: "fit" })} className={"rounded-md px-3 py-1.5 text-[9px] font-bold uppercase " + (selectedLayer.fitMode !== "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
-              <button type="button" onClick={() => patch({ fitMode: "crop" })} className={"rounded-md px-3 py-1.5 text-[9px] font-bold uppercase " + (selectedLayer.fitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop 4:5</button>
-            </div>
-          </>}
-          <div className="grid grid-cols-2 gap-2">
-            {(tools.erase || tools.restore) && <button type="button" disabled={!hasPhoto} onClick={onOpenPhotoEditor} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><Eraser size={13}/> Erase / Restore</button>}
-            {selectedPhotoAsset?.cleanedUrl && <button type="button" onClick={() => onTogglePhotoBackground?.(selectedPhotoAsset.id)} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/>{selectedPhotoAsset.backgroundRemoved ? "Restore background" : "Remove background"}</button>}
-            <button type="button" disabled={!hasPhoto} onClick={onResetPhoto} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><RotateCcw size={13}/> Reset photo</button>
-            <button type="button" disabled={!hasPhoto} onClick={onDeletePhoto} className="rounded-xl border border-[#E4C9CC] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#A63D4A] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><Trash2 size={13}/> Delete photo</button>
-            <button type="button" onClick={onResetAll} className="col-span-2 rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/> Reset editable layers</button>
-          </div>
-          {selectedLayer?.type === "photo" && <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>}
-        </div>
-      ) : selectedLayer?.type === "text" ? (
-        <div className="mt-3 space-y-3">
-          <div>
-            <div className="mb-1 flex items-center justify-between text-[9px] font-mono uppercase text-[#6C7883]"><span>Wording</span><span>Double-tap it on the garment to edit there</span></div>
-            <textarea value={selectedLayer.text || ""} onChange={(event) => patch({ text: event.target.value })} rows={2} className="w-full rounded-lg border border-[#D5DDE4] bg-white p-2 text-xs" placeholder="Type your text"/>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Font
-              <select value={selectedLayer.fontFamily} onChange={(event) => patch({ fontFamily: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white px-2 text-[10px] normal-case">
-                <option value="Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif">Impact</option>
-                <option value="'Arial Black', Arial, sans-serif">Arial Black</option>
-                <option value="Arial, Helvetica, sans-serif">Arial</option>
-                <option value="Georgia, serif">Georgia</option>
-                <option value="'Times New Roman', serif">Times</option>
-                <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
-                <option value="'Courier New', monospace">Courier</option>
-              </select>
-            </label>
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Text color
-              <input type="color" value={selectedLayer.color || "#ffffff"} onChange={(event) => patch({ color: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white p-1"/>
-            </label>
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Outline color
-              <input type="color" value={selectedLayer.strokeColor || "#111111"} onChange={(event) => patch({ strokeColor: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white p-1"/>
-            </label>
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Alignment
-              <select value={selectedLayer.align || "center"} onChange={(event) => patch({ align: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white px-2 text-[10px] normal-case">
-                <option value="left">Left</option>
-                <option value="center">Center</option>
-                <option value="right">Right</option>
-              </select>
-            </label>
-          </div>
-          <RangeRow label="Size" value={selectedLayer.size} min={8} max={144} suffix="px" onChange={(value) => patch({ size: value })}/>
-          <RangeRow label="Rotation" value={selectedLayer.rotation} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
-          <RangeRow label="Letter spacing" value={selectedLayer.letterSpacing} min={-2} max={16} suffix="px" onChange={(value) => patch({ letterSpacing: value })}/>
-          <RangeRow label="Line height" value={selectedLayer.lineHeight} min={0.75} max={2} step={0.05} suffix="×" onChange={(value) => patch({ lineHeight: value })}/>
-          <RangeRow label="Outline" value={selectedLayer.strokeWidth} min={0} max={6} step={0.5} suffix="px" onChange={(value) => patch({ strokeWidth: value })}/>
-          <RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/>
-          <PositionRows layer={selectedLayer} patch={patch}/>
-          <label className="flex items-center gap-2 text-[10px] font-semibold text-[#53616D]"><input type="checkbox" checked={selectedLayer.shadow !== false} onChange={(event) => patch({ shadow: event.target.checked })}/> Text shadow</label>
-          <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>
-        </div>
-      ) : (
-        <div className="mt-3 space-y-3">
-          <RangeRow label="Sticker size" value={selectedLayer?.size} min={14} max={140} suffix="px" onChange={(value) => patch({ size: value })}/>
-          <RangeRow label="Rotation" value={selectedLayer?.rotation} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
-          <RangeRow label="Opacity" value={Math.round((selectedLayer?.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/>
-          <PositionRows layer={selectedLayer} patch={patch}/>
-          {selectedLayer && <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>} 
-        </div>
-      )}
-
-      <div className="mt-4 border-t border-[#DCE3EA] pt-3">
-        <div className="flex gap-2">
-          {tools.text && <button type="button" onClick={onAddText} className="flex-1 rounded-xl bg-[#17324D] px-3 py-2 text-[10px] font-bold uppercase text-white inline-flex items-center justify-center gap-1.5"><Type size={13}/> Add text</button>}
-          {tools.stickers && <div className="flex-1 rounded-xl border border-[#D5DDE4] bg-white px-2 py-2 text-center text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><Sparkles size={13}/> Stickers</div>}
-        </div>
-        {tools.stickers && <div className="mt-2 grid grid-cols-5 gap-1.5">
-          {stickers.map((sticker) => <button key={sticker.id} type="button" title={sticker.label} onClick={() => onAddSticker?.(sticker)} className="grid aspect-square place-items-center overflow-hidden rounded-lg border border-[#D5DDE4] bg-white text-lg hover:border-[#17324D]">
-            {sticker.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} className="h-full w-full object-contain p-1"/> : sticker.glyph}
-          </button>)}
-        </div>}
+        {showStickers && tools.stickers && <div className="mt-2 grid grid-cols-5 gap-1.5">{stickers.map((sticker) => <button key={sticker.id} type="button" title={sticker.label} onClick={() => { onAddSticker?.(sticker); setShowStickers(false); }} className="grid aspect-square place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/[.045] text-lg hover:border-[#D9273E]/70">{sticker.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} className="h-full w-full object-contain p-1"/> : sticker.glyph}</button>)}</div>}
       </div>
     </div>
   );
-}
-
-function PositionRows({ layer, patch }) {
-  if (!layer) return null;
-  return <div className="grid grid-cols-2 gap-2">
-    <label className="text-[9px] font-mono uppercase text-[#6C7883]">X position
-      <input type="range" min="0" max="100" value={Number(layer.x || 50)} onChange={(event) => patch({ x: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/>
-    </label>
-    <label className="text-[9px] font-mono uppercase text-[#6C7883]">Y position
-      <input type="range" min="0" max="100" value={Number(layer.y || 50)} onChange={(event) => patch({ y: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/>
-    </label>
-  </div>;
-}
-
-function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange }) {
-  const numericValue = Number(value || 0);
-  const display = Number.isInteger(numericValue) ? numericValue : Number(numericValue.toFixed(2));
-  return <label className="block text-[9px] font-mono uppercase text-[#6C7883]">
-    <span className="flex justify-between"><span>{label}</span><span>{display}{suffix}</span></span>
-    <input type="range" min={min} max={max} step={step} value={numericValue} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1 w-full accent-[#17324D]"/>
-  </label>;
-}
-
-function LayerActionRow({ layer, onDuplicate, onDelete, onMoveLayer, onReset }) {
-  return <div className="grid grid-cols-4 gap-1.5">
-    <button type="button" onClick={() => onDuplicate?.(layer.id)} className="grid h-8 place-items-center rounded-lg border border-[#D5DDE4] bg-white" title="Duplicate"><Copy size={13}/></button>
-    <button type="button" onClick={() => onMoveLayer?.(layer.id, 1)} className="grid h-8 place-items-center rounded-lg border border-[#D5DDE4] bg-white" title="Bring forward"><ArrowUp size={13}/></button>
-    <button type="button" onClick={() => onMoveLayer?.(layer.id, -1)} className="grid h-8 place-items-center rounded-lg border border-[#D5DDE4] bg-white" title="Send backward"><ArrowDown size={13}/></button>
-    <button type="button" onClick={() => onDelete?.(layer.id)} className="grid h-8 place-items-center rounded-lg border border-[#E4C9CC] bg-white text-[#A63D4A]" title="Delete"><Trash2 size={13}/></button>
-    <button type="button" onClick={() => onReset?.(layer.id)} className="col-span-4 h-8 rounded-lg border border-[#D5DDE4] bg-white text-[9px] font-bold uppercase text-[#53616D] inline-flex items-center justify-center gap-1.5"><RotateCcw size={12}/> Reset selected layer</button>
-  </div>;
 }
 
 export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, onClose, onApply }) {
@@ -801,7 +1065,7 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
   const pushHistory = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    historyRef.current = [...historyRef.current, canvas.toDataURL("image/png")].slice(-12);
+    historyRef.current = [...historyRef.current, canvas.toDataURL("image/png")].slice(-16);
     redoRef.current = [];
     setHistoryVersion((value) => value + 1);
   };
@@ -843,7 +1107,6 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(source, 0, 0);
       historyRef.current = [canvas.toDataURL("image/png")];
-      redoRef.current = [];
       setReady(true);
       setHistoryVersion((value) => value + 1);
     };
@@ -856,10 +1119,7 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
   const canvasPoint = (event) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((event.clientX - rect.left) / Math.max(1, rect.width)) * canvas.width,
-      y: ((event.clientY - rect.top) / Math.max(1, rect.height)) * canvas.height,
-    };
+    return { x: ((event.clientX - rect.left) / Math.max(1, rect.width)) * canvas.width, y: ((event.clientY - rect.top) / Math.max(1, rect.height)) * canvas.height };
   };
 
   const brush = (event) => {
@@ -869,7 +1129,6 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
     const context = canvas.getContext("2d");
     const { x, y } = canvasPoint(event);
     const radius = Math.max(4, Number(brushSize || 44)) * (canvas.width / Math.max(500, canvas.getBoundingClientRect().width));
-
     if (mode === "restore") {
       context.save();
       context.beginPath();
@@ -881,7 +1140,6 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
       context.restore();
       return;
     }
-
     context.save();
     context.globalCompositeOperation = "destination-out";
     context.beginPath();
@@ -892,55 +1150,17 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
       gradient.addColorStop(0.68, "rgba(0,0,0,.82)");
       gradient.addColorStop(1, "rgba(0,0,0,0)");
       context.fillStyle = gradient;
-    } else {
-      context.fillStyle = "rgba(0,0,0,1)";
-    }
+    } else context.fillStyle = "rgba(0,0,0,1)";
     context.fill();
     context.restore();
   };
 
-  const start = (event) => {
-    if (!ready) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    drawingRef.current = true;
-    brush(event);
-  };
-  const move = (event) => {
-    if (!drawingRef.current) return;
-    event.preventDefault();
-    brush(event);
-  };
-  const stop = (event) => {
-    if (!drawingRef.current) return;
-    event?.preventDefault?.();
-    drawingRef.current = false;
-    pushHistory();
-  };
-
-  const undo = () => {
-    if (historyRef.current.length <= 1) return;
-    const current = historyRef.current.pop();
-    redoRef.current.push(current);
-    drawDataUrl(historyRef.current[historyRef.current.length - 1]);
-    setHistoryVersion((value) => value + 1);
-  };
-  const redo = () => {
-    const next = redoRef.current.pop();
-    if (!next) return;
-    historyRef.current.push(next);
-    drawDataUrl(next);
-    setHistoryVersion((value) => value + 1);
-  };
-  const reset = () => {
-    const canvas = canvasRef.current;
-    const source = sourceRef.current;
-    if (!canvas || !source) return;
-    const context = canvas.getContext("2d");
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(source, 0, 0);
-    pushHistory();
-  };
+  const start = (event) => { if (!ready) return; event.preventDefault(); event.currentTarget.setPointerCapture?.(event.pointerId); drawingRef.current = true; brush(event); };
+  const move = (event) => { if (!drawingRef.current) return; event.preventDefault(); brush(event); };
+  const stop = (event) => { if (!drawingRef.current) return; event?.preventDefault?.(); drawingRef.current = false; pushHistory(); };
+  const undo = () => { if (historyRef.current.length <= 1) return; const current = historyRef.current.pop(); redoRef.current.push(current); drawDataUrl(historyRef.current[historyRef.current.length - 1]); setHistoryVersion((value) => value + 1); };
+  const redo = () => { const next = redoRef.current.pop(); if (!next) return; historyRef.current.push(next); drawDataUrl(next); setHistoryVersion((value) => value + 1); };
+  const reset = () => { const canvas = canvasRef.current; const source = sourceRef.current; if (!canvas || !source) return; const context = canvas.getContext("2d"); context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(source, 0, 0); pushHistory(); };
   const apply = async () => {
     const canvas = canvasRef.current;
     if (!canvas || !ready || !onApply) return;
@@ -953,50 +1173,33 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
       onClose?.();
     } catch (error) {
       window.alert(error?.message || "Could not apply the edited photo. Your current photo is unchanged.");
-    } finally {
-      setApplying(false);
-    }
+    } finally { setApplying(false); }
   };
 
   return (
-    <div className="fixed inset-0 z-[110] bg-black/75 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Erase and restore photo">
-      <div className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#F4F7FA] shadow-2xl">
-        <div className="flex items-center justify-between gap-3 border-b border-[#DCE3EA] bg-white px-4 py-3">
-          <div><div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#6C7883]">Non-destructive photo editor</div><div className="font-bold text-[#17324D]">Erase / Restore</div></div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl border border-[#D5DDE4] bg-white"><X size={16}/></button>
+    <div className="fixed inset-0 z-[110] bg-black/80 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label="Erase and restore photo">
+      <div className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#07131F] text-white shadow-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div><div className="font-mono text-[8px] uppercase tracking-[.2em] text-[#D9273E]">GDP Photo Lab</div><div className="mt-0.5 text-sm font-bold">Precision Erase / Restore</div></div>
+          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.05]"><X size={16}/></button>
         </div>
         <div className="flex flex-1 min-h-0 flex-col md:grid md:grid-cols-[220px_1fr]">
-          <div className="order-2 border-t border-[#DCE3EA] bg-white p-3 md:order-1 md:border-r md:border-t-0">
+          <div className="order-2 border-t border-white/10 p-3 md:order-1 md:border-r md:border-t-0">
             <div className="grid grid-cols-2 gap-2">
-              {normalizedTools.erase && <button type="button" onClick={() => setMode("erase")} className={"rounded-xl border px-3 py-2 text-[10px] font-bold uppercase " + (mode === "erase" ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#53616D]")}><Eraser size={13} className="mx-auto mb-1"/>Erase</button>}
-              {normalizedTools.restore && <button type="button" onClick={() => setMode("restore")} className={"rounded-xl border px-3 py-2 text-[10px] font-bold uppercase " + (mode === "restore" ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#53616D]")}><WandSparkles size={13} className="mx-auto mb-1"/>Restore</button>}
+              {normalizedTools.erase && <button type="button" onClick={() => setMode("erase")} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${mode === "erase" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}><Eraser size={13} className="mx-auto mb-1"/>Erase</button>}
+              {normalizedTools.restore && <button type="button" onClick={() => setMode("restore")} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${mode === "restore" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}><WandSparkles size={13} className="mx-auto mb-1"/>Restore</button>}
             </div>
-            <RangeRow label="Brush size" value={brushSize} min={12} max={120} suffix="px" onChange={setBrushSize}/>
-            <label className="mt-3 flex items-center gap-2 text-[10px] font-semibold text-[#53616D]"><input type="checkbox" checked={soft} onChange={(event) => setSoft(event.target.checked)}/> Soft edge</label>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={undo} disabled={historyRef.current.length <= 1} className="h-9 rounded-lg border border-[#D5DDE4] bg-white text-[10px] font-bold uppercase disabled:opacity-35"><Undo2 size={13} className="inline mr-1"/>Undo</button>
-              <button type="button" onClick={redo} disabled={!redoRef.current.length} className="h-9 rounded-lg border border-[#D5DDE4] bg-white text-[10px] font-bold uppercase disabled:opacity-35"><Redo2 size={13} className="inline mr-1"/>Redo</button>
-            </div>
-            <button type="button" onClick={reset} className="mt-2 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white text-[10px] font-bold uppercase"><RotateCcw size={13} className="inline mr-1"/>Reset image</button>
-            <p className="mt-3 text-[9px] leading-relaxed text-[#6C7883]">Erase and Restore only affect the customer photo. The locked GDP template is never edited.</p>
+            <div className="mt-3"><RangeRow label="Brush size" value={brushSize} min={12} max={120} suffix="px" onChange={setBrushSize}/></div>
+            <label className="mt-3 flex items-center gap-2 text-[10px] font-semibold text-white/55"><input type="checkbox" checked={soft} onChange={(event) => setSoft(event.target.checked)} className="accent-[#D9273E]"/> Soft edge</label>
+            <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={undo} disabled={historyRef.current.length <= 1} className="h-9 rounded-xl border border-white/10 bg-white/[.04] text-[9px] font-bold uppercase disabled:opacity-30"><Undo2 size={13} className="mr-1 inline"/>Undo</button><button type="button" onClick={redo} disabled={!redoRef.current.length} className="h-9 rounded-xl border border-white/10 bg-white/[.04] text-[9px] font-bold uppercase disabled:opacity-30"><Redo2 size={13} className="mr-1 inline"/>Redo</button></div>
+            <button type="button" onClick={reset} className="mt-2 h-9 w-full rounded-xl border border-white/10 bg-white/[.04] text-[9px] font-bold uppercase"><RotateCcw size={13} className="mr-1 inline"/>Reset image</button>
+            <p className="mt-3 text-[9px] leading-relaxed text-white/38">Edits affect only the customer photo. Locked GDP template artwork remains protected.</p>
           </div>
-          <div className="order-1 min-h-0 overflow-auto bg-[linear-gradient(45deg,#ddd_25%,transparent_25%),linear-gradient(-45deg,#ddd_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ddd_75%),linear-gradient(-45deg,transparent_75%,#ddd_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px] p-3 md:order-2">
-            <div className="grid min-h-full place-items-center">
-              <canvas
-                ref={canvasRef}
-                className={"max-h-[65dvh] max-w-full touch-none shadow-xl " + (ready ? "cursor-crosshair" : "opacity-40")}
-                onPointerDown={start}
-                onPointerMove={move}
-                onPointerUp={stop}
-                onPointerCancel={stop}
-              />
-            </div>
+          <div className="order-1 min-h-0 overflow-auto bg-[linear-gradient(45deg,#1c2732_25%,transparent_25%),linear-gradient(-45deg,#1c2732_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1c2732_75%),linear-gradient(-45deg,transparent_75%,#1c2732_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px] p-3 md:order-2">
+            <div className="grid min-h-full place-items-center"><canvas ref={canvasRef} className={`max-h-[65dvh] max-w-full touch-none shadow-2xl ${ready ? "cursor-crosshair" : "opacity-35"}`} onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop}/></div>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-[#DCE3EA] bg-white px-4 py-3">
-          <button type="button" onClick={onClose} className="rounded-xl border border-[#D5DDE4] px-4 py-2 text-xs font-bold uppercase text-[#53616D]">Cancel</button>
-          <button type="button" onClick={apply} disabled={!ready || applying} className="rounded-xl bg-[#17324D] px-4 py-2 text-xs font-bold uppercase text-white disabled:opacity-40">{applying ? "Applying…" : "Apply photo edit"}</button>
-        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-white/10 px-4 py-3"><button type="button" onClick={onClose} className="rounded-xl border border-white/10 px-4 py-2 text-xs font-bold uppercase text-white/60">Cancel</button><button type="button" onClick={apply} disabled={!ready || applying} className="rounded-xl bg-[#D9273E] px-4 py-2 text-xs font-bold uppercase text-white disabled:opacity-40">{applying ? "Applying…" : "Apply edit"}</button></div>
       </div>
     </div>
   );
