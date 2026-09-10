@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import {
   AdvancedEditorPanel,
@@ -1835,25 +1835,32 @@ export default function CustomStudio() {
 
   const focusMissingRequirement = () => {
     let targetId = "custom-studio-workspace";
+    let panelTab = "";
     if (step === 3) {
-      if (!designStyle) targetId = "custom-studio-artwork-style";
-      else if (!designMood) targetId = "custom-studio-color-finish";
-      else if (photos.length < minPhotos) targetId = "custom-studio-photo-upload";
-      else if (designPath === "memorial" && (!String(personalization.name || "").trim() || !memorialNameConfirmed)) targetId = "custom-studio-memorial-details";
+      if (!designStyle) { targetId = "custom-studio-artwork-style"; panelTab = "design"; }
+      else if (!designMood) { targetId = "custom-studio-color-finish"; panelTab = "design"; }
+      else if (!designIntensity) { targetId = "custom-studio-design-intensity"; panelTab = "design"; }
+      else if (photos.length < minPhotos) { targetId = "custom-studio-photo-upload"; panelTab = "photos"; }
+      else if (designPath === "memorial" && (!String(personalization.name || "").trim() || !memorialNameConfirmed)) { targetId = "custom-studio-memorial-details"; panelTab = "details"; }
     }
-    const target = document.getElementById(targetId) || document.getElementById("custom-studio-workspace");
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (typeof target.animate === "function") {
-      target.animate(
-        [
-          { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },
-          { boxShadow: "0 0 0 4px rgba(217,39,62,.28)" },
-          { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },
-        ],
-        { duration: 900, easing: "ease-out" }
-      );
+    if (panelTab) {
+      window.dispatchEvent(new CustomEvent("gdp-studio-open-tab", { detail: { tab: panelTab } }));
     }
+    window.setTimeout(() => {
+      const target = document.getElementById(targetId) || document.getElementById("gdp-touch-studio-panel") || document.getElementById("custom-studio-workspace");
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (typeof target.animate === "function") {
+        target.animate(
+          [
+            { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },
+            { boxShadow: "0 0 0 4px rgba(217,39,62,.28)" },
+            { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },
+          ],
+          { duration: 900, easing: "ease-out" }
+        );
+      }
+    }, panelTab ? 80 : 0);
   };
 
   const handleContinue = () => {
@@ -2260,16 +2267,6 @@ export default function CustomStudio() {
             {placement !== "front" || groupGarments.length > 0 ? <p className="mt-4 text-sm text-[#706960]">Seasonal designs require front-only printing with no additional garment rows.</p> : null}
           </div>}
           {step === 3 && <div>
-            <StepTitle
-              eyebrow={designPath === "memorial" ? "Create a remembrance" : "Build and personalize in one place"}
-              title={designPath === "upload" ? "CUSTOMIZE YOUR ARTWORK" : designPath === "memorial" ? "CUSTOMIZE YOUR MEMORIAL TRIBUTE" : "CUSTOMIZE YOUR DESIGN"}
-              text={designPath === "upload"
-                ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result."
-                : designPath === "memorial"
-                  ? "Choose one of five protected remembrance layouts, then add the portrait, verified name, optional dates and message."
-                  : "Choose a protected GDP layout, or start blank and build only with your own photos, text and stickers."}
-            />
-
             {designPath !== "upload" && <>
             <div data-editor-legacy="artwork-style" className="hidden">
               <button type="button" onClick={chooseNoTemplate} aria-pressed={designStyle === NO_TEMPLATE_STYLE} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
@@ -2365,7 +2362,7 @@ export default function CustomStudio() {
                 <span><strong>I verified the memorial name is spelled exactly as it should be printed.</strong> Changing the name will require verification again.</span>
               </label>
             </div>}
-            {designPath === "upload" && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="font-semibold text-[#17324D]">Your own artwork:</span> resize, rotate and move it freely. Proportions stay locked by default, with an optional unlock control in the preview tools.</div>}
+            {designPath === "upload" && <div className="hidden" aria-hidden="true">Your own artwork controls are available in GDP Touch Studio.</div>}
           </div>}
 
           {step === 1 && <div>
@@ -2631,93 +2628,24 @@ export default function CustomStudio() {
                 mood={designMood}
               />
 
-              <div className="border-y border-[#ebe5dc] bg-[#fbf9f6] px-3 py-3 sm:px-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowGuides(v => !v)}
-                    aria-pressed={showGuides}
-                    className={"inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 text-[10px] font-semibold transition " + (showGuides ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#ddd6cc] bg-white text-[#59544d] hover:border-accent hover:text-accent")}
-                  >
-                    <Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowMeasurements(v => !v)}
-                    aria-pressed={showMeasurements}
-                    className={"inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 text-[10px] font-semibold transition " + (showMeasurements ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#ddd6cc] bg-white text-[#59544d] hover:border-accent hover:text-accent")}
-                  >
-                    <Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}
-                  </button>
-                </div>
-                <div className="mt-2.5 border-l-2 border-accent/55 pl-2.5">
-                  <p className="text-[9px] font-mono uppercase leading-relaxed tracking-wide text-[#817a72]">Recommended print zone updates after you choose a garment and size.</p>
-                  <p className="mt-1 text-[10px] leading-relaxed text-[#6f6860]">{activePreviewTemplate ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : previewSide === "back" && activeStyleTemplate ? "Back print is independent. Add your own photos, text or stickers; the protected front template will not be duplicated here." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, text and stickers inside the print guide." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
-                </div>
-              </div>
-
               <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex rounded-xl border border-[#ddd6cc] bg-[#f5f0e9] p-1">
-                    <button type="button" onClick={() => setPreviewSide("front")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "front" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Front</button>
-                    {frontBackEnabled && <button type="button" onClick={() => setPreviewSide("back")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "back" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Back</button>}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom out"><ZoomOut size={14} /></button>
-                    <span className="w-10 text-center font-mono text-[10px] text-[#746e66]">{Math.round(previewZoom * 100)}%</span>
-                    <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom in"><ZoomIn size={14} /></button>
-                    <button type="button" onClick={() => setPreviewZoom(1)} className="h-8 rounded-lg border border-[#ddd6cc] px-2 text-[9px] font-bold uppercase text-[#59544d]" aria-label="Fit garment preview">Fit</button>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5">
-                  <div>
-                    <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#6C7883]">Editing: {previewSide}</div>
-                    <div className="mt-0.5 text-[10px] text-[#53616D]">{activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : "Back is blank — add artwork below. No second-side charge applies yet."}</div>
-                  </div>
-                  {previewSide === "back" && activeSideHasPrint && showGarmentPrices && <span className="rounded-lg bg-[#17324D] px-3 py-2 text-[10px] font-bold uppercase text-white">+${frontBackFee.toFixed(2)} back print</span>}
-                </div>
-
-                {previewSide === "back" && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0 && <button type="button" onClick={copyFrontDesignToBack} className="mt-3 w-full rounded-xl border border-[#17324D] bg-white px-3 py-2.5 text-[10px] font-bold uppercase text-[#17324D] hover:bg-[#F4F7FA]">Copy front design to back</button>}
-
-                {previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && !editorLayers.some((layer) => layer.type === "photo") && <div className="mt-4 space-y-3">
-                  {photos.length > 1 && <div>
-                    <div className="font-mono text-[9px] uppercase text-[#756f67]">Artwork photo</div>
-                    <select
-                      value={Number(activeArtworkState.sourcePhotoIndex || 0)}
-                      onChange={(e) => { checkpointEditor(); setArtworkSourcePhotoIndex(Number(e.target.value)); }}
-                      className="mt-1 w-full rounded-lg border border-[#DCE3EA] bg-white px-2.5 py-2 text-xs text-[#44515D]"
-                    >
-                      {photos.map((photo, index) => <option key={photo.url || index} value={index}>{index + 1}. {photo.name || "Uploaded photo"}</option>)}
-                    </select>
-                  </div>}
-                  <div>
-                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Design size</span><span>{artworkScale}%</span></div>
-                    <input type="range" min="55" max="180" value={artworkScale} onPointerDown={checkpointEditor} onChange={e => setArtworkScale(Number(e.target.value))} className="w-full accent-[#17324D]" />
-                    <div className="mt-2 inline-flex rounded-lg border border-[#DCE3EA] bg-[#F4F7FA] p-1">
-                      <button type="button" onClick={() => { checkpointEditor(); setArtworkFitMode("fit"); }} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "fit" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
-                      <button type="button" onClick={() => { checkpointEditor(); setArtworkFitMode("crop"); }} className={"rounded-md px-3 py-1.5 text-[10px] font-bold uppercase " + (artworkFitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop to fill</button>
-                    </div>
-                    {artworkFitMode === "crop" && <p className="mt-2 text-[10px] leading-relaxed text-[#8A5A48]">Crop to Fill intentionally trims image edges to fill the artwork box. Use Fit · No Crop to keep the complete image visible.</p>}
-                    {designPath === "upload" && editorTools.freeStretch !== false && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-3">
-                      <button type="button" onClick={() => { checkpointEditor(); setArtworkConstrainRatio(!artworkConstrainRatio); }} className="inline-flex items-center gap-2 text-[10px] font-bold uppercase text-[#17324D]">
-                        {artworkConstrainRatio ? <Lock size={13}/> : <Unlock size={13}/>} {artworkConstrainRatio ? "Constrain aspect ratio" : "Free stretch enabled"}
-                      </button>
-                      <p className="mt-1 text-[9px] leading-relaxed text-[#6C7883]">{artworkConstrainRatio ? "Recommended: resizing keeps the original proportions." : "Advanced: width and height can be stretched independently."}</p>
-                      {!artworkConstrainRatio && <div className="mt-3 grid grid-cols-2 gap-3">
-                        <label className="text-[9px] font-mono uppercase text-[#756f67]">Width {artworkStretchX}%<input type="range" min="60" max="160" value={artworkStretchX} onPointerDown={checkpointEditor} onChange={e => setArtworkStretchX(Number(e.target.value))} className="mt-1 w-full accent-[#17324D]" /></label>
-                        <label className="text-[9px] font-mono uppercase text-[#756f67]">Height {artworkStretchY}%<input type="range" min="60" max="160" value={artworkStretchY} onPointerDown={checkpointEditor} onChange={e => setArtworkStretchY(Number(e.target.value))} className="mt-1 w-full accent-[#17324D]" /></label>
-                      </div>}
-                    </div>}
-                  </div>
-                  <div>
-                    <div className="flex justify-between font-mono text-[9px] uppercase text-[#756f67]"><span>Rotation</span><span>{artworkRotation}°</span></div>
-                    <input type="range" min="-180" max="180" value={artworkRotation} onPointerDown={checkpointEditor} onChange={e => setArtworkRotation(Number(e.target.value))} className="w-full accent-[#d9273e]" />
-                  </div>
-                </div>}
-
                 {step === 3 && <AdvancedEditorPanel
                   designPath={designPath}
+                  designIntensity={designIntensity}
+                  onChooseIntensity={setDesignIntensity}
+                  previewSide={previewSide}
+                  onPreviewSideChange={setPreviewSide}
+                  frontBackEnabled={frontBackEnabled}
+                  previewZoom={previewZoom}
+                  onPreviewZoomChange={setPreviewZoom}
+                  showGuides={showGuides}
+                  onToggleGuides={() => setShowGuides((value) => !value)}
+                  showMeasurements={showMeasurements}
+                  onToggleMeasurements={() => setShowMeasurements((value) => !value)}
+                  viewGuidance={activePreviewTemplate ? "GDP template is locked. Drag, resize and rotate only customer-added content inside the print guide; lettering stays editable." : previewSide === "back" && activeStyleTemplate ? "Back print is independent. Add your own photos, lettering or stickers; the protected front template is not duplicated here." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, lettering and stickers inside the print guide." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio stays constrained by default."}
+                  sideStatus={activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : `${previewSide === "front" ? "Front" : "Back"} is blank until you add artwork.`}
+                  canCopyFrontToBack={previewSide === "back" && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0}
+                  onCopyFrontToBack={copyFrontDesignToBack}
                   pathLabel={designPath === "memorial" ? "Memorial Tribute Editor" : designPath === "bootleg" ? "Photo Bootleg Editor" : designPath === "upload" ? "Artwork Editor" : "GDP Personalization Editor"}
                   designOptions={matchingStyleOptions}
                   designStyle={designStyle}
@@ -2765,10 +2693,6 @@ export default function CustomStudio() {
                   templateName={previewSide === "front" && (designPath === "bootleg" || designPath === "memorial") ? activeStyleTemplate?.name || "" : ""}
                   outsideWarning={editorOutsideWarning}
                 />}
-
-                <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                  <button type="button" onClick={() => { checkpointEditor(); resetPreviewPlacement(); }} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
-                </div>
               </div>
             </div>
 

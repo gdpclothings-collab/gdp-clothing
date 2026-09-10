@@ -21,12 +21,15 @@ import {
   Move,
   Redo2,
   RotateCcw,
+  Ruler,
   SlidersHorizontal,
   Sparkles,
   Trash2,
   Type,
   Undo2,
   Upload,
+  ZoomIn,
+  ZoomOut,
   Unlock,
   WandSparkles,
   X,
@@ -793,6 +796,21 @@ export function AdvancedEditorPanel({
   uploadWarning = "",
   maxPhotos = 6,
   uploadLimitMb = 15,
+  designIntensity = 3,
+  onChooseIntensity,
+  previewSide = "front",
+  onPreviewSideChange,
+  frontBackEnabled = false,
+  previewZoom = 1,
+  onPreviewZoomChange,
+  showGuides = true,
+  onToggleGuides,
+  showMeasurements = false,
+  onToggleMeasurements,
+  viewGuidance = "",
+  sideStatus = "",
+  canCopyFrontToBack = false,
+  onCopyFrontToBack,
 }) {
   const tools = normalizeEditorTools(enabledTools);
   const stickers = normalizeStickerLibrary(stickerLibrary).filter((item) => item.enabled !== false);
@@ -814,6 +832,19 @@ export function AdvancedEditorPanel({
     else if (selectedType === "sticker") { setActiveTool("transform"); setPanelTab("layers"); }
     else { setActiveTool("layers"); setPanelTab(designPath === "upload" ? "photos" : "design"); }
   }, [selectedLayerId, selectedType, designPath]);
+
+  useEffect(() => {
+    const openRequestedTab = (event) => {
+      const tab = event?.detail?.tab;
+      if (!["canvas", "design", "photos", "lettering", "details", "layers"].includes(tab)) return;
+      setPanelTab(tab);
+      setShowStickers(false);
+      setShowPhotoPicker(false);
+      if (tab === "layers") setActiveTool("layers");
+    };
+    window.addEventListener("gdp-studio-open-tab", openRequestedTab);
+    return () => window.removeEventListener("gdp-studio-open-tab", openRequestedTab);
+  }, []);
 
   const chooseLayer = (id) => {
     onSelectLayer?.(id);
@@ -1021,12 +1052,40 @@ export function AdvancedEditorPanel({
   ] : []);
 
   const panelTabs = /** @type {Array<[string, React.ComponentType<any>, string]>} */ ([
+    ["canvas", Eye, "Canvas"],
     ...(designPath !== "upload" ? [["design", Palette, "Design"]] : []),
     ["photos", ImageIcon, designPath === "upload" ? "Artwork" : "Photos"],
     ...(tools.text ? [["lettering", Type, "Lettering"]] : []),
     ...(designPath === "memorial" ? [["details", Heart, "Details"]] : []),
     ["layers", Layers, "Layers"],
   ]);
+
+  const renderCanvasPanel = () => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex rounded-xl border border-white/10 bg-white/[.035] p-1">
+          <button type="button" onClick={() => onPreviewSideChange?.("front")} className={`rounded-lg px-3 py-2 text-[9px] font-bold uppercase ${previewSide === "front" ? "bg-white text-[#07131F]" : "text-white/55"}`}>Front</button>
+          {frontBackEnabled && <button type="button" onClick={() => onPreviewSideChange?.("back")} className={`rounded-lg px-3 py-2 text-[9px] font-bold uppercase ${previewSide === "back" ? "bg-white text-[#07131F]" : "text-white/55"}`}>Back</button>}
+        </div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.6, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/65" aria-label="Zoom out"><ZoomOut size={14}/></button>
+          <span className="w-11 text-center font-mono text-[9px] text-white/45">{Math.round(Number(previewZoom || 1) * 100)}%</span>
+          <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(1.8, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/65" aria-label="Zoom in"><ZoomIn size={14}/></button>
+          <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 rounded-xl border border-white/10 bg-white/[.04] px-2.5 text-[8px] font-bold uppercase text-white/65">Fit</button>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={onToggleGuides} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${showGuides ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}><Eye size={13} className="mr-1.5 inline"/>{showGuides ? "Hide guide" : "Show guide"}</button>
+        <button type="button" onClick={onToggleMeasurements} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${showMeasurements ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}><Ruler size={13} className="mr-1.5 inline"/>{showMeasurements ? "Hide measurements" : "Measurements"}</button>
+      </div>
+      <div className="rounded-xl border border-white/[.08] bg-white/[.035] p-3 text-[9px] leading-relaxed text-white/48">
+        <div className="font-mono text-[8px] uppercase tracking-[.13em] text-white/35">Editing {previewSide}</div>
+        {sideStatus && <div className="mt-1 text-white/68">{sideStatus}</div>}
+        {viewGuidance && <div className="mt-2 border-l-2 border-[#D9273E]/60 pl-2.5">{viewGuidance}</div>}
+      </div>
+      {canCopyFrontToBack && <button type="button" onClick={onCopyFrontToBack} className="w-full rounded-xl border border-white/15 bg-white/[.05] px-3 py-2.5 text-[9px] font-bold uppercase text-white">Copy front design to back</button>}
+    </div>
+  );
 
   const renderDesignPanel = () => (
     <div className="space-y-4">
@@ -1042,6 +1101,7 @@ export function AdvancedEditorPanel({
         {(designPath === "bootleg" || designPath === "memorial") && <div className="mt-3 rounded-xl border border-white/[.08] bg-white/[.035] p-2.5 text-[9px] leading-relaxed text-white/48"><strong className="text-white/80">{designPath === "memorial" ? "Memorial front design:" : "Front template:"}</strong> {designStyle === blankStyleName ? "Blank canvas selected. Only customer-added photos, lettering and stickers will print." : "The selected GDP artwork is protected. The back stays blank until you add a separate back design."}</div>}
       </div>
       {moodOptions?.length > 0 && <div id="custom-studio-color-finish" className="scroll-mt-28 border-t border-white/10 pt-3"><div className="text-[10px] font-bold uppercase tracking-[.09em] text-white">Color finish</div><div className="mt-2 flex max-w-full gap-1.5 overflow-x-auto pb-1">{moodOptions.map((mood) => <button key={mood} type="button" onClick={() => onChooseMood?.(mood)} className={`shrink-0 rounded-xl border px-3 py-2 text-[9px] font-bold ${designMood === mood ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>{mood}</button>)}</div><div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] p-2.5 text-[9px] leading-relaxed text-white/48">{designMood ? <><strong className="text-white/80">{designMood}:</strong> {moodDescription || "This finish is baked into the final print."}</> : "Choose the final print finish."}</div></div>}
+      <div id="custom-studio-design-intensity" className="scroll-mt-28 border-t border-white/10 pt-3"><div className="text-[10px] font-bold uppercase tracking-[.09em] text-white">Design intensity</div><div className="mt-1 text-[9px] text-white/42">Controls how strong the personalized treatment appears in the final composition.</div><div className="mt-2 grid grid-cols-5 gap-1.5">{[1,2,3,4,5].map((level) => <button key={level} type="button" onClick={() => onChooseIntensity?.(level)} className={`rounded-xl border px-2 py-2.5 text-[9px] font-bold ${Number(designIntensity) === level ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>{level}</button>)}</div><div className="mt-1.5 text-center text-[8px] uppercase tracking-[.12em] text-white/30">1 subtle · 3 balanced · 5 bold</div></div>
     </div>
   );
 
@@ -1077,7 +1137,7 @@ export function AdvancedEditorPanel({
   );
 
   return (
-    <div className="sticky bottom-2 z-30 mt-4 w-full min-w-0 max-w-full max-h-[58dvh] overflow-x-hidden overflow-y-auto overscroll-contain rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
+    <div id="gdp-touch-studio-panel" className="sticky bottom-2 z-30 mt-4 w-full min-w-0 max-w-full max-h-[62dvh] overflow-x-hidden overflow-y-auto overscroll-contain rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-mono text-[8px] uppercase tracking-[.22em] text-[#D9273E]">GDP Touch Studio</div>
@@ -1086,7 +1146,7 @@ export function AdvancedEditorPanel({
         <div className="flex shrink-0 gap-1">
           <button type="button" onClick={onUndo} disabled={!canUndo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Undo"><Undo2 size={14}/></button>
           <button type="button" onClick={onRedo} disabled={!canRedo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Redo"><Redo2 size={14}/></button>
-          <button type="button" onClick={() => setActiveTool("layers")} className={`grid h-9 w-9 place-items-center rounded-xl border ${activeTool === "layers" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.045] text-white/65"}`} aria-label="Layers"><Layers size={14}/></button>
+          <button type="button" onClick={() => { setPanelTab("layers"); setActiveTool("layers"); }} className={`grid h-9 w-9 place-items-center rounded-xl border ${panelTab === "layers" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.045] text-white/65"}`} aria-label="Layers"><Layers size={14}/></button>
         </div>
       </div>
 
@@ -1100,6 +1160,7 @@ export function AdvancedEditorPanel({
 
       {((panelTab === "photos" && selectedType === "photo") || (panelTab === "lettering" && selectedType === "text") || (panelTab === "layers" && selectedType === "sticker")) && contextTools.length > 0 && <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{contextTools.map(([id, icon, label]) => <ToolButton key={id} active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
 
+      {panelTab === "canvas" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderCanvasPanel()}</div>}
       {panelTab === "design" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderDesignPanel()}</div>}
       {panelTab === "photos" && <div className="mt-3 space-y-3"><div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderUploadPanel()}</div>{selectedType === "photo" && <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderPhotoTool()}</div>}</div>}
       {panelTab === "lettering" && <div className="mt-3">{renderLetteringPanel()}</div>}
