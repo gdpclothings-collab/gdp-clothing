@@ -38,6 +38,7 @@ import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
 import { advancedNestArtwork } from "@/lib/dtfNesting";
 import { downloadFilmPreview, drawWatermark, watermarkApplies } from "@/lib/dtfFilmExport";
 import { dtfExportAuditApi } from "@/lib/dtfExportAuditApi";
+import { customerApi } from "@/lib/customerApi";
 
 const round = (value, decimals = 2) => {
   const power = 10 ** decimals;
@@ -453,6 +454,8 @@ async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings
 }
 
 export default function DTFGangSheet() {
+  // Retained as a conservative local fallback for future offline/manual tooling.
+  void removeLightBackground;
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const { addItem, replaceItem } = useCart();
@@ -474,7 +477,7 @@ export default function DTFGangSheet() {
   const [artworkReviewRequested, setArtworkReviewRequested] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
-  const [backgroundThreshold, setBackgroundThreshold] = useState(230);
+  const backgroundThreshold = 230;
   const [editingArtwork, setEditingArtwork] = useState(false);
   const [filmUsageConfirmationOpen, setFilmUsageConfirmationOpen] = useState(false);
   const [activeCartKey, setActiveCartKey] = useState("");
@@ -931,14 +934,26 @@ export default function DTFGangSheet() {
     setPageError("");
     try {
       const sourceFile = selectedArtwork.originalFile || selectedArtwork.file;
-      const cleaned = await removeLightBackground(sourceFile, backgroundThreshold);
+      const processed = await customerApi.removePhotoBackground(sourceFile);
+      if (!processed?.ok || !processed?.cleanedUrl) {
+        throw new Error(processed?.message || "The background could not be removed. Please retry.");
+      }
+      const response = await fetch(processed.cleanedUrl);
+      if (!response.ok) throw new Error("The transparent artwork could not be downloaded. Please retry.");
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("The background-removal service returned an empty image.");
+      const baseName = String(sourceFile.name || selectedArtwork.name || "artwork").replace(/\.[^.]+$/, "");
+      const cleaned = new File([blob], `${baseName}-transparent.png`, {
+        type: "image/png",
+        lastModified: Date.now(),
+      });
       await replaceSelectedArtworkFile(
         cleaned,
         true,
-        "Background removed. Print size, center position and rotation were preserved. DPI was recalculated from the cleaned artwork pixels."
+        "AI background removal complete. The transparent PNG is ready, and the original remains available to restore."
       );
     } catch (error) {
-      setPageError(error?.message || "Could not remove this artwork background.");
+      setPageError(error?.message || "AI background removal failed. Your original artwork was preserved; please retry.");
     } finally {
       setEditingArtwork(false);
     }
@@ -1915,26 +1930,13 @@ export default function DTFGangSheet() {
                     </div>
                   ) : selectedArtwork.isVector ? (
                     <div className="mt-2 text-[10px] leading-4 text-black/45">
-                      Background cleanup is intended for raster PNG, JPG and WEBP artwork. Vector/PDF files should be edited before upload.
+                      AI background removal is available for raster PNG, JPG and WEBP artwork. Vector/PDF files should be edited before upload.
                     </div>
                   ) : (
                     <>
-                      <div className="mt-3 flex items-center justify-between gap-3 text-[10px]">
-                        <span className="font-semibold">Background cleanup</span>
-                        <span className="font-mono text-black/45">{backgroundThreshold}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="220"
-                        max="254"
-                        step="1"
-                        value={backgroundThreshold}
-                        onChange={(event) => setBackgroundThreshold(Number(event.target.value))}
-                        className="mt-2 w-full"
-                        aria-label="Background removal strength"
-                      />
-                      <div className="mt-1 flex justify-between text-[8px] uppercase tracking-[0.08em] text-black/35">
-                        <span>More aggressive</span><span>More conservative</span>
+                      <div className="mt-3 border border-violet-200 bg-violet-50 p-3 text-[10px] leading-4 text-violet-950">
+                        <span className="font-black uppercase tracking-[0.08em]">AI background removal</span>
+                        <span className="mt-1 block text-violet-900/70">Works with people, pets, products and detailed photo backgrounds. Your original file is always preserved.</span>
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
@@ -1943,7 +1945,7 @@ export default function DTFGangSheet() {
                           disabled={editingArtwork}
                           className="min-h-10 border border-black bg-black px-3 text-[9px] font-black uppercase text-white disabled:opacity-40"
                         >
-                          {editingArtwork ? "Processing…" : "Remove background"}
+                          {editingArtwork ? "Removing…" : selectedArtwork.backgroundRemoved ? "Retry removal" : "Remove background"}
                         </button>
                         <button
                           type="button"
@@ -1955,7 +1957,7 @@ export default function DTFGangSheet() {
                         </button>
                       </div>
                       <div className="mt-2 text-[9px] leading-4 text-black/40">
-                        Best for white or light solid backgrounds. Only background connected to the image edges is removed; inspect the preview before ordering.
+                        The transparent PNG replaces only the preview layer. Restore the untouched original at any time.
                       </div>
                     </>
                   )}
