@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 
 const FONT_OPTIONS = [
   { label: "Cormorant Garamond", value: "'Cormorant Garamond', Georgia, serif", group: "Elegant serif" },
@@ -245,7 +245,8 @@ function CurvedText({ fieldKey, text, field, tone = "light" }) {
   const anchor = field.align === "left" ? "start" : field.align === "right" ? "end" : "middle";
   const anchorX = field.align === "left" ? 75 : field.align === "right" ? 925 : 500;
   const curve = Math.max(0, Math.min(100, Number(field.curve || 0)));
-  const pathId = `memorial-${fieldKey}-${String(field.shape || "straight").replace(/[^a-z-]/g, "")}`;
+  const reactId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const pathId = `memorial-${fieldKey}-${reactId}-${String(field.shape || "straight").replace(/[^a-z-]/g, "")}`;
   const archY = field.shape === "arch-down" ? 64 : 132;
   const controlY = field.shape === "arch-down"
     ? archY + 24 + curve * 0.72
