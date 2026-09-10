@@ -768,8 +768,8 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
       <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
         <div className="px-4 py-3 border-b border-[#e8e8e8] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-sm font-semibold">Photo Bootleg templates</div>
-            <div className="text-xs text-[#777] mt-0.5">Manage the 5 locked flame templates used by the live Custom Studio preview. PNG, WEBP and SVG preserve transparency. Seasonal artwork remains managed in Seasonal Studio.</div>
+            <div className="text-sm font-semibold">Protected design templates</div>
+            <div className="text-xs text-[#777] mt-0.5">Manage the 5 Photo Bootleg templates and 5 Memorial Tribute templates used by the live Custom Studio preview. SVG, PNG and WEBP preserve transparency. Seasonal artwork remains managed in Seasonal Studio.</div>
           </div>
           <button
             type="button"
@@ -789,7 +789,7 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
               <div key={style.id} className="rounded-xl border border-[#e1e1e1] bg-[#fafafa] overflow-hidden">
                 <div className="grid grid-cols-[118px_1fr] gap-3 p-3 border-b border-[#e6e6e6] bg-white">
                   <div className="aspect-square rounded-lg overflow-hidden border border-[#dedede] bg-[linear-gradient(45deg,#ececec_25%,transparent_25%),linear-gradient(-45deg,#ececec_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ececec_75%),linear-gradient(-45deg,transparent_75%,#ececec_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px]">
-                    <img src={style.assetUrl} alt={style.name + " overlay preview"} className="h-full w-full object-contain p-1" loading="lazy" />
+                    <img src={style.thumbnail || style.assetUrl} alt={style.name + " overlay preview"} className="h-full w-full object-contain p-1" loading="lazy" decoding="async" fetchPriority="low" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-start justify-between gap-2">
@@ -841,7 +841,7 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
                       <input value={style.description || ""} onChange={(event) => updateStyleTemplate(style.id, { description: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-[#d4d4d4] bg-white px-2 text-xs" />
                     </label>
                   </div>
-                  <div className="rounded-lg border border-[#d8e0e7] bg-white px-3 py-2 text-[10px] font-semibold text-[#52616f]">Category: Photo Bootleg · <LockKeyhole size={11} className="inline"/> Locked template</div>
+                  <div className="rounded-lg border border-[#d8e0e7] bg-white px-3 py-2 text-[10px] font-semibold text-[#52616f]">Category: {style.category === "memorial_tribute" ? "Memorial Tribute" : "Photo Bootleg"} · <LockKeyhole size={11} className="inline"/> Locked template</div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <label className="text-[10px] font-medium text-[#555]">
                       Display order
@@ -931,7 +931,7 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
         </div>
 
         <div className="border-t border-[#e7e7e7] bg-blue-50 px-4 py-3 text-[11px] leading-5 text-blue-900">
-          Locked flame template → customer photo → editable text layers → editable sticker layers. All editable coordinates and transforms are saved with the custom design so production can reproduce the approved preview exactly.
+          Protected template → customer photo → editable text layers → editable sticker layers. Bootleg and Memorial Tribute templates keep the artwork locked while customer layers stay editable. All coordinates and transforms are saved so production can reproduce the approved preview exactly.
         </div>
       </section>
 

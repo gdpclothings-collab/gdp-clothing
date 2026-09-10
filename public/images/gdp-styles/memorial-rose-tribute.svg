@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="4500" height="5400" viewBox="0 0 4500 5400" role="img" aria-labelledby="title desc">
+  <title id="title">Rose Tribute memorial frame</title>
+  <desc id="desc">Transparent 15 by 18 inch memorial artwork master designed for 300 DPI export.</desc>
+  <defs>
+    <linearGradient id="rose" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffb3b6"/><stop offset=".45" stop-color="#a41f3d"/><stop offset="1" stop-color="#4f0c20"/></linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d6c27f"/><stop offset="1" stop-color="#7f6a32"/></linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="24"/></filter>
+  </defs>
+  <g opacity=".22" fill="#8b1730" filter="url(#soft)">
+    <ellipse cx="700" cy="1300" rx="520" ry="900"/><ellipse cx="3800" cy="1300" rx="520" ry="900"/>
+    <ellipse cx="860" cy="4300" rx="660" ry="720"/><ellipse cx="3640" cy="4300" rx="660" ry="720"/>
+  </g>
+  <g fill="none" stroke="url(#leaf)" stroke-width="20">
+    <path d="M380 820c820 420 980 760 1240 1250"/>
+    <path d="M4120 820c-820 420-980 760-1240 1250"/>
+    <path d="M380 4620c820-350 1110-560 1350-960"/>
+    <path d="M4120 4620c-820-350-1110-560-1350-960"/>
+  </g>
+  <g fill="url(#leaf)" opacity=".95">
+    <ellipse cx="670" cy="1080" rx="110" ry="250" transform="rotate(-42 670 1080)"/>
+    <ellipse cx="980" cy="1360" rx="110" ry="250" transform="rotate(-36 980 1360)"/>
+    <ellipse cx="3830" cy="1080" rx="110" ry="250" transform="rotate(42 3830 1080)"/>
+    <ellipse cx="3520" cy="1360" rx="110" ry="250" transform="rotate(36 3520 1360)"/>
+    <ellipse cx="760" cy="4390" rx="110" ry="250" transform="rotate(42 760 4390)"/>
+    <ellipse cx="3740" cy="4390" rx="110" ry="250" transform="rotate(-42 3740 4390)"/>
+  </g>
+  <g stroke="#6d1730" stroke-width="12">
+    <g transform="translate(610 720)">
+      <circle r="310" fill="url(#rose)"/><path d="M-180 10c80-190 270-260 390-110-110-30-190 20-220 120 110-85 230-65 300 30-180-10-300 60-360 210-40-95-50-170-30-250z" fill="#f6a8ad" opacity=".7"/>
+    </g>
+    <g transform="translate(3890 720)">
+      <circle r="310" fill="url(#rose)"/><path d="M-180 10c80-190 270-260 390-110-110-30-190 20-220 120 110-85 230-65 300 30-180-10-300 60-360 210-40-95-50-170-30-250z" fill="#f6a8ad" opacity=".7"/>
+    </g>
+    <g transform="translate(700 4580) scale(.9)">
+      <circle r="310" fill="url(#rose)"/><path d="M-180 10c80-190 270-260 390-110-110-30-190 20-220 120 110-85 230-65 300 30-180-10-300 60-360 210-40-95-50-170-30-250z" fill="#f6a8ad" opacity=".7"/>
+    </g>
+    <g transform="translate(3800 4580) scale(.9)">
+      <circle r="310" fill="url(#rose)"/><path d="M-180 10c80-190 270-260 390-110-110-30-190 20-220 120 110-85 230-65 300 30-180-10-300 60-360 210-40-95-50-170-30-250z" fill="#f6a8ad" opacity=".7"/>
+    </g>
+  </g>
+  <g fill="none" stroke="#d7be73" stroke-width="16" opacity=".85">
+    <path d="M1280 430Q2250 40 3220 430"/>
+    <path d="M1260 4970Q2250 5350 3240 4970"/>
+  </g>
+  <g fill="#f8e8bd">
+    <circle cx="1250" cy="470" r="18"/><circle cx="3250" cy="470" r="18"/><circle cx="1130" cy="4960" r="14"/><circle cx="3370" cy="4960" r="14"/>
+  </g>
+</svg>

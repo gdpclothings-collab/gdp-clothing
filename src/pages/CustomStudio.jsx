@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Eye, Maximize2, Move, RotateCcw, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import {
   AdvancedEditorPanel,
@@ -35,6 +35,7 @@ import {
 const DESIGN_PATHS = [
   { id: "seasonal", label: "Seasonal Designs", description: "Browse ready-made holiday and seasonal artwork.", icon: Sparkles },
   { id: "bootleg", label: "Photo Bootleg Designs", description: "Choose a locked GDP layout, then add and position your own photo and text.", icon: Star },
+  { id: "memorial", label: "Memorial Tribute Designs", description: "Choose a protected remembrance layout, add a portrait, and personalize the name, dates and message.", icon: Heart },
   { id: "upload", label: "Upload My Own Artwork", description: "Upload your own artwork and control its size, placement and proportions.", icon: Upload },
 ];
 
@@ -595,7 +596,7 @@ function moodPreviewTreatment(mood) {
 const STEPS = ["Garment","Choose Design","Customize","Timing & Approval","Review"];
 const ORDER_GUIDE_STEPS = [
   { title: "Choose garment", detail: "Pick clothing, color, size and quantity." },
-  { title: "Choose your design", detail: "Select Seasonal Designs, Photo Bootleg Designs or Upload My Own Artwork." },
+  { title: "Choose your design", detail: "Select Seasonal Designs, Photo Bootleg Designs, Memorial Tribute Designs or Upload My Own Artwork." },
   { title: "Customize", detail: "Choose your print side, add artwork or photos, position every layer and personalize text in one workspace." },
   { title: "Timing & approval", detail: "Set your needed-by date and confirm artwork permissions." },
   { title: "Review & checkout", detail: "Final-check the exact result, add to cart and complete checkout." }
@@ -933,6 +934,7 @@ export default function CustomStudio() {
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [warn, setWarn] = useState("");
   const [personalization, setPersonalization] = useState({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" });
+  const [memorialNameConfirmed, setMemorialNameConfirmed] = useState(false);
   const [needByDate, setNeedByDate] = useState("");
   const [priority, setPriority] = useState("standard");
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
@@ -1212,7 +1214,7 @@ export default function CustomStudio() {
     setSize(nextSize);
     setGroupGarments([]);
     const allowedStyles = nextProduct?.customization?.allowedStyles || [];
-    const styleStillAllowed = Boolean(designStyle) && (!allowedStyles.length || allowedStyles.includes(designStyle));
+    const styleStillAllowed = Boolean(designStyle) && (designPath === "memorial" || !allowedStyles.length || allowedStyles.includes(designStyle));
     if (designStyle && !styleStillAllowed) {
       setDesignStyle("");
       setArtworkStates(defaultArtworkStates());
@@ -1247,7 +1249,9 @@ export default function CustomStudio() {
     : styleTemplates.filter((style) => style.enabled);
   const matchingStyleOptions = designPath === "bootleg"
     ? styleOptions.filter((style) => style.category === "photo_bootleg" && style.locked !== false)
-    : styleOptions;
+    : designPath === "memorial"
+      ? styleTemplates.filter((style) => style.enabled && style.category === "memorial_tribute" && style.locked !== false)
+      : styleOptions;
   const chooseStyleTemplate = (style) => {
     if (!style) return;
     setDesignStyle(style.name);
@@ -1273,6 +1277,7 @@ export default function CustomStudio() {
   };
   const maxPhotos = Number(config.maxPhotos || 10);
   const minPhotos = Number(config.minPhotos || 1);
+  const memorialDetailsReady = designPath !== "memorial" || (Boolean(String(personalization.name || "").trim()) && memorialNameConfirmed);
   const revisions = Number(config.includedRevisions || 2);
   const rushFee = Number(config.rushDesignFee || 10) + Number(config.rushProductionFee || 15);
   const frontBackEnabled = studioSettings.frontBackEnabled !== false;
@@ -1395,7 +1400,7 @@ export default function CustomStudio() {
           let cleanedPrepared = null;
           let removalMessage = "";
 
-          if (designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false) {
+          if ((designPath === "bootleg" || designPath === "memorial") && editorTools.autoBackgroundRemoval !== false) {
             try {
               const processed = await customerApi.removePhotoBackground(prepared.file);
               originalUpload = processed?.originalPath
@@ -1434,7 +1439,7 @@ export default function CustomStudio() {
             cleanedWidth: cleanedPrepared?.width || 0,
             cleanedHeight: cleanedPrepared?.height || 0,
             backgroundRemoved: Boolean(cleanedUpload),
-            autoBackgroundRemoval: designPath === "bootleg" && editorTools.autoBackgroundRemoval !== false,
+            autoBackgroundRemoval: (designPath === "bootleg" || designPath === "memorial") && editorTools.autoBackgroundRemoval !== false,
             processingStatus: cleanedUpload ? "removed" : (removalMessage ? "failed" : "original"),
             processingMessage: removalMessage,
             sourceFile: prepared.file,
@@ -1619,7 +1624,7 @@ export default function CustomStudio() {
     if (step === 1) return Boolean(product) && Boolean(color) && Boolean(size) && selectedAvailable;
     if (step === 2) return Boolean(designPath);
     if (step === 3) {
-      return Boolean(designStyle) && Boolean(designMood) && photos.length >= minPhotos && Boolean(designIntensity);
+      return Boolean(designStyle) && Boolean(designMood) && photos.length >= minPhotos && Boolean(designIntensity) && memorialDetailsReady;
     }
     if (step === 4) return rightsConfirmed && approvalAcknowledged;
     return true;
@@ -1639,6 +1644,8 @@ export default function CustomStudio() {
       if (!designMood) return "Choose a color finish to continue.";
       if (photos.length < minPhotos) return `Upload at least ${minPhotos} photo${minPhotos === 1 ? "" : "s"} to continue.`;
       if (!designIntensity) return "Choose a design intensity to continue.";
+      if (designPath === "memorial" && !String(personalization.name || "").trim()) return "Enter the memorial name exactly as it should be printed.";
+      if (designPath === "memorial" && !memorialNameConfirmed) return "Verify the memorial name spelling to continue.";
     }
     if (step === 4) return "Confirm both artwork rights and proof approval terms to continue.";
     return "Complete the required choices to continue.";
@@ -1656,6 +1663,10 @@ export default function CustomStudio() {
     }
     if (!designPath || !designStyle || !designMood || !designIntensity) {
       setWarn("Complete the design path, artwork, color finish and design intensity before adding to cart.");
+      return;
+    }
+    if (designPath === "memorial" && !memorialDetailsReady) {
+      setWarn("Enter the memorial name and verify its spelling before approval.");
       return;
     }
     if (product?.variants?.length && !selectedAvailable) {
@@ -1989,6 +2000,7 @@ export default function CustomStudio() {
                   aria-pressed={designPath === path.id}
                   onClick={() => {
                     setDesignPath(path.id);
+                    setMemorialNameConfirmed(false);
                     if (path.id === "seasonal") {
                       setSeasonalMode(true);
                       window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
@@ -1999,7 +2011,7 @@ export default function CustomStudio() {
                       setArtworkStates(defaultArtworkStates());
                       setDesignMood("Original");
                       setDesignIntensity(1);
-                    } else if (path.id === "bootleg") {
+                    } else if (path.id === "bootleg" || path.id === "memorial") {
                       setDesignStyle("");
                       setDesignMood("");
                     }
@@ -2020,7 +2032,15 @@ export default function CustomStudio() {
             {placement !== "front" || groupGarments.length > 0 ? <p className="mt-4 text-sm text-[#706960]">Seasonal designs require front-only printing with no additional garment rows.</p> : null}
           </div>}
           {step === 3 && <div>
-            <StepTitle eyebrow="Build and personalize in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE A TEMPLATE OR START BLANK"} text={designPath === "upload" ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result." : "Choose a protected GDP layout, or start blank and build only with your own photos, text and stickers."} />
+            <StepTitle
+              eyebrow={designPath === "memorial" ? "Create a remembrance" : "Build and personalize in one place"}
+              title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : designPath === "memorial" ? "CHOOSE A MEMORIAL TRIBUTE STYLE" : "CHOOSE A TEMPLATE OR START BLANK"}
+              text={designPath === "upload"
+                ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result."
+                : designPath === "memorial"
+                  ? "Choose one of five protected remembrance layouts, then add the portrait, verified name, optional dates and message."
+                  : "Choose a protected GDP layout, or start blank and build only with your own photos, text and stickers."}
+            />
 
             {designPath !== "upload" && <>
             <div className="grid md:grid-cols-2 gap-3">
@@ -2039,11 +2059,11 @@ export default function CustomStudio() {
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-[0.12em] text-[#8a8279]"><Lock size={11}/> Locked GDP template</div>
                 </div>
                 <div className="relative aspect-square overflow-hidden rounded-xl border border-[#e2dcd3] bg-[linear-gradient(45deg,#f0ede8_25%,transparent_25%),linear-gradient(-45deg,#f0ede8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f0ede8_75%),linear-gradient(-45deg,transparent_75%,#f0ede8_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px]">
-                  <img src={style.assetUrl} alt="" loading="lazy" className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain" />
+                  <img src={style.thumbnail || style.assetUrl} alt="" loading="lazy" decoding="async" fetchPriority="low" className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain" />
                 </div>
               </button>)}
             </div>
-            {designPath === "bootleg" && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white px-3 py-2 text-xs text-[#52616F]"><span className="font-semibold text-[#17324D]">Applying template to: Front.</span> Back printing stays blank until you explicitly add and edit a back print.</div>}
+            {(designPath === "bootleg" || designPath === "memorial") && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white px-3 py-2 text-xs text-[#52616F]"><span className="font-semibold text-[#17324D]">{designPath === "memorial" ? "Memorial template applies to: Front." : "Applying template to: Front."}</span> Back printing stays blank until you explicitly add and edit a back print.</div>}
             </>}
             {designPath !== "upload" && <div className="mt-6">
               <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>
@@ -2055,8 +2075,68 @@ export default function CustomStudio() {
                 {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} finish:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a color finish for the final print.</span>}
               </div>
             </div>}
-            {designPath === "bootleg" && activeStyleTemplate && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
-            {designPath === "bootleg" && designStyle === NO_TEMPLATE_STYLE && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
+            {(designPath === "bootleg" || designPath === "memorial") && activeStyleTemplate && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
+            {(designPath === "bootleg" || designPath === "memorial") && designStyle === NO_TEMPLATE_STYLE && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
+            {designPath === "memorial" && <div className="mt-6 rounded-2xl border border-[#D8D1C7] bg-[#FFFCF8] p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#F6EDE8] text-[#8A3B45]"><Heart size={18}/></span>
+                <div>
+                  <div className="font-bold text-[#27231F]">Memorial details</div>
+                  <p className="mt-1 text-xs leading-relaxed text-[#6F6860]">Enter the name exactly as it should print. Dates and the remembrance message are optional. Name verification is required before you can continue.</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label className="text-xs font-semibold text-[#4D4842]">
+                  Memorial name <span className="text-[#A33B46]">*</span>
+                  <input
+                    type="text"
+                    value={personalization.name}
+                    maxLength={60}
+                    autoComplete="off"
+                    onChange={(event) => {
+                      setPersonalization((current) => ({ ...current, name: event.target.value }));
+                      setMemorialNameConfirmed(false);
+                    }}
+                    placeholder="Full name as it should be printed"
+                    className="mt-1.5 h-11 w-full rounded-xl border border-[#D8D1C7] bg-white px-3 text-sm outline-none focus:border-[#8A3B45] focus:ring-2 focus:ring-[#8A3B45]/10"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-[#4D4842]">
+                  Dates <span className="font-normal text-[#817A72]">(optional)</span>
+                  <input
+                    type="text"
+                    value={personalization.dates}
+                    maxLength={40}
+                    autoComplete="off"
+                    onChange={(event) => setPersonalization((current) => ({ ...current, dates: event.target.value }))}
+                    placeholder="e.g. 1984 — 2026"
+                    className="mt-1.5 h-11 w-full rounded-xl border border-[#D8D1C7] bg-white px-3 text-sm outline-none focus:border-[#8A3B45] focus:ring-2 focus:ring-[#8A3B45]/10"
+                  />
+                </label>
+              </div>
+              <label className="mt-4 block text-xs font-semibold text-[#4D4842]">
+                Remembrance message <span className="font-normal text-[#817A72]">(optional)</span>
+                <textarea
+                  value={personalization.message}
+                  maxLength={140}
+                  rows={3}
+                  onChange={(event) => setPersonalization((current) => ({ ...current, message: event.target.value }))}
+                  placeholder="Forever loved, always remembered."
+                  className="mt-1.5 w-full resize-y rounded-xl border border-[#D8D1C7] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#8A3B45] focus:ring-2 focus:ring-[#8A3B45]/10"
+                />
+                <span className="mt-1 block text-right font-mono text-[9px] font-normal text-[#817A72]">{String(personalization.message || "").length}/140</span>
+              </label>
+              <label className={"mt-4 flex items-start gap-3 rounded-xl border px-3.5 py-3 text-sm " + (memorialNameConfirmed ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-[#E1D9CF] bg-white text-[#4F4942]")}>
+                <input
+                  type="checkbox"
+                  checked={memorialNameConfirmed}
+                  disabled={!String(personalization.name || "").trim()}
+                  onChange={(event) => setMemorialNameConfirmed(event.target.checked)}
+                  className="mt-0.5"
+                />
+                <span><strong>I verified the memorial name is spelled exactly as it should be printed.</strong> Changing the name will require verification again.</span>
+              </label>
+            </div>}
             {designPath === "upload" && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="font-semibold text-[#17324D]">Your own artwork:</span> resize, rotate and move it freely. Proportions stay locked by default, with an optional unlock control in the preview tools.</div>}
           </div>}
 
@@ -2207,7 +2287,7 @@ export default function CustomStudio() {
           </div>}
 
           {step === 3 && <div className="mt-8 border-t border-[#e3ddd4] pt-8">
-            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "–" + maxPhotos + " photos. For Photo Bootleg Designs, safe light-background cleanup runs automatically and always preserves the original photo so it can be restored."} />
+            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : designPath === "memorial" ? "UPLOAD THE MEMORIAL PORTRAIT" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "–" + maxPhotos + " photos. Protected photo templates automatically remove supported photo backgrounds while preserving the original so it can be restored."} />
             <label className={"border-2 border-dashed border-border min-h-44 flex flex-col items-center justify-center hover:border-accent " + (uploading ? "cursor-wait opacity-80" : "cursor-pointer")}>
               <Upload size={28}/>
               <div className="font-bold mt-2">{uploading ? "Optimizing & uploading…" : designPath === "upload" ? "Upload artwork" : "Upload photos"}</div>
@@ -2237,8 +2317,9 @@ export default function CustomStudio() {
           {step === 5 && <div>
             <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text="Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue." />
             <div className="grid md:grid-cols-2 gap-4">
-              <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={designPath === "bootleg" ? "GDP template locked · customer layers editable" : ""} />
+              <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={(designPath === "bootleg" || designPath === "memorial") ? "GDP template locked · customer layers editable" : ""} />
               <ReviewCard label={designPath === "upload" ? "Artwork" : "Ready layout"} value={(designStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designStyle ? `${designMood || "Original"} finish` : ""} />
+              {designPath === "memorial" && <ReviewCard label="Memorial name" value={personalization.name || "Not entered"} sub={personalization.dates ? `Dates: ${personalization.dates}` : "No dates added"} />}
               <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} · ${size || "No size"} · Qty ${qty}` : ""} />
               <ReviewCard
                 label="Print"
@@ -2647,7 +2728,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     String(personalization?.quote || "").trim() ||
     String(personalization?.message || "").trim()
   );
-  // Bootleg photos are independent editable layers. The legacy artwork drag
+  // Protected-template photos are independent editable layers. The legacy artwork drag
   // remains only for Upload My Own Artwork and older saved designs.
   const hasEditablePhotoLayers = editorLayers.some((layer) => layer?.type === "photo" && layer?.visible !== false);
   const canDrag = Boolean(photo && !hasEditablePhotoLayers && !blankArtwork && setArtworkOffset);
