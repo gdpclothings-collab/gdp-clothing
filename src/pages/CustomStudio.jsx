@@ -2222,6 +2222,31 @@ export default function CustomStudio() {
                 mood={designMood}
               />
 
+              <div className="border-y border-[#ebe5dc] bg-[#fbf9f6] px-3 py-3 sm:px-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowGuides(v => !v)}
+                    aria-pressed={showGuides}
+                    className={"inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 text-[10px] font-semibold transition " + (showGuides ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#ddd6cc] bg-white text-[#59544d] hover:border-accent hover:text-accent")}
+                  >
+                    <Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMeasurements(v => !v)}
+                    aria-pressed={showMeasurements}
+                    className={"inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 text-[10px] font-semibold transition " + (showMeasurements ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#ddd6cc] bg-white text-[#59544d] hover:border-accent hover:text-accent")}
+                  >
+                    <Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}
+                  </button>
+                </div>
+                <div className="mt-2.5 border-l-2 border-accent/55 pl-2.5">
+                  <p className="text-[9px] font-mono uppercase leading-relaxed tracking-wide text-[#817a72]">Recommended print zone updates after you choose a garment and size.</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-[#6f6860]">{designPath === "bootleg" ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
+                </div>
+              </div>
+
               <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex rounded-xl border border-[#ddd6cc] bg-[#f5f0e9] p-1">
@@ -2299,15 +2324,9 @@ export default function CustomStudio() {
                   outsideWarning={editorOutsideWarning}
                 />}
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <button type="button" onClick={() => setShowGuides(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Eye size={13} /> {showGuides ? "Hide print guide" : "Show print guide"}</button>
-                    <button type="button" onClick={() => setShowMeasurements(v => !v)} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><Ruler size={13} /> {showMeasurements ? "Hide measurements" : "Show measurements"}</button>
-                  </div>
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                   <button type="button" onClick={() => { checkpointEditor(); resetPreviewPlacement(); }} className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-semibold text-[#706a62] hover:text-accent"><RotateCcw size={13} /> Reset</button>
                 </div>
-                <p className="mt-2 text-[10px] font-mono uppercase tracking-wide text-[#8f887f]">Recommended print zone updates after you choose a garment and size.</p>
-                <p className="mt-2 text-[11px] sm:text-[10px] leading-relaxed text-[#7d766d]">{designPath === "bootleg" ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
               </div>
             </div>
 
