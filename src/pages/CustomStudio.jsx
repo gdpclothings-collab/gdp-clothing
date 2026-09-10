@@ -2182,6 +2182,27 @@ export default function CustomStudio() {
               {!selectedAvailable && product?.variants?.length > 0 && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose an available size before continuing.</div>
               )}
+
+              <div className="mt-7 hidden items-center justify-between gap-5 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 lg:flex">
+                <div>
+                  <div className="text-sm font-bold text-[#17324D]">Garment selection complete</div>
+                  <p className="mt-1 text-xs text-[#64707C]">{canContinue() ? `${product.name} · ${color} · ${size} · Qty ${qty}` : continueHint()}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!canContinue()}
+                  onClick={() => {
+                    if (!canContinue()) return;
+                    setStep(2);
+                    window.requestAnimationFrame(() => {
+                      document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    });
+                  }}
+                  className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-[#17324D] px-5 py-3 text-xs font-bold uppercase text-white shadow-sm transition hover:bg-[#244866] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Continue to Choose Design <ArrowRight size={16}/>
+                </button>
+              </div>
             </>}
           </div>}
 
