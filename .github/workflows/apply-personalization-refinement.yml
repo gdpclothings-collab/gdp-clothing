@@ -1,0 +1,41 @@
+name: Apply Personalization Refinement
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/apply-personalization-refinement.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  apply-refinement:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Apply personalization refinement
+        run: node scripts/apply-personalization-refinement.mjs
+
+      - name: Commit refinement
+        shell: bash
+        run: |
+          if git diff --quiet -- src/components/storefront/SeasonalStudio.jsx; then
+            echo "No personalization changes were required."
+            exit 0
+          fi
+          git config user.name "gdpclothings-collab"
+          git config user.email "gdpclothings@gmail.com"
+          git add src/components/storefront/SeasonalStudio.jsx
+          git commit -m "Refine seasonal personalization controls"
+          git push origin HEAD:main
