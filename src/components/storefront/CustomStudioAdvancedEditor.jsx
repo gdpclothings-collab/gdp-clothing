@@ -42,6 +42,35 @@ function uid(prefix) {
   return prefix + "-" + Date.now() + "-" + Math.random().toString(36).slice(2);
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, Number(value || 0)));
+}
+
+function distance(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function angle(a, b) {
+  return Math.atan2(b.y - a.y, b.x - a.x) * (180 / Math.PI);
+}
+
+function angleDelta(next, start) {
+  let value = next - start;
+  while (value > 180) value -= 360;
+  while (value < -180) value += 360;
+  return value;
+}
+
+function midpoint(a, b) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function layerSizeBounds(layer) {
+  if (layer?.type === "photo") return [10, 180];
+  if (layer?.type === "text") return [8, 144];
+  return [14, 140];
+}
+
 export function normalizeEditorTools(value = {}) {
   return { ...DEFAULT_EDITOR_TOOLS, ...(value || {}) };
 }
@@ -88,6 +117,7 @@ export function createTextLayer(text = "YOUR TEXT") {
     strokeWidth: 1,
     strokeColor: "#111111",
     shadow: true,
+    opacity: 1,
     visible: true,
   };
 }
@@ -122,10 +152,6 @@ export function createPhotoLayer(photo, index = 0) {
   };
 }
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, Number(value || 0)));
-}
-
 export function EditableOverlayLayers({
   layers = [],
   stickerLibrary = [],
@@ -136,7 +162,12 @@ export function EditableOverlayLayers({
   onPatchLayer = null,
   onDragStart = null,
 }) {
-  const dragRef = useRef(null);
+  const gestureRef = useRef(null);
+  const resizeRef = useRef(null);
+  const lastTapRef = useRef({ id: "", at: 0 });
+  const editRef = useRef(null);
+  const [editingTextId, setEditingTextId] = useState("");
+
   const stickers = useMemo(
     () => Object.fromEntries(normalizeStickerLibrary(stickerLibrary).map((item) => [item.id, item])),
     [stickerLibrary]
@@ -146,47 +177,215 @@ export function EditableOverlayLayers({
     [photoAssets]
   );
 
-  const startDrag = (event, layer) => {
+  useEffect(() => {
+    if (!editingTextId) return;
+    const timer = window.setTimeout(() => {
+      editRef.current?.focus?.();
+      editRef.current?.select?.();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [editingTextId]);
+
+  useEffect(() => {
+    if (editingTextId && !layers.some((layer) => layer.id === editingTextId && layer.type === "text")) {
+      setEditingTextId("");
+    }
+  }, [editingTextId, layers]);
+
+  const beginGesture = (event, layer) => {
+    if (!interactive || !onPatchLayer || editingTextId === layer.id) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    onSelectLayer?.(layer.id);
+
+    const rect = event.currentTarget.parentElement?.getBoundingClientRect();
+    const point = { x: event.clientX, y: event.clientY };
+    let gesture = gestureRef.current;
+
+    if (!gesture || gesture.id !== layer.id) {
+      onDragStart?.();
+      gesture = {
+        id: layer.id,
+        rect,
+        pointers: new Map(),
+        startX: Number(layer.x || 50),
+        startY: Number(layer.y || 50),
+        startSize: Number(layer.size || (layer.type === "photo" ? 62 : 28)),
+        startRotation: Number(layer.rotation || 0),
+        startPoint: point,
+        startMidpoint: point,
+        startDistance: 0,
+        startAngle: 0,
+        moved: false,
+      };
+      gestureRef.current = gesture;
+    }
+
+    gesture.pointers.set(event.pointerId, point);
+    const points = [...gesture.pointers.values()];
+    if (points.length >= 2) {
+      const [a, b] = points;
+      gesture.startX = Number(layer.x || 50);
+      gesture.startY = Number(layer.y || 50);
+      gesture.startSize = Number(layer.size || gesture.startSize);
+      gesture.startRotation = Number(layer.rotation || 0);
+      gesture.startMidpoint = midpoint(a, b);
+      gesture.startDistance = Math.max(1, distance(a, b));
+      gesture.startAngle = angle(a, b);
+    } else {
+      gesture.startPoint = point;
+      gesture.startMidpoint = point;
+      gesture.startX = Number(layer.x || 50);
+      gesture.startY = Number(layer.y || 50);
+    }
+  };
+
+  const moveGesture = (event, layer) => {
+    const gesture = gestureRef.current;
+    if (!gesture || gesture.id !== layer.id || !gesture.pointers.has(event.pointerId) || !onPatchLayer) return;
+    event.preventDefault();
+    event.stopPropagation();
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    const rect = gesture.rect || event.currentTarget.parentElement?.getBoundingClientRect();
+    const width = Math.max(1, rect?.width || 1);
+    const height = Math.max(1, rect?.height || 1);
+    const points = [...gesture.pointers.values()];
+    let patch = {};
+
+    if (points.length >= 2) {
+      const [a, b] = points;
+      const center = midpoint(a, b);
+      const scale = distance(a, b) / Math.max(1, gesture.startDistance || distance(a, b));
+      const [minSize, maxSize] = layerSizeBounds(layer);
+      patch = {
+        x: clamp(gesture.startX + ((center.x - gesture.startMidpoint.x) / width) * 100, 0, 100),
+        y: clamp(gesture.startY + ((center.y - gesture.startMidpoint.y) / height) * 100, 0, 100),
+        size: clamp(gesture.startSize * scale, minSize, maxSize),
+        rotation: clamp(gesture.startRotation + angleDelta(angle(a, b), gesture.startAngle), -180, 180),
+      };
+    } else {
+      const current = points[0];
+      patch = {
+        x: clamp(gesture.startX + ((current.x - gesture.startPoint.x) / width) * 100, 0, 100),
+        y: clamp(gesture.startY + ((current.y - gesture.startPoint.y) / height) * 100, 0, 100),
+      };
+    }
+
+    gesture.moved = true;
+    onPatchLayer(gesture.id, patch, { history: false });
+  };
+
+  const endGesture = (event, layer) => {
+    const gesture = gestureRef.current;
+    if (!gesture || gesture.id !== layer.id) return;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
+    const wasTap = !gesture.moved && gesture.pointers.size === 1;
+    gesture.pointers.delete(event.pointerId);
+
+    if (wasTap && layer.type === "text" && event.pointerType === "touch") {
+      const now = Date.now();
+      if (lastTapRef.current.id === layer.id && now - lastTapRef.current.at < 360) {
+        onDragStart?.();
+        setEditingTextId(layer.id);
+        lastTapRef.current = { id: "", at: 0 };
+      } else {
+        lastTapRef.current = { id: layer.id, at: now };
+      }
+    }
+
+    if (!gesture.pointers.size) {
+      gestureRef.current = null;
+      return;
+    }
+
+    const remaining = [...gesture.pointers.values()][0];
+    gesture.startPoint = remaining;
+    gesture.startMidpoint = remaining;
+    gesture.startX = Number(layer.x || 50);
+    gesture.startY = Number(layer.y || 50);
+    gesture.startSize = Number(layer.size || gesture.startSize);
+    gesture.startRotation = Number(layer.rotation || 0);
+    gesture.startDistance = 0;
+    gesture.moved = false;
+  };
+
+  const beginResize = (event, layer) => {
     if (!interactive || !onPatchLayer) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     onSelectLayer?.(layer.id);
     onDragStart?.();
-    const rect = event.currentTarget.parentElement?.getBoundingClientRect();
-    dragRef.current = {
+    const rect = event.currentTarget.parentElement?.parentElement?.getBoundingClientRect();
+    resizeRef.current = {
       id: layer.id,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: Number(layer.x || 50),
-      startY: Number(layer.y || 50),
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startSize: Number(layer.size || 28),
       width: Math.max(1, rect?.width || 1),
-      height: Math.max(1, rect?.height || 1),
+      layerType: layer.type,
     };
   };
 
-  const moveDrag = (event) => {
-    const drag = dragRef.current;
-    if (!drag || !onPatchLayer) return;
+  const moveResize = (event) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId || !onPatchLayer) return;
     event.preventDefault();
     event.stopPropagation();
-    onPatchLayer(drag.id, {
-      x: clamp(drag.startX + ((event.clientX - drag.startClientX) / drag.width) * 100, 0, 100),
-      y: clamp(drag.startY + ((event.clientY - drag.startClientY) / drag.height) * 100, 0, 100),
-    }, { history: false });
+    const delta = event.clientX - resize.startX + (event.clientY - resize.startY);
+    const factor = resize.layerType === "photo" ? 100 / resize.width : 0.45;
+    const layer = layers.find((item) => item.id === resize.id);
+    const [minSize, maxSize] = layerSizeBounds(layer);
+    onPatchLayer(resize.id, { size: clamp(resize.startSize + delta * factor, minSize, maxSize) }, { history: false });
   };
 
-  const stopDrag = (event) => {
-    if (!dragRef.current) return;
+  const endResize = (event) => {
+    if (!resizeRef.current) return;
     event?.preventDefault?.();
     event?.stopPropagation?.();
-    dragRef.current = null;
+    resizeRef.current = null;
   };
+
+  const beginTextEdit = (event, layer) => {
+    if (!interactive || layer.type !== "text") return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSelectLayer?.(layer.id);
+    onDragStart?.();
+    setEditingTextId(layer.id);
+  };
+
+  const selectionChrome = (layer, selected) => selected ? (
+    <>
+      <div
+        className="pointer-events-none absolute left-1/2 top-[-30px] -translate-x-1/2 whitespace-nowrap rounded-full bg-[#17324D] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] text-white shadow-lg"
+        style={{ WebkitTextStroke: "0 transparent", textShadow: "none" }}
+      >
+        {layer.type === "text" ? "Drag · pinch · double-tap to type" : "Drag · pinch to resize · twist to rotate"}
+      </div>
+      <button
+        type="button"
+        data-editor-control="true"
+        aria-label="Resize selected layer"
+        className="absolute -bottom-3 -right-3 grid h-7 w-7 touch-none place-items-center rounded-full border-2 border-white bg-[#17324D] text-[11px] font-bold text-white shadow-lg"
+        onPointerDown={(event) => beginResize(event, layer)}
+        onPointerMove={moveResize}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+      >↘</button>
+    </>
+  ) : null;
 
   return (
     <>
       {(layers || []).filter((layer) => layer?.visible !== false).map((layer, index) => {
         const selected = interactive && selectedLayerId === layer.id;
+        const isEditingText = editingTextId === layer.id && layer.type === "text";
         const baseStyle = /** @type {React.CSSProperties} */ ({
           position: "absolute",
           left: clamp(layer.x, 0, 100) + "%",
@@ -197,6 +396,8 @@ export function EditableOverlayLayers({
           cursor: interactive ? "move" : "default",
           pointerEvents: interactive ? "auto" : "none",
           touchAction: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
         });
 
         if (layer.type === "photo") {
@@ -211,18 +412,15 @@ export function EditableOverlayLayers({
                 ...baseStyle,
                 width: clamp(layer.size || 62, 10, 180) + "%",
                 opacity: clamp(layer.opacity ?? 1, 0.1, 1),
-                outline: selected ? "1px dashed rgba(255,255,255,.95)" : "none",
+                outline: selected ? "1px dashed rgba(255,255,255,.98)" : "none",
                 outlineOffset: selected ? "4px" : "0",
               }}
-              onPointerDown={(event) => startDrag(event, layer)}
-              onPointerMove={moveDrag}
-              onPointerUp={stopDrag}
-              onPointerCancel={stopDrag}
+              onPointerDown={(event) => beginGesture(event, layer)}
+              onPointerMove={(event) => moveGesture(event, layer)}
+              onPointerUp={(event) => endGesture(event, layer)}
+              onPointerCancel={(event) => endGesture(event, layer)}
             >
-              <div
-                className={cropMode ? "aspect-[4/5] w-full overflow-hidden" : "w-full"}
-                style={cropMode ? { borderRadius: "2%" } : undefined}
-              >
+              <div className={cropMode ? "aspect-[4/5] w-full overflow-hidden" : "w-full"} style={cropMode ? { borderRadius: "2%" } : undefined}>
                 <img
                   src={asset.url}
                   alt={asset.name || "Customer photo"}
@@ -230,36 +428,85 @@ export function EditableOverlayLayers({
                   className={cropMode ? "h-full w-full select-none object-cover pointer-events-none" : "h-auto w-full select-none object-contain pointer-events-none"}
                 />
               </div>
+              {selectionChrome(layer, selected)}
             </div>
           );
         }
 
         if (layer.type === "text") {
+          const textStyle = {
+            ...baseStyle,
+            fontSize: Math.max(8, Number(layer.size || 28)) + "px",
+            lineHeight: Number(layer.lineHeight || 1),
+            letterSpacing: Number(layer.letterSpacing || 0) + "px",
+            color: layer.color || "#ffffff",
+            fontFamily: layer.fontFamily || "Impact, sans-serif",
+            textAlign: layer.align || "center",
+            whiteSpace: "pre-wrap",
+            maxWidth: "92%",
+            opacity: clamp(layer.opacity ?? 1, 0.1, 1),
+            WebkitTextStroke: `${Number(layer.strokeWidth || 0)}px ${layer.strokeColor || "#111111"}`,
+            textShadow: layer.shadow ? "0 2px 4px rgba(0,0,0,.65)" : "none",
+            outline: selected ? "1px dashed rgba(255,255,255,.95)" : "none",
+            outlineOffset: selected ? "4px" : "0",
+          };
+
+          if (isEditingText) {
+            const rows = Math.max(1, String(layer.text || "").split("\n").length);
+            return (
+              <textarea
+                key={layer.id}
+                ref={editRef}
+                data-editor-layer={layer.id}
+                value={layer.text || ""}
+                rows={rows}
+                aria-label="Edit text directly on garment"
+                style={{
+                  ...textStyle,
+                  width: "min(76vw, 320px)",
+                  minWidth: "120px",
+                  minHeight: Math.max(44, Number(layer.size || 28) * Number(layer.lineHeight || 1) * rows + 16) + "px",
+                  resize: "none",
+                  overflow: "hidden",
+                  background: "rgba(23,50,77,.18)",
+                  border: "1px dashed rgba(255,255,255,.98)",
+                  padding: "6px 8px",
+                  cursor: "text",
+                  touchAction: "manipulation",
+                  userSelect: "text",
+                  WebkitUserSelect: "text",
+                }}
+                onChange={(event) => onPatchLayer?.(layer.id, { text: event.target.value }, { history: false })}
+                onPointerDown={(event) => event.stopPropagation()}
+                onBlur={() => setEditingTextId("")}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
+            );
+          }
+
           return (
             <div
               key={layer.id}
               data-editor-layer={layer.id}
-              style={{
-                ...baseStyle,
-                fontSize: Math.max(8, Number(layer.size || 28)) + "px",
-                lineHeight: Number(layer.lineHeight || 1),
-                letterSpacing: Number(layer.letterSpacing || 0) + "px",
-                color: layer.color || "#ffffff",
-                fontFamily: layer.fontFamily || "Impact, sans-serif",
-                textAlign: layer.align || "center",
-                whiteSpace: "pre-wrap",
-                maxWidth: "92%",
-                WebkitTextStroke: `${Number(layer.strokeWidth || 0)}px ${layer.strokeColor || "#111111"}`,
-                textShadow: layer.shadow ? "0 2px 4px rgba(0,0,0,.65)" : "none",
-                outline: selected ? "1px dashed rgba(255,255,255,.9)" : "none",
-                outlineOffset: selected ? "4px" : "0",
+              role={interactive ? "button" : undefined}
+              tabIndex={interactive ? 0 : undefined}
+              aria-label={interactive ? "Text layer. Drag to move, pinch to resize, double-tap to edit." : undefined}
+              style={textStyle}
+              onPointerDown={(event) => beginGesture(event, layer)}
+              onPointerMove={(event) => moveGesture(event, layer)}
+              onPointerUp={(event) => endGesture(event, layer)}
+              onPointerCancel={(event) => endGesture(event, layer)}
+              onDoubleClick={(event) => beginTextEdit(event, layer)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") beginTextEdit(event, layer);
               }}
-              onPointerDown={(event) => startDrag(event, layer)}
-              onPointerMove={moveDrag}
-              onPointerUp={stopDrag}
-              onPointerCancel={stopDrag}
             >
               {layer.text || "YOUR TEXT"}
+              {selectionChrome(layer, selected)}
             </div>
           );
         }
@@ -276,17 +523,18 @@ export function EditableOverlayLayers({
               display: "grid",
               placeItems: "center",
               opacity: clamp(layer.opacity ?? 1, 0.1, 1),
-              outline: selected ? "1px dashed rgba(255,255,255,.9)" : "none",
+              outline: selected ? "1px dashed rgba(255,255,255,.95)" : "none",
               outlineOffset: selected ? "4px" : "0",
             }}
-            onPointerDown={(event) => startDrag(event, layer)}
-            onPointerMove={moveDrag}
-            onPointerUp={stopDrag}
-            onPointerCancel={stopDrag}
+            onPointerDown={(event) => beginGesture(event, layer)}
+            onPointerMove={(event) => moveGesture(event, layer)}
+            onPointerUp={(event) => endGesture(event, layer)}
+            onPointerCancel={(event) => endGesture(event, layer)}
           >
             {sticker.assetUrl
               ? <img src={sticker.assetUrl} alt={sticker.label || "Sticker"} draggable="false" className="h-full w-full object-contain pointer-events-none" />
               : <span className="leading-none select-none pointer-events-none" style={{ fontSize: Math.max(14, Number(layer.size || 34)) + "px" }}>{sticker.glyph || "✦"}</span>}
+            {selectionChrome(layer, selected)}
           </div>
         );
       })}
@@ -330,9 +578,14 @@ export function AdvancedEditorPanel({
     : null;
   const photoSelected = selectedLayer?.type === "photo" || selectedLayerId === "photo" || !selectedLayer;
   const patch = (value) => selectedLayer && onPatchLayer?.(selectedLayer.id, value);
+  const docked = Boolean(selectedLayer);
 
   return (
-    <div className="mt-4 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-3">
+    <div className={(docked ? "sticky bottom-2 z-30 max-h-[58dvh] overflow-y-auto md:static md:max-h-none md:overflow-visible " : "") + "mt-4 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC]/95 p-3 shadow-sm backdrop-blur md:bg-[#F8FAFC]"}>
+      <div className="mb-3 rounded-xl border border-[#D7E0E8] bg-white px-3 py-2 text-[10px] leading-relaxed text-[#53616D]">
+        <strong className="text-[#17324D]">Touch the design directly:</strong> drag to move · pinch to resize · twist with two fingers to rotate · double-tap text to type.
+      </div>
+
       <div className="flex items-center justify-between gap-2">
         <div>
           <div className="font-mono text-[9px] uppercase tracking-[0.15em] text-[#6C7883]">Layer tools</div>
@@ -346,30 +599,26 @@ export function AdvancedEditorPanel({
 
       {templateName && <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#D7E0E8] bg-white p-2.5 text-[10px] leading-relaxed text-[#5B6874]">
         <Lock size={13} className="mt-0.5 shrink-0 text-[#17324D]"/>
-        <span><strong className="text-[#17324D]">{templateName}</strong> is locked and cannot be moved, resized, stretched, rotated, cropped, erased or deleted.</span>
+        <span><strong className="text-[#17324D]">{templateName}</strong> stays protected. Customer photos, text and stickers remain fully editable.</span>
       </div>}
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {!editorLayers.some((layer) => layer.type === "photo") && <button type="button" onClick={() => onSelectLayer?.("photo")} className={"rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (photoSelected ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>Photo</button>}
+      <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+        {!editorLayers.some((layer) => layer.type === "photo") && <button type="button" onClick={() => onSelectLayer?.("photo")} className={"shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (photoSelected ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>Photo</button>}
         {editorLayers.map((layer) => {
           const asset = layer.type === "photo"
             ? (photoAssets || []).find((photo) => String(photo?.id || "") === String(layer.photoId || ""))
             : null;
-          const label = layer.type === "text"
-            ? (layer.text || "Text")
-            : layer.type === "photo"
-              ? (asset?.name || "Photo")
-              : "Sticker";
-          return <button key={layer.id} type="button" onClick={() => onSelectLayer?.(layer.id)} className={"max-w-[120px] truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (selectedLayerId === layer.id ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>{label}</button>;
+          const label = layer.type === "text" ? (layer.text || "Text") : layer.type === "photo" ? (asset?.name || "Photo") : "Sticker";
+          return <button key={layer.id} type="button" onClick={() => onSelectLayer?.(layer.id)} className={"max-w-[140px] shrink-0 truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (selectedLayerId === layer.id ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>{label}</button>;
         })}
       </div>
 
       {(photoAssets || []).length > 0 && <div className="mt-3">
         <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#6C7883]">Add an uploaded photo to this side</div>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
           {(photoAssets || []).map((photo, index) => {
             const alreadyAdded = editorLayers.some((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || ""));
-            return <button key={photo.id || photo.url || index} type="button" disabled={alreadyAdded || photo.processingStatus === "failed"} onClick={() => onAddPhoto?.(photo)} className="inline-flex max-w-[150px] items-center gap-2 rounded-lg border border-[#D5DDE4] bg-white p-1.5 pr-2 text-left text-[9px] font-semibold text-[#17324D] disabled:opacity-40">
+            return <button key={photo.id || photo.url || index} type="button" disabled={alreadyAdded || photo.processingStatus === "failed"} onClick={() => onAddPhoto?.(photo)} className="inline-flex w-[150px] shrink-0 items-center gap-2 rounded-lg border border-[#D5DDE4] bg-white p-1.5 pr-2 text-left text-[9px] font-semibold text-[#17324D] disabled:opacity-40">
               <img src={photo.url || photo.originalUrl} alt="" className="h-8 w-8 rounded object-cover" />
               <span className="truncate">{alreadyAdded ? "Added" : `Add ${photo.name || `photo ${index + 1}`}`}</span>
             </button>;
@@ -384,10 +633,7 @@ export function AdvancedEditorPanel({
           {selectedLayer?.type === "photo" && <>
             <RangeRow label="Photo size" value={selectedLayer.size} min={10} max={180} suffix="%" onChange={(value) => patch({ size: value })}/>
             <RangeRow label="Rotation" value={selectedLayer.rotation} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="text-[9px] font-mono uppercase text-[#6C7883]">X position<input type="range" min="0" max="100" value={selectedLayer.x} onChange={(event) => patch({ x: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
-              <label className="text-[9px] font-mono uppercase text-[#6C7883]">Y position<input type="range" min="0" max="100" value={selectedLayer.y} onChange={(event) => patch({ y: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
-            </div>
+            <PositionRows layer={selectedLayer} patch={patch}/>
             <div className="inline-flex rounded-lg border border-[#D5DDE4] bg-white p-1">
               <button type="button" onClick={() => patch({ fitMode: "fit" })} className={"rounded-md px-3 py-1.5 text-[9px] font-bold uppercase " + (selectedLayer.fitMode !== "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Fit · no crop</button>
               <button type="button" onClick={() => patch({ fitMode: "crop" })} className={"rounded-md px-3 py-1.5 text-[9px] font-bold uppercase " + (selectedLayer.fitMode === "crop" ? "bg-[#17324D] text-white" : "text-[#64707C]")}>Crop 4:5</button>
@@ -398,46 +644,59 @@ export function AdvancedEditorPanel({
             {selectedPhotoAsset?.cleanedUrl && <button type="button" onClick={() => onTogglePhotoBackground?.(selectedPhotoAsset.id)} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/>{selectedPhotoAsset.backgroundRemoved ? "Restore background" : "Remove background"}</button>}
             <button type="button" disabled={!hasPhoto} onClick={onResetPhoto} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><RotateCcw size={13}/> Reset photo</button>
             <button type="button" disabled={!hasPhoto} onClick={onDeletePhoto} className="rounded-xl border border-[#E4C9CC] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#A63D4A] disabled:opacity-35 inline-flex items-center justify-center gap-1.5"><Trash2 size={13}/> Delete photo</button>
-            <button type="button" onClick={onResetAll} className="rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/> Reset editable</button>
+            <button type="button" onClick={onResetAll} className="col-span-2 rounded-xl border border-[#D5DDE4] bg-white px-3 py-2 text-[10px] font-bold uppercase text-[#17324D] inline-flex items-center justify-center gap-1.5"><WandSparkles size={13}/> Reset editable layers</button>
           </div>
           {selectedLayer?.type === "photo" && <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>}
         </div>
       ) : selectedLayer?.type === "text" ? (
         <div className="mt-3 space-y-3">
-          <textarea value={selectedLayer.text || ""} onChange={(event) => patch({ text: event.target.value })} rows={2} className="w-full rounded-lg border border-[#D5DDE4] bg-white p-2 text-xs" placeholder="Type your text"/>
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[9px] font-mono uppercase text-[#6C7883]"><span>Wording</span><span>Double-tap it on the garment to edit there</span></div>
+            <textarea value={selectedLayer.text || ""} onChange={(event) => patch({ text: event.target.value })} rows={2} className="w-full rounded-lg border border-[#D5DDE4] bg-white p-2 text-xs" placeholder="Type your text"/>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <label className="text-[9px] font-mono uppercase text-[#6C7883]">Font
-              <select value={selectedLayer.fontFamily} onChange={(event) => patch({ fontFamily: event.target.value })} className="mt-1 h-8 w-full rounded-lg border border-[#D5DDE4] bg-white px-2 text-[10px] normal-case">
+              <select value={selectedLayer.fontFamily} onChange={(event) => patch({ fontFamily: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white px-2 text-[10px] normal-case">
                 <option value="Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif">Impact</option>
                 <option value="'Arial Black', Arial, sans-serif">Arial Black</option>
+                <option value="Arial, Helvetica, sans-serif">Arial</option>
                 <option value="Georgia, serif">Georgia</option>
+                <option value="'Times New Roman', serif">Times</option>
+                <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
                 <option value="'Courier New', monospace">Courier</option>
               </select>
             </label>
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Color
-              <input type="color" value={selectedLayer.color || "#ffffff"} onChange={(event) => patch({ color: event.target.value })} className="mt-1 h-8 w-full rounded-lg border border-[#D5DDE4] bg-white p-1"/>
+            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Text color
+              <input type="color" value={selectedLayer.color || "#ffffff"} onChange={(event) => patch({ color: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white p-1"/>
+            </label>
+            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Outline color
+              <input type="color" value={selectedLayer.strokeColor || "#111111"} onChange={(event) => patch({ strokeColor: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white p-1"/>
+            </label>
+            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Alignment
+              <select value={selectedLayer.align || "center"} onChange={(event) => patch({ align: event.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D5DDE4] bg-white px-2 text-[10px] normal-case">
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
             </label>
           </div>
-          <RangeRow label="Size" value={selectedLayer.size} min={10} max={72} suffix="px" onChange={(value) => patch({ size: value })}/>
+          <RangeRow label="Size" value={selectedLayer.size} min={8} max={144} suffix="px" onChange={(value) => patch({ size: value })}/>
           <RangeRow label="Rotation" value={selectedLayer.rotation} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
-          <RangeRow label="Letter spacing" value={selectedLayer.letterSpacing} min={-2} max={12} suffix="px" onChange={(value) => patch({ letterSpacing: value })}/>
-          <RangeRow label="Outline" value={selectedLayer.strokeWidth} min={0} max={4} step={0.5} suffix="px" onChange={(value) => patch({ strokeWidth: value })}/>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">X position<input type="range" min="0" max="100" value={selectedLayer.x} onChange={(event) => patch({ x: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Y position<input type="range" min="0" max="100" value={selectedLayer.y} onChange={(event) => patch({ y: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
-          </div>
-          <label className="flex items-center gap-2 text-[10px] font-semibold text-[#53616D]"><input type="checkbox" checked={selectedLayer.shadow !== false} onChange={(event) => patch({ shadow: event.target.checked })}/> Shadow</label>
+          <RangeRow label="Letter spacing" value={selectedLayer.letterSpacing} min={-2} max={16} suffix="px" onChange={(value) => patch({ letterSpacing: value })}/>
+          <RangeRow label="Line height" value={selectedLayer.lineHeight} min={0.75} max={2} step={0.05} suffix="×" onChange={(value) => patch({ lineHeight: value })}/>
+          <RangeRow label="Outline" value={selectedLayer.strokeWidth} min={0} max={6} step={0.5} suffix="px" onChange={(value) => patch({ strokeWidth: value })}/>
+          <RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/>
+          <PositionRows layer={selectedLayer} patch={patch}/>
+          <label className="flex items-center gap-2 text-[10px] font-semibold text-[#53616D]"><input type="checkbox" checked={selectedLayer.shadow !== false} onChange={(event) => patch({ shadow: event.target.checked })}/> Text shadow</label>
           <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>
         </div>
       ) : (
         <div className="mt-3 space-y-3">
-          <RangeRow label="Sticker size" value={selectedLayer?.size} min={14} max={96} suffix="px" onChange={(value) => patch({ size: value })}/>
+          <RangeRow label="Sticker size" value={selectedLayer?.size} min={14} max={140} suffix="px" onChange={(value) => patch({ size: value })}/>
           <RangeRow label="Rotation" value={selectedLayer?.rotation} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">X position<input type="range" min="0" max="100" value={selectedLayer?.x || 50} onChange={(event) => patch({ x: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
-            <label className="text-[9px] font-mono uppercase text-[#6C7883]">Y position<input type="range" min="0" max="100" value={selectedLayer?.y || 50} onChange={(event) => patch({ y: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/></label>
-          </div>
-          <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>
+          <RangeRow label="Opacity" value={Math.round((selectedLayer?.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/>
+          <PositionRows layer={selectedLayer} patch={patch}/>
+          {selectedLayer && <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>} 
         </div>
       )}
 
@@ -456,10 +715,24 @@ export function AdvancedEditorPanel({
   );
 }
 
+function PositionRows({ layer, patch }) {
+  if (!layer) return null;
+  return <div className="grid grid-cols-2 gap-2">
+    <label className="text-[9px] font-mono uppercase text-[#6C7883]">X position
+      <input type="range" min="0" max="100" value={Number(layer.x || 50)} onChange={(event) => patch({ x: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/>
+    </label>
+    <label className="text-[9px] font-mono uppercase text-[#6C7883]">Y position
+      <input type="range" min="0" max="100" value={Number(layer.y || 50)} onChange={(event) => patch({ y: Number(event.target.value) })} className="mt-1 w-full accent-[#17324D]"/>
+    </label>
+  </div>;
+}
+
 function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange }) {
+  const numericValue = Number(value || 0);
+  const display = Number.isInteger(numericValue) ? numericValue : Number(numericValue.toFixed(2));
   return <label className="block text-[9px] font-mono uppercase text-[#6C7883]">
-    <span className="flex justify-between"><span>{label}</span><span>{Number(value || 0)}{suffix}</span></span>
-    <input type="range" min={min} max={max} step={step} value={Number(value || 0)} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1 w-full accent-[#17324D]"/>
+    <span className="flex justify-between"><span>{label}</span><span>{display}{suffix}</span></span>
+    <input type="range" min={min} max={max} step={step} value={numericValue} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1 w-full accent-[#17324D]"/>
   </label>;
 }
 
@@ -490,8 +763,7 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
   const pushHistory = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const next = [...historyRef.current, canvas.toDataURL("image/png")].slice(-12);
-    historyRef.current = next;
+    historyRef.current = [...historyRef.current, canvas.toDataURL("image/png")].slice(-12);
     redoRef.current = [];
     setHistoryVersion((value) => value + 1);
   };
@@ -543,7 +815,7 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
 
   if (!open) return null;
 
-  const point = (event) => {
+  const canvasPoint = (event) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     return {
@@ -557,7 +829,7 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
     const source = sourceRef.current;
     if (!canvas || !source || !ready) return;
     const context = canvas.getContext("2d");
-    const { x, y } = point(event);
+    const { x, y } = canvasPoint(event);
     const radius = Math.max(4, Number(brushSize || 44)) * (canvas.width / Math.max(500, canvas.getBoundingClientRect().width));
 
     if (mode === "restore") {
