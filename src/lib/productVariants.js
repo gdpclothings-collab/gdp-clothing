@@ -57,3 +57,9 @@ export function isProductVariantAvailable(product, variant) {
   if (product.trackInventory === false || product.sellWhenOutOfStock === true) return true;
   return Number(variant.stock || 0) > 0;
 }
+
+export function isProductOutOfStock(product) {
+  const variants = (product?.variants || []).filter((variant) => variant?.active !== false);
+  if (!variants.length || product?.trackInventory === false || product?.sellWhenOutOfStock === true) return false;
+  return variants.every((variant) => Number(variant.stock || 0) <= 0);
+}

@@ -24,7 +24,7 @@ export function useProducts(filter = {}) {
       /** @type {any} */
       let query = supabase
         .from("products")
-        .select("*")
+        .select("*, product_variants(*)")
         .order("created_at", { ascending: false })
         .limit(100);
 
