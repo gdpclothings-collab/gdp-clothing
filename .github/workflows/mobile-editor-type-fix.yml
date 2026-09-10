@@ -1,0 +1,46 @@
+name: Mobile editor type correction
+
+on:
+  push:
+    branches:
+      - fix/mobile-custom-studio-overflow-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  correct-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-custom-studio-overflow-20260910
+          fetch-depth: 0
+      - name: Accept existing selection call signature
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('src/components/storefront/CustomStudioAdvancedEditor.jsx')
+          text = path.read_text()
+          old = 'const selectionChrome = (layer, selected) => selected ? ('
+          new = 'const selectionChrome = (layer, selected, _index) => selected ? ('
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one selectionChrome signature, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: ESLint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Commit correction and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/mobile-editor-type-fix.yml
+          git add src/components/storefront/CustomStudioAdvancedEditor.jsx
+          git commit -m "Fix mobile editor selection helper typing [mobile-editor-types-fixed]"
+          git push origin HEAD:fix/mobile-custom-studio-overflow-20260910
