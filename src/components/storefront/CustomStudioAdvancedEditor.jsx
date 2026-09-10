@@ -714,13 +714,13 @@ function ToolButton({ active = false, icon: Icon, label, onClick, disabled = fal
   );
 }
 
-function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange }) {
+function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange, onPointerDown = undefined }) {
   const numericValue = Number(value ?? 0);
   const display = Number.isInteger(numericValue) ? numericValue : Number(numericValue.toFixed(2));
   return (
     <label className="block min-w-0 text-[9px] font-mono uppercase tracking-[.08em] text-white/48">
       <span className="flex justify-between gap-3"><span>{label}</span><span className="text-white/80">{display}{suffix}</span></span>
-      <input type="range" min={min} max={max} step={step} value={numericValue} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1.5 w-full min-w-0 max-w-full accent-[#D9273E]"/>
+      <input type="range" min={min} max={max} step={step} value={numericValue} onPointerDown={onPointerDown} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1.5 w-full min-w-0 max-w-full accent-[#D9273E]"/>
     </label>
   );
 }
@@ -811,6 +811,23 @@ export function AdvancedEditorPanel({
   sideStatus = "",
   canCopyFrontToBack = false,
   onCopyFrontToBack,
+  legacyArtworkActive = false,
+  artworkScale = 92,
+  onArtworkScaleChange,
+  artworkRotation = 0,
+  onArtworkRotationChange,
+  artworkFitMode = "fit",
+  onArtworkFitModeChange,
+  artworkConstrainRatio = true,
+  onArtworkConstrainRatioChange,
+  artworkStretchX = 100,
+  onArtworkStretchXChange,
+  artworkStretchY = 100,
+  onArtworkStretchYChange,
+  artworkSourcePhotoIndex = 0,
+  onArtworkSourcePhotoIndexChange,
+  onArtworkTransformStart,
+  allowFreeStretch = false,
 }) {
   const tools = normalizeEditorTools(enabledTools);
   const stickers = normalizeStickerLibrary(stickerLibrary).filter((item) => item.enabled !== false);
@@ -1105,6 +1122,31 @@ export function AdvancedEditorPanel({
     </div>
   );
 
+  const renderLegacyArtworkTool = () => {
+    if (!legacyArtworkActive) return null;
+    return (
+      <div className="space-y-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div><div className="text-[10px] font-bold uppercase tracking-[.09em] text-white">Artwork transform</div><div className="mt-0.5 text-[9px] text-white/42">Edit the selected uploaded artwork directly on the garment.</div></div>
+          <Move size={15} className="text-[#D9273E]"/>
+        </div>
+        {(photoAssets || []).length > 1 && <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Artwork source<select value={Number(artworkSourcePhotoIndex || 0)} onPointerDown={onArtworkTransformStart} onChange={(event) => onArtworkSourcePhotoIndexChange?.(Number(event.target.value))} className="mt-1.5 h-10 w-full rounded-xl border border-white/10 bg-[#0B1A28] px-3 text-[10px] normal-case tracking-normal text-white outline-none">{photoAssets.map((photo, index) => <option key={photo.id || photo.url || index} value={index}>{index + 1}. {photo.name || "Uploaded photo"}</option>)}</select></label>}
+        <RangeRow label="Design size" value={Number(artworkScale || 92)} min={55} max={180} suffix="%" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkScaleChange?.(value)}/>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("fit")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode !== "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fit · no crop</button>
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("crop")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode === "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Crop to fill</button>
+        </div>
+        {artworkFitMode === "crop" && <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">Crop to Fill trims image edges. Use Fit · No Crop to keep the full artwork visible.</div>}
+        {allowFreeStretch && <div className="rounded-xl border border-white/[.08] bg-white/[.035] p-3">
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkConstrainRatioChange?.(!artworkConstrainRatio)} className="inline-flex items-center gap-2 text-[9px] font-bold uppercase text-white/75">{artworkConstrainRatio ? <Lock size={13}/> : <Unlock size={13}/>} {artworkConstrainRatio ? "Constrain aspect ratio" : "Free stretch enabled"}</button>
+          <div className="mt-1 text-[8px] leading-relaxed text-white/35">{artworkConstrainRatio ? "Recommended: resizing keeps the original proportions." : "Advanced: width and height can be adjusted independently."}</div>
+          {!artworkConstrainRatio && <div className="mt-3 grid gap-3 sm:grid-cols-2"><RangeRow label="Width" value={Number(artworkStretchX || 100)} min={60} max={160} suffix="%" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkStretchXChange?.(value)}/><RangeRow label="Height" value={Number(artworkStretchY || 100)} min={60} max={160} suffix="%" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkStretchYChange?.(value)}/></div>}
+        </div>}
+        <RangeRow label="Rotation" value={Number(artworkRotation || 0)} min={-180} max={180} suffix="°" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkRotationChange?.(value)}/>
+      </div>
+    );
+  };
+
   const renderUploadPanel = () => (
     <div id="custom-studio-photo-upload" className="scroll-mt-28 space-y-3">
       <label className={`flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[.035] px-3 text-center transition hover:border-[#D9273E]/60 ${uploading ? "pointer-events-none opacity-55" : ""}`}>
@@ -1162,7 +1204,7 @@ export function AdvancedEditorPanel({
 
       {panelTab === "canvas" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderCanvasPanel()}</div>}
       {panelTab === "design" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderDesignPanel()}</div>}
-      {panelTab === "photos" && <div className="mt-3 space-y-3"><div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderUploadPanel()}</div>{selectedType === "photo" && <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderPhotoTool()}</div>}</div>}
+      {panelTab === "photos" && <div className="mt-3 space-y-3"><div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderUploadPanel()}</div>{legacyArtworkActive && !selectedLayer ? renderLegacyArtworkTool() : selectedType === "photo" && <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderPhotoTool()}</div>}</div>}
       {panelTab === "lettering" && <div className="mt-3">{renderLetteringPanel()}</div>}
       {panelTab === "details" && designPath === "memorial" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderMemorialDetails()}</div>}
       {panelTab === "layers" && <div className="mt-3">{selectedType === "sticker" && activeTool !== "layers" ? <div className="mb-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderStickerTool()}</div> : null}{renderLayers()}</div>}

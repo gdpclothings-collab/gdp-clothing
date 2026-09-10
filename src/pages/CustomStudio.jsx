@@ -2646,6 +2646,23 @@ export default function CustomStudio() {
                   sideStatus={activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : `${previewSide === "front" ? "Front" : "Back"} is blank until you add artwork.`}
                   canCopyFrontToBack={previewSide === "back" && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0}
                   onCopyFrontToBack={copyFrontDesignToBack}
+                  legacyArtworkActive={Boolean(previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && !editorLayers.some((layer) => layer.type === "photo"))}
+                  artworkScale={artworkScale}
+                  onArtworkScaleChange={setArtworkScale}
+                  artworkRotation={artworkRotation}
+                  onArtworkRotationChange={setArtworkRotation}
+                  artworkFitMode={artworkFitMode}
+                  onArtworkFitModeChange={setArtworkFitMode}
+                  artworkConstrainRatio={artworkConstrainRatio}
+                  onArtworkConstrainRatioChange={setArtworkConstrainRatio}
+                  artworkStretchX={artworkStretchX}
+                  onArtworkStretchXChange={setArtworkStretchX}
+                  artworkStretchY={artworkStretchY}
+                  onArtworkStretchYChange={setArtworkStretchY}
+                  artworkSourcePhotoIndex={Number(activeArtworkState.sourcePhotoIndex || 0)}
+                  onArtworkSourcePhotoIndexChange={setArtworkSourcePhotoIndex}
+                  onArtworkTransformStart={checkpointEditor}
+                  allowFreeStretch={designPath === "upload" && editorTools.freeStretch !== false}
                   pathLabel={designPath === "memorial" ? "Memorial Tribute Editor" : designPath === "bootleg" ? "Photo Bootleg Editor" : designPath === "upload" ? "Artwork Editor" : "GDP Personalization Editor"}
                   designOptions={matchingStyleOptions}
                   designStyle={designStyle}
