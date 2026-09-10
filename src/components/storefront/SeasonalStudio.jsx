@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, Edit3, Maximize2, Move, RotateCcw, RotateCw, Ruler, Search, Shirt, ShoppingBag, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Edit3, Maximize2, Move, RotateCcw, RotateCw, Ruler, Search, Shirt, ShoppingBag, Sparkles, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { customerApi } from '@/lib/customerApi';
 import { useCart } from '@/lib/CartContext';
@@ -197,7 +197,11 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
     garment?.fabric,
   ]);
   const colorValue = colorSwatch?.(color) || color;
-  const personalizationSummary = [text.name, text.message].filter(Boolean).join(' · ') || 'None';
+  const recommendedTextColor = preferredTextColor(color, colorSwatch);
+  const hasLowContrast = hasText && text.color !== recommendedTextColor;
+  const textColorName = text.color === '#ffffff' ? 'White' : 'Black';
+  const recommendedTextColorName = recommendedTextColor === '#ffffff' ? 'White' : 'Black';
+  const personalizationSummary = [text.name, text.message].map((value) => String(value || '').trim()).filter(Boolean).join(' · ') || 'None';
   const designSubtotal = Number(unitPrice || 0) * Number(quantity || 1);
 
   useEffect(() => { setVisibleLimit(24); }, [category, query]);
@@ -238,6 +242,10 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
     setText((current) => ({ ...current, ...patch }));
     setApproved(false);
     setReviewMode(false);
+  };
+
+  const clearPersonalization = () => {
+    updateText({ name: '', message: '', color: recommendedTextColor });
   };
 
   useEffect(() => {
@@ -472,6 +480,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
                   <ReviewDetail label="Rotation" value={`${Math.round(rotation)}°`} />
                   <ReviewDetail label="Position" value={`${layout.x.toFixed(2)} in from left · ${layout.y.toFixed(2)} in from top`} />
                   <ReviewDetail label="Personalization" value={personalizationSummary} />
+                  {hasText && <ReviewDetail label="Text colour" value={textColorName} swatch={text.color} />}
                 </div>
 
                 <div className="rounded-2xl border border-[#DCE3EA] bg-[#17324D] p-4 text-white">
@@ -590,12 +599,67 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
                   <div className="grid grid-cols-2 gap-2"><button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#DCE3EA] px-3 py-2.5 text-xs font-bold text-[#52616F]" onClick={() => updatePosition({ x: (area.width - layout.width) / 2, y: (usableArea.height - layout.height) / 2 })}><Move size={14} /> Center</button><button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#DCE3EA] px-3 py-2.5 text-xs font-bold text-[#52616F]" onClick={resetArtwork}><RotateCcw size={14} /> Reset</button></div>
 
                   {selected.customizable && (
-                    <fieldset className="space-y-3 rounded-2xl border border-[#DCE3EA] p-4">
-                      <legend className="px-1 text-xs font-bold text-[#17324D]">Personalization</legend>
-                      <label className="block text-xs font-semibold text-[#52616F]">Name {selected.requires_name ? '(required)' : '(optional)'}<input value={text.name} maxLength={32} onChange={(event) => updateText({ name: event.target.value })} className="mt-1 block w-full rounded-xl border border-[#DCE3EA] p-2.5 text-sm" /></label>
-                      <label className="block text-xs font-semibold text-[#52616F]">Short message<input value={text.message} maxLength={60} onChange={(event) => updateText({ message: event.target.value })} className="mt-1 block w-full rounded-xl border border-[#DCE3EA] p-2.5 text-sm" /></label>
-                      <label className="block text-xs font-semibold text-[#52616F]">Text colour<select value={text.color} onChange={(event) => updateText({ color: event.target.value })} className="mt-1 block w-full rounded-xl border border-[#DCE3EA] p-2.5 text-sm"><option value="#111111">Black</option><option value="#ffffff">White</option></select></label>
-                      <p className="text-[10px] leading-relaxed text-[#667684]">Names appear in the centre of personalization frames; other added text appears beneath the artwork. Original lettering stays unchanged.</p>
+                    <fieldset className="rounded-2xl border border-[#DCE3EA] bg-[#FBFCFD] p-4 shadow-[0_10px_28px_rgba(23,50,77,.05)]">
+                      <legend className="sr-only">Personalization</legend>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#17324D] text-white"><Edit3 size={15} /></span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-[#17324D]">Personalize this design</p>
+                            <p className="mt-0.5 text-[11px] leading-relaxed text-[#667684]">Your changes update live on the garment preview.</p>
+                          </div>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[.09em] ${selected.requires_name ? 'bg-[#FFF1E6] text-[#9A531F]' : 'bg-[#EEF3F6] text-[#61717F]'}`}>{selected.requires_name ? 'Name required' : 'Optional'}</span>
+                      </div>
+
+                      <div className="mt-4 space-y-4">
+                        <label className="block" htmlFor="seasonal-personalization-name">
+                          <span className="flex items-center justify-between gap-3 text-xs font-bold text-[#34495C]"><span>Name {selected.requires_name ? <span className="text-[#A66331]">*</span> : null}</span><span className="font-medium tabular-nums text-[#80909D]">{String(text.name || '').length} / 32</span></span>
+                          <span id="seasonal-personalization-name-help" className="mt-0.5 block text-[10px] font-medium text-[#7A8995]">{selected.requires_name ? 'Centered inside the artwork personalization area.' : 'Prints beneath the artwork.'}</span>
+                          <input id="seasonal-personalization-name" aria-describedby="seasonal-personalization-name-help" value={text.name} maxLength={32} placeholder="e.g. Gerald" autoComplete="off" onChange={(event) => updateText({ name: event.target.value })} className="mt-1.5 block w-full rounded-xl border border-[#D7E0E7] bg-white px-3 py-2.5 text-sm text-[#17324D] outline-none transition placeholder:text-[#A1ADB7] focus:border-[#A66331] focus:ring-2 focus:ring-[#A66331]/15" />
+                        </label>
+
+                        <label className="block" htmlFor="seasonal-personalization-message">
+                          <span className="flex items-center justify-between gap-3 text-xs font-bold text-[#34495C]"><span>Short message <span className="font-medium text-[#80909D]">(optional)</span></span><span className="font-medium tabular-nums text-[#80909D]">{String(text.message || '').length} / 60</span></span>
+                          <span id="seasonal-personalization-message-help" className="mt-0.5 block text-[10px] font-medium text-[#7A8995]">Prints below the artwork as a secondary line.</span>
+                          <textarea id="seasonal-personalization-message" aria-describedby="seasonal-personalization-message-help" value={text.message} maxLength={60} rows={2} placeholder="e.g. Our first Canada Day" onChange={(event) => updateText({ message: event.target.value })} className="mt-1.5 block w-full resize-none rounded-xl border border-[#D7E0E7] bg-white px-3 py-2.5 text-sm leading-relaxed text-[#17324D] outline-none transition placeholder:text-[#A1ADB7] focus:border-[#A66331] focus:ring-2 focus:ring-[#A66331]/15" />
+                        </label>
+
+                        <div>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-bold text-[#34495C]">Text colour</p>
+                            <p className="text-[9px] font-semibold uppercase tracking-[.06em] text-[#80909D]">Suggested: {recommendedTextColorName}</p>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            {[{ value: '#111111', label: 'Black' }, { value: '#ffffff', label: 'White' }].map((option) => {
+                              const isSelected = text.color === option.value;
+                              const isRecommended = recommendedTextColor === option.value;
+                              return (
+                                <button key={option.value} type="button" aria-pressed={isSelected} aria-label={`Use ${option.label} personalization text`} onClick={() => updateText({ color: option.value })} className={`flex min-h-12 items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition ${isSelected ? 'border-[#A66331] bg-[#FFF9F4] shadow-[0_0_0_1px_rgba(166,99,49,.16)]' : 'border-[#DCE3EA] bg-white hover:border-[#B9C6D0]'}`}>
+                                  <span aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(15,23,42,.28)]" style={{ backgroundColor: option.value }} />
+                                  <span className="min-w-0 flex-1"><span className="block text-xs font-bold text-[#17324D]">{option.label}</span>{isRecommended && <span className="block text-[9px] font-semibold text-[#A66331]">Recommended</span>}</span>
+                                  {isSelected && <Check size={14} className="shrink-0 text-[#A66331]" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {hasLowContrast && (
+                            <div role="status" className="mt-2 flex items-start gap-2 rounded-xl border border-[#F2D5BF] bg-[#FFF8F2] px-3 py-2 text-[10px] leading-relaxed text-[#895126]">
+                              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                              <span>{textColorName} may blend into {color || 'this garment'} areas. {recommendedTextColorName} gives stronger garment contrast.</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="rounded-xl border border-[#E1E7EC] bg-white px-3 py-2.5">
+                          <div className="flex items-start gap-2 text-[10px] leading-relaxed text-[#61717F]"><Sparkles size={13} className="mt-0.5 shrink-0 text-[#A66331]" /><p>{selected.requires_name ? 'Your name fills the artwork personalization space. Your short message prints below the artwork.' : 'Your name and short message print below the artwork. Existing lettering inside the artwork stays unchanged.'}</p></div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7ECF0] pt-3">
+                          <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${hasText ? 'text-[#35744A]' : 'text-[#80909D]'}`}>{hasText ? <><span className="grid h-4 w-4 place-items-center rounded-full bg-[#E9F6ED]"><Check size={10} /></span>Applied to garment preview</> : 'Nothing added yet'}</div>
+                          {hasText && <button type="button" onClick={clearPersonalization} className="text-[10px] font-bold text-[#8B5B36] underline-offset-2 hover:underline">Clear personalization</button>}
+                        </div>
+                      </div>
                     </fieldset>
                   )}
 
