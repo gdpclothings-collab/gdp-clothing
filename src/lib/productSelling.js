@@ -49,7 +49,10 @@ export function activeProductVariants(product) {
     .filter((variant) => variant?.active !== false);
 }
 
-export function readyToWearReadiness(product, { requireActive = false } = {}) {
+export function readyToWearReadiness(
+  product,
+  { requireActive = false, requireSellableStock = true } = {}
+) {
   if (!isReadyToWearProduct(product)) {
     return { ready: false, blockers: ["Product selling mode is not Ready to Wear."] };
   }
@@ -73,7 +76,8 @@ export function readyToWearReadiness(product, { requireActive = false } = {}) {
     blockers.push("Set a selling price greater than $0.");
   }
 
-  if (product?.trackInventory !== false && product?.track_inventory !== false
+  if (requireSellableStock
+      && product?.trackInventory !== false && product?.track_inventory !== false
       && product?.sellWhenOutOfStock !== true && product?.sell_when_out_of_stock !== true
       && variants.length
       && !variants.some((variant) => Number(variant?.stock || 0) > 0)) {
@@ -94,6 +98,15 @@ export function readyToWearReadiness(product, { requireActive = false } = {}) {
 }
 
 export function readyToWearStatusLabel(product) {
-  const readiness = readyToWearReadiness(product, { requireActive: true });
-  return readiness.ready ? "Ready to sell" : "Setup required";
+  const publish = readyToWearReadiness(product, {
+    requireActive: true,
+    requireSellableStock: false,
+  });
+  if (!publish.ready) return "Setup required";
+
+  const sellable = readyToWearReadiness(product, {
+    requireActive: true,
+    requireSellableStock: true,
+  });
+  return sellable.ready ? "Ready to sell" : "Out of stock";
 }
