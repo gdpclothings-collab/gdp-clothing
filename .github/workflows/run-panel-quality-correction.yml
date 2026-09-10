@@ -1,0 +1,32 @@
+name: Run panel quality correction
+on:
+  push:
+    branches:
+      - refine/unified-personalization-panel-20260910
+permissions:
+  contents: write
+jobs:
+  correct:
+    if: ${{ !contains(github.event.head_commit.message, '[panel-quality-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refine/unified-personalization-panel-20260910
+      - name: Apply correction
+        run: python .github/scripts/panel_quality_correction.py
+      - name: Verify type safety, lint and production build
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npm run build
+      - name: Commit correction and remove temporary files
+        run: |
+          rm -f .github/workflows/run-panel-quality-correction.yml
+          rm -f .github/scripts/panel_quality_correction.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/storefront/CustomStudioAdvancedEditor.jsx src/pages/CustomStudio.jsx .github/workflows/run-panel-quality-correction.yml .github/scripts/panel_quality_correction.py
+          git commit -m "Fix unified personalization panel quality gate [panel-quality-fixed]"
+          git push origin HEAD:refine/unified-personalization-panel-20260910
