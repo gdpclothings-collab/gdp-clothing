@@ -51,7 +51,7 @@ export function activeProductVariants(product) {
 
 export function readyToWearReadiness(
   product,
-  { requireActive = false, requireSellableStock = true } = {}
+  { requireActive = false, requireSellableStock = false } = {}
 ) {
   if (!isReadyToWearProduct(product)) {
     return { ready: false, blockers: ["Product selling mode is not Ready to Wear."] };
@@ -98,10 +98,7 @@ export function readyToWearReadiness(
 }
 
 export function readyToWearStatusLabel(product) {
-  const publish = readyToWearReadiness(product, {
-    requireActive: true,
-    requireSellableStock: false,
-  });
+  const publish = readyToWearReadiness(product, { requireActive: true });
   if (!publish.ready) return "Setup required";
 
   const sellable = readyToWearReadiness(product, {
