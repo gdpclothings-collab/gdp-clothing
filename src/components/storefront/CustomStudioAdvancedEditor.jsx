@@ -13,7 +13,9 @@ import {
   FlipHorizontal,
   FlipVertical,
   Image as ImageIcon,
+  Heart,
   Layers,
+  Palette,
   Lock,
   Maximize2,
   Move,
@@ -24,6 +26,7 @@ import {
   Trash2,
   Type,
   Undo2,
+  Upload,
   Unlock,
   WandSparkles,
   X,
@@ -769,6 +772,27 @@ export function AdvancedEditorPanel({
   hasPhoto,
   templateName,
   outsideWarning = "",
+  designPath = "",
+  pathLabel = "",
+  designOptions = [],
+  designStyle = "",
+  blankStyleName = "No Template — Upload Only",
+  onChooseStyle,
+  onChooseBlank,
+  moodOptions = [],
+  designMood = "",
+  onChooseMood,
+  moodDescription = "",
+  personalization = {},
+  onChangePersonalization,
+  memorialNameConfirmed = false,
+  onMemorialNameConfirmedChange,
+  onUploadFiles,
+  uploading = false,
+  uploadProgress = { done: 0, total: 0 },
+  uploadWarning = "",
+  maxPhotos = 6,
+  uploadLimitMb = 15,
 }) {
   const tools = normalizeEditorTools(enabledTools);
   const stickers = normalizeStickerLibrary(stickerLibrary).filter((item) => item.enabled !== false);
@@ -780,15 +804,16 @@ export function AdvancedEditorPanel({
   const selectedType = selectedLayer?.type || (hasPhoto ? "photo" : "none");
   const patch = (value) => selectedLayer && onPatchLayer?.(selectedLayer.id, value);
   const [activeTool, setActiveTool] = useState("layers");
+  const [panelTab, setPanelTab] = useState(designPath === "upload" ? "photos" : "design");
   const [showStickers, setShowStickers] = useState(false);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
 
   useEffect(() => {
-    if (selectedType === "text") setActiveTool("edit");
-    else if (selectedType === "photo") setActiveTool("transform");
-    else if (selectedType === "sticker") setActiveTool("transform");
-    else setActiveTool("layers");
-  }, [selectedLayerId, selectedType]);
+    if (selectedType === "text") { setActiveTool("edit"); setPanelTab("lettering"); }
+    else if (selectedType === "photo") { setActiveTool("transform"); setPanelTab("photos"); }
+    else if (selectedType === "sticker") { setActiveTool("transform"); setPanelTab("layers"); }
+    else { setActiveTool("layers"); setPanelTab(designPath === "upload" ? "photos" : "design"); }
+  }, [selectedLayerId, selectedType, designPath]);
 
   const chooseLayer = (id) => {
     onSelectLayer?.(id);
@@ -995,12 +1020,65 @@ export function AdvancedEditorPanel({
     ["more", Layers, "More"],
   ] : []);
 
+  const panelTabs = [
+    ...(designPath !== "upload" ? [["design", Palette, "Design"]] : []),
+    ["photos", ImageIcon, designPath === "upload" ? "Artwork" : "Photos"],
+    ...(tools.text ? [["lettering", Type, "Lettering"]] : []),
+    ...(designPath === "memorial" ? [["details", Heart, "Details"]] : []),
+    ["layers", Layers, "Layers"],
+  ];
+
+  const renderDesignPanel = () => (
+    <div className="space-y-4">
+      <div id="custom-studio-artwork-style" className="scroll-mt-28">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div><div className="text-[10px] font-bold uppercase tracking-[.09em] text-white">Choose design</div><div className="mt-0.5 text-[9px] text-white/42">Protected artwork stays locked. Customer content stays editable.</div></div>
+          <Palette size={15} className="text-[#D9273E]"/>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {onChooseBlank && <button type="button" onClick={onChooseBlank} className={`rounded-xl border p-2.5 text-left ${designStyle === blankStyleName ? "border-[#D9273E] bg-[#D9273E]/12" : "border-white/10 bg-white/[.035]"}`}><div className="text-[10px] font-bold text-white">No template</div><div className="mt-1 text-[8px] leading-relaxed text-white/38">Blank editable print area</div></button>}
+          {(designOptions || []).map((style) => <button key={style.id || style.name} type="button" onClick={() => onChooseStyle?.(style)} className={`overflow-hidden rounded-xl border p-1.5 text-left ${designStyle === style.name ? "border-[#D9273E] bg-[#D9273E]/12" : "border-white/10 bg-white/[.035]"}`}><div className="aspect-[4/3] overflow-hidden rounded-lg bg-white/[.05]"><img src={style.thumbnail || style.assetUrl} alt="" className="h-full w-full object-contain"/></div><div className="mt-1.5 truncate text-[9px] font-bold text-white">{String(style.name || "Template").replace(/^GDP\s+/, "")}</div><div className="mt-0.5 text-[8px] text-white/35">Locked GDP artwork</div></button>)}
+        </div>
+      </div>
+      {moodOptions?.length > 0 && <div id="custom-studio-color-finish" className="scroll-mt-28 border-t border-white/10 pt-3"><div className="text-[10px] font-bold uppercase tracking-[.09em] text-white">Color finish</div><div className="mt-2 flex max-w-full gap-1.5 overflow-x-auto pb-1">{moodOptions.map((mood) => <button key={mood} type="button" onClick={() => onChooseMood?.(mood)} className={`shrink-0 rounded-xl border px-3 py-2 text-[9px] font-bold ${designMood === mood ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>{mood}</button>)}</div><div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] p-2.5 text-[9px] leading-relaxed text-white/48">{designMood ? <><strong className="text-white/80">{designMood}:</strong> {moodDescription || "This finish is baked into the final print."}</> : "Choose the final print finish."}</div></div>}
+    </div>
+  );
+
+  const renderUploadPanel = () => (
+    <div id="custom-studio-photo-upload" className="scroll-mt-28 space-y-3">
+      <label className={`flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[.035] px-3 text-center transition hover:border-[#D9273E]/60 ${uploading ? "pointer-events-none opacity-55" : ""}`}>
+        <Upload size={17} className="text-[#D9273E]"/>
+        <span><span className="block text-[10px] font-bold uppercase text-white">{uploading ? "Preparing upload…" : designPath === "upload" ? "Upload print artwork" : "Upload photo"}</span><span className="mt-0.5 block text-[8px] text-white/38">JPG, PNG or WEBP · max {uploadLimitMb}MB each</span></span>
+        <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploading} onChange={(event) => { const files = event.target.files; if (files?.length) onUploadFiles?.(files); event.target.value = ""; }}/>
+      </label>
+      {uploading && Number(uploadProgress?.total || 0) > 0 && <div className="rounded-xl border border-white/10 bg-white/[.035] px-3 py-2 text-[9px] text-white/55">Preparing {uploadProgress.done}/{uploadProgress.total} · {Math.round((Number(uploadProgress.done || 0) / Math.max(1, Number(uploadProgress.total || 1))) * 100)}%</div>}
+      {uploadWarning && <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">{uploadWarning}</div>}
+      {(photoAssets || []).length > 0 && <div><div className="mb-1.5 flex items-center justify-between text-[8px] uppercase tracking-[.1em] text-white/35"><span>Available media</span><span>{photoAssets.length}/{maxPhotos}</span></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{photoAssets.map((photo, index) => <button key={photo.id || index} type="button" onClick={() => { const existing = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || "")); if (existing) chooseLayer(existing.id); else onAddPhoto?.(photo); }} className="w-[104px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[.035] p-1.5 text-left"><img src={photo.url || photo.originalUrl} alt="" className="aspect-square w-full rounded-lg object-cover"/><div className="mt-1 truncate text-[8px] font-semibold text-white/65">{photo.name || `Photo ${index + 1}`}</div></button>)}</div></div>}
+    </div>
+  );
+
+  const renderLetteringPanel = () => {
+    if (selectedLayer?.type === "text") return <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderTextTool()}</div>;
+    const textLayers = editorLayers.filter((layer) => layer.type === "text");
+    return <div className="space-y-2"><button type="button" onClick={() => onAddText?.()} className="w-full rounded-xl border border-[#D9273E]/35 bg-[#D9273E]/10 px-4 py-3 text-[10px] font-bold uppercase text-white"><Type size={14} className="mr-2 inline"/>Add lettering</button>{textLayers.length ? textLayers.map((layer, index) => <button key={layer.id} type="button" onClick={() => chooseLayer(layer.id)} className="w-full rounded-xl border border-white/10 bg-white/[.035] px-3 py-2.5 text-left"><div className="truncate text-[10px] font-bold text-white">{layer.text || `Text ${index + 1}`}</div><div className="mt-0.5 text-[8px] uppercase tracking-wide text-white/35">Tap to edit font, curve, effects and spacing</div></button>) : <div className="rounded-xl border border-dashed border-white/15 p-4 text-center text-[9px] text-white/42">Add a title, message, name or extra wording here.</div>}</div>;
+  };
+
+  const renderMemorialDetails = () => (
+    <div id="custom-studio-memorial-details" className="scroll-mt-28 space-y-3">
+      <div className="rounded-xl border border-white/[.08] bg-white/[.035] p-3 text-[9px] leading-relaxed text-white/50"><strong className="text-white/80">Printed memorial details:</strong> enter the protected-template wording exactly as it should appear. Optional custom lettering can still be added separately in the Lettering tab.</div>
+      <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Memorial name <span className="text-[#FF8898]">*</span><input type="text" maxLength={60} value={personalization?.name || ""} onChange={(event) => { onChangePersonalization?.({ name: event.target.value }); onMemorialNameConfirmedChange?.(false); }} placeholder="Full name as it should print" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-white/[.055] px-3 text-sm normal-case tracking-normal text-white outline-none placeholder:text-white/25 focus:border-[#D9273E]/70"/></label>
+      <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Dates <span className="font-normal text-white/30">optional</span><input type="text" maxLength={40} value={personalization?.dates || ""} onChange={(event) => onChangePersonalization?.({ dates: event.target.value })} placeholder="e.g. 1984 — 2026" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-white/[.055] px-3 text-sm normal-case tracking-normal text-white outline-none placeholder:text-white/25 focus:border-[#D9273E]/70"/></label>
+      <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Remembrance message <span className="font-normal text-white/30">optional</span><textarea maxLength={140} rows={3} value={personalization?.message || ""} onChange={(event) => onChangePersonalization?.({ message: event.target.value })} placeholder="Forever loved, always remembered." className="mt-1.5 w-full resize-none rounded-xl border border-white/10 bg-white/[.055] p-3 text-sm normal-case tracking-normal text-white outline-none placeholder:text-white/25 focus:border-[#D9273E]/70"/><span className="mt-1 block text-right font-mono text-[8px] font-normal text-white/30">{String(personalization?.message || "").length}/140</span></label>
+      <label className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-[9px] leading-relaxed ${memorialNameConfirmed ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[.035] text-white/55"}`}><input type="checkbox" checked={memorialNameConfirmed} disabled={!String(personalization?.name || "").trim()} onChange={(event) => onMemorialNameConfirmedChange?.(event.target.checked)} className="mt-0.5 accent-[#D9273E]"/><span><strong className="text-white/85">I verified the memorial name spelling.</strong> Changing the name requires verification again.</span></label>
+    </div>
+  );
+
   return (
     <div className="sticky bottom-2 z-30 mt-4 w-full min-w-0 max-w-full max-h-[58dvh] overflow-x-hidden overflow-y-auto overscroll-contain rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-mono text-[8px] uppercase tracking-[.22em] text-[#D9273E]">GDP Touch Studio</div>
-          <div className="mt-1 truncate text-xs font-bold text-white">{selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : hasPhoto ? "Photo tools" : "Tap an object to edit"}</div>
+          <div className="mt-1 truncate text-xs font-bold text-white">{pathLabel || (selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : hasPhoto ? "Photo tools" : "Personalization controls")}</div>
         </div>
         <div className="flex shrink-0 gap-1">
           <button type="button" onClick={onUndo} disabled={!canUndo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Undo"><Undo2 size={14}/></button>
@@ -1015,19 +1093,22 @@ export function AdvancedEditorPanel({
 
       {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold leading-relaxed text-amber-200"><span className="mr-1 uppercase tracking-wide text-amber-100">Print-area check:</span>{outsideWarning}</div>}
 
-      {activeTool !== "layers" && contextTools.length > 0 && <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{contextTools.map(([id, icon, label]) => <ToolButton key={id} active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
+      <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{panelTabs.map(([id, icon, label]) => <ToolButton key={id} active={panelTab === id} icon={icon} label={label} onClick={() => { setPanelTab(id); setShowStickers(false); setShowPhotoPicker(false); }}/>)}</div>
 
-      {activeTool === "layers" && <div className="mt-3">{renderLayers()}</div>}
-      {activeTool !== "layers" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">
-        {selectedType === "photo" ? renderPhotoTool() : selectedType === "text" ? renderTextTool() : selectedType === "sticker" ? renderStickerTool() : renderLayers()}
-      </div>}
+      {((panelTab === "photos" && selectedType === "photo") || (panelTab === "lettering" && selectedType === "text") || (panelTab === "layers" && selectedType === "sticker")) && contextTools.length > 0 && <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{contextTools.map(([id, icon, label]) => <ToolButton key={id} active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
+
+      {panelTab === "design" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderDesignPanel()}</div>}
+      {panelTab === "photos" && <div className="mt-3 space-y-3"><div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderUploadPanel()}</div>{selectedType === "photo" && <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderPhotoTool()}</div>}</div>}
+      {panelTab === "lettering" && <div className="mt-3">{renderLetteringPanel()}</div>}
+      {panelTab === "details" && designPath === "memorial" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderMemorialDetails()}</div>}
+      {panelTab === "layers" && <div className="mt-3">{selectedType === "sticker" && activeTool !== "layers" ? <div className="mb-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderStickerTool()}</div> : null}{renderLayers()}</div>}
 
       <div className="mt-3 border-t border-white/10 pt-3">
         <div className="flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">
-          {(photoAssets || []).length > 0 && <ToolButton icon={ImageIcon} label="Add photo" onClick={() => setShowPhotoPicker((value) => !value)} active={showPhotoPicker}/>} 
-          {tools.text && <ToolButton icon={Type} label="Add text" onClick={() => { onAddText?.(); setShowStickers(false); setShowPhotoPicker(false); }}/>} 
-          {tools.stickers && <ToolButton icon={Sparkles} label="Sticker" onClick={() => { setShowStickers((value) => !value); setShowPhotoPicker(false); }} active={showStickers}/>} 
-          <ToolButton icon={Layers} label="Layers" onClick={() => { setActiveTool("layers"); setShowStickers(false); setShowPhotoPicker(false); }} active={activeTool === "layers"}/>
+          {(photoAssets || []).length > 0 && <ToolButton icon={ImageIcon} label="Add photo" onClick={() => { setPanelTab("photos"); setShowPhotoPicker((value) => !value); }} active={showPhotoPicker}/>} 
+          {tools.text && <ToolButton icon={Type} label="Add text" onClick={() => { onAddText?.(); setPanelTab("lettering"); setShowStickers(false); setShowPhotoPicker(false); }}/>} 
+          {tools.stickers && <ToolButton icon={Sparkles} label="Sticker" onClick={() => { setPanelTab("layers"); setShowStickers((value) => !value); setShowPhotoPicker(false); }} active={showStickers}/>} 
+          <ToolButton icon={Layers} label="Layers" onClick={() => { setPanelTab("layers"); setActiveTool("layers"); setShowStickers(false); setShowPhotoPicker(false); }} active={panelTab === "layers"}/>
           <ToolButton icon={RotateCcw} label="Reset all" onClick={onResetAll}/>
         </div>
 

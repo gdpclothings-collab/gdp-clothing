@@ -2262,7 +2262,7 @@ export default function CustomStudio() {
           {step === 3 && <div>
             <StepTitle
               eyebrow={designPath === "memorial" ? "Create a remembrance" : "Build and personalize in one place"}
-              title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : designPath === "memorial" ? "CHOOSE A MEMORIAL TRIBUTE STYLE" : "CHOOSE A TEMPLATE OR START BLANK"}
+              title={designPath === "upload" ? "CUSTOMIZE YOUR ARTWORK" : designPath === "memorial" ? "CUSTOMIZE YOUR MEMORIAL TRIBUTE" : "CUSTOMIZE YOUR DESIGN"}
               text={designPath === "upload"
                 ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result."
                 : designPath === "memorial"
@@ -2271,7 +2271,7 @@ export default function CustomStudio() {
             />
 
             {designPath !== "upload" && <>
-            <div id="custom-studio-artwork-style" className="scroll-mt-28 grid md:grid-cols-2 gap-3">
+            <div data-editor-legacy="artwork-style" className="hidden">
               <button type="button" onClick={chooseNoTemplate} aria-pressed={designStyle === NO_TEMPLATE_STYLE} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 font-bold">No Template — Upload Only {designStyle === NO_TEMPLATE_STYLE && <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] uppercase tracking-wide text-white"><Check size={10}/> Selected</span>}</div>
@@ -2293,7 +2293,7 @@ export default function CustomStudio() {
             </div>
             {(designPath === "bootleg" || designPath === "memorial") && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white px-3 py-2 text-xs text-[#52616F]"><span className="font-semibold text-[#17324D]">{designPath === "memorial" ? "Memorial template applies to: Front." : "Applying template to: Front."}</span> Back printing stays blank until you explicitly add and edit a back print.</div>}
             </>}
-            {designPath !== "upload" && <div id="custom-studio-color-finish" className="mt-6 scroll-mt-28">
+            {designPath !== "upload" && <div data-editor-legacy="color-finish" className="hidden">
               <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>
               <p className="mt-1 text-xs leading-relaxed text-[#7d766d]">This treatment changes the exact preview and is baked into the production file.</p>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -2305,7 +2305,7 @@ export default function CustomStudio() {
             </div>}
             {(designPath === "bootleg" || designPath === "memorial") && activeStyleTemplate && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
             {(designPath === "bootleg" || designPath === "memorial") && designStyle === NO_TEMPLATE_STYLE && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
-            {designPath === "memorial" && <div id="custom-studio-memorial-details" className="mt-6 scroll-mt-28 rounded-2xl border border-[#D8D1C7] bg-[#FFFCF8] p-4 sm:p-5">
+            {designPath === "memorial" && <div data-editor-legacy="memorial-details" className="hidden">
               <div className="flex items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#F6EDE8] text-[#8A3B45]"><Heart size={18}/></span>
                 <div>
@@ -2514,7 +2514,7 @@ export default function CustomStudio() {
             </>}
           </div>}
 
-          {step === 3 && <div id="custom-studio-photo-upload" className="mt-8 scroll-mt-28 border-t border-[#e3ddd4] pt-8">
+          {step === 3 && <div data-editor-legacy="photo-upload" className="hidden">
             <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : designPath === "memorial" ? "UPLOAD THE MEMORIAL PORTRAIT" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "–" + maxPhotos + " photos. Protected photo templates automatically remove supported photo backgrounds while preserving the original so it can be restored."} />
             <label className={"border-2 border-dashed border-border min-h-44 flex flex-col items-center justify-center hover:border-accent " + (uploading ? "cursor-wait opacity-80" : "cursor-pointer")}>
               <Upload size={28}/>
@@ -2717,6 +2717,27 @@ export default function CustomStudio() {
                 </div>}
 
                 {step === 3 && <AdvancedEditorPanel
+                  designPath={designPath}
+                  pathLabel={designPath === "memorial" ? "Memorial Tribute Editor" : designPath === "bootleg" ? "Photo Bootleg Editor" : designPath === "upload" ? "Artwork Editor" : "GDP Personalization Editor"}
+                  designOptions={matchingStyleOptions}
+                  designStyle={designStyle}
+                  blankStyleName={NO_TEMPLATE_STYLE}
+                  onChooseStyle={chooseStyleTemplate}
+                  onChooseBlank={designPath !== "upload" ? chooseNoTemplate : undefined}
+                  moodOptions={designPath !== "upload" ? MOODS : []}
+                  designMood={designMood}
+                  onChooseMood={setDesignMood}
+                  moodDescription={designMood ? moodPreviewTreatment(designMood).description : ""}
+                  personalization={personalization}
+                  onChangePersonalization={(patch) => setPersonalization((current) => ({ ...current, ...patch }))}
+                  memorialNameConfirmed={memorialNameConfirmed}
+                  onMemorialNameConfirmedChange={setMemorialNameConfirmed}
+                  onUploadFiles={uploadFiles}
+                  uploading={uploading}
+                  uploadProgress={uploadProgress}
+                  uploadWarning={warn}
+                  maxPhotos={maxPhotos}
+                  uploadLimitMb={MAX_MB}
                   enabledTools={editorTools}
                   stickerLibrary={stickerLibrary}
                   editorLayers={editorLayers}
@@ -2741,7 +2762,7 @@ export default function CustomStudio() {
                   onTogglePhotoBackground={togglePhotoBackgroundById}
                   onResetAll={resetAllEditable}
                   hasPhoto={Boolean(selectedPhotoAsset)}
-                  templateName={previewSide === "front" && designPath === "bootleg" ? activeStyleTemplate?.name || "" : ""}
+                  templateName={previewSide === "front" && (designPath === "bootleg" || designPath === "memorial") ? activeStyleTemplate?.name || "" : ""}
                   outsideWarning={editorOutsideWarning}
                 />}
 
