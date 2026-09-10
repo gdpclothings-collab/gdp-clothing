@@ -1,0 +1,262 @@
+/* GDP Custom Studio mobile refinement layer.
+   Scoped to .gdp-studio-active so storefront/admin pages remain unchanged. */
+
+@media (max-width: 767px) {
+  /* Slightly tighter storefront chrome while the editor is active. */
+  .gdp-studio-active > header [class*="h-[70px]"] {
+    height: 62px;
+  }
+
+  .gdp-studio-active > header img[class*="h-12"] {
+    height: 42px;
+  }
+
+  /* Reduce the amount of presentation-only space before the actual work. */
+  .gdp-studio-active main > div > div {
+    padding-top: 14px;
+  }
+
+  .gdp-studio-active main > div > div > div:first-child {
+    margin-bottom: 14px;
+    border-radius: 20px;
+    padding: 18px 16px;
+  }
+
+  .gdp-studio-active main > div > div > div:first-child > div.relative {
+    gap: 12px;
+  }
+
+  .gdp-studio-active main > div > div > div:first-child h1 {
+    margin-top: 6px;
+    font-size: clamp(2.15rem, 10vw, 2.75rem);
+    line-height: 0.94;
+  }
+
+  .gdp-studio-active main > div > div > div:first-child h1 + p {
+    margin-top: 9px;
+    max-width: 38rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .gdp-studio-active main > div > div > div:first-child > div.relative > div:last-child {
+    width: 100%;
+    justify-content: flex-start;
+    border-radius: 14px;
+    padding: 8px 10px;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  /* Progress + guide: keep the current step readable without a clipped carousel. */
+  .gdp-studio-active main > div > div > div:nth-child(2) {
+    margin-bottom: 14px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:first-child {
+    margin-bottom: 8px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) {
+    margin-top: 8px;
+    border-radius: 14px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > button {
+    gap: 10px;
+    padding: 11px 12px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > div > div:first-child {
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > div > div:first-child > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > div > div:first-child > div > button {
+    width: 100%;
+    min-height: 48px;
+    scroll-snap-align: none;
+    border-bottom: 1px solid #ebe5dc;
+    padding: 9px 12px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > div > div:first-child > div > button:last-child {
+    border-bottom: 0;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > div > div:first-child > div > button p {
+    display: none;
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > div > div:first-child > div > button[class*="bg-accent"] p {
+    display: block;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(3) > div > div:last-child {
+    gap: 7px;
+    padding: 10px 12px;
+  }
+
+  /* Keep the main Back/Continue control directly below the guide. */
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(4) {
+    margin-top: 8px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(4) > div {
+    border-radius: 14px;
+    padding: 8px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(4) > div > div:first-child {
+    gap: 8px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(4) button {
+    min-height: 46px;
+    flex: 1 1 0;
+    justify-content: center;
+    padding: 10px 12px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(4) p {
+    margin-top: 6px;
+    text-align: center;
+    line-height: 1.35;
+  }
+
+  /* On phones the preview belongs immediately after navigation, not after a long editor form. */
+  .gdp-studio-active main > div > div > div:nth-child(3) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside {
+    display: contents;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:first-child {
+    display: none !important;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:nth-child(2) {
+    order: 1;
+    margin: 0;
+    border-radius: 18px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > section {
+    order: 2;
+    min-height: 0;
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:last-child {
+    order: 3;
+    margin: 0;
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  /* A little more garment, a little less empty preview canvas. */
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:nth-child(2) > div:nth-child(2) {
+    height: 320px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:nth-child(2) > div:first-child {
+    padding: 11px 12px;
+  }
+
+  /* Step headings should explain the task without consuming a full phone screen. */
+  #custom-studio-workspace > div > div:first-child {
+    margin-bottom: 16px;
+  }
+
+  #custom-studio-workspace > div > div:first-child h2 {
+    margin-top: 5px;
+    font-size: 2rem;
+    line-height: 0.98;
+  }
+
+  #custom-studio-workspace > div > div:first-child h2 + p {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  /* Garment cards become scan-friendly horizontal cards on phones. */
+  #custom-studio-workspace > div > div:nth-child(2) > button:has(> div:first-child[class*="aspect-"]) {
+    display: grid;
+    min-height: 104px;
+    grid-template-columns: 104px minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  #custom-studio-workspace > div > div:nth-child(2) > button:has(> div:first-child[class*="aspect-"]) > div:first-child {
+    min-height: 104px;
+    aspect-ratio: auto !important;
+  }
+
+  #custom-studio-workspace > div > div:nth-child(2) > button:has(> div:first-child[class*="aspect-"]) > div:first-child img {
+    padding: 4px;
+  }
+
+  #custom-studio-workspace > div > div:nth-child(2) > button:has(> div:first-child[class*="aspect-"]) > div:nth-child(2) {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 11px 12px;
+  }
+
+  #custom-studio-workspace > div > div:nth-child(2) > button:has(> div:first-child[class*="aspect-"]) > div:nth-child(2) [class*="mt-3"] {
+    margin-top: 7px;
+  }
+
+  /* Keep order information available, but visually secondary to the editor. */
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:last-child > div:nth-child(2) {
+    margin-top: 5px;
+    font-size: 1.55rem;
+    line-height: 1;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:last-child > div[class*="mt-3"] {
+    margin-top: 7px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 10px;
+    font-size: 12px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:last-child > div[class*="mt-3"] > span:last-child {
+    text-align: right;
+  }
+
+  /* iPhone/Safari-safe positioning for the optional floating Studio CTA. */
+  .gdp-studio-active main .fixed.inset-x-3 {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
+  }
+
+  .gdp-studio-active main > div > div:has(> .fixed.inset-x-3) {
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 380px) {
+  #custom-studio-workspace > div > div:nth-child(2) > button:has(> div:first-child[class*="aspect-"]) {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(2) > div:nth-child(4) button {
+    padding-inline: 9px;
+    font-size: 11px;
+  }
+}
