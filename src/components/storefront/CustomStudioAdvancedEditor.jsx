@@ -71,6 +71,25 @@ function layerSizeBounds(layer) {
   return [14, 140];
 }
 
+const EDITOR_CENTER_SNAP_THRESHOLD = 2.4;
+const EDITOR_SAFE_EDGE = 7;
+
+function snapEditorCoordinate(value) {
+  const next = clamp(value, 0, 100);
+  if (Math.abs(next - 50) <= EDITOR_CENTER_SNAP_THRESHOLD) {
+    return { value: 50, snapped: true };
+  }
+  return { value: next, snapped: false };
+}
+
+function layerOutsideEditorSafeArea(layer) {
+  if (!layer) return false;
+  const x = Number(layer.x ?? 50);
+  const y = Number(layer.y ?? 50);
+  const oversizedPhoto = layer.type === "photo" && Number(layer.size || 62) > 135;
+  return x < EDITOR_SAFE_EDGE || x > 100 - EDITOR_SAFE_EDGE || y < EDITOR_SAFE_EDGE || y > 100 - EDITOR_SAFE_EDGE || oversizedPhoto;
+}
+
 export function normalizeEditorTools(value = {}) {
   return { ...DEFAULT_EDITOR_TOOLS, ...(value || {}) };
 }
@@ -167,6 +186,7 @@ export function EditableOverlayLayers({
   const lastTapRef = useRef({ id: "", at: 0 });
   const editRef = useRef(null);
   const [editingTextId, setEditingTextId] = useState("");
+  const [snapGuides, setSnapGuides] = useState({ x: false, y: false });
 
   const stickers = useMemo(
     () => Object.fromEntries(normalizeStickerLibrary(stickerLibrary).map((item) => [item.id, item])),
@@ -273,6 +293,13 @@ export function EditableOverlayLayers({
       };
     }
 
+    if (Object.prototype.hasOwnProperty.call(patch, "x") && Object.prototype.hasOwnProperty.call(patch, "y")) {
+      const snappedX = snapEditorCoordinate(patch.x);
+      const snappedY = snapEditorCoordinate(patch.y);
+      patch = { ...patch, x: snappedX.value, y: snappedY.value };
+      setSnapGuides({ x: snappedX.snapped, y: snappedY.snapped });
+    }
+
     gesture.moved = true;
     onPatchLayer(gesture.id, patch, { history: false });
   };
@@ -299,6 +326,7 @@ export function EditableOverlayLayers({
 
     if (!gesture.pointers.size) {
       gestureRef.current = null;
+      setSnapGuides({ x: false, y: false });
       return;
     }
 
@@ -381,8 +409,18 @@ export function EditableOverlayLayers({
     </>
   ) : null;
 
+  const selectedLayerForGuide = layers.find((layer) => layer.id === selectedLayerId) || null;
+  const selectedOutsideSafeArea = layerOutsideEditorSafeArea(selectedLayerForGuide);
+
   return (
     <>
+      {interactive && selectedLayerForGuide && <div
+        className={"pointer-events-none absolute inset-[6%] z-[65] rounded-sm border border-dashed " + (selectedOutsideSafeArea ? "border-amber-500/90" : "border-white/35")}
+        aria-hidden="true"
+      />}
+      {interactive && snapGuides.x && <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[66] w-px -translate-x-1/2 bg-accent/85 shadow-[0_0_0_1px_rgba(255,255,255,.35)]" aria-hidden="true" />}
+      {interactive && snapGuides.y && <div className="pointer-events-none absolute inset-x-0 top-1/2 z-[66] h-px -translate-y-1/2 bg-accent/85 shadow-[0_0_0_1px_rgba(255,255,255,.35)]" aria-hidden="true" />}
+      {interactive && selectedOutsideSafeArea && <div className="pointer-events-none absolute left-2 top-2 z-[67] rounded-full border border-amber-300 bg-amber-50/95 px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-amber-900 shadow-sm">Keep artwork inside safe area</div>}
       {(layers || []).filter((layer) => layer?.visible !== false).map((layer, index) => {
         const selected = interactive && selectedLayerId === layer.id;
         const isEditingText = editingTextId === layer.id && layer.type === "text";
