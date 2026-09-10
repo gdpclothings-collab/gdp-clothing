@@ -934,7 +934,7 @@ export default function CustomStudio() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [warn, setWarn] = useState("");
-  const [personalization, setPersonalization] = useState({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" });
+  const [personalization, setPersonalization] = useState(/** @type {any} */ ({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" }));
   const [memorialNameConfirmed, setMemorialNameConfirmed] = useState(false);
   const [needByDate, setNeedByDate] = useState("");
   const [priority, setPriority] = useState("standard");
@@ -2989,24 +2989,24 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                 </div>
               )}
 
-              {hasPreviewText && (
+              {hasPreviewText && (personalization?.memorialTypography ? (
+                <div className="absolute inset-0 z-30 pointer-events-none">
+                  <MemorialTypographyPreview personalization={personalization} tone={textZone?.tone || "light"} />
+                </div>
+              ) : (
                 <div
                   className={"absolute z-30 grid content-center px-2 pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.75)] " + (textZone?.tone === "dark" ? "text-[#26211d]" : "text-white")}
                   style={textZoneStyle}
                 >
-                  {personalization?.memorialTypography ? (
-                    <MemorialTypographyPreview personalization={personalization} tone={textZone?.tone || "light"} />
-                  ) : (
-                    <div className={textZone?.align === "left" ? "text-left" : textZone?.align === "right" ? "text-right" : "text-center"}>
-                      {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
-                      {personalization?.nickname && <div className="text-[7px] font-bold uppercase tracking-wider mt-0.5">{personalization.nickname}</div>}
-                      {(personalization?.dates || personalization?.number) && <div className="font-mono text-[6px] mt-0.5">{[personalization.dates, personalization.number].filter(Boolean).join(" · ")}</div>}
-                      {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
-                      {personalization?.message && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.message}</div>}
-                    </div>
-                  )}
+                  <div className={textZone?.align === "left" ? "text-left" : textZone?.align === "right" ? "text-right" : "text-center"}>
+                    {personalization?.name && <div className="font-display text-sm leading-none uppercase tracking-wide">{personalization.name}</div>}
+                    {personalization?.nickname && <div className="text-[7px] font-bold uppercase tracking-wider mt-0.5">{personalization.nickname}</div>}
+                    {(personalization?.dates || personalization?.number) && <div className="font-mono text-[6px] mt-0.5">{[personalization.dates, personalization.number].filter(Boolean).join(" · ")}</div>}
+                    {personalization?.quote && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.quote}</div>}
+                    {personalization?.message && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.message}</div>}
+                  </div>
                 </div>
-              )}
+              ))}
 
             </>
           ))}

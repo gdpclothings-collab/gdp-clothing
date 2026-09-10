@@ -294,7 +294,7 @@ function CurvedText({ fieldKey, text, field, tone = "light" }) {
   );
 }
 
-export function MemorialTypographyPreview({ personalization = {}, tone = "light" }) {
+export function MemorialTypographyPreview({ personalization, tone = "light" }) {
   const typography = normalizeMemorialTypography(personalization?.memorialTypography);
   const content = {
     name: personalization?.name || "",
