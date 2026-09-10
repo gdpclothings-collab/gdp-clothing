@@ -1,0 +1,63 @@
+name: Apply GDP Touch Studio Type Fix
+
+on:
+  push:
+    branches:
+      - refactor/unified-garment-editor-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch-editor-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/unified-garment-editor-20260910
+          fetch-depth: 0
+      - name: Patch editor typing and lint issues
+        shell: python
+        run: |
+          import pathlib
+
+          path = pathlib.Path('src/components/storefront/CustomStudioAdvancedEditor.jsx')
+          source = path.read_text()
+
+          source = source.replace('  Check,\n', '', 1)
+          source = source.replace('  Plus,\n', '', 1)
+          source = source.replace(
+            '        const baseStyle = {\n',
+            '        const baseStyle = /** @type {React.CSSProperties} */ ({\n',
+            1,
+          )
+          source = source.replace(
+            '          WebkitUserSelect: "none",\n        };\n',
+            '          WebkitUserSelect: "none",\n        });\n',
+            1,
+          )
+          source = source.replace(
+            'function ToolButton({ active, icon: Icon, label, onClick, disabled = false }) {',
+            'function ToolButton({ active = false, icon: Icon, label, onClick, disabled = false }) {',
+            1,
+          )
+          source = source.replace(
+            '  const contextTools = selectedType === "photo" ? [\n',
+            '  const contextTools = /** @type {Array<[string, React.ComponentType<any>, string]>} */ (selectedType === "photo" ? [\n',
+            1,
+          )
+          source = source.replace(
+            '  ] : [];\n\n  return (\n',
+            '  ] : []);\n\n  return (\n',
+            1,
+          )
+
+          path.write_text(source)
+      - name: Commit fixes and remove one-time workflow
+        run: |
+          git config user.name "GDP Clothing Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/editor-types-fix.yml
+          git add src/components/storefront/CustomStudioAdvancedEditor.jsx
+          git commit -m "Fix GDP Touch Studio type safety [editor-types-fixed]"
+          git push origin HEAD:refactor/unified-garment-editor-20260910
