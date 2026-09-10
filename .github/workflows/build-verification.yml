@@ -45,5 +45,8 @@ jobs:
       - name: Verify product variant logic
         run: npm run test:product-variants
 
+      - name: Verify Memorial Tribute workflow
+        run: npm run test:memorial
+
       - name: Build production app
         run: npm run build
