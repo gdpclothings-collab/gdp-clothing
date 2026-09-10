@@ -5,7 +5,6 @@ import {
   AlignRight,
   ArrowDown,
   ArrowUp,
-  Check,
   Copy,
   Crop,
   Eraser,
@@ -18,7 +17,6 @@ import {
   Lock,
   Maximize2,
   Move,
-  Plus,
   Redo2,
   RotateCcw,
   SlidersHorizontal,
@@ -577,7 +575,7 @@ export function EditableOverlayLayers({
       {(layers || []).filter((layer) => layer?.visible !== false).map((layer, index) => {
         const selected = interactive && selectedLayerId === layer.id;
         const isEditingText = editingTextId === layer.id && layer.type === "text";
-        const baseStyle = {
+        const baseStyle = /** @type {React.CSSProperties} */ ({
           position: "absolute",
           left: clamp(layer.x, 0, 100) + "%",
           top: clamp(layer.y, 0, 100) + "%",
@@ -589,7 +587,7 @@ export function EditableOverlayLayers({
           touchAction: "none",
           userSelect: "none",
           WebkitUserSelect: "none",
-        };
+        });
 
         if (layer.type === "photo") {
           const asset = photosById[String(layer.photoId || "")] || null;
@@ -706,7 +704,7 @@ export function EditableOverlayLayers({
   );
 }
 
-function ToolButton({ active, icon: Icon, label, onClick, disabled = false }) {
+function ToolButton({ active = false, icon: Icon, label, onClick, disabled = false }) {
   return (
     <button type="button" disabled={disabled} onClick={onClick} className={`flex min-w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border px-2.5 py-2 text-[9px] font-bold uppercase tracking-[.04em] transition disabled:opacity-35 ${active ? "border-[#D9273E] bg-[#D9273E]/15 text-white shadow-[0_0_22px_rgba(217,39,62,.16)]" : "border-white/10 bg-white/[.045] text-white/65 hover:border-white/20 hover:text-white"}`}>
       {Icon && <Icon size={14}/>}<span>{label}</span>
@@ -977,7 +975,7 @@ export function AdvancedEditorPanel({
     return <div className="space-y-3"><RangeRow label="Sticker size" value={selectedLayer.size ?? 34} min={14} max={140} suffix="px" onChange={(value) => patch({ size: value })}/><RangeRow label="Rotation" value={selectedLayer.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/><RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/><PositionRows layer={selectedLayer} patch={patch}/></div>;
   };
 
-  const contextTools = selectedType === "photo" ? [
+  const contextTools = /** @type {Array<[string, React.ComponentType<any>, string]>} */ (selectedType === "photo" ? [
     ["replace", ImageIcon, "Replace"],
     ["background", WandSparkles, "Remove BG"],
     ["crop", Crop, "Crop"],
@@ -999,7 +997,7 @@ export function AdvancedEditorPanel({
     ["stickers", Sparkles, "Replace"],
     ["transform", Move, "Transform"],
     ["more", Layers, "More"],
-  ] : [];
+  ] : []);
 
   return (
     <div className="sticky bottom-2 z-30 mt-4 max-h-[62dvh] overflow-y-auto rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
