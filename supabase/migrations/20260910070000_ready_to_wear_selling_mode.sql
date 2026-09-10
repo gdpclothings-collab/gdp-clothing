@@ -49,7 +49,7 @@ comment on column public.products.selling_mode is
 create or replace function public.validate_order_item_selling_mode()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
@@ -111,6 +111,8 @@ begin
   return new;
 end;
 $$;
+
+revoke execute on function public.validate_order_item_selling_mode() from public, anon, authenticated;
 
 drop trigger if exists order_items_validate_selling_mode on public.order_items;
 create trigger order_items_validate_selling_mode
