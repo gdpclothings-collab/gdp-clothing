@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -454,9 +454,8 @@ async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings
 
 export default function DTFGangSheet() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addItem } = useCart();
+  const { addItem, replaceItem } = useCart();
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
   const selectedPanelRef = useRef(null);
@@ -478,6 +477,7 @@ export default function DTFGangSheet() {
   const [backgroundThreshold, setBackgroundThreshold] = useState(230);
   const [editingArtwork, setEditingArtwork] = useState(false);
   const [filmUsageConfirmationOpen, setFilmUsageConfirmationOpen] = useState(false);
+  const [activeCartKey, setActiveCartKey] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -1351,7 +1351,8 @@ export default function DTFGangSheet() {
       const linePrice = round(price.price + reviewFee, 2);
       const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength, settings);
 
-      addItem({
+      const configId = activeCartKey.replace(/^dtf_/, "") || createDtfConfigId();
+      const cartItem = {
         productId: product.id,
         variantId: null,
         name: product.name || "Custom DTF Gang Sheet",
@@ -1366,7 +1367,7 @@ export default function DTFGangSheet() {
         isDtf: true,
         discountExempt: true,
         dtfSpec: {
-          configId: createDtfConfigId(),
+          configId,
           mode,
           width: round(sheetWidth, 3),
           length: round(sheetLength, 3),
@@ -1390,9 +1391,17 @@ export default function DTFGangSheet() {
           },
           layout,
         },
-      });
+      };
 
-      navigate("/cart");
+      if (activeCartKey) {
+        replaceItem(activeCartKey, cartItem);
+        setNotice("Cart updated. You can keep refining this gang sheet or view your cart when you’re ready.");
+      } else {
+        addItem(cartItem);
+        setActiveCartKey(`dtf_${configId}`);
+        setNotice("Added to cart. Your workspace stays open so you can keep refining this gang sheet.");
+      }
+      setApproval(false);
     } catch (error) {
       console.error("DTF artwork upload failed:", error);
       setPageError(error?.message || "Could not upload the DTF artwork. Please try again.");
@@ -1467,8 +1476,9 @@ export default function DTFGangSheet() {
           </div>
         )}
         {notice && (
-          <div className="mb-5 flex items-center gap-3 border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
-            <CheckCircle2 size={17} className="shrink-0" /> {notice}
+          <div className="mb-5 flex flex-wrap items-center gap-3 border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
+            <CheckCircle2 size={17} className="shrink-0" /> <span className="flex-1">{notice}</span>
+            {activeCartKey && <Link to="/cart" className="border border-emerald-700 px-3 py-2 text-xs font-black uppercase tracking-[0.06em] hover:bg-emerald-900 hover:text-white">View cart</Link>}
           </div>
         )}
 
@@ -2120,7 +2130,7 @@ export default function DTFGangSheet() {
               {saving
                 ? "Uploading artwork…"
                 : hasArtwork
-                  ? `Add to cart · $${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}`
+                  ? `${activeCartKey ? "Update cart" : "Add to cart"} · $${round(price.price + (artworkReviewRequested ? settings.artworkReviewPrice : 0), 2).toFixed(2)}`
                   : "Upload artwork to continue"}
             </button>
 
