@@ -24,6 +24,7 @@ const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
 const Account = lazy(() => import('@/pages/Account'));
 const Admin = lazy(() => import('@/pages/Admin'));
 const AdminV2 = lazy(() => import('@/pages/AdminV2'));
+const TemplateManager = lazy(() => import('@/pages/TemplateManager'));
 const FAQ = lazy(() => import('@/pages/FAQ'));
 const ContentPage = lazy(() => import('@/pages/ContentPage'));
 // Auth pages
@@ -94,6 +95,7 @@ const AuthenticatedApp = () => {
         <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}>
           <Route element={<AdminMfaGate />}>
             <Route path="/admin/legacy" element={<Admin />} />
+            <Route path="/admin/custom-studio/templates" element={<TemplateManager />} />
             <Route path="/admin/*" element={<AdminV2 />} />
           </Route>
         </Route>
