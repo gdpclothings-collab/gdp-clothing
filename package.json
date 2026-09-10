@@ -12,6 +12,7 @@
     "test:dtf-nesting": "node scripts/verify-dtf-nesting.mjs",
     "test:fresh-session": "node scripts/verify-fresh-session-state.mjs",
     "test:product-variants": "node scripts/verify-product-variants.mjs",
+    "test:memorial": "node scripts/verify-memorial-tribute.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
