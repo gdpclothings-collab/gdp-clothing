@@ -58,6 +58,8 @@ jobs:
             conclusion="$(printf '%s' "$payload" | jq -r '[.check_runs[] | select(.name == "Cloudflare Pages")][0].conclusion // ""')"
             echo "Cloudflare Pages check: status=${status} conclusion=${conclusion:-pending}"
             if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
+              echo "Cloudflare reports success. Waiting 10 seconds for edge propagation before browser checks."
+              sleep 10
               exit 0
             fi
             if [[ "$status" == "completed" && -n "$conclusion" && "$conclusion" != "success" ]]; then
