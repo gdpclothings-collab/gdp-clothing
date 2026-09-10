@@ -12,5 +12,7 @@ Unified garment editing controls for Custom Studio.
 - Continue validation opens the exact missing panel tab before scrolling to and highlighting the required control.
 - Fallback no-layer artwork retains source selection, size, fit/crop, aspect-ratio/stretch and rotation controls inside Photos/Artwork, including undo checkpoints.
 - Mobile hardening constrains the editor and workspace to the viewport and keeps horizontal scrolling inside tool strips.
+- On phones, GDP Touch Studio uses a portrait-first sheet: primary and contextual tool tabs wrap into a three-column grid, the panel is capped to the phone width, and vertical scrolling stays inside the panel instead of forcing sideways navigation.
+- Saved unfinished Custom Studio work is no longer silently restored on re-entry. Customers explicitly choose Resume previous design or Start fresh; choosing Start fresh clears only the unfinished Studio draft and leaves completed cart designs untouched.
 - Print-area warnings stay outside the artwork HUD, while the safe-area boundary remains visible on the garment.
 - Release validation covers build, type safety and existing Custom Studio regression suites before merge.
