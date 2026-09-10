@@ -605,6 +605,34 @@ const AFTER_ORDER_STEPS = ["Order received", "Payment confirmed", "Approved file
 const MAX_MB = 12;
 const OPTIMIZE_ABOVE_MB = 2.5;
 const MAX_UPLOAD_DIMENSION = 3600;
+const STUDIO_DRAFT_KEY = "gdp.custom-studio.draft.v2";
+const STUDIO_DRAFT_VERSION = 2;
+const STUDIO_DRAFT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const STUDIO_DRAFT_SAVE_DELAY_MS = 550;
+
+function readStudioDraft() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STUDIO_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Number(parsed?.version || 0) !== STUDIO_DRAFT_VERSION) return null;
+    const updatedAt = Date.parse(parsed?.updatedAt || "");
+    if (Number.isFinite(updatedAt) && Date.now() - updatedAt > STUDIO_DRAFT_MAX_AGE_MS) {
+      window.localStorage.removeItem(STUDIO_DRAFT_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function serializablePhotoAsset(photo = {}) {
+  const safePhoto = /** @type {any} */ ({ ...(photo || {}) });
+  delete safePhoto.sourceFile;
+  return safePhoto;
+}
 
 function qualityFor(width, height) {
   const longest = Math.max(width || 0, height || 0);
@@ -932,6 +960,11 @@ export default function CustomStudio() {
   const [editorHistoryVersion, setEditorHistoryVersion] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
+  const [uploadTasks, setUploadTasks] = useState([]);
+  const [draftStatus, setDraftStatus] = useState("idle");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const draftSaveTimerRef = useRef(null);
   const [warn, setWarn] = useState("");
   const [personalization, setPersonalization] = useState({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" });
   const [memorialNameConfirmed, setMemorialNameConfirmed] = useState(false);
@@ -1202,6 +1235,115 @@ export default function CustomStudio() {
     };
   }, []);
 
+  useEffect(() => {
+    if (draftReady || !catalog.length || location.state?.seasonalDraft) return;
+    const draft = readStudioDraft();
+    if (!draft) {
+      setDraftReady(true);
+      return;
+    }
+
+    const requestedProductId = String(params.get("product") || "");
+    const savedProductId = String(draft.productId || "");
+    if (requestedProductId && savedProductId && requestedProductId !== savedProductId) {
+      setDraftReady(true);
+      return;
+    }
+
+    const draftProduct = catalog.find((item) => String(item.id) === savedProductId)
+      || catalog.find((item) => String(item.id) === requestedProductId)
+      || null;
+    if (!draftProduct) {
+      setDraftReady(true);
+      return;
+    }
+
+    const colors = productColors(draftProduct);
+    const restoredColor = colors.includes(draft.color) ? draft.color : (colors[0] || "");
+    const sizes = productSizes(draftProduct, restoredColor);
+    const restoredSize = sizes.includes(draft.size) ? draft.size : "";
+    const restoredPhotos = Array.isArray(draft.photos) ? draft.photos.map((photo) => ({
+      ...photo,
+      sourceFile: null,
+      processingStatus: photo?.processingStatus === "processing" ? "failed" : photo?.processingStatus,
+      processingMessage: photo?.processingStatus === "processing"
+        ? "Background processing was interrupted. Tap retry to continue."
+        : photo?.processingMessage,
+    })) : [];
+
+    setProduct(draftProduct);
+    setGarment(garmentFromProduct(draftProduct));
+    setColor(restoredColor);
+    setSize(restoredSize);
+    setQty(Math.max(1, Math.min(99, Number(draft.qty || 1))));
+    setStep(Math.max(1, Math.min(STEPS.length, Number(draft.step || 1))));
+    setDesignPath(String(draft.designPath || ""));
+    setDesignStyle(String(draft.designStyle || ""));
+    setDesignMood(String(draft.designMood || ""));
+    setDesignIntensity(Math.max(1, Math.min(5, Number(draft.designIntensity || 3))));
+    setPlacement(["front", "back", "front_back"].includes(draft.placement) ? draft.placement : "front");
+    setPreviewSide(draft.previewSide === "back" ? "back" : "front");
+    setGroupGarments(Array.isArray(draft.groupGarments) ? draft.groupGarments : []);
+    setPhotos(restoredPhotos);
+    setEditorLayersBySide(draft.editorLayersBySide || { front: [], back: [] });
+    setSelectedEditorLayerIds(draft.selectedEditorLayerIds || { front: "photo", back: "photo" });
+    setPersonalization({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "", ...(draft.personalization || {}) });
+    setMemorialNameConfirmed(Boolean(draft.memorialNameConfirmed));
+    setNeedByDate(String(draft.needByDate || ""));
+    setPriority(draft.priority === "rush" ? "rush" : "standard");
+    setArtworkStates(draft.artworkStates || defaultArtworkStates());
+    setPreviewZoom(clampPreview(draft.previewZoom || 1));
+    setRightsConfirmed(false);
+    setApprovalAcknowledged(false);
+    setDraftRestored(true);
+    setDraftStatus("saved");
+    setDraftReady(true);
+  }, [catalog, draftReady]);
+
+  useEffect(() => {
+    if (!draftReady || seasonalMode || saving || !product?.id || typeof window === "undefined") return undefined;
+    setDraftStatus("saving");
+    if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      const snapshot = {
+        version: STUDIO_DRAFT_VERSION,
+        updatedAt: new Date().toISOString(),
+        productId: product.id,
+        step,
+        designPath,
+        designStyle,
+        designMood,
+        designIntensity,
+        color,
+        size,
+        qty,
+        placement,
+        previewSide,
+        groupGarments,
+        photos: photos.map(serializablePhotoAsset),
+        editorLayersBySide,
+        selectedEditorLayerIds,
+        personalization,
+        memorialNameConfirmed,
+        needByDate,
+        priority,
+        artworkStates,
+        previewZoom,
+      };
+      try {
+        window.localStorage.setItem(STUDIO_DRAFT_KEY, JSON.stringify(snapshot));
+        setDraftStatus("saved");
+      } catch {
+        setDraftStatus("error");
+      }
+    }, STUDIO_DRAFT_SAVE_DELAY_MS);
+
+    return () => {
+      if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+    };
+  }, [draftReady, seasonalMode, saving, product?.id, step, designPath, designStyle, designMood, designIntensity, color, size, qty, placement, previewSide, groupGarments, photos, editorLayersBySide, selectedEditorLayerIds, personalization, memorialNameConfirmed, needByDate, priority, artworkStates, previewZoom]);
+
   const chooseProduct = (nextProduct) => {
     if (!nextProduct) return;
     const colors = productColors(nextProduct);
@@ -1381,6 +1523,21 @@ export default function CustomStudio() {
     if (errors.length) setWarn(errors.join(" "));
     if (!valid.length) return;
 
+    const taskRows = valid.map((file, index) => ({
+      id: `upload-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      stage: "preparing",
+      progress: 8,
+      message: "Preparing photo…",
+    }));
+    setUploadTasks(taskRows);
+    const updateUploadTask = (index, patch) => {
+      const taskId = taskRows[index]?.id;
+      if (!taskId) return;
+      setUploadTasks((current) => current.map((task) => task.id === taskId ? { ...task, ...patch } : task));
+    };
+
     setUploading(true);
     setUploadProgress({ done: 0, total: valid.length });
     const results = new Array(valid.length);
@@ -1392,7 +1549,9 @@ export default function CustomStudio() {
         const index = cursor++;
         const original = valid[index];
         try {
+          updateUploadTask(index, { stage: "preparing", progress: 15, message: "Optimizing photo…" });
           const prepared = await prepareImageForUpload(original, designPath === "upload");
+          updateUploadTask(index, { stage: "uploading", progress: 32, message: "Uploading photo…" });
           let originalUpload = null;
           let activeUpload = null;
           let activePrepared = prepared;
@@ -1402,6 +1561,7 @@ export default function CustomStudio() {
 
           if ((designPath === "bootleg" || designPath === "memorial") && editorTools.autoBackgroundRemoval !== false) {
             try {
+              updateUploadTask(index, { stage: "removing_background", progress: 48, message: "Removing background…" });
               const processed = await customerApi.removePhotoBackground(prepared.file);
               originalUpload = processed?.originalPath
                 ? { file_url: processed.originalUrl, storage_path: processed.originalPath }
@@ -1419,8 +1579,12 @@ export default function CustomStudio() {
             }
           }
 
-          if (!originalUpload) originalUpload = await uploadWithRetry(prepared.file);
+          if (!originalUpload) {
+            updateUploadTask(index, { stage: "uploading", progress: 72, message: "Uploading photo…" });
+            originalUpload = await uploadWithRetry(prepared.file);
+          }
           if (!activeUpload) activeUpload = originalUpload;
+          updateUploadTask(index, { stage: "preparing_preview", progress: 90, message: "Preparing preview…" });
 
           results[index] = {
             id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `photo-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
@@ -1444,8 +1608,13 @@ export default function CustomStudio() {
             processingMessage: removalMessage,
             sourceFile: prepared.file,
           };
+          updateUploadTask(index, removalMessage
+            ? { stage: "needs_attention", progress: 100, message: "Uploaded · background removal needs retry" }
+            : { stage: "ready", progress: 100, message: "Ready ✓" });
         } catch (error) {
-          errors.push(error?.message || ("Upload failed for " + original.name + "."));
+          const message = error?.message || ("Upload failed for " + original.name + ".");
+          errors.push(message);
+          updateUploadTask(index, { stage: "failed", progress: 100, message });
         } finally {
           completed += 1;
           setUploadProgress({ done: completed, total: valid.length });
@@ -1473,6 +1642,11 @@ export default function CustomStudio() {
     }
     if (errors.length) setWarn(errors.join(" "));
     setUploading(false);
+    const completedTaskIds = new Set(taskRows.map((task) => task.id));
+    window.setTimeout(() => {
+      taskRows.forEach((task) => URL.revokeObjectURL(task.previewUrl));
+      setUploadTasks((current) => current.filter((task) => !completedTaskIds.has(task.id)));
+    }, 2200);
   }
 
   const setPrimary = index => setPhotos(prev => prev.map((photo, i) => ({ ...photo, isPrimary: i === index })));
@@ -1502,10 +1676,18 @@ export default function CustomStudio() {
   };
   const retryPhotoBackground = async (index) => {
     const photo = photos[index];
-    if (!photo?.sourceFile || photo.processingStatus === "processing") return;
+    if (!photo || photo.processingStatus === "processing") return;
     setPhotos((current) => current.map((item, i) => i === index ? { ...item, processingStatus: "processing", processingMessage: "" } : item));
     try {
-      const processed = await customerApi.removePhotoBackground(photo.sourceFile);
+      let sourceFile = photo.sourceFile || null;
+      if (!sourceFile && photo.originalUrl) {
+        const response = await fetch(photo.originalUrl);
+        if (!response.ok) throw new Error("The saved original photo could not be reopened. Please upload it again.");
+        const blob = await response.blob();
+        sourceFile = new File([blob], photo.name || "gdp-photo", { type: blob.type || "image/png", lastModified: Date.now() });
+      }
+      if (!sourceFile) throw new Error("The original photo is unavailable. Please upload it again.");
+      const processed = await customerApi.removePhotoBackground(sourceFile);
       if (!processed?.ok || !processed?.cleanedUrl || !processed?.cleanedPath) {
         throw new Error(processed?.message || "Background removal failed. Please retry.");
       }
@@ -1872,6 +2054,12 @@ export default function CustomStudio() {
         });
       });
 
+      try {
+        window.localStorage.removeItem(STUDIO_DRAFT_KEY);
+      } catch {
+        // A completed design should still proceed even if local draft cleanup is unavailable.
+      }
+      setDraftStatus("idle");
       navigate("/cart");
     } catch (error) {
       setWarn(error?.message || "Could not save your custom design.");
@@ -2303,6 +2491,7 @@ export default function CustomStudio() {
             </label>
             {warn && <div className="mt-3 bg-destructive/10 text-destructive px-3 py-2 text-sm flex items-center gap-2"><AlertTriangle size={15}/>{warn}</div>}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+              {uploadTasks.map((task) => <PhotoProcessingCard key={task.id} task={task} />)}
               {photos.map((photo,index) => <PhotoCard key={photo.id || photo.originalUrl || photo.url} photo={photo} onPrimary={() => setPrimary(index)} onRemove={() => removePhoto(index)} onToggleBackground={() => togglePhotoBackground(index)} onRetry={() => retryPhotoBackground(index)} />)}
             </div>
             <div className="font-mono text-xs text-muted-foreground mt-3">{photos.length}/{maxPhotos} photos</div>
@@ -2366,7 +2555,12 @@ export default function CustomStudio() {
                   <div className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.18em] text-accent">Live garment preview</div>
                   <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || "Choose a garment"}</div>
                 </div>
-                <button type="button" onClick={() => setFullscreenPreview(true)} className="h-9 w-9 grid place-items-center rounded-xl border border-[#ddd6cc] bg-white text-[#5d5851] hover:border-accent hover:text-accent" aria-label="Open full screen preview"><Maximize2 size={15} /></button>
+                <div className="flex items-center gap-2">
+                  {draftReady && product?.id && <span className={"inline-flex rounded-full border px-2 py-1 font-mono text-[7px] uppercase tracking-wide sm:px-2.5 sm:text-[8px] " + (draftStatus === "error" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-[#D5DDE4] bg-[#F8FAFC] text-[#61707D]")} role="status">
+                    {draftStatus === "saving" ? "Saving…" : draftStatus === "error" ? "Autosave issue" : draftRestored ? "Draft restored · Saved ✓" : "Saved ✓"}
+                  </span>}
+                  <button type="button" onClick={() => setFullscreenPreview(true)} className="h-9 w-9 grid place-items-center rounded-xl border border-[#ddd6cc] bg-white text-[#5d5851] hover:border-accent hover:text-accent" aria-label="Open full screen preview"><Maximize2 size={15} /></button>
+                </div>
               </div>
 
               <StudioPreview
@@ -2844,9 +3038,10 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     if (!dragRef.current || !canDrag) return;
     const start = dragRef.current;
     const clamp = (v) => Math.min(42, Math.max(-42, v));
+    const snapCenter = (value) => Math.abs(value) <= 2.4 ? 0 : value;
     setArtworkOffset({
-      x: clamp(start.startX + ((event.clientX - start.x) / Math.max(1, start.width)) * 100),
-      y: clamp(start.startY + ((event.clientY - start.y) / Math.max(1, start.height)) * 100)
+      x: snapCenter(clamp(start.startX + ((event.clientX - start.x) / Math.max(1, start.width)) * 100)),
+      y: snapCenter(clamp(start.startY + ((event.clientY - start.y) / Math.max(1, start.height)) * 100))
     });
   };
   const stopDrag = () => { dragRef.current = null; };
@@ -3178,6 +3373,27 @@ function GroupRow({ item, product, onChange, onRemove }) {
     <button type="button" onClick={onRemove} className="rounded-lg border border-border hover:bg-[#f4f1ec]" aria-label="Remove garment"><X size={14} className="mx-auto"/></button>
   </div>;
 }
+function PhotoProcessingCard({ task }) {
+  const needsAttention = task.stage === "failed" || task.stage === "needs_attention";
+  const isReady = task.stage === "ready";
+  return <div className={"rounded-2xl border bg-white relative overflow-hidden shadow-sm " + (needsAttention ? "border-amber-300" : "border-[#ddd6cc]")}>
+    <div className="relative aspect-square overflow-hidden bg-[#f1eee9]">
+      <img src={task.previewUrl} alt={task.name || "Photo being prepared"} className="h-full w-full object-contain opacity-80" />
+      <div className="absolute inset-x-2 bottom-2 rounded-xl border border-white/40 bg-[#17324D]/90 px-2.5 py-2 text-white shadow-sm backdrop-blur">
+        <div className="flex items-center justify-between gap-2 text-[8px] font-bold uppercase tracking-wide">
+          <span className="truncate">{task.message || "Preparing photo…"}</span>
+          <span>{Math.round(Number(task.progress || 0))}%</span>
+        </div>
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-white transition-[width] duration-300" style={{ width: `${Math.max(4, Math.min(100, Number(task.progress || 0)))}%` }} /></div>
+      </div>
+    </div>
+    <div className="p-3">
+      <div className="truncate text-[10px] font-semibold text-[#17324D]">{task.name}</div>
+      <div className={"mt-1 text-[9px] font-bold uppercase " + (needsAttention ? "text-amber-800" : isReady ? "text-green-700" : "text-[#65717d]")}>{needsAttention ? "Needs attention" : isReady ? "Ready ✓" : "Processing safely"}</div>
+    </div>
+  </div>;
+}
+
 function PhotoCard({ photo, onPrimary, onRemove, onToggleBackground, onRetry }) {
   const qClass = photo.quality === "excellent" ? "text-green-600" : photo.quality === "usable" ? "text-amber-600" : "text-destructive";
   const qLabel = photo.quality === "excellent" ? "Great quality" : photo.quality === "usable" ? "May look slightly soft" : "Low resolution";
