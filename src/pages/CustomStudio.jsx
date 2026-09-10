@@ -594,9 +594,9 @@ function moodPreviewTreatment(mood) {
 
 const STEPS = ["Garment","Choose Design","Customize","Timing & Approval","Review"];
 const ORDER_GUIDE_STEPS = [
-  { title: "Choose garment", detail: "Pick clothing, color, size, quantity and print placement." },
+  { title: "Choose garment", detail: "Pick clothing, color, size and quantity." },
   { title: "Choose your design", detail: "Select Seasonal Designs, Photo Bootleg Designs or Upload My Own Artwork." },
-  { title: "Customize", detail: "Choose locked GDP artwork or upload your own, add photos, position them and personalize text in one workspace." },
+  { title: "Customize", detail: "Choose your print side, add artwork or photos, position every layer and personalize text in one workspace." },
   { title: "Timing & approval", detail: "Set your needed-by date and confirm artwork permissions." },
   { title: "Review & checkout", detail: "Final-check the exact result, add to cart and complete checkout." }
 ];
@@ -2014,6 +2014,22 @@ export default function CustomStudio() {
           </div>}
           {step === 3 && <div>
             <StepTitle eyebrow="Build and personalize in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE A TEMPLATE OR START BLANK"} text={designPath === "upload" ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result." : "Choose a protected GDP layout, or start blank and build only with your own photos, text and stickers."} />
+
+            <div className="mb-7 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
+                  <p className="mt-1 text-sm text-[#52616F]">Choose the side you want to customize. Front and back artwork are saved independently.</p>
+                </div>
+                {placement === "front_back" && showGarmentPrices && <span className="w-fit rounded-full bg-[#17324D] px-3 py-1.5 text-xs font-bold text-white">+${frontBackFee.toFixed(2)} second-side print</span>}
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
+                {frontBackEnabled && <Choice active={placement === "back"} onClick={() => { setPlacement("back"); setPreviewSide("back"); }}>Back only</Choice>}
+                {frontBackEnabled && <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>}
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-[#6B7280]">{frontBackEnabled ? "Select Front + back to design both sides. Use the Front and Back preview tabs to switch canvases without losing your work." : "Custom Studio is currently configured for front printing only."}</p>
+            </div>
             {designPath !== "upload" && <>
             <div className="grid md:grid-cols-2 gap-3">
               <button type="button" onClick={chooseNoTemplate} aria-pressed={designStyle === NO_TEMPLATE_STYLE} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
@@ -2150,16 +2166,6 @@ export default function CustomStudio() {
                     <button type="button" onClick={() => setQty(v => Math.min(99,v+1))} className="p-2.5 hover:bg-[#f5f1eb]"><Plus size={15}/></button>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-5">
-                <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
-                  {frontBackEnabled && <Choice active={placement === "back"} onClick={() => { setPlacement("back"); setPreviewSide("back"); }}>Back only</Choice>}
-                  {frontBackEnabled && <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>}
-                </div>
-                <p className="mt-2 text-[10px] text-[#817b73]">{frontBackEnabled ? "Front is the default. Back is optional and uses the Custom Studio additional-print surcharge." : "Custom Studio is currently configured for front printing only."}</p>
               </div>
 
               <div className="mt-7 border-t border-border pt-5">
