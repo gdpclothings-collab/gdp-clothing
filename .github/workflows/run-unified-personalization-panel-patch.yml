@@ -1,0 +1,30 @@
+name: Run unified personalization panel patch
+on:
+  push:
+    branches:
+      - refine/unified-personalization-panel-20260910
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refine/unified-personalization-panel-20260910
+      - name: Apply source patch
+        run: python .github/scripts/unified_personalization_patch.py
+      - name: Verify build
+        run: |
+          npm ci
+          npm run build
+      - name: Commit patch and remove temporary files
+        run: |
+          rm -f .github/workflows/unified-personalization-panel-patch.yml
+          rm -f .github/workflows/run-unified-personalization-panel-patch.yml
+          rm -f .github/scripts/unified_personalization_patch.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/storefront/CustomStudioAdvancedEditor.jsx src/pages/CustomStudio.jsx .github/workflows/unified-personalization-panel-patch.yml .github/workflows/run-unified-personalization-panel-patch.yml .github/scripts/unified_personalization_patch.py
+          git commit -m "Consolidate Custom Studio personalization controls [panel-patched]"
+          git push origin HEAD:refine/unified-personalization-panel-20260910
