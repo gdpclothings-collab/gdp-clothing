@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="4500" height="5400" viewBox="0 0 4500 5400" role="img" aria-labelledby="title desc">
+  <title id="title">Sunset Remembrance memorial frame</title>
+  <desc id="desc">Transparent 15 by 18 inch memorial artwork master designed for 300 DPI export.</desc>
+  <defs>
+    <linearGradient id="sunset" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffd778"/><stop offset=".42" stop-color="#f38a73"/><stop offset=".72" stop-color="#9464b7"/><stop offset="1" stop-color="#36548a"/></linearGradient>
+    <linearGradient id="lily" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffdf3"/><stop offset=".68" stop-color="#f3d5b5"/><stop offset="1" stop-color="#d79d84"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="42"/></filter>
+  </defs>
+  <g opacity=".26" filter="url(#blur)" fill="#f59878">
+    <ellipse cx="2250" cy="720" rx="1180" ry="300"/>
+    <ellipse cx="2250" cy="4700" rx="1280" ry="340"/>
+  </g>
+  <g fill="none" stroke="url(#sunset)" stroke-width="30" opacity=".95">
+    <path d="M300 1300C1050 530 1550 380 2250 360"/>
+    <path d="M4200 1300C3450 530 2950 380 2250 360"/>
+    <path d="M280 4200C980 4920 1560 5180 2250 5180"/>
+    <path d="M4220 4200C3520 4920 2940 5180 2250 5180"/>
+  </g>
+  <g fill="url(#lily)" stroke="#c49582" stroke-width="10">
+    <g transform="translate(700 1120) rotate(-22)">
+      <ellipse cx="0" cy="-170" rx="110" ry="280"/><ellipse cx="0" cy="170" rx="110" ry="280"/>
+      <ellipse cx="-170" cy="0" rx="110" ry="280" transform="rotate(90)"/><ellipse cx="170" cy="0" rx="110" ry="280" transform="rotate(90)"/>
+      <ellipse cx="-120" cy="-120" rx="105" ry="260" transform="rotate(45)"/><ellipse cx="120" cy="120" rx="105" ry="260" transform="rotate(45)"/>
+      <circle r="72" fill="#e8a168"/>
+    </g>
+    <g transform="translate(3800 1120) rotate(22)">
+      <ellipse cx="0" cy="-170" rx="110" ry="280"/><ellipse cx="0" cy="170" rx="110" ry="280"/>
+      <ellipse cx="-170" cy="0" rx="110" ry="280" transform="rotate(90)"/><ellipse cx="170" cy="0" rx="110" ry="280" transform="rotate(90)"/>
+      <ellipse cx="-120" cy="-120" rx="105" ry="260" transform="rotate(45)"/><ellipse cx="120" cy="120" rx="105" ry="260" transform="rotate(45)"/>
+      <circle r="72" fill="#e8a168"/>
+    </g>
+  </g>
+  <g fill="url(#sunset)" opacity=".9">
+    <path d="M400 3550c350 90 620 310 790 660-250-90-460-70-650 60 115 135 185 300 210 500-215-170-390-250-610-260 130-350 220-660 260-960z"/>
+    <path d="M4100 3550c-350 90-620 310-790 660 250-90 460-70 650 60-115 135-185 300-210 500 215-170 390-250 610-260-130-350-220-660-260-960z"/>
+  </g>
+  <g fill="#fff8e8">
+    <path d="M1160 650l34 84 84 34-84 34-34 84-34-84-84-34 84-34z"/>
+    <path d="M3340 650l34 84 84 34-84 34-34 84-34-84-84-34 84-34z"/>
+  </g>
+</svg>
