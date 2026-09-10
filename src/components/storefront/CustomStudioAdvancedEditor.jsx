@@ -301,6 +301,7 @@ export function AdvancedEditorPanel({
   photoAssets = [],
   selectedLayerId = "photo",
   onSelectLayer,
+  onAddPhoto,
   onAddText,
   onAddSticker,
   onPatchLayer,
@@ -362,6 +363,19 @@ export function AdvancedEditorPanel({
           return <button key={layer.id} type="button" onClick={() => onSelectLayer?.(layer.id)} className={"max-w-[120px] truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase " + (selectedLayerId === layer.id ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#D5DDE4] bg-white text-[#5B6874]")}>{label}</button>;
         })}
       </div>
+
+      {(photoAssets || []).length > 0 && <div className="mt-3">
+        <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#6C7883]">Add an uploaded photo to this side</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {(photoAssets || []).map((photo, index) => {
+            const alreadyAdded = editorLayers.some((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || ""));
+            return <button key={photo.id || photo.url || index} type="button" disabled={alreadyAdded || photo.processingStatus === "failed"} onClick={() => onAddPhoto?.(photo)} className="inline-flex max-w-[150px] items-center gap-2 rounded-lg border border-[#D5DDE4] bg-white p-1.5 pr-2 text-left text-[9px] font-semibold text-[#17324D] disabled:opacity-40">
+              <img src={photo.url || photo.originalUrl} alt="" className="h-8 w-8 rounded object-cover" />
+              <span className="truncate">{alreadyAdded ? "Added" : `Add ${photo.name || `photo ${index + 1}`}`}</span>
+            </button>;
+          })}
+        </div>
+      </div>}
 
       {outsideWarning && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-semibold text-amber-800">{outsideWarning}</div>}
 

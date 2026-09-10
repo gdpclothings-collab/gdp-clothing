@@ -47,6 +47,7 @@ const DESIGN_INTENSITY_LEVELS = {
 };
 
 const HIDDEN_INTENSITY_IMAGE = "__hidden__";
+const NO_TEMPLATE_STYLE = "No Template — Upload Only";
 
 const DEFAULT_STUDIO_SETTINGS = {
   mobileFloatingCtaEnabled: false,
@@ -903,10 +904,21 @@ export default function CustomStudio() {
   const [size, setSize] = useState("");
   const [qty, setQty] = useState(1);
   const [placement, setPlacement] = useState("front");
+  const [previewSide, setPreviewSide] = useState("front");
   const [groupGarments, setGroupGarments] = useState([]);
   const [photos, setPhotos] = useState([]);
-  const [editorLayers, setEditorLayers] = useState([]);
-  const [selectedEditorLayerId, setSelectedEditorLayerId] = useState("photo");
+  const [editorLayersBySide, setEditorLayersBySide] = useState({ front: [], back: [] });
+  const editorLayers = editorLayersBySide[previewSide] || [];
+  const setEditorLayers = (valueOrUpdater) => {
+    setEditorLayersBySide((current) => {
+      const currentLayers = current[previewSide] || [];
+      const nextLayers = typeof valueOrUpdater === "function" ? valueOrUpdater(currentLayers) : valueOrUpdater;
+      return { ...current, [previewSide]: nextLayers };
+    });
+  };
+  const [selectedEditorLayerIds, setSelectedEditorLayerIds] = useState({ front: "photo", back: "photo" });
+  const selectedEditorLayerId = selectedEditorLayerIds[previewSide] || "photo";
+  const setSelectedEditorLayerId = (value) => setSelectedEditorLayerIds((current) => ({ ...current, [previewSide]: value }));
   const [photoBrushOpen, setPhotoBrushOpen] = useState(false);
   const editorHistoryRef = useRef([]);
   const editorRedoRef = useRef([]);
@@ -920,7 +932,6 @@ export default function CustomStudio() {
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [previewSide, setPreviewSide] = useState("front");
   const [previewZoom, setPreviewZoom] = useState(1);
   const [artworkStates, setArtworkStates] = useState(() => defaultArtworkStates());
   const activeArtworkState = artworkStates[previewSide] || artworkStates.front;
@@ -968,13 +979,13 @@ export default function CustomStudio() {
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
   const styleTemplates = normalizeStyleTemplates(studioSettings.styleTemplates);
   const activeStyleTemplate = designStyle ?
-    (designPath === "upload" ? null : styleTemplateForName(designStyle, studioSettings.styleTemplates))
+    (designPath === "upload" || designStyle === NO_TEMPLATE_STYLE ? null : styleTemplateForName(designStyle, studioSettings.styleTemplates))
     : null;
   const editorTools = normalizeEditorTools(studioSettings.editorTools);
   const stickerLibrary = normalizeStickerLibrary(studioSettings.stickerLibrary);
 
   const currentEditorSnapshot = () => ({
-    layers: JSON.parse(JSON.stringify(editorLayers || [])),
+    layersBySide: JSON.parse(JSON.stringify(editorLayersBySide || { front: [], back: [] })),
     photos: JSON.parse(JSON.stringify(photos || [])),
     artworkStates: JSON.parse(JSON.stringify(artworkStates || defaultArtworkStates(activeStyleTemplate))),
   });
@@ -985,11 +996,14 @@ export default function CustomStudio() {
   };
   const restoreEditorSnapshot = (snapshot) => {
     if (!snapshot) return;
-    const nextLayers = Array.isArray(snapshot.layers) ? snapshot.layers : [];
-    setEditorLayers(nextLayers);
+    const nextLayersBySide = snapshot.layersBySide || { front: snapshot.layers || [], back: [] };
+    setEditorLayersBySide(nextLayersBySide);
     if (Array.isArray(snapshot.photos)) setPhotos(snapshot.photos);
     setArtworkStates(snapshot.artworkStates || defaultArtworkStates(activeStyleTemplate));
-    setSelectedEditorLayerId(nextLayers.find((layer) => layer.type === "photo")?.id || "photo");
+    setSelectedEditorLayerIds({
+      front: nextLayersBySide.front?.find((layer) => layer.type === "photo")?.id || "photo",
+      back: nextLayersBySide.back?.find((layer) => layer.type === "photo")?.id || "photo",
+    });
   };
   const undoEditor = () => {
     const previous = editorHistoryRef.current.pop();
@@ -1021,6 +1035,25 @@ export default function CustomStudio() {
     const layer = createStickerLayer(sticker);
     setEditorLayers((current) => [...current, layer]);
     setSelectedEditorLayerId(layer.id);
+  };
+  const addPhotoLayer = (photo) => {
+    if (!photo) return;
+    checkpointEditor();
+    const layer = createPhotoLayer(photo, editorLayers.filter((item) => item.type === "photo").length);
+    setEditorLayers((current) => [...current, layer]);
+    setSelectedEditorLayerId(layer.id);
+  };
+  const copyFrontDesignToBack = () => {
+    checkpointEditor();
+    const copiedLayers = JSON.parse(JSON.stringify(editorLayersBySide.front || [])).map((layer) => ({
+      ...layer,
+      id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${layer.type}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    }));
+    setEditorLayersBySide((current) => ({ ...current, back: copiedLayers }));
+    setArtworkStates((current) => ({ ...current, back: JSON.parse(JSON.stringify(current.front || defaultArtworkState(activeStyleTemplate))) }));
+    setPlacement("front_back");
+    setPreviewSide("back");
+    setSelectedEditorLayerIds((current) => ({ ...current, back: copiedLayers[0]?.id || "photo" }));
   };
   const duplicateEditorLayer = (layerId) => {
     const source = editorLayers.find((layer) => layer.id === layerId);
@@ -1076,7 +1109,10 @@ export default function CustomStudio() {
         reset.id = layer.id;
         return reset;
       }));
-    setArtworkStates(defaultArtworkStates(activeStyleTemplate));
+    setArtworkStates((current) => ({
+      ...current,
+      [previewSide]: defaultArtworkState(activeStyleTemplate),
+    }));
     setPreviewZoom(1);
     const firstPhotoLayer = editorLayers.find((layer) => layer.type === "photo");
     setSelectedEditorLayerId(firstPhotoLayer?.id || "photo");
@@ -1211,6 +1247,11 @@ export default function CustomStudio() {
       },
     }));
   };
+  const chooseNoTemplate = () => {
+    setDesignStyle(NO_TEMPLATE_STYLE);
+    setDesignMood("Original");
+    setArtworkStates(defaultArtworkStates());
+  };
   const maxPhotos = Number(config.maxPhotos || 10);
   const minPhotos = Number(config.minPhotos || 1);
   const revisions = Number(config.includedRevisions || 2);
@@ -1265,6 +1306,12 @@ export default function CustomStudio() {
   const activeSideHasPrint =
     (previewSide === "front" && placement !== "back") ||
     (previewSide === "back" && placement !== "front");
+  const enableActiveSidePrint = () => {
+    setPlacement((current) => {
+      if (previewSide === "back") return current === "front" ? "front_back" : "back";
+      return current === "back" ? "front_back" : "front";
+    });
+  };
   const activePhotoIndex = photos.length
     ? Math.min(Math.max(0, Number(activeArtworkState.sourcePhotoIndex || 0)), photos.length - 1)
     : -1;
@@ -1482,7 +1529,10 @@ export default function CustomStudio() {
       return next;
     });
     if (removedPhotoId) {
-      setEditorLayers((current) => current.filter((layer) => !(layer.type === "photo" && String(layer.photoId || "") === removedPhotoId)));
+      setEditorLayersBySide((current) => ({
+        front: (current.front || []).filter((layer) => !(layer.type === "photo" && String(layer.photoId || "") === removedPhotoId)),
+        back: (current.back || []).filter((layer) => !(layer.type === "photo" && String(layer.photoId || "") === removedPhotoId)),
+      }));
       if (selectedPhotoLayer && String(selectedPhotoLayer.photoId || "") === removedPhotoId) {
         const nextPhotoLayer = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") !== removedPhotoId);
         setSelectedEditorLayerId(nextPhotoLayer?.id || "photo");
@@ -1629,7 +1679,11 @@ export default function CustomStudio() {
         placement,
         garment: { id: productId, variantId: selectedVariant?.id || null, color, size },
         personalization,
-        editableLayers: editorLayers.map((layer) => ({ ...layer })),
+        editableLayers: (editorLayersBySide.front || []).map((layer) => ({ ...layer })),
+        editableLayersBySide: {
+          front: (editorLayersBySide.front || []).map((layer) => ({ ...layer })),
+          back: (editorLayersBySide.back || []).map((layer) => ({ ...layer })),
+        },
         stickerLibrary: stickerLibrary.map((item) => ({ ...item })),
         artworkBySide: {
           front: { ...artworkStates.front, photoPath: frontArtworkPhoto?.path || null },
@@ -1690,7 +1744,11 @@ export default function CustomStudio() {
           previewState: {
             version: 7,
             side: previewSide,
-            editableLayers: editorLayers.map((layer) => ({ ...layer })),
+            editableLayers: (editorLayersBySide.front || []).map((layer) => ({ ...layer })),
+            editableLayersBySide: {
+              front: (editorLayersBySide.front || []).map((layer) => ({ ...layer })),
+              back: (editorLayersBySide.back || []).map((layer) => ({ ...layer })),
+            },
             stickerLibrary: stickerLibrary.map((item) => ({ ...item })),
             styleTemplateId: activeStyleTemplate?.id || null,
             styleTemplateAssetUrl: activeStyleTemplate?.assetUrl || "",
@@ -1711,7 +1769,7 @@ export default function CustomStudio() {
             garmentId: productId,
             variantId: selectedVariant?.id || null,
             productionReady: true,
-            templateComposite: designPath !== "upload"
+            templateComposite: Boolean(activeStyleTemplate)
           }
         },
         placement,
@@ -1948,10 +2006,18 @@ export default function CustomStudio() {
             {placement !== "front" || groupGarments.length > 0 ? <p className="mt-4 text-sm text-[#706960]">Seasonal designs require front-only printing with no additional garment rows.</p> : null}
           </div>}
           {step === 3 && <div>
-            <StepTitle eyebrow="Build and personalize in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE LOCKED ARTWORK & CUSTOMIZE"} text={designPath === "upload" ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result." : "Choose a protected GDP layout. The template stays locked while your photo and text remain fully editable."} />
+            <StepTitle eyebrow="Build and personalize in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE A TEMPLATE OR START BLANK"} text={designPath === "upload" ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result." : "Choose a protected GDP layout, or start blank and build only with your own photos, text and stickers."} />
             {designPath !== "upload" && <>
             <div className="grid md:grid-cols-2 gap-3">
-              {matchingStyleOptions.map((style) => <button key={style.id} onClick={() => chooseStyleTemplate(style)} className={"grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
+              <button type="button" onClick={chooseNoTemplate} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
+                <div className="min-w-0">
+                  <div className="font-bold">No Template — Upload Only</div>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Start with a blank print area and use only your own photos, text or stickers.</p>
+                  <div className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-[0.12em] text-[#65717d]"><Unlock size={11}/> Blank editable canvas</div>
+                </div>
+                <div className="relative grid aspect-square place-items-center overflow-hidden rounded-xl border border-dashed border-[#cfc7bc] bg-[linear-gradient(45deg,#f0ede8_25%,transparent_25%),linear-gradient(-45deg,#f0ede8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f0ede8_75%),linear-gradient(-45deg,transparent_75%,#f0ede8_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px] text-[9px] font-bold uppercase text-[#756f67]">Blank</div>
+              </button>
+              {matchingStyleOptions.map((style) => <button type="button" key={style.id} onClick={() => chooseStyleTemplate(style)} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
                 <div className="min-w-0">
                   <div className="font-bold">{style.name.replace(/^GDP\s+/, "")}</div>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{style.description}</p>
@@ -1973,7 +2039,8 @@ export default function CustomStudio() {
                 {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} finish:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a color finish for the final print.</span>}
               </div>
             </div>}
-            {designPath === "bootleg" && designStyle && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
+            {designPath === "bootleg" && activeStyleTemplate && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
+            {designPath === "bootleg" && designStyle === NO_TEMPLATE_STYLE && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
             {designPath === "upload" && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="font-semibold text-[#17324D]">Your own artwork:</span> resize, rotate and move it freely. Proportions stay locked by default, with an optional unlock control in the preview tools.</div>}
           </div>}
 
@@ -2243,7 +2310,7 @@ export default function CustomStudio() {
                 </div>
                 <div className="mt-2.5 border-l-2 border-accent/55 pl-2.5">
                   <p className="text-[9px] font-mono uppercase leading-relaxed tracking-wide text-[#817a72]">Recommended print zone updates after you choose a garment and size.</p>
-                  <p className="mt-1 text-[10px] leading-relaxed text-[#6f6860]">{designPath === "bootleg" ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-[#6f6860]">{activeStyleTemplate ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, text and stickers inside the print guide." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
                 </div>
               </div>
 
@@ -2259,6 +2326,16 @@ export default function CustomStudio() {
                     <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom in"><ZoomIn size={14} /></button>
                   </div>
                 </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#6C7883]">Editing: {previewSide}</div>
+                    <div className="mt-0.5 text-[10px] text-[#53616D]">{activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.` : `${previewSide === "front" ? "Front" : "Back"} will remain blank.`}</div>
+                  </div>
+                  {!activeSideHasPrint && <button type="button" onClick={enableActiveSidePrint} className="rounded-lg bg-[#17324D] px-3 py-2 text-[10px] font-bold uppercase text-white">Add {previewSide} print{previewSide === "back" && showGarmentPrices && frontBackFee ? ` (+$${frontBackFee.toFixed(2)})` : ""}</button>}
+                </div>
+
+                {previewSide === "back" && activeSideHasPrint && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0 && <button type="button" onClick={copyFrontDesignToBack} className="mt-3 w-full rounded-xl border border-[#17324D] bg-white px-3 py-2.5 text-[10px] font-bold uppercase text-[#17324D] hover:bg-[#F4F7FA]">Copy front design to back</button>}
 
                 {previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && <div className="mt-4 space-y-3">
                   {photos.length > 1 && <div>
@@ -2304,6 +2381,7 @@ export default function CustomStudio() {
                   selectedLayerId={selectedEditorLayerId}
                   onSelectLayer={setSelectedEditorLayerId}
                   onAddText={addTextLayer}
+                  onAddPhoto={addPhotoLayer}
                   onAddSticker={addStickerLayer}
                   onPatchLayer={patchEditorLayer}
                   onDuplicateLayer={duplicateEditorLayer}
@@ -2445,7 +2523,7 @@ export default function CustomStudio() {
               placement={placement}
               photo={side === "front" ? frontArtworkPhoto : backArtworkPhoto}
               personalization={personalization}
-              editorLayers={editorLayers}
+              editorLayers={editorLayersBySide[side] || []}
               stickerLibrary={stickerLibrary}
               photoAssets={photos}
               interactiveEditor={false}
@@ -2734,9 +2812,9 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
           className={"absolute left-1/2 -translate-x-1/2 overflow-hidden select-none touch-none " + (showGuides ? " border border-dashed border-accent/65 bg-white/[0.03]" : "") + (canDrag ? " cursor-grab active:cursor-grabbing" : "")}
         >
           {seasonalOverlay || (blankArtwork ? (
-            <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No back print selected</div>
+            <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No {side} print selected</div>
           ) : !styleTemplate ? (
-            photo ? (
+            photo && !hasEditablePhotoLayers ? (
               artworkFitMode === "crop" ? (
                 <div className="absolute h-full w-full pointer-events-none" style={artworkLayerStyle}>
                   <img src={photo.url} alt="Customer print artwork" draggable="false" className="h-full w-full object-cover pointer-events-none" style={{ filter: moodTreatment.photoFilter }} />
