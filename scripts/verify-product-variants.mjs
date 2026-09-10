@@ -50,10 +50,19 @@ const readyProduct = {
 };
 assert.equal(readyToWearReadiness(readyProduct, { requireActive: true }).ready, true);
 
-const noStock = readyToWearReadiness({
+const outOfStockProduct = {
   ...readyProduct,
   variants: readyProduct.variants.map((item) => ({ ...item, stock: 0 })),
-}, { requireActive: true });
+};
+assert.equal(
+  readyToWearReadiness(outOfStockProduct, { requireActive: true }).ready,
+  true,
+  "An active out-of-stock product is still a valid published catalog product."
+);
+const noStock = readyToWearReadiness(outOfStockProduct, {
+  requireActive: true,
+  requireSellableStock: true,
+});
 assert.equal(noStock.ready, false);
 assert.equal(noStock.blockers.some((message) => message.includes("stock")), true);
 
