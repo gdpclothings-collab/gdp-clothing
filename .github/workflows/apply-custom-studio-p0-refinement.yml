@@ -24,6 +24,21 @@ jobs:
       - name: Apply exact guarded patches
         run: python3 scripts/apply-custom-studio-p0-refinement.py
 
+      - name: Preserve JS type safety for draft serialization
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path("src/pages/CustomStudio.jsx")
+          text = path.read_text()
+          old = '  const safePhoto = { ...(photo || {}) };\n  delete safePhoto.sourceFile;'
+          new = '  const safePhoto = /** @type {any} */ ({ ...(photo || {}) });\n  delete safePhoto.sourceFile;'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"draft serializer type guard expected 1 match, found {count}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Install dependencies
         run: npm ci
 
