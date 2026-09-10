@@ -1,6 +1,8 @@
+import { resolveProductSellingMode } from "@/lib/productSelling";
+
 export function normalizeProduct(row) {
   if (!row) return null;
-  return {
+  const normalized = {
     ...row,
     compareAtPrice: row.compare_at_price,
     costPerItem: row.cost_per_item,
@@ -28,6 +30,9 @@ export function normalizeProduct(row) {
     createdDate: row.created_at,
     updatedDate: row.updated_at,
   };
+
+  normalized.sellingMode = resolveProductSellingMode(normalized);
+  return normalized;
 }
 
 export function normalizeReview(row) {

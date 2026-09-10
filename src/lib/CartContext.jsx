@@ -21,6 +21,15 @@ function cartItemKey(item) {
       : `${item.productId}_${item.variantId || ""}_${item.size || ""}_${item.color || ""}`;
 }
 
+function clampItemQuantity(item, quantity) {
+  const requested = Math.max(1, Math.floor(Number(quantity || 1)));
+  const maxQuantity = Number(item?.maxQuantity);
+  if (Number.isFinite(maxQuantity) && maxQuantity > 0) {
+    return Math.min(requested, Math.floor(maxQuantity));
+  }
+  return requested;
+}
+
 export function CartProvider({ children }) {
   const { user, isLoadingAuth } = useAuth();
   const storageKeys = useMemo(() => ({
@@ -77,19 +86,33 @@ export function CartProvider({ children }) {
       const key = cartItemKey(item);
       const existing = prev.find(i => i.key === key);
       if (existing) {
-        return prev.map(i => i.key === key ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i);
+        return prev.map(i => {
+          if (i.key !== key) return i;
+          const merged = {
+            ...i,
+            ...item,
+            key,
+            maxQuantity: item.maxQuantity ?? i.maxQuantity,
+          };
+          return {
+            ...merged,
+            quantity: clampItemQuantity(merged, i.quantity + (item.quantity || 1)),
+          };
+        });
       }
-      return [...prev, { ...item, key, quantity: item.quantity || 1 }];
+      const next = { ...item, key };
+      return [...prev, { ...next, quantity: clampItemQuantity(next, item.quantity || 1) }];
     });
   }, []);
 
   const replaceItem = useCallback((key, item) => {
-    const next = { ...item, key: cartItemKey(item), quantity: item.quantity || 1 };
+    const next = { ...item, key: cartItemKey(item) };
+    next.quantity = clampItemQuantity(next, item.quantity || 1);
     setItems(prev => prev.map(current => current.key === key ? next : current));
   }, []);
 
   const updateQty = useCallback((key, quantity) => {
-    setItems(prev => prev.map(i => i.key === key ? { ...i, quantity: Math.max(1, quantity) } : i));
+    setItems(prev => prev.map(i => i.key === key ? { ...i, quantity: clampItemQuantity(i, quantity) } : i));
   }, []);
 
   const removeItem = useCallback((key) => {

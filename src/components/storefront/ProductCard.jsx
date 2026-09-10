@@ -4,6 +4,7 @@ import { ArrowUpRight, Heart } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 import { isProductOutOfStock } from "@/lib/productVariants";
+import { PRODUCT_SELLING_MODES, resolveProductSellingMode } from "@/lib/productSelling";
 
 export default function ProductCard({ product }) {
   const { wishlist, toggleWishlist } = useCart();
@@ -11,6 +12,12 @@ export default function ProductCard({ product }) {
   const hasSecondImage = Boolean(product.images?.[1]);
   const productHref = product.slug === "dtf-gang-sheet" ? "/products/dtf-gang-sheet" : "/product/" + product.id;
   const outOfStock = isProductOutOfStock(product);
+  const sellingMode = resolveProductSellingMode(product);
+  const flowLabel = product.slug === "dtf-gang-sheet" || sellingMode === PRODUCT_SELLING_MODES.SERVICE
+    ? "Build or upload"
+    : sellingMode === PRODUCT_SELLING_MODES.CUSTOM
+      ? "Customizable"
+      : "Ready to wear";
 
   return (
     <article className="group relative min-w-0">
@@ -80,7 +87,7 @@ export default function ProductCard({ product }) {
           </div>
         </div>
         <div className="mt-2 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.13em] text-black/38 sm:text-[9px]">
-          <span>{outOfStock ? "Currently unavailable" : product.slug === "dtf-gang-sheet" ? "Build or upload" : product.customDesignable ? "Customizable" : "Ready to wear"}</span>
+          <span>{outOfStock ? "Currently unavailable" : flowLabel}</span>
           <span>CAD</span>
         </div>
       </div>

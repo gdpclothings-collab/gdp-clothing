@@ -6,11 +6,23 @@ import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 import { findProductVariant, isProductOutOfStock, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
-
-const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
+import { PRODUCT_SELLING_MODES, onlineStoreEnabled, resolveProductSellingMode } from "@/lib/productSelling";
 
 const uniqueValues = (values = []) =>
   [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+
+function productOptions(product) {
+  const variants = (product?.variants || []).filter((variant) => variant?.active !== false);
+  const productColors = uniqueValues(product?.colors || []);
+  const productSizes = uniqueValues(product?.sizes || []);
+  const variantColors = uniqueValues(variants.map((variant) => variant.color));
+  const variantSizes = uniqueValues(variants.map((variant) => variant.size));
+
+  return {
+    colors: productColors.length ? productColors : variantColors,
+    sizes: sortApparelSizes(productSizes.length ? productSizes : variantSizes),
+  };
+}
 
 export default function ProductDetail() {
   const { id, slug } = useParams();
@@ -28,7 +40,10 @@ export default function ProductDetail() {
     setLoading(true);
 
     const load = async () => {
-      let productQuery = supabase.from("products").select("*, product_variants(*)");
+      let productQuery = supabase
+        .from("products")
+        .select("*, product_variants(*)")
+        .eq("status", "active");
       productQuery = slug
         ? productQuery.eq("slug", slug)
         : productQuery.eq("id", id);
@@ -36,7 +51,10 @@ export default function ProductDetail() {
       const productResult = await productQuery.maybeSingle();
       if (!active) return;
 
-      const nextProduct = productResult.error ? null : normalizeProduct(productResult.data);
+      const normalizedProduct = productResult.error ? null : normalizeProduct(productResult.data);
+      const nextProduct = normalizedProduct && onlineStoreEnabled(normalizedProduct)
+        ? normalizedProduct
+        : null;
       setProduct(nextProduct);
 
       setColor("");
@@ -71,7 +89,13 @@ export default function ProductDetail() {
   useEffect(() => {
     if (product?.slug === "dtf-gang-sheet") {
       navigate("/products/dtf-gang-sheet", { replace: true });
+      return;
     }
+
+    if (!product) return;
+    const options = productOptions(product);
+    if (options.colors.length === 1) setColor(options.colors[0]);
+    if (options.sizes.length === 1) setSize(options.sizes[0]);
   }, [product, navigate]);
 
   if (loading) {
@@ -105,21 +129,24 @@ export default function ProductDetail() {
     );
   }
 
-  const variants = product.variants || [];
-  const productColors = uniqueValues(product.colors || []);
-  const productSizes = uniqueValues(product.sizes || []);
-  const variantColors = uniqueValues(variants.map((variant) => variant.color));
-  const variantSizes = uniqueValues(variants.map((variant) => variant.size));
-  const colors = productColors.length ? productColors : variantColors.length ? variantColors : ["Black"];
-  const sizes = sortApparelSizes(productSizes.length ? productSizes : variantSizes.length ? variantSizes : SIZES);
-  const selectedVariant = findProductVariant(product, color, size);
-  const selectionComplete = Boolean(color) && Boolean(size);
-  const validCombination = !variants.length || Boolean(selectedVariant);
+  const variants = (product.variants || []).filter((variant) => variant?.active !== false);
+  const { colors, sizes } = productOptions(product);
+  const requiresColor = colors.length > 0;
+  const requiresSize = sizes.length > 0;
+  const selectedVariant = variants.length ? findProductVariant(product, color, size) : null;
+  const selectionComplete = (!requiresColor || Boolean(color)) && (!requiresSize || Boolean(size));
+  const validCombination = variants.length > 0 && Boolean(selectedVariant);
   const displayPrice = selectedVariant?.price == null ? Number(product.price || 0) : Number(selectedVariant.price);
   const inStock = isProductVariantAvailable(product, selectedVariant);
   const outOfStock = isProductOutOfStock(product);
-  const canAddToCart = selectionComplete && validCombination && inStock;
-  const maxQty = product.trackInventory && selectedVariant ? Math.max(0, Number(selectedVariant.stock || 0)) : 99;
+  const sellingMode = resolveProductSellingMode(product);
+  const isReadyToWear = sellingMode === PRODUCT_SELLING_MODES.READY_TO_WEAR;
+  const isCustom = sellingMode === PRODUCT_SELLING_MODES.CUSTOM;
+  const canAddToCart = isReadyToWear && selectionComplete && validCombination && inStock;
+  const inventoryLimited = product.trackInventory !== false && product.sellWhenOutOfStock !== true;
+  const maxQty = inventoryLimited && selectedVariant
+    ? Math.max(0, Number(selectedVariant.stock || 0))
+    : 99;
   const wished = wishlist.includes(product.id);
   const avgRating = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null;
   const galleryImages = (product.images || []).filter(Boolean);
@@ -127,29 +154,44 @@ export default function ProductDetail() {
 
   const selectColor = (nextColor) => {
     setColor(nextColor);
+    setQty(1);
   };
 
   const selectSize = (nextSize) => {
     setSize(nextSize);
+    setQty(1);
   };
 
   const addToCart = () => {
-    if (!canAddToCart) return;
+    if (!canAddToCart || !selectedVariant) return;
+    const quantity = Math.min(qty, maxQty || qty);
     addItem({
       productId: product.id,
-      variantId: selectedVariant?.id || null,
+      variantId: selectedVariant.id,
       name: product.name,
       image: product.images?.[0],
-      variant: selectedVariant?.name || product.type,
-      size,
-      color,
-      quantity: Math.min(qty, maxQty || qty),
+      variant: selectedVariant.name || product.type,
+      size: size || selectedVariant.size || "",
+      color: color || selectedVariant.color || "",
+      quantity,
+      maxQuantity: inventoryLimited ? maxQty : null,
       price: displayPrice,
       fulfillmentMode: product.fulfillmentMode,
+      sellingMode,
       isCustom: false,
     });
     navigate("/cart");
   };
+
+  const ctaLabel = outOfStock
+    ? "Out of stock"
+    : !selectionComplete
+      ? `Choose ${requiresColor && requiresSize ? "colour + size" : requiresColor ? "colour" : "size"}`
+      : !validCombination
+        ? "Unavailable combination"
+        : !inStock
+          ? "Out of stock"
+          : "Add to bag";
 
   return (
     <div className="bg-[#f7f6f1] text-black">
@@ -178,6 +220,7 @@ export default function ProductDetail() {
           <div className="border-t border-black pt-5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-black/42">{product.type || "GDP Clothing"}</span>
+              {isReadyToWear && <span className="bg-white px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-black">Ready to wear</span>}
               {product.bestSeller && <span className="bg-black px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-white">Best seller</span>}
               {product.newArrival && <span className="bg-white px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-black">New drop</span>}
               {outOfStock && <span className="bg-[#e11d2e] px-2 py-1 font-mono text-[8px] font-black uppercase tracking-[0.13em] text-white">Out of stock</span>}
@@ -213,57 +256,63 @@ export default function ProductDetail() {
             )}
             {product.material && <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.14em] text-black/42">Material / {product.material}</p>}
 
-            <div className="mt-7 border-t border-black/15 pt-5">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Colour</span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{color || "Choose"}</span>
+            {requiresColor && (
+              <div className="mt-7 border-t border-black/15 pt-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Colour</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{color || "Choose"}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {colors.map((item) => (
+                    <button key={item} onClick={() => selectColor(item)} className={"min-h-10 border px-4 text-[9px] font-black uppercase tracking-[0.12em] transition " + (color === item ? "border-black bg-black text-white" : "border-black/20 bg-transparent text-black hover:border-black")}>
+                      {item}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {colors.map((item) => (
-                  <button key={item} onClick={() => selectColor(item)} className={"min-h-10 border px-4 text-[9px] font-black uppercase tracking-[0.12em] transition " + (color === item ? "border-black bg-black text-white" : "border-black/20 bg-transparent text-black hover:border-black")}>
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
 
-            <div className="mt-6">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span>
+            {requiresSize && (
+              <div className="mt-6">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                  {sizes.map((item) => (
+                    <button key={item} onClick={() => selectSize(item)} className={"min-h-11 border px-2 text-[9px] font-black uppercase tracking-[0.1em] transition " + (size === item ? "border-black bg-black text-white" : "border-black/20 bg-transparent text-black hover:border-black")}>
+                      {item}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                {sizes.map((item) => (
-                  <button key={item} onClick={() => selectSize(item)} className={"min-h-11 border px-2 text-[9px] font-black uppercase tracking-[0.1em] transition " + (size === item ? "border-black bg-black text-white" : "border-black/20 bg-transparent text-black hover:border-black")}>
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
 
-            {variants.length > 0 && product.trackInventory && (
+            {isReadyToWear && variants.length > 0 && product.trackInventory && (
               <div className="mt-3 font-mono text-[8px] uppercase tracking-[0.13em] text-black/38">
                 {!selectionComplete
-                  ? "Choose colour and size to see availability"
+                  ? `Choose ${requiresColor && requiresSize ? "colour and size" : requiresColor ? "colour" : "size"} to see availability`
                   : !validCombination
-                    ? "This colour / size combination is unavailable"
+                    ? "This selection is unavailable"
                     : `Selected variant stock / ${selectedVariant?.stock ?? 0}`}
               </div>
             )}
 
-            <div className="mt-7 flex gap-2">
-              <div className="flex shrink-0 items-center border border-black/20">
-                <button onClick={() => setQty((current) => Math.max(1, current - 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white" aria-label="Decrease quantity"><Minus size={14} /></button>
-                <span className="min-w-8 text-center font-mono text-xs">{qty}</span>
-                <button onClick={() => setQty((current) => Math.min(maxQty || 99, current + 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white disabled:opacity-30" aria-label="Increase quantity" disabled={maxQty > 0 && qty >= maxQty}><Plus size={14} /></button>
+            {isReadyToWear && (
+              <div className="mt-7 flex gap-2">
+                <div className="flex shrink-0 items-center border border-black/20">
+                  <button onClick={() => setQty((current) => Math.max(1, current - 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white" aria-label="Decrease quantity"><Minus size={14} /></button>
+                  <span className="min-w-8 text-center font-mono text-xs">{qty}</span>
+                  <button onClick={() => setQty((current) => Math.min(maxQty || 99, current + 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white disabled:opacity-30" aria-label="Increase quantity" disabled={maxQty > 0 && qty >= maxQty}><Plus size={14} /></button>
+                </div>
+                <button onClick={() => toggleWishlist(product.id)} className="flex h-12 w-12 shrink-0 items-center justify-center border border-black/20 transition hover:border-black" aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}>
+                  <Heart size={17} className={wished ? "fill-[#e11d2e] text-[#e11d2e]" : ""} />
+                </button>
               </div>
-              <button onClick={() => toggleWishlist(product.id)} className="flex h-12 w-12 shrink-0 items-center justify-center border border-black/20 transition hover:border-black" aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}>
-                <Heart size={17} className={wished ? "fill-[#e11d2e] text-[#e11d2e]" : ""} />
-              </button>
-            </div>
+            )}
 
-            <div className="mt-2">
-              {product.customDesignable ? (
+            <div className={isReadyToWear ? "mt-2" : "mt-7"}>
+              {isCustom ? (
                 <button onClick={() => {
                   if (outOfStock) return;
                   const query = new URLSearchParams({ product: product.id });
@@ -273,14 +322,18 @@ export default function ProductDetail() {
                 }} disabled={outOfStock} className="flex min-h-14 w-full items-center justify-center gap-3 bg-[#e11d2e] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-black/30">
                   <Sparkles size={17} /> {outOfStock ? "Out of stock" : "Customize this product"}
                 </button>
-              ) : (
+              ) : isReadyToWear ? (
                 <button onClick={addToCart} disabled={!canAddToCart} className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/30">
-                  <ShoppingBag size={17} /> {outOfStock ? "Out of stock" : !selectionComplete ? "Choose colour + size" : !validCombination ? "Unavailable combination" : inStock ? "Add to bag" : "Out of stock"}
+                  <ShoppingBag size={17} /> {ctaLabel}
+                </button>
+              ) : (
+                <button type="button" disabled className="flex min-h-14 w-full items-center justify-center gap-3 bg-black/30 px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white cursor-not-allowed">
+                  Available through its service builder
                 </button>
               )}
             </div>
 
-            {product.customDesignable && (
+            {isCustom && (
               <div className="mt-4 border border-[#e11d2e]/25 bg-[#e11d2e]/5 p-4">
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em]"><Sparkles size={14} className="text-[#e11d2e]" /> GDP Custom Studio</div>
                 <p className="mt-2 text-xs leading-5 text-black/52">Upload your photos, choose the direction and approve a design proof before production.</p>
@@ -290,7 +343,7 @@ export default function ProductDetail() {
             <div className="mt-6 grid grid-cols-3 border-y border-black/15 py-4">
               {[
                 { icon: Truck, title: "Canada + US", text: "Shipping" },
-                { icon: RotateCcw, title: "Proof first", text: "Before print" },
+                { icon: RotateCcw, title: isReadyToWear ? "Stock checked" : "Proof first", text: isReadyToWear ? "At checkout" : "Before print" },
                 { icon: ShieldCheck, title: "Secure", text: "Checkout" },
               ].map((item, index) => (
                 <div key={item.title} className={"px-2 text-center " + (index > 0 ? "border-l border-black/15" : "")}>
@@ -310,7 +363,7 @@ export default function ProductDetail() {
                 <summary className="flex cursor-pointer list-none items-center justify-between text-[9px] font-black uppercase tracking-[0.14em]">Production + shipping <Plus size={14} className="transition group-open:rotate-45" /></summary>
                 <div className="pt-3 text-xs leading-5 text-black/52">Production timing can vary by product and custom-work requirements. Shipping options and final delivery costs are shown during checkout.</div>
               </details>
-              {product.customDesignable && (
+              {isCustom && (
                 <details className="group py-4">
                   <summary className="flex cursor-pointer list-none items-center justify-between text-[9px] font-black uppercase tracking-[0.14em]">Custom-order process <Plus size={14} className="transition group-open:rotate-45" /></summary>
                   <div className="pt-3 text-xs leading-5 text-black/52">Submit the story and photos in Custom Studio, choose your garment details, then review the design proof before printing begins.</div>

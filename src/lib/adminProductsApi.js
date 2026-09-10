@@ -1,5 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
 import { adminApi } from "@/lib/adminApi";
+import {
+  PRODUCT_SELLING_MODES,
+  readyToWearReadiness,
+  resolveProductSellingMode,
+} from "@/lib/productSelling";
 
 const mapProduct = (row) => ({
   id: row.id,
@@ -37,6 +42,7 @@ const mapProduct = (row) => ({
   bestSeller: Boolean(row.best_seller),
   newArrival: Boolean(row.new_arrival),
   customDesignable: Boolean(row.custom_designable),
+  sellingMode: resolveProductSellingMode(row),
   customization: row.customization || {},
   material: row.material || "",
   seo: row.seo || {},
@@ -57,6 +63,29 @@ const mapProduct = (row) => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
+
+function normalizedSellingMode(payload) {
+  return resolveProductSellingMode(payload);
+}
+
+function normalizePayloadForSellingMode(payload) {
+  const sellingMode = normalizedSellingMode(payload);
+  return {
+    ...payload,
+    sellingMode,
+    customDesignable: sellingMode === PRODUCT_SELLING_MODES.CUSTOM,
+  };
+}
+
+function assertReadyToWearCanPublish(payload) {
+  if (payload.status !== "active") return;
+  if (normalizedSellingMode(payload) !== PRODUCT_SELLING_MODES.READY_TO_WEAR) return;
+
+  const readiness = readyToWearReadiness(payload, { requireActive: true });
+  if (readiness.ready) return;
+
+  throw new Error(`Ready-to-wear setup incomplete: ${readiness.blockers.join(" ")}`);
+}
 
 export const adminProductsApi = {
   async list({
@@ -295,7 +324,20 @@ export const adminProductsApi = {
   },
 
   async save(productId, payload) {
-    const savedId = await adminApi.saveProduct(productId || null, payload);
+    const normalizedPayload = normalizePayloadForSellingMode(payload);
+    assertReadyToWearCanPublish(normalizedPayload);
+
+    const savedId = await adminApi.saveProduct(productId || null, normalizedPayload);
+    const sellingMode = normalizedSellingMode(normalizedPayload);
+    const { error: modeError } = await supabase
+      .from("products")
+      .update({
+        selling_mode: sellingMode,
+        custom_designable: sellingMode === PRODUCT_SELLING_MODES.CUSTOM,
+      })
+      .eq("id", savedId);
+    if (modeError) throw modeError;
+
     const { data, error } = await supabase
       .from("products")
       .select("*, product_variants(*), collection_products(collection_id)")
@@ -307,6 +349,12 @@ export const adminProductsApi = {
   },
 
   async setStatus(productId, status) {
+    if (status === "active") {
+      const current = await this.get(productId);
+      const candidate = { ...current, status: "active" };
+      assertReadyToWearCanPublish(candidate);
+    }
+
     const { data, error } = await supabase
       .from("products")
       .update({ status })
