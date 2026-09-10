@@ -598,6 +598,9 @@ export default function OrdersModule() {
                       </Td>
                       <Td>
                         <div className="font-semibold">{order.order_number}</div>
+                        {order.payment_mode === "test" && (
+                          <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-900">Test order</div>
+                        )}
                         {order.priority && order.priority !== "standard" && (
                           <div className="text-[10px] uppercase tracking-wide text-amber-700 mt-1">
                             {prettify(order.priority)}

@@ -24,6 +24,8 @@ const mapSettings = (row) =>
         logo: row.logo,
         customStudioSettings: row.custom_studio_settings || {},
         dtfSettings: normalizeDtfSettings(row.dtf_settings || {}),
+        paymentMode: row.payment_mode || "live",
+        testInventoryWorkflow: Boolean(row.test_inventory_workflow),
         updatedAt: row.updated_at,
       }
     : null;

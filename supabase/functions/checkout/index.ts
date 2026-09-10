@@ -1025,12 +1025,13 @@ Deno.serve(async (req: Request) => {
 
     const { data: storeSettings, error: storeSettingsError } = await service
       .from("store_settings")
-      .select("order_prefix,dtf_settings")
+      .select("order_prefix,dtf_settings,payment_mode,test_inventory_workflow")
       .eq("id", 1)
       .maybeSingle();
     if (storeSettingsError) throw storeSettingsError;
 
     const dtfSettings = normalizeDtfSettings(storeSettings?.dtf_settings || {});
+    const paymentMode = storeSettings?.payment_mode === "test" ? "test" : "live";
 
     const { data: variantRows, error: variantError } = await service
       .from("product_variants")
@@ -1399,6 +1400,8 @@ Deno.serve(async (req: Request) => {
         billing_address: shippingAddress,
         shipping_method: shippingMethod,
         payment_status: "pending",
+        payment_mode: paymentMode,
+        test_inventory_workflow: paymentMode === "test" && Boolean(storeSettings?.test_inventory_workflow),
         notes: customer.notes || null,
         discount_code: coupon?.code || null,
         is_guest: !user,
@@ -1560,8 +1563,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY");
-    const stripePublishableKey = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
+    const stripeSecret = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY");
+    const stripePublishableKey = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_PUBLISHABLE_KEY" : "STRIPE_PUBLISHABLE_KEY");
 
     if (!stripeSecret || !stripePublishableKey) {
       await releaseCheckoutReservations(service, order.id);
@@ -1589,7 +1592,10 @@ Deno.serve(async (req: Request) => {
         orderNumber: order.order_number,
         confirmationToken: order.confirmation_token,
         configured: false,
-        missing: !stripeSecret ? "STRIPE_SECRET_KEY" : "STRIPE_PUBLISHABLE_KEY",
+        missing: !stripeSecret
+          ? (paymentMode === "test" ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY")
+          : (paymentMode === "test" ? "STRIPE_TEST_PUBLISHABLE_KEY" : "STRIPE_PUBLISHABLE_KEY"),
+        paymentMode,
         pricing: {
           subtotal,
           discount: roundMoney(quantityDiscount + couponAmount),
@@ -1620,8 +1626,10 @@ Deno.serve(async (req: Request) => {
     form.set("line_items[0][quantity]", "1");
     form.set("metadata[order_id]", order.id);
     form.set("metadata[order_number]", order.order_number);
+    form.set("metadata[payment_mode]", paymentMode);
     form.set("payment_intent_data[metadata][order_id]", order.id);
     form.set("payment_intent_data[metadata][order_number]", order.order_number);
+    form.set("payment_intent_data[metadata][payment_mode]", paymentMode);
 
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -1688,6 +1696,7 @@ Deno.serve(async (req: Request) => {
       clientSecret: stripeData.client_secret,
       publishableKey: stripePublishableKey,
       configured: true,
+      paymentMode,
       uiMode: "custom",
       pricing: {
         subtotal,

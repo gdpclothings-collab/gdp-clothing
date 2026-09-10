@@ -38,7 +38,7 @@ const ATTENTION_STATUSES = [
 ];
 
 const ORDER_SELECT =
-  "id, order_number, customer_name, customer_email, customer_phone, is_guest, subtotal, discount, shipping, tax, total, status, design_status, production_status, fulfillment_status, payment_status, tracking_number, carrier, shipping_method, need_by_date, priority, notes, created_at, updated_at, order_items(id, name, image, variant, size, color, quantity, unit_price, fulfillment_mode, is_custom, custom_design_id)";
+  "id, order_number, customer_name, customer_email, customer_phone, is_guest, subtotal, discount, shipping, tax, total, status, design_status, production_status, fulfillment_status, payment_status, payment_mode, tracking_number, carrier, shipping_method, need_by_date, priority, notes, created_at, updated_at, order_items(id, name, image, variant, size, color, quantity, unit_price, fulfillment_mode, is_custom, custom_design_id)";
 
 const cleanIds = (orderIds) =>
   [...new Set((orderIds || []).filter(Boolean).map(String))];

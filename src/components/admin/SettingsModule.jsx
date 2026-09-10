@@ -12,6 +12,8 @@ import {
   Save,
   CheckCircle2,
   RefreshCw,
+  AlertTriangle,
+  FlaskConical,
 } from "lucide-react";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
 import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
@@ -51,6 +53,13 @@ export default function SettingsModule() {
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   const save = async () => {
+    if (savedForm?.paymentMode !== form?.paymentMode) {
+      const destination = form.paymentMode === "test" ? "TEST" : "LIVE";
+      const warning = form.paymentMode === "test"
+        ? "Turn on Payment Test Mode? Checkout will use Stripe test credentials and no real money will be collected."
+        : "Return payments to LIVE mode? Customers will be charged real money.";
+      if (!window.confirm(`${warning}\n\nConfirm switch to ${destination} mode.`)) return false;
+    }
     setSaving(true);
     try {
       await adminSettingsApi.save({
@@ -191,6 +200,54 @@ export default function SettingsModule() {
               <textarea value={form.footerText || ""} onChange={(event) => set("footerText", event.target.value)} className={textareaClass} rows={3} />
             </Field>
           </SettingsSection>
+
+          <SettingsSection icon={CreditCard} title="Payments" description="Switch checkout safely between Stripe live and test environments">
+            <div className={`rounded-xl border p-4 ${form.paymentMode === "test" ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg ${form.paymentMode === "test" ? "bg-amber-200 text-amber-950" : "bg-emerald-200 text-emerald-950"}`}>
+                    {form.paymentMode === "test" ? <FlaskConical size={17} /> : <CheckCircle2 size={17} />}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold">Payment mode: {form.paymentMode === "test" ? "TEST" : "LIVE"}</div>
+                    <p className="mt-1 text-xs leading-5 text-[#555]">
+                      {form.paymentMode === "test" ? "Stripe test payments only. No real money is collected and every order is marked TEST." : "Customers are charged through the live Stripe account."}
+                    </p>
+                  </div>
+                </div>
+                <label className="inline-flex cursor-pointer items-center gap-3 rounded-lg border border-black/10 bg-white px-3 py-2">
+                  <span className="text-xs font-semibold">Test Mode</span>
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 accent-amber-600"
+                    checked={form.paymentMode === "test"}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      paymentMode: event.target.checked ? "test" : "live",
+                      testInventoryWorkflow: event.target.checked ? current.testInventoryWorkflow : false,
+                    }))}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {form.paymentMode === "test" && (
+              <div className="rounded-lg border border-amber-200 bg-white p-3">
+                <label className="flex items-start gap-3">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 accent-amber-600" checked={Boolean(form.testInventoryWorkflow)} onChange={(event) => set("testInventoryWorkflow", event.target.checked)} />
+                  <span>
+                    <span className="block text-xs font-semibold">Test inventory workflow</span>
+                    <span className="mt-1 block text-xs leading-5 text-[#666]">Off by default. When disabled, test payments never allocate stock or redeem discount usage.</span>
+                  </span>
+                </label>
+              </div>
+            )}
+
+            <div className="flex items-start gap-2 rounded-lg bg-[#f6f6f6] p-3 text-xs leading-5 text-[#666]">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-700" />
+              Stripe keys remain in protected Supabase secrets. They are never shown or stored in this admin page.
+            </div>
+          </SettingsSection>
         </div>
 
         <div className="space-y-4">
@@ -291,6 +348,8 @@ function defaultSettings() {
     tiktok: "",
     youtube: "",
     footerText: "",
+    paymentMode: "live",
+    testInventoryWorkflow: false,
   };
 }
 

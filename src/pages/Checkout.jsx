@@ -429,6 +429,12 @@ export default function Checkout() {
           </Section>
 
           <Section n="06" title="Payment">
+            {paymentSession?.paymentMode === "test" && (
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
+                <div className="flex items-center gap-2 text-sm font-bold"><AlertTriangle size={16} /> Payment Test Mode</div>
+                <p className="mt-1 text-xs leading-5">This checkout uses Stripe test payments. No real money will be charged.</p>
+              </div>
+            )}
             <div className="rounded-xl border border-border p-4 bg-secondary/50 flex items-center gap-3 mb-4">
               <CreditCard size={22} />
               <div>

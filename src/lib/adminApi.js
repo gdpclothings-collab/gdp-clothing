@@ -47,6 +47,7 @@ const mapOrder = (row) => ({
   billingAddress: row.billing_address,
   shippingMethod: row.shipping_method,
   paymentStatus: row.payment_status,
+  paymentMode: row.payment_mode || "live",
   paymentIntentId: row.stripe_payment_intent_id,
   trackingNumber: row.tracking_number,
   discountCode: row.discount_code,
@@ -137,6 +138,8 @@ const mapSettings = (row) => row ? ({
   contactEmail: row.contact_email,
   footerText: row.footer_text,
   customStudioSettings: row.custom_studio_settings || {},
+  paymentMode: row.payment_mode || "live",
+  testInventoryWorkflow: Boolean(row.test_inventory_workflow),
   updated_date: row.updated_at,
 }) : null;
 
@@ -463,6 +466,8 @@ export const adminApi = {
       youtube: data.youtube || null,
       footer_text: data.footerText || null,
       custom_studio_settings: data.customStudioSettings || {},
+      payment_mode: data.paymentMode === "test" ? "test" : "live",
+      test_inventory_workflow: Boolean(data.testInventoryWorkflow),
     };
 
     throwIfError(await supabase.from("store_settings").upsert(payload));

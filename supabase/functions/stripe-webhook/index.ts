@@ -63,13 +63,20 @@ async function releaseCheckoutReservations(service: any, orderId: string, status
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
-  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-  if (!webhookSecret) return respond({ error: "Stripe webhook is not configured." }, 503);
+  const liveWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  const testWebhookSecret = Deno.env.get("STRIPE_TEST_WEBHOOK_SECRET");
+  if (!liveWebhookSecret && !testWebhookSecret) return respond({ error: "Stripe webhook is not configured." }, 503);
 
   const rawBody = await req.text();
   const signature = req.headers.get("stripe-signature") || "";
 
-  if (!(await verifyStripeSignature(rawBody, signature, webhookSecret))) {
+  const matchedMode = liveWebhookSecret && await verifyStripeSignature(rawBody, signature, liveWebhookSecret)
+    ? "live"
+    : testWebhookSecret && await verifyStripeSignature(rawBody, signature, testWebhookSecret)
+      ? "test"
+      : null;
+
+  if (!matchedMode) {
     return respond({ error: "Invalid Stripe signature." }, 400);
   }
 
@@ -92,6 +99,17 @@ Deno.serve(async (req: Request) => {
       const orderId = session?.metadata?.order_id;
 
       if (orderId) {
+        const { data: orderRecord, error: orderRecordError } = await service
+          .from("orders")
+          .select("payment_mode,test_inventory_workflow")
+          .eq("id", orderId)
+          .maybeSingle();
+        if (orderRecordError) throw orderRecordError;
+        if (!orderRecord || orderRecord.payment_mode !== matchedMode || Boolean(event.livemode) !== (matchedMode === "live")) {
+          return respond({ error: "Payment environment mismatch." }, 409);
+        }
+
+        const applyCommerceWorkflow = matchedMode === "live" || Boolean(orderRecord.test_inventory_workflow);
         const { data: items, error: itemError } = await service
           .from("order_items")
           .select("is_custom,custom_design_id")
@@ -123,27 +141,27 @@ Deno.serve(async (req: Request) => {
             .map((design: any) => design.id);
           productionReady = readyDesignIds.length === customDesignIds.length;
         }
-        const nextStatus = hasCustom ? (productionReady ? "production_queue" : "artwork_needed") : "paid";
+        const nextStatus = matchedMode === "test" ? "paid" : hasCustom ? (productionReady ? "production_queue" : "artwork_needed") : "paid";
 
         const { error } = await service
           .from("orders")
           .update({
             payment_status: "paid",
             status: nextStatus,
-            design_status: hasCustom ? (productionReady ? "approved" : "artwork_needed") : "not_required",
-            production_status: productionReady ? "queued" : "not_started",
+            design_status: matchedMode === "test" ? "not_required" : hasCustom ? (productionReady ? "approved" : "artwork_needed") : "not_required",
+            production_status: matchedMode === "test" ? "not_started" : productionReady ? "queued" : "not_started",
             fulfillment_status: "unfulfilled",
             stripe_payment_intent_id: session.payment_intent || null,
           })
           .eq("id", orderId);
         if (error) throw error;
 
-        if (productionReady && readyDesignIds.length) {
+        if (matchedMode === "live" && productionReady && readyDesignIds.length) {
           await service
             .from("custom_designs")
             .update({ status: "in_production" })
             .in("id", readyDesignIds);
-        } else if (hasCustom) {
+        } else if (matchedMode === "live" && hasCustom) {
           await service
             .from("design_proofs")
             .update({ status: "pending" })
@@ -154,19 +172,17 @@ Deno.serve(async (req: Request) => {
         // Allocate tracked variant inventory only after Stripe confirms payment.
         // The database RPC is idempotent per order item, so webhook retries do
         // not deduct stock twice.
-        const { data: inventoryResult, error: inventoryError } = await service.rpc(
-          "apply_paid_order_inventory",
-          { p_order_id: orderId }
-        );
+        const { data: inventoryResult, error: inventoryError } = applyCommerceWorkflow
+          ? await service.rpc("apply_paid_order_inventory", { p_order_id: orderId })
+          : { data: { shortages: [] }, error: null };
 
         const shortages = Array.isArray(inventoryResult?.shortages)
           ? inventoryResult.shortages
           : [];
 
-        const { error: couponError } = await service.rpc(
-          "redeem_order_coupon",
-          { p_order_id: orderId }
-        );
+        const { error: couponError } = applyCommerceWorkflow
+          ? await service.rpc("redeem_order_coupon", { p_order_id: orderId })
+          : { error: null };
         if (couponError) {
           console.error("paid-order coupon redemption requires attention", couponError);
         }
