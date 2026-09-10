@@ -919,6 +919,12 @@ export default function CustomStudio() {
   const [selectedEditorLayerIds, setSelectedEditorLayerIds] = useState({ front: "photo", back: "photo" });
   const selectedEditorLayerId = selectedEditorLayerIds[previewSide] || "photo";
   const setSelectedEditorLayerId = (value) => setSelectedEditorLayerIds((current) => ({ ...current, [previewSide]: value }));
+  const activatePrintSide = (side = previewSide) => {
+    setPlacement((current) => {
+      if (side === "back") return current === "front" ? "front_back" : "back";
+      return current === "back" ? "front_back" : "front";
+    });
+  };
   const [photoBrushOpen, setPhotoBrushOpen] = useState(false);
   const editorHistoryRef = useRef([]);
   const editorRedoRef = useRef([]);
@@ -1029,12 +1035,14 @@ export default function CustomStudio() {
   };
   const addTextLayer = () => {
     checkpointEditor();
+    activatePrintSide();
     const layer = createTextLayer();
     setEditorLayers((current) => [...current, layer]);
     setSelectedEditorLayerId(layer.id);
   };
   const addStickerLayer = (sticker) => {
     checkpointEditor();
+    activatePrintSide();
     const layer = createStickerLayer(sticker);
     setEditorLayers((current) => [...current, layer]);
     setSelectedEditorLayerId(layer.id);
@@ -1042,6 +1050,7 @@ export default function CustomStudio() {
   const addPhotoLayer = (photo) => {
     if (!photo) return;
     checkpointEditor();
+    activatePrintSide();
     const layer = createPhotoLayer(photo, editorLayers.filter((item) => item.type === "photo").length);
     setEditorLayers((current) => [...current, layer]);
     setSelectedEditorLayerId(layer.id);
@@ -1074,6 +1083,9 @@ export default function CustomStudio() {
   const deleteEditorLayer = (layerId) => {
     if (!editorLayers.some((layer) => layer.id === layerId)) return;
     checkpointEditor();
+    if (previewSide === "back" && editorLayers.length === 1) {
+      setPlacement((current) => current === "front_back" ? "front" : current);
+    }
     setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));
     setSelectedEditorLayerId("photo");
   };
@@ -1313,12 +1325,6 @@ export default function CustomStudio() {
   const activeSideHasPrint =
     (previewSide === "front" && placement !== "back") ||
     (previewSide === "back" && placement !== "front");
-  const enableActiveSidePrint = () => {
-    setPlacement((current) => {
-      if (previewSide === "back") return current === "front" ? "front_back" : "back";
-      return current === "back" ? "front_back" : "front";
-    });
-  };
   const activePhotoIndex = photos.length
     ? Math.min(Math.max(0, Number(activeArtworkState.sourcePhotoIndex || 0)), photos.length - 1)
     : -1;
@@ -1450,12 +1456,13 @@ export default function CustomStudio() {
       const hadPrimary = prev.some(p => p.isPrimary);
       return [...prev, ...uploadedPhotos.map((photo, index) => ({ ...photo, isPrimary: !hadPrimary && index === 0 }))];
     });
-    if (designPath === "bootleg" && uploadedPhotos.length) {
+    if (uploadedPhotos.length) {
       const photoLayerStart = editorLayers.filter((layer) => layer.type === "photo").length;
       // A failed AI result remains available for retry/manual refinement but is
       // never placed on the garment with its rectangular original background.
       const readyPhotos = uploadedPhotos.filter((photo) => photo.processingStatus !== "failed");
       const nextPhotoLayers = readyPhotos.map((photo, index) => createPhotoLayer(photo, photoLayerStart + index));
+      if (nextPhotoLayers.length) activatePrintSide();
       setEditorLayers((current) => [...current, ...nextPhotoLayers]);
       setSelectedEditorLayerId(nextPhotoLayers[0]?.id || "photo");
     }
@@ -2015,21 +2022,6 @@ export default function CustomStudio() {
           {step === 3 && <div>
             <StepTitle eyebrow="Build and personalize in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE A TEMPLATE OR START BLANK"} text={designPath === "upload" ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result." : "Choose a protected GDP layout, or start blank and build only with your own photos, text and stickers."} />
 
-            <div className="mb-7 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <label className="font-mono text-xs uppercase text-muted-foreground">Print sides</label>
-                  <p className="mt-1 text-sm text-[#52616F]">Choose the side you want to customize. Front and back artwork are saved independently.</p>
-                </div>
-                {placement === "front_back" && showGarmentPrices && <span className="w-fit rounded-full bg-[#17324D] px-3 py-1.5 text-xs font-bold text-white">+${frontBackFee.toFixed(2)} second-side print</span>}
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <Choice active={placement === "front"} onClick={() => { setPlacement("front"); setPreviewSide("front"); }}>Front only</Choice>
-                {frontBackEnabled && <Choice active={placement === "back"} onClick={() => { setPlacement("back"); setPreviewSide("back"); }}>Back only</Choice>}
-                {frontBackEnabled && <Choice active={placement === "front_back"} onClick={() => setPlacement("front_back")}>Front + back{showGarmentPrices ? " (+$" + frontBackFee.toFixed(2) + ")" : ""}</Choice>}
-              </div>
-              <p className="mt-3 text-xs leading-relaxed text-[#6B7280]">{frontBackEnabled ? "Select Front + back to design both sides. Use the Front and Back preview tabs to switch canvases without losing your work." : "Custom Studio is currently configured for front printing only."}</p>
-            </div>
             {designPath !== "upload" && <>
             <div className="grid md:grid-cols-2 gap-3">
               <button type="button" onClick={chooseNoTemplate} aria-pressed={designStyle === NO_TEMPLATE_STYLE} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
@@ -2332,7 +2324,7 @@ export default function CustomStudio() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex rounded-xl border border-[#ddd6cc] bg-[#f5f0e9] p-1">
                     <button type="button" onClick={() => setPreviewSide("front")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "front" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Front</button>
-                    <button type="button" onClick={() => setPreviewSide("back")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "back" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Back</button>
+                    {frontBackEnabled && <button type="button" onClick={() => setPreviewSide("back")} className={"rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase " + (previewSide === "back" ? "bg-[#17324D] text-white" : "text-[#756f67]")}>Back</button>}
                   </div>
                   <div className="flex items-center gap-1">
                     <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom out"><ZoomOut size={14} /></button>
@@ -2345,12 +2337,12 @@ export default function CustomStudio() {
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5">
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#6C7883]">Editing: {previewSide}</div>
-                    <div className="mt-0.5 text-[10px] text-[#53616D]">{activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : `${previewSide === "front" ? "Front" : "Back"} will remain blank.`}</div>
+                    <div className="mt-0.5 text-[10px] text-[#53616D]">{activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : "Back is blank — add artwork below. No second-side charge applies yet."}</div>
                   </div>
-                  {!activeSideHasPrint && <button type="button" onClick={enableActiveSidePrint} className="rounded-lg bg-[#17324D] px-3 py-2 text-[10px] font-bold uppercase text-white">Add {previewSide} print{previewSide === "back" && showGarmentPrices && frontBackFee ? ` (+$${frontBackFee.toFixed(2)})` : ""}</button>}
+                  {previewSide === "back" && activeSideHasPrint && showGarmentPrices && <span className="rounded-lg bg-[#17324D] px-3 py-2 text-[10px] font-bold uppercase text-white">+${frontBackFee.toFixed(2)} back print</span>}
                 </div>
 
-                {previewSide === "back" && activeSideHasPrint && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0 && <button type="button" onClick={copyFrontDesignToBack} className="mt-3 w-full rounded-xl border border-[#17324D] bg-white px-3 py-2.5 text-[10px] font-bold uppercase text-[#17324D] hover:bg-[#F4F7FA]">Copy front design to back</button>}
+                {previewSide === "back" && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0 && <button type="button" onClick={copyFrontDesignToBack} className="mt-3 w-full rounded-xl border border-[#17324D] bg-white px-3 py-2.5 text-[10px] font-bold uppercase text-[#17324D] hover:bg-[#F4F7FA]">Copy front design to back</button>}
 
                 {previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && <div className="mt-4 space-y-3">
                   {photos.length > 1 && <div>
@@ -2388,7 +2380,7 @@ export default function CustomStudio() {
                   </div>
                 </div>}
 
-                {step === 3 && activeSideHasPrint && <AdvancedEditorPanel
+                {step === 3 && <AdvancedEditorPanel
                   enabledTools={editorTools}
                   stickerLibrary={stickerLibrary}
                   editorLayers={editorLayers}
