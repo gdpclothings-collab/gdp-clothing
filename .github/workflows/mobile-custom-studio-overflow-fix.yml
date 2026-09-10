@@ -1,0 +1,171 @@
+name: Mobile Custom Studio overflow fix
+
+on:
+  push:
+    branches:
+      - fix/mobile-custom-studio-overflow-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch-mobile-editor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-custom-studio-overflow-20260910
+          fetch-depth: 0
+      - name: Patch Custom Studio mobile editor
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          editor_path = Path('src/components/storefront/CustomStudioAdvancedEditor.jsx')
+          editor = editor_path.read_text()
+
+          old = '''  const selectionChrome = (layer, selected, index) => selected ? (\n    <>\n      <div className="pointer-events-none absolute left-1/2 top-[-31px] -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-[#07131F]/95 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-white shadow-[0_8px_24px_rgba(0,0,0,.3)] backdrop-blur" style={{ WebkitTextStroke: "0 transparent", textShadow: "none" }}>\n        {layer.locked ? <span className="inline-flex items-center gap-1"><Lock size={9}/> Locked</span> : showGestureHint ? (layer.type === "text" ? "Drag · pinch · double-tap to type" : "Drag · pinch · twist") : `${layer.type} ${index + 1}`}\n      </div>\n      {!layer.locked && <button\n        type="button"\n        data-editor-control="true"\n        aria-label="Resize selected layer"\n        className="absolute -bottom-3 -right-3 grid h-7 w-7 touch-none place-items-center rounded-full border-2 border-white bg-[#D9273E] text-white shadow-[0_5px_16px_rgba(0,0,0,.35)]"\n        onPointerDown={(event) => beginResize(event, layer)}\n        onPointerMove={moveResize}\n        onPointerUp={endResize}\n        onPointerCancel={endResize}\n      ><Maximize2 size={12}/></button>}\n    </>\n  ) : null;'''
+          new = '''  const selectionChrome = (layer, selected) => selected ? (\n    <>\n      {!layer.locked && <button\n        type="button"\n        data-editor-control="true"\n        aria-label="Resize selected layer"\n        className="absolute -bottom-1 -right-1 grid h-8 w-8 touch-none place-items-center rounded-full border-2 border-white bg-[#D9273E] text-white shadow-[0_5px_16px_rgba(0,0,0,.35)]"\n        onPointerDown={(event) => beginResize(event, layer)}\n        onPointerMove={moveResize}\n        onPointerUp={endResize}\n        onPointerCancel={endResize}\n      ><Maximize2 size={12}/></button>}\n    </>\n  ) : null;'''
+          editor = replace_once(editor, old, new, 'selection HUD')
+
+          old = '      {interactive && selectedOutsideSafeArea && <div className="pointer-events-none absolute left-2 top-2 z-[67] rounded-full border border-amber-300 bg-[#17130C]/95 px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide text-amber-200 shadow-lg">Outside recommended print area</div>}\n'
+          editor = replace_once(editor, old, '', 'in-canvas warning')
+
+          editor = replace_once(editor,
+              '<div className="grid grid-cols-2 gap-3">\n      <RangeRow label="X position"',
+              '<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">\n      <RangeRow label="X position"',
+              'position rows')
+
+          editor = replace_once(editor,
+              '<label className="block text-[9px] font-mono uppercase tracking-[.08em] text-white/48">',
+              '<label className="block min-w-0 text-[9px] font-mono uppercase tracking-[.08em] text-white/48">',
+              'range label')
+          editor = replace_once(editor,
+              'className="mt-1.5 w-full accent-[#D9273E]"/>',
+              'className="mt-1.5 w-full min-w-0 max-w-full accent-[#D9273E]"/>',
+              'range input')
+
+          editor = replace_once(editor,
+              '<div className="sticky bottom-2 z-30 mt-4 max-h-[62dvh] overflow-y-auto rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">',
+              '<div className="sticky bottom-2 z-30 mt-4 w-full min-w-0 max-w-full max-h-[58dvh] overflow-x-hidden overflow-y-auto overscroll-contain rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">',
+              'editor shell')
+
+          editor = replace_once(editor,
+              '{activeTool !== "layers" && contextTools.length > 0 && <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">',
+              '{activeTool !== "layers" && contextTools.length > 0 && <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">',
+              'context toolbar')
+
+          editor = replace_once(editor,
+              '{activeTool !== "layers" && <div className="mt-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">',
+              '{activeTool !== "layers" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">',
+              'active tool panel')
+
+          editor = replace_once(editor,
+              '<div className="flex gap-1.5 overflow-x-auto pb-1">\n          {(photoAssets || []).length > 0',
+              '<div className="flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">\n          {(photoAssets || []).length > 0',
+              'bottom toolbar')
+
+          editor = replace_once(editor,
+              '{showPhotoPicker && <div className="mt-2 flex gap-2 overflow-x-auto pb-1">',
+              '{showPhotoPicker && <div className="mt-2 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">',
+              'photo picker')
+
+          editor = editor.replace(
+              '{outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold text-amber-200">{outsideWarning}</div>}',
+              '{outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold leading-relaxed text-amber-200"><span className="mr-1 uppercase tracking-wide text-amber-100">Print-area check:</span>{outsideWarning}</div>}'
+          )
+
+          editor_path.write_text(editor)
+
+          studio_path = Path('src/pages/CustomStudio.jsx')
+          studio = studio_path.read_text()
+
+          studio = replace_once(studio,
+              '<div className="min-h-screen bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">',
+              '<div className="min-h-screen w-full max-w-full overflow-x-clip bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">',
+              'page overflow guard')
+          studio = replace_once(studio,
+              '<div className="max-w-[1540px] mx-auto px-4 lg:px-8 py-6 md:py-10">',
+              '<div className="mx-auto w-full min-w-0 max-w-[1540px] px-4 py-6 md:py-10 lg:px-8">',
+              'page width shell')
+          studio = replace_once(studio,
+              '<div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">',
+              '<div className="grid w-full min-w-0 max-w-full items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)]">',
+              'main editor grid')
+          studio = replace_once(studio,
+              '<section id="custom-studio-workspace" className="scroll-mt-24 bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">',
+              '<section id="custom-studio-workspace" className="scroll-mt-24 min-w-0 max-w-full overflow-x-clip rounded-[24px] border border-[#e2dcd3] bg-[#FFFFFF] p-4 shadow-[0_18px_50px_rgba(28,24,20,.055)] md:p-8 md:min-h-[560px]">',
+              'workspace shell')
+          studio = replace_once(studio,
+              '<aside className="h-fit lg:sticky lg:top-24 space-y-4">',
+              '<aside className="h-fit min-w-0 max-w-full space-y-4 lg:sticky lg:top-24">',
+              'aside width')
+
+          studio = replace_once(studio,
+              '{designPath !== "upload" && <>\n            <div className="grid md:grid-cols-2 gap-3">',
+              '{designPath !== "upload" && <>\n            <div id="custom-studio-artwork-style" className="scroll-mt-28 grid md:grid-cols-2 gap-3">',
+              'artwork style anchor')
+          studio = replace_once(studio,
+              '{designPath !== "upload" && <div className="mt-6">\n              <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>',
+              '{designPath !== "upload" && <div id="custom-studio-color-finish" className="mt-6 scroll-mt-28">\n              <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>',
+              'color finish anchor')
+          studio = replace_once(studio,
+              '{designPath === "memorial" && <div className="mt-6 rounded-2xl border border-[#D8D1C7] bg-[#FFFCF8] p-4 sm:p-5">',
+              '{designPath === "memorial" && <div id="custom-studio-memorial-details" className="mt-6 scroll-mt-28 rounded-2xl border border-[#D8D1C7] bg-[#FFFCF8] p-4 sm:p-5">',
+              'memorial anchor')
+          studio = replace_once(studio,
+              '{step === 3 && <div className="mt-8 border-t border-[#e3ddd4] pt-8">\n            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"}',
+              '{step === 3 && <div id="custom-studio-photo-upload" className="mt-8 scroll-mt-28 border-t border-[#e3ddd4] pt-8">\n            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"}',
+              'photo upload anchor')
+
+          studio = replace_once(studio,
+              '{previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && <div className="mt-4 space-y-3">',
+              '{previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && !editorLayers.some((layer) => layer.type === "photo") && <div className="mt-4 space-y-3">',
+              'legacy transform controls')
+
+          marker = '\n  async function createAndAdd() {'
+          if marker not in studio:
+              raise SystemExit('continue handler insertion marker missing')
+          helper = '''\n  const focusMissingRequirement = () => {\n    let targetId = "custom-studio-workspace";\n    if (step === 3) {\n      if (!designStyle) targetId = "custom-studio-artwork-style";\n      else if (!designMood) targetId = "custom-studio-color-finish";\n      else if (photos.length < minPhotos) targetId = "custom-studio-photo-upload";\n      else if (designPath === "memorial" && (!String(personalization.name || "").trim() || !memorialNameConfirmed)) targetId = "custom-studio-memorial-details";\n    }\n    const target = document.getElementById(targetId) || document.getElementById("custom-studio-workspace");\n    if (!target) return;\n    target.scrollIntoView({ behavior: "smooth", block: "center" });\n    if (typeof target.animate === "function") {\n      target.animate(\n        [\n          { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },\n          { boxShadow: "0 0 0 4px rgba(217,39,62,.28)" },\n          { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },\n        ],\n        { duration: 900, easing: "ease-out" }\n      );\n    }\n  };\n\n  const handleContinue = () => {\n    if (!canContinue()) {\n      focusMissingRequirement();\n      return;\n    }\n    setStep(step + 1);\n    window.requestAnimationFrame(() => {\n      document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });\n    });\n  };\n'''
+          studio = studio.replace(marker, helper + marker, 1)
+
+          old_continue = 'onContinue={() => canContinue() && setStep(step + 1)}'
+          count = studio.count(old_continue)
+          if count < 2:
+              raise SystemExit(f'expected at least 2 StudioStepNav continue callbacks, found {count}')
+          studio = studio.replace(old_continue, 'onContinue={handleContinue}')
+
+          old_mobile = '<button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#17324D] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue →</button>'
+          new_mobile = '<button onClick={handleContinue} aria-disabled={!canContinue()} className={"rounded-xl bg-white px-4 py-2.5 text-xs font-bold uppercase text-[#17324D] transition " + (!canContinue() ? "opacity-70" : "")}>Continue →</button>'
+          studio = replace_once(studio, old_mobile, new_mobile, 'floating continue')
+
+          old_nav = '''        disabled={disabled}\n        onClick={isFinal ? onFinal : onContinue}'''
+          new_nav = '''        disabled={isFinal ? disabled : false}\n        aria-disabled={!isFinal && !canContinue}\n        onClick={isFinal ? onFinal : onContinue}'''
+          studio = replace_once(studio, old_nav, new_nav, 'step nav clickable validation')
+
+          studio_path.write_text(studio)
+          PY
+
+      - name: Validate patched source
+        run: |
+          grep -q 'overflow-x-clip' src/pages/CustomStudio.jsx
+          grep -q 'focusMissingRequirement' src/pages/CustomStudio.jsx
+          grep -q 'grid-cols-1 gap-3 sm:grid-cols-2' src/components/storefront/CustomStudioAdvancedEditor.jsx
+          grep -q 'max-h-\[58dvh\]' src/components/storefront/CustomStudioAdvancedEditor.jsx
+          ! grep -q 'Outside recommended print area</div>' src/components/storefront/CustomStudioAdvancedEditor.jsx
+
+      - name: Commit patch and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/mobile-custom-studio-overflow-fix.yml
+          git add src/components/storefront/CustomStudioAdvancedEditor.jsx src/pages/CustomStudio.jsx
+          git commit -m "Fix Custom Studio mobile editor overflow [mobile-editor-fixed]"
+          git push origin HEAD:fix/mobile-custom-studio-overflow-20260910
