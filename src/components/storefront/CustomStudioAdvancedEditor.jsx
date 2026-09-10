@@ -544,16 +544,13 @@ export function EditableOverlayLayers({
     setEditingTextId(layer.id);
   };
 
-  const selectionChrome = (layer, selected, index) => selected ? (
+  const selectionChrome = (layer, selected, _index) => selected ? (
     <>
-      <div className="pointer-events-none absolute left-1/2 top-[-31px] -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-[#07131F]/95 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-white shadow-[0_8px_24px_rgba(0,0,0,.3)] backdrop-blur" style={{ WebkitTextStroke: "0 transparent", textShadow: "none" }}>
-        {layer.locked ? <span className="inline-flex items-center gap-1"><Lock size={9}/> Locked</span> : showGestureHint ? (layer.type === "text" ? "Drag · pinch · double-tap to type" : "Drag · pinch · twist") : `${layer.type} ${index + 1}`}
-      </div>
       {!layer.locked && <button
         type="button"
         data-editor-control="true"
         aria-label="Resize selected layer"
-        className="absolute -bottom-3 -right-3 grid h-7 w-7 touch-none place-items-center rounded-full border-2 border-white bg-[#D9273E] text-white shadow-[0_5px_16px_rgba(0,0,0,.35)]"
+        className="absolute -bottom-1 -right-1 grid h-8 w-8 touch-none place-items-center rounded-full border-2 border-white bg-[#D9273E] text-white shadow-[0_5px_16px_rgba(0,0,0,.35)]"
         onPointerDown={(event) => beginResize(event, layer)}
         onPointerMove={moveResize}
         onPointerUp={endResize}
@@ -570,7 +567,6 @@ export function EditableOverlayLayers({
       {interactive && selectedLayerForGuide && <div className={`pointer-events-none absolute inset-[6%] z-[65] rounded-sm border border-dashed ${selectedOutsideSafeArea ? "border-amber-400/95" : "border-white/30"}`} aria-hidden="true" />}
       {interactive && snapGuides.x && <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[66] w-px -translate-x-1/2 bg-[#D9273E] shadow-[0_0_10px_rgba(217,39,62,.7)]" aria-hidden="true" />}
       {interactive && snapGuides.y && <div className="pointer-events-none absolute inset-x-0 top-1/2 z-[66] h-px -translate-y-1/2 bg-[#D9273E] shadow-[0_0_10px_rgba(217,39,62,.7)]" aria-hidden="true" />}
-      {interactive && selectedOutsideSafeArea && <div className="pointer-events-none absolute left-2 top-2 z-[67] rounded-full border border-amber-300 bg-[#17130C]/95 px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide text-amber-200 shadow-lg">Outside recommended print area</div>}
 
       {(layers || []).filter((layer) => layer?.visible !== false).map((layer, index) => {
         const selected = interactive && selectedLayerId === layer.id;
@@ -716,9 +712,9 @@ function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange }) {
   const numericValue = Number(value ?? 0);
   const display = Number.isInteger(numericValue) ? numericValue : Number(numericValue.toFixed(2));
   return (
-    <label className="block text-[9px] font-mono uppercase tracking-[.08em] text-white/48">
+    <label className="block min-w-0 text-[9px] font-mono uppercase tracking-[.08em] text-white/48">
       <span className="flex justify-between gap-3"><span>{label}</span><span className="text-white/80">{display}{suffix}</span></span>
-      <input type="range" min={min} max={max} step={step} value={numericValue} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1.5 w-full accent-[#D9273E]"/>
+      <input type="range" min={min} max={max} step={step} value={numericValue} onChange={(event) => onChange?.(Number(event.target.value))} className="mt-1.5 w-full min-w-0 max-w-full accent-[#D9273E]"/>
     </label>
   );
 }
@@ -726,7 +722,7 @@ function RangeRow({ label, value, min, max, step = 1, suffix = "", onChange }) {
 function PositionRows({ layer, patch }) {
   if (!layer) return null;
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <RangeRow label="X position" value={Number(layer.x ?? 50)} min={0} max={100} suffix="%" onChange={(value) => patch({ x: value })}/>
       <RangeRow label="Y position" value={Number(layer.y ?? 50)} min={0} max={100} suffix="%" onChange={(value) => patch({ y: value })}/>
     </div>
@@ -1000,7 +996,7 @@ export function AdvancedEditorPanel({
   ] : []);
 
   return (
-    <div className="sticky bottom-2 z-30 mt-4 max-h-[62dvh] overflow-y-auto rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
+    <div className="sticky bottom-2 z-30 mt-4 w-full min-w-0 max-w-full max-h-[58dvh] overflow-x-hidden overflow-y-auto overscroll-contain rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-mono text-[8px] uppercase tracking-[.22em] text-[#D9273E]">GDP Touch Studio</div>
@@ -1017,17 +1013,17 @@ export function AdvancedEditorPanel({
         <strong className="text-white/80">Touch-first:</strong> drag to move · pinch to resize · twist to rotate · double-tap text to type · double-tap a photo for crop mode.
       </div>
 
-      {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold text-amber-200">{outsideWarning}</div>}
+      {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold leading-relaxed text-amber-200"><span className="mr-1 uppercase tracking-wide text-amber-100">Print-area check:</span>{outsideWarning}</div>}
 
-      {activeTool !== "layers" && contextTools.length > 0 && <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">{contextTools.map(([id, icon, label]) => <ToolButton key={id} active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
+      {activeTool !== "layers" && contextTools.length > 0 && <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{contextTools.map(([id, icon, label]) => <ToolButton key={id} active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
 
       {activeTool === "layers" && <div className="mt-3">{renderLayers()}</div>}
-      {activeTool !== "layers" && <div className="mt-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
+      {activeTool !== "layers" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">
         {selectedType === "photo" ? renderPhotoTool() : selectedType === "text" ? renderTextTool() : selectedType === "sticker" ? renderStickerTool() : renderLayers()}
       </div>}
 
       <div className="mt-3 border-t border-white/10 pt-3">
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">
           {(photoAssets || []).length > 0 && <ToolButton icon={ImageIcon} label="Add photo" onClick={() => setShowPhotoPicker((value) => !value)} active={showPhotoPicker}/>} 
           {tools.text && <ToolButton icon={Type} label="Add text" onClick={() => { onAddText?.(); setShowStickers(false); setShowPhotoPicker(false); }}/>} 
           {tools.stickers && <ToolButton icon={Sparkles} label="Sticker" onClick={() => { setShowStickers((value) => !value); setShowPhotoPicker(false); }} active={showStickers}/>} 
@@ -1035,7 +1031,7 @@ export function AdvancedEditorPanel({
           <ToolButton icon={RotateCcw} label="Reset all" onClick={onResetAll}/>
         </div>
 
-        {showPhotoPicker && <div className="mt-2 flex gap-2 overflow-x-auto pb-1">{(photoAssets || []).map((photo, index) => {
+        {showPhotoPicker && <div className="mt-2 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{(photoAssets || []).map((photo, index) => {
           const alreadyAdded = editorLayers.some((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || ""));
           return <button key={photo.id || index} type="button" disabled={alreadyAdded || photo.processingStatus === "failed"} onClick={() => { onAddPhoto?.(photo); setShowPhotoPicker(false); }} className="inline-flex w-[148px] shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] p-1.5 pr-2 text-left text-[9px] font-semibold text-white/75 disabled:opacity-30"><img src={photo.url || photo.originalUrl} alt="" className="h-9 w-9 rounded-lg object-cover"/><span className="truncate">{alreadyAdded ? "Already added" : (photo.name || `Photo ${index + 1}`)}</span></button>;
         })}</div>}

@@ -1833,6 +1833,40 @@ export default function CustomStudio() {
     return "Complete the required choices to continue.";
   };
 
+  const focusMissingRequirement = () => {
+    let targetId = "custom-studio-workspace";
+    if (step === 3) {
+      if (!designStyle) targetId = "custom-studio-artwork-style";
+      else if (!designMood) targetId = "custom-studio-color-finish";
+      else if (photos.length < minPhotos) targetId = "custom-studio-photo-upload";
+      else if (designPath === "memorial" && (!String(personalization.name || "").trim() || !memorialNameConfirmed)) targetId = "custom-studio-memorial-details";
+    }
+    const target = document.getElementById(targetId) || document.getElementById("custom-studio-workspace");
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (typeof target.animate === "function") {
+      target.animate(
+        [
+          { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },
+          { boxShadow: "0 0 0 4px rgba(217,39,62,.28)" },
+          { boxShadow: "0 0 0 0 rgba(217,39,62,0)" },
+        ],
+        { duration: 900, easing: "ease-out" }
+      );
+    }
+  };
+
+  const handleContinue = () => {
+    if (!canContinue()) {
+      focusMissingRequirement();
+      return;
+    }
+    setStep(step + 1);
+    window.requestAnimationFrame(() => {
+      document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   async function createAndAdd() {
     if (!rightsConfirmed || !approvalAcknowledged || photos.length < minPhotos) return;
     if (!product?.id) {
@@ -2078,8 +2112,8 @@ export default function CustomStudio() {
 
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
-      <div className="max-w-[1540px] mx-auto px-4 lg:px-8 py-6 md:py-10">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
+      <div className="mx-auto w-full min-w-0 max-w-[1540px] px-4 py-6 md:py-10 lg:px-8">
         <div className="relative overflow-hidden rounded-[28px] border border-[#DCE3EA] bg-[linear-gradient(135deg,#FFFFFF_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
           <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-accent/[0.06] blur-3xl pointer-events-none" />
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
@@ -2173,14 +2207,14 @@ export default function CustomStudio() {
               saving={saving}
               finalDisabled={!rightsConfirmed || !approvalAcknowledged}
               onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
-              onContinue={() => canContinue() && setStep(step + 1)}
+              onContinue={handleContinue}
               onFinal={createAndAdd}
             />
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] gap-6 items-start">
-          <section id="custom-studio-workspace" className="scroll-mt-24 bg-[#FFFFFF] border border-[#e2dcd3] rounded-[24px] p-4 md:p-8 min-h-[560px] shadow-[0_18px_50px_rgba(28,24,20,.055)]">
+        <div className="grid w-full min-w-0 max-w-full items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)]">
+          <section id="custom-studio-workspace" className="scroll-mt-24 min-w-0 max-w-full overflow-x-clip rounded-[24px] border border-[#e2dcd3] bg-[#FFFFFF] p-4 shadow-[0_18px_50px_rgba(28,24,20,.055)] md:p-8 md:min-h-[560px]">
           {step === 2 && <div>
             <StepTitle eyebrow="Start your design" title="CHOOSE YOUR DESIGN PATH" text="Choose the kind of design you want. You will customize everything in the next workspace." />
             <div className="grid sm:grid-cols-2 gap-4">
@@ -2237,7 +2271,7 @@ export default function CustomStudio() {
             />
 
             {designPath !== "upload" && <>
-            <div className="grid md:grid-cols-2 gap-3">
+            <div id="custom-studio-artwork-style" className="scroll-mt-28 grid md:grid-cols-2 gap-3">
               <button type="button" onClick={chooseNoTemplate} aria-pressed={designStyle === NO_TEMPLATE_STYLE} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 font-bold">No Template — Upload Only {designStyle === NO_TEMPLATE_STYLE && <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] uppercase tracking-wide text-white"><Check size={10}/> Selected</span>}</div>
@@ -2259,7 +2293,7 @@ export default function CustomStudio() {
             </div>
             {(designPath === "bootleg" || designPath === "memorial") && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white px-3 py-2 text-xs text-[#52616F]"><span className="font-semibold text-[#17324D]">{designPath === "memorial" ? "Memorial template applies to: Front." : "Applying template to: Front."}</span> Back printing stays blank until you explicitly add and edit a back print.</div>}
             </>}
-            {designPath !== "upload" && <div className="mt-6">
+            {designPath !== "upload" && <div id="custom-studio-color-finish" className="mt-6 scroll-mt-28">
               <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>
               <p className="mt-1 text-xs leading-relaxed text-[#7d766d]">This treatment changes the exact preview and is baked into the production file.</p>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -2271,7 +2305,7 @@ export default function CustomStudio() {
             </div>}
             {(designPath === "bootleg" || designPath === "memorial") && activeStyleTemplate && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
             {(designPath === "bootleg" || designPath === "memorial") && designStyle === NO_TEMPLATE_STYLE && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
-            {designPath === "memorial" && <div className="mt-6 rounded-2xl border border-[#D8D1C7] bg-[#FFFCF8] p-4 sm:p-5">
+            {designPath === "memorial" && <div id="custom-studio-memorial-details" className="mt-6 scroll-mt-28 rounded-2xl border border-[#D8D1C7] bg-[#FFFCF8] p-4 sm:p-5">
               <div className="flex items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#F6EDE8] text-[#8A3B45]"><Heart size={18}/></span>
                 <div>
@@ -2480,7 +2514,7 @@ export default function CustomStudio() {
             </>}
           </div>}
 
-          {step === 3 && <div className="mt-8 border-t border-[#e3ddd4] pt-8">
+          {step === 3 && <div id="custom-studio-photo-upload" className="mt-8 scroll-mt-28 border-t border-[#e3ddd4] pt-8">
             <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : designPath === "memorial" ? "UPLOAD THE MEMORIAL PORTRAIT" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "–" + maxPhotos + " photos. Protected photo templates automatically remove supported photo backgrounds while preserving the original so it can be restored."} />
             <label className={"border-2 border-dashed border-border min-h-44 flex flex-col items-center justify-center hover:border-accent " + (uploading ? "cursor-wait opacity-80" : "cursor-pointer")}>
               <Upload size={28}/>
@@ -2533,7 +2567,7 @@ export default function CustomStudio() {
           </div>}
         </section>
 
-          <aside className="h-fit lg:sticky lg:top-24 space-y-4">
+          <aside className="h-fit min-w-0 max-w-full space-y-4 lg:sticky lg:top-24">
             <div ref={mobileEndRef} className="lg:hidden">
               <StudioStepNav
                 step={step}
@@ -2543,7 +2577,7 @@ export default function CustomStudio() {
                 saving={saving}
                 finalDisabled={!rightsConfirmed || !approvalAcknowledged}
                 onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
-                onContinue={() => canContinue() && setStep(step + 1)}
+                onContinue={handleContinue}
                 onFinal={createAndAdd}
                 compact
               />
@@ -2646,7 +2680,7 @@ export default function CustomStudio() {
 
                 {previewSide === "back" && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0 && <button type="button" onClick={copyFrontDesignToBack} className="mt-3 w-full rounded-xl border border-[#17324D] bg-white px-3 py-2.5 text-[10px] font-bold uppercase text-[#17324D] hover:bg-[#F4F7FA]">Copy front design to back</button>}
 
-                {previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && <div className="mt-4 space-y-3">
+                {previewArtworkPhoto && activeSideHasPrint && designPath !== "bootleg" && !editorLayers.some((layer) => layer.type === "photo") && <div className="mt-4 space-y-3">
                   {photos.length > 1 && <div>
                     <div className="font-mono text-[9px] uppercase text-[#756f67]">Artwork photo</div>
                     <select
@@ -2733,7 +2767,7 @@ export default function CustomStudio() {
 
         {mobileFloatingCtaEnabled && mobileDockVisible && <div className="md:hidden fixed inset-x-3 bottom-3 z-40 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#17324D]/95 backdrop-blur-xl text-white p-2 pl-3 shadow-2xl flex items-center justify-between gap-3">
           <div><div className="font-mono text-[8px] uppercase tracking-widest text-white/45">Custom piece</div><div className="font-display text-xl leading-none mt-1">{showOrderPrice ? "$" + (priceVisibility === "total" ? estimatedSubtotal : unitPrice).toFixed(2) : "GDP Studio"}</div></div>
-          {step < STEPS.length ? <button disabled={!canContinue()} onClick={() => canContinue() && setStep(step + 1)} className="rounded-xl bg-white text-[#17324D] px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
+          {step < STEPS.length ? <button onClick={handleContinue} aria-disabled={!canContinue()} className={"rounded-xl bg-white px-4 py-2.5 text-xs font-bold uppercase text-[#17324D] transition " + (!canContinue() ? "opacity-70" : "")}>Continue →</button> : <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="rounded-xl bg-accent text-white px-4 py-2.5 text-xs font-bold uppercase disabled:opacity-40">{saving ? "Saving…" : "Add to cart →"}</button>}
         </div>}
 
         {showIntensityExamples && <div className="fixed inset-0 z-[96] flex items-end justify-center bg-black/70 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label="Design intensity examples">
@@ -3321,7 +3355,8 @@ function StudioStepNav({ step, totalSteps, canContinue, hint, saving, finalDisab
       <button type="button" onClick={onPrevious} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] bg-white px-4 py-2.5 text-xs font-bold uppercase text-[#17324D] transition hover:border-[#9fb0c0]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
       <button
         type="button"
-        disabled={disabled}
+        disabled={isFinal ? disabled : false}
+        aria-disabled={!isFinal && !canContinue}
         onClick={isFinal ? onFinal : onContinue}
         className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold uppercase text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-40 " + (isFinal ? "bg-accent" : "bg-[#17324D]")}
       >
