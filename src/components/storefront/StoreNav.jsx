@@ -10,7 +10,7 @@ const FALLBACK_NAV = [
   { label: "Shop", path: "/shop" },
   { label: "DTF", path: "/dtf" },
   { label: "Collections", path: "/shop?view=collections" },
-  { label: "Custom Tee", path: "/custom-studio" },
+  { label: "Custom Studio", path: "/custom-studio" },
   { label: "About", path: "/pages/about" },
   { label: "Contact", path: "/pages/contact" },
 ];

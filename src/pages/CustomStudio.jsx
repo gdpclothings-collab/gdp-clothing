@@ -981,6 +981,9 @@ export default function CustomStudio() {
   const activeStyleTemplate = designStyle ?
     (designPath === "upload" || designStyle === NO_TEMPLATE_STYLE ? null : styleTemplateForName(designStyle, studioSettings.styleTemplates))
     : null;
+  // Protected GDP layouts are front designs. Back printing is an explicit,
+  // independently edited add-on so a template click cannot add a second print.
+  const activePreviewTemplate = previewSide === "front" ? activeStyleTemplate : null;
   const editorTools = normalizeEditorTools(studioSettings.editorTools);
   const stickerLibrary = normalizeStickerLibrary(studioSettings.stickerLibrary);
 
@@ -1236,6 +1239,8 @@ export default function CustomStudio() {
   const chooseStyleTemplate = (style) => {
     if (!style) return;
     setDesignStyle(style.name);
+    setPreviewSide("front");
+    setPlacement((current) => current === "back" ? "front" : current);
     setArtworkStates((current) => ({
       front: {
         ...defaultArtworkState(style),
@@ -1248,9 +1253,11 @@ export default function CustomStudio() {
     }));
   };
   const chooseNoTemplate = () => {
+    if (activeStyleTemplate && typeof window !== "undefined" && !window.confirm("Switch to a blank design? Your uploaded photos, text and stickers will be preserved. The GDP template will be removed.")) return;
     setDesignStyle(NO_TEMPLATE_STYLE);
     setDesignMood("Original");
     setArtworkStates(defaultArtworkStates());
+    setPreviewSide("front");
   };
   const maxPhotos = Number(config.maxPhotos || 10);
   const minPhotos = Number(config.minPhotos || 1);
@@ -2009,17 +2016,17 @@ export default function CustomStudio() {
             <StepTitle eyebrow="Build and personalize in one place" title={designPath === "upload" ? "UPLOAD & POSITION YOUR ARTWORK" : "CHOOSE A TEMPLATE OR START BLANK"} text={designPath === "upload" ? "Upload your artwork, adjust its placement, size and proportions, then personalize the final result." : "Choose a protected GDP layout, or start blank and build only with your own photos, text and stickers."} />
             {designPath !== "upload" && <>
             <div className="grid md:grid-cols-2 gap-3">
-              <button type="button" onClick={chooseNoTemplate} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
+              <button type="button" onClick={chooseNoTemplate} aria-pressed={designStyle === NO_TEMPLATE_STYLE} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
                 <div className="min-w-0">
-                  <div className="font-bold">No Template — Upload Only</div>
+                  <div className="flex items-center gap-2 font-bold">No Template — Upload Only {designStyle === NO_TEMPLATE_STYLE && <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] uppercase tracking-wide text-white"><Check size={10}/> Selected</span>}</div>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Start with a blank print area and use only your own photos, text or stickers.</p>
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-[0.12em] text-[#65717d]"><Unlock size={11}/> Blank editable canvas</div>
                 </div>
                 <div className="relative grid aspect-square place-items-center overflow-hidden rounded-xl border border-dashed border-[#cfc7bc] bg-[linear-gradient(45deg,#f0ede8_25%,transparent_25%),linear-gradient(-45deg,#f0ede8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f0ede8_75%),linear-gradient(-45deg,transparent_75%,#f0ede8_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px] text-[9px] font-bold uppercase text-[#756f67]">Blank</div>
               </button>
-              {matchingStyleOptions.map((style) => <button type="button" key={style.id} onClick={() => chooseStyleTemplate(style)} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-accent hover:-translate-y-0.5")}>
+              {matchingStyleOptions.map((style) => <button type="button" key={style.id} onClick={() => chooseStyleTemplate(style)} aria-pressed={designStyle === style.name} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === style.name ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
                 <div className="min-w-0">
-                  <div className="font-bold">{style.name.replace(/^GDP\s+/, "")}</div>
+                  <div className="flex items-center gap-2 font-bold">{style.name.replace(/^GDP\s+/, "")} {designStyle === style.name && <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] uppercase tracking-wide text-white"><Check size={10}/> Selected</span>}</div>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{style.description}</p>
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-[0.12em] text-[#8a8279]"><Lock size={11}/> Locked GDP template</div>
                 </div>
@@ -2028,6 +2035,7 @@ export default function CustomStudio() {
                 </div>
               </button>)}
             </div>
+            {designPath === "bootleg" && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white px-3 py-2 text-xs text-[#52616F]"><span className="font-semibold text-[#17324D]">Applying template to: Front.</span> Back printing stays blank until you explicitly add and edit a back print.</div>}
             </>}
             {designPath !== "upload" && <div className="mt-6">
               <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>
@@ -2285,7 +2293,7 @@ export default function CustomStudio() {
                 showMeasurements={showMeasurements}
                 size={size}
                 previewConfig={config.preview || {}}
-                styleTemplate={activeStyleTemplate}
+                styleTemplate={activePreviewTemplate}
                 mood={designMood}
               />
 
@@ -2310,7 +2318,7 @@ export default function CustomStudio() {
                 </div>
                 <div className="mt-2.5 border-l-2 border-accent/55 pl-2.5">
                   <p className="text-[9px] font-mono uppercase leading-relaxed tracking-wide text-[#817a72]">Recommended print zone updates after you choose a garment and size.</p>
-                  <p className="mt-1 text-[10px] leading-relaxed text-[#6f6860]">{activeStyleTemplate ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, text and stickers inside the print guide." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-[#6f6860]">{activePreviewTemplate ? "GDP template is locked. Drag, resize and rotate only the customer photo inside the print guide; text stays editable." : previewSide === "back" && activeStyleTemplate ? "Back print is independent. Add your own photos, text or stickers; the protected front template will not be duplicated here." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, text and stickers inside the print guide." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio is constrained by default."}</p>
                 </div>
               </div>
 
@@ -2324,13 +2332,14 @@ export default function CustomStudio() {
                     <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v - .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom out"><ZoomOut size={14} /></button>
                     <span className="w-10 text-center font-mono text-[10px] text-[#746e66]">{Math.round(previewZoom * 100)}%</span>
                     <button type="button" onClick={() => setPreviewZoom(v => clampPreview(v + .1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#ddd6cc]" aria-label="Zoom in"><ZoomIn size={14} /></button>
+                    <button type="button" onClick={() => setPreviewZoom(1)} className="h-8 rounded-lg border border-[#ddd6cc] px-2 text-[9px] font-bold uppercase text-[#59544d]" aria-label="Fit garment preview">Fit</button>
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-3 py-2.5">
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#6C7883]">Editing: {previewSide}</div>
-                    <div className="mt-0.5 text-[10px] text-[#53616D]">{activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.` : `${previewSide === "front" ? "Front" : "Back"} will remain blank.`}</div>
+                    <div className="mt-0.5 text-[10px] text-[#53616D]">{activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : `${previewSide === "front" ? "Front" : "Back"} will remain blank.`}</div>
                   </div>
                   {!activeSideHasPrint && <button type="button" onClick={enableActiveSidePrint} className="rounded-lg bg-[#17324D] px-3 py-2 text-[10px] font-bold uppercase text-white">Add {previewSide} print{previewSide === "back" && showGarmentPrices && frontBackFee ? ` (+$${frontBackFee.toFixed(2)})` : ""}</button>}
                 </div>
@@ -2398,7 +2407,7 @@ export default function CustomStudio() {
                   onTogglePhotoBackground={togglePhotoBackgroundById}
                   onResetAll={resetAllEditable}
                   hasPhoto={Boolean(selectedPhotoAsset)}
-                  templateName={designPath === "bootleg" ? activeStyleTemplate?.name || "" : ""}
+                  templateName={previewSide === "front" && designPath === "bootleg" ? activeStyleTemplate?.name || "" : ""}
                   outsideWarning={editorOutsideWarning}
                 />}
 
@@ -2538,7 +2547,7 @@ export default function CustomStudio() {
               showMeasurements={false}
               size={size}
               previewConfig={config.preview || {}}
-              styleTemplate={activeStyleTemplate}
+              styleTemplate={side === "front" ? activeStyleTemplate : null}
               mood={designMood}
             />;
           })}
@@ -2565,7 +2574,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} photoAssets={photos} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activeStyleTemplate} mood={designMood} fullscreen />
+              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} photoAssets={photos} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activePreviewTemplate} mood={designMood} fullscreen />
             </div>
           </div>
         </div>}
@@ -2736,7 +2745,9 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
   };
   const stopDrag = () => { dragRef.current = null; };
   const onWheel = (event) => {
-    if (!setZoom) return;
+    // Normal page scrolling must never resize the garment preview. Keep wheel
+    // zoom available as an intentional Ctrl/Cmd gesture only.
+    if (!setZoom || (!event.ctrlKey && !event.metaKey)) return;
     event.preventDefault();
     setZoom(value => clampPreview(value + (event.deltaY < 0 ? .08 : -.08)));
   };
