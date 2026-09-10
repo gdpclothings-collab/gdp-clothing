@@ -101,7 +101,7 @@ export function SeasonalOverlay({ artwork, layout, area, text, rotation = 0, edi
   );
 }
 
-function ReviewDetail({ label, value, swatch }) {
+function ReviewDetail({ label, value, swatch = null }) {
   return (
     <div className="rounded-2xl border border-[#E3E8ED] bg-[#F7F9FB] p-3.5">
       <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#71808D]">{label}</div>
