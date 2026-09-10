@@ -6,3 +6,4 @@ Unified garment editing controls for Custom Studio.
 - Seasonal keeps its production capture architecture and receives aligned direct-touch artwork gestures.
 - Core touch language: drag, pinch, twist, contextual tools and safe-area feedback.
 - Contextual photo, text, sticker, layer, crop, effects and production-safe controls share one interaction system.
+- Release validation covers build, type safety and the existing Custom Studio regression suites before merge.
