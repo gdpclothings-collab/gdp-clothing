@@ -400,7 +400,7 @@ export default function TemplateManager() {
                     </Field>
                     <Field label="Customer description" className="sm:col-span-2">
                       <textarea
-                        rows="3"
+                        rows={3}
                         value={style.description || ""}
                         onChange={(event) => updateTemplate(style.id, { description: event.target.value })}
                         className="control min-h-[82px] py-2.5"
