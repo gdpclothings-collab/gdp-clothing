@@ -1214,7 +1214,7 @@ export default function CustomStudio() {
     setSize(nextSize);
     setGroupGarments([]);
     const allowedStyles = nextProduct?.customization?.allowedStyles || [];
-    const styleStillAllowed = Boolean(designStyle) && (!allowedStyles.length || allowedStyles.includes(designStyle));
+    const styleStillAllowed = Boolean(designStyle) && (designPath === "memorial" || !allowedStyles.length || allowedStyles.includes(designStyle));
     if (designStyle && !styleStillAllowed) {
       setDesignStyle("");
       setArtworkStates(defaultArtworkStates());
@@ -1250,7 +1250,7 @@ export default function CustomStudio() {
   const matchingStyleOptions = designPath === "bootleg"
     ? styleOptions.filter((style) => style.category === "photo_bootleg" && style.locked !== false)
     : designPath === "memorial"
-      ? styleOptions.filter((style) => style.category === "memorial_tribute" && style.locked !== false)
+      ? styleTemplates.filter((style) => style.enabled && style.category === "memorial_tribute" && style.locked !== false)
       : styleOptions;
   const chooseStyleTemplate = (style) => {
     if (!style) return;
