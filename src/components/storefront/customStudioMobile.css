@@ -144,7 +144,20 @@
   }
 
   .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:first-child {
-    display: none !important;
+    display: block !important;
+    order: 3;
+    margin: 0;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:first-child > div {
+    border-radius: 14px;
+    padding: 8px;
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:first-child button {
+    min-height: 46px;
+    flex: 1 1 0;
+    justify-content: center;
   }
 
   .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:nth-child(2) {
@@ -161,7 +174,7 @@
   }
 
   .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:last-child {
-    order: 3;
+    order: 4;
     margin: 0;
     border-radius: 18px;
     padding: 14px;
