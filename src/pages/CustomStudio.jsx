@@ -964,6 +964,7 @@ export default function CustomStudio() {
   const [draftStatus, setDraftStatus] = useState("idle");
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState(null);
   const draftSaveTimerRef = useRef(null);
   const [warn, setWarn] = useState("");
   const [personalization, setPersonalization] = useState({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" });
@@ -1235,28 +1236,16 @@ export default function CustomStudio() {
     };
   }, []);
 
-  useEffect(() => {
-    if (draftReady || !catalog.length || location.state?.seasonalDraft) return;
-    const draft = readStudioDraft();
-    if (!draft) {
-      setDraftReady(true);
-      return;
-    }
-
+  const restoreStudioDraft = (draft) => {
+    if (!draft) return false;
     const requestedProductId = String(params.get("product") || "");
     const savedProductId = String(draft.productId || "");
-    if (requestedProductId && savedProductId && requestedProductId !== savedProductId) {
-      setDraftReady(true);
-      return;
-    }
+    if (requestedProductId && savedProductId && requestedProductId !== savedProductId) return false;
 
     const draftProduct = catalog.find((item) => String(item.id) === savedProductId)
       || catalog.find((item) => String(item.id) === requestedProductId)
       || null;
-    if (!draftProduct) {
-      setDraftReady(true);
-      return;
-    }
+    if (!draftProduct) return false;
 
     const colors = productColors(draftProduct);
     const restoredColor = colors.includes(draft.color) ? draft.color : (colors[0] || "");
@@ -1295,10 +1284,50 @@ export default function CustomStudio() {
     setPreviewZoom(clampPreview(draft.previewZoom || 1));
     setRightsConfirmed(false);
     setApprovalAcknowledged(false);
+    setPendingDraft(null);
     setDraftRestored(true);
     setDraftStatus("saved");
     setDraftReady(true);
-  }, [catalog, draftReady]);
+    window.scrollTo({ top: 0, behavior: "instant" });
+    return true;
+  };
+
+  const startFreshStudio = () => {
+    try {
+      window.localStorage.removeItem(STUDIO_DRAFT_KEY);
+    } catch {
+      // Starting fresh should still work when browser storage is unavailable.
+    }
+    setPendingDraft(null);
+    setDraftRestored(false);
+    setDraftStatus("idle");
+    setDraftReady(true);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
+  useEffect(() => {
+    if (draftReady || pendingDraft || !catalog.length || location.state?.seasonalDraft) return;
+    const draft = readStudioDraft();
+    if (!draft) {
+      setDraftReady(true);
+      return;
+    }
+
+    const requestedProductId = String(params.get("product") || "");
+    const savedProductId = String(draft.productId || "");
+    if (requestedProductId && savedProductId && requestedProductId !== savedProductId) {
+      setDraftReady(true);
+      return;
+    }
+
+    if (location.state?.resumeStudioDraft === true || params.get("resume") === "1") {
+      if (!restoreStudioDraft(draft)) setDraftReady(true);
+      return;
+    }
+
+    setPendingDraft(draft);
+    setDraftStatus("saved");
+  }, [catalog, draftReady, pendingDraft]);
 
   useEffect(() => {
     if (!draftReady || seasonalMode || saving || !product?.id || typeof window === "undefined") return undefined;
@@ -2120,6 +2149,18 @@ export default function CustomStudio() {
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
+      {pendingDraft && <div className="fixed inset-0 z-[150] grid place-items-center bg-[#07131F]/70 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="saved-studio-draft-title">
+        <div className="w-full max-w-[390px] rounded-[24px] border border-white/10 bg-[#07131F] p-5 text-white shadow-[0_28px_90px_rgba(0,0,0,.45)]">
+          <div className="font-mono text-[9px] uppercase tracking-[.2em] text-[#D9273E]">Saved custom design</div>
+          <h2 id="saved-studio-draft-title" className="mt-2 text-xl font-black tracking-tight">Resume your unfinished design?</h2>
+          <p className="mt-2 text-sm leading-relaxed text-white/60">Your previous Custom Studio work is saved, but it will not reopen automatically. Resume it only when you want to continue.</p>
+          <div className="mt-5 grid gap-2">
+            <button type="button" onClick={() => restoreStudioDraft(pendingDraft)} className="h-11 rounded-xl bg-[#D9273E] px-4 text-xs font-bold uppercase tracking-wide text-white">Resume previous design</button>
+            <button type="button" onClick={startFreshStudio} className="h-11 rounded-xl border border-white/12 bg-white/[.045] px-4 text-xs font-bold uppercase tracking-wide text-white/80">Start fresh</button>
+          </div>
+          <p className="mt-3 text-center text-[9px] leading-relaxed text-white/35">Starting fresh clears the saved unfinished draft. Completed cart designs are not affected.</p>
+        </div>
+      </div>}
       <div className="mx-auto w-full min-w-0 max-w-[1540px] px-4 py-6 md:py-10 lg:px-8">
         <div className="relative overflow-hidden rounded-[28px] border border-[#DCE3EA] bg-[linear-gradient(135deg,#FFFFFF_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
           <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-accent/[0.06] blur-3xl pointer-events-none" />

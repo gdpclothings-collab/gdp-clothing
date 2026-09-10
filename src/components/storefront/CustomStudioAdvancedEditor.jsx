@@ -706,10 +706,10 @@ export function EditableOverlayLayers({
   );
 }
 
-function ToolButton({ active = false, icon: Icon, label, onClick, disabled = false }) {
+function ToolButton({ active = false, icon: Icon, label, onClick, disabled = false, mobileFill = false }) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} className={`flex min-w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border px-2.5 py-2 text-[9px] font-bold uppercase tracking-[.04em] transition disabled:opacity-35 ${active ? "border-[#D9273E] bg-[#D9273E]/15 text-white shadow-[0_0_22px_rgba(217,39,62,.16)]" : "border-white/10 bg-white/[.045] text-white/65 hover:border-white/20 hover:text-white"}`}>
-      {Icon && <Icon size={14}/>}<span>{label}</span>
+    <button type="button" disabled={disabled} onClick={onClick} className={`flex flex-col items-center justify-center gap-1 rounded-xl border px-2.5 py-2 text-[9px] font-bold uppercase tracking-[.04em] transition disabled:opacity-35 ${mobileFill ? "w-full min-w-0 sm:w-auto sm:min-w-[66px] sm:shrink-0" : "min-w-[66px] shrink-0"} ${active ? "border-[#D9273E] bg-[#D9273E]/15 text-white shadow-[0_0_22px_rgba(217,39,62,.16)]" : "border-white/10 bg-white/[.045] text-white/65 hover:border-white/20 hover:text-white"}`}>
+      {Icon && <Icon size={14}/>}<span className="max-w-full truncate">{label}</span>
     </button>
   );
 }
@@ -1179,7 +1179,7 @@ export function AdvancedEditorPanel({
   );
 
   return (
-    <div id="gdp-touch-studio-panel" className="sticky bottom-2 z-30 mt-4 w-full min-w-0 max-w-full max-h-[62dvh] overflow-x-hidden overflow-y-auto overscroll-contain rounded-[22px] border border-white/10 bg-[#07131F]/[.96] p-3 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl md:static md:max-h-none md:overflow-visible">
+    <div id="gdp-touch-studio-panel" className="sticky bottom-2 z-30 mx-auto mt-4 w-full min-w-0 max-w-[430px] max-h-[74dvh] overflow-x-hidden overflow-y-auto overscroll-y-contain rounded-[24px] border border-white/10 bg-[#07131F]/[.97] p-2.5 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl sm:p-3 md:static md:max-h-none md:max-w-full md:overflow-visible">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-mono text-[8px] uppercase tracking-[.22em] text-[#D9273E]">GDP Touch Studio</div>
@@ -1198,9 +1198,9 @@ export function AdvancedEditorPanel({
 
       {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold leading-relaxed text-amber-200"><span className="mr-1 uppercase tracking-wide text-amber-100">Print-area check:</span>{outsideWarning}</div>}
 
-      <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{panelTabs.map(([id, icon, label]) => <ToolButton key={id} active={panelTab === id} icon={icon} label={label} onClick={() => { setPanelTab(id); setShowStickers(false); setShowPhotoPicker(false); }}/>)}</div>
+      <div className="mt-3 grid grid-cols-3 gap-1.5 sm:flex sm:max-w-full sm:overflow-x-auto sm:overscroll-x-contain sm:pb-1 sm:touch-pan-x">{panelTabs.map(([id, icon, label]) => <ToolButton key={id} mobileFill active={panelTab === id} icon={icon} label={label} onClick={() => { setPanelTab(id); setShowStickers(false); setShowPhotoPicker(false); }}/>)}</div>
 
-      {((panelTab === "photos" && selectedType === "photo") || (panelTab === "lettering" && selectedType === "text") || (panelTab === "layers" && selectedType === "sticker")) && contextTools.length > 0 && <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{contextTools.map(([id, icon, label]) => <ToolButton key={id} active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
+      {((panelTab === "photos" && selectedType === "photo") || (panelTab === "lettering" && selectedType === "text") || (panelTab === "layers" && selectedType === "sticker")) && contextTools.length > 0 && <div className="mt-3 grid grid-cols-3 gap-1.5 sm:flex sm:max-w-full sm:overflow-x-auto sm:overscroll-x-contain sm:pb-1 sm:touch-pan-x">{contextTools.map(([id, icon, label]) => <ToolButton key={id} mobileFill active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
 
       {panelTab === "canvas" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderCanvasPanel()}</div>}
       {panelTab === "design" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderDesignPanel()}</div>}
