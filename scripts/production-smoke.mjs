@@ -291,7 +291,8 @@ async function main() {
       await page.getByRole("heading", { name: "CHECKOUT" }).waitFor();
       await page.getByText("Guest checkout is ready", { exact: false }).waitFor();
       assert(await page.locator("#checkout-email").isVisible(), "Checkout email field is missing.");
-      assert((await page.getByText("Continue to Payment", { exact: false }).count()) > 0, "Checkout payment handoff CTA is missing.");
+      assert((await page.getByRole("button", { name: /Place order/i }).count()) > 0, "Checkout place-order CTA is missing.");
+      assert((await page.getByText("Stripe Secure Payment", { exact: false }).count()) > 0, "Embedded Stripe payment section is missing.");
     });
 
     await runCheck(browser, "custom studio desktop entry", DESKTOP, async (page) => {
@@ -305,6 +306,23 @@ async function main() {
         !/No Custom Studio garments are currently published/i.test(body),
         "Custom Studio has no published garment catalog."
       );
+
+      const memorialAssets = [
+        "/images/gdp-styles/memorial-eternal-light.svg",
+        "/images/gdp-styles/memorial-heavenly-clouds.svg",
+        "/images/gdp-styles/memorial-rose-tribute.svg",
+        "/images/gdp-styles/memorial-guardian-wings.svg",
+        "/images/gdp-styles/memorial-sunset-remembrance.svg",
+      ];
+      for (const assetPath of memorialAssets) {
+        const response = await page.request.get(new URL(assetPath, BASE_URL).toString());
+        assert(response.ok(), `Memorial production asset failed to load: ${assetPath} (${response.status()})`);
+        const svg = await response.text();
+        assert(
+          svg.includes('viewBox="0 0 4500 5400"'),
+          `Memorial production asset has unexpected master dimensions: ${assetPath}`
+        );
+      }
     });
 
     await runCheck(browser, "custom studio mobile layout", MOBILE, async (page) => {
