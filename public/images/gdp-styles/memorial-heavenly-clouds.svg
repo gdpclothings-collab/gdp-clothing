@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="4500" height="5400" viewBox="0 0 4500 5400" role="img" aria-labelledby="title desc">
+  <title id="title">Heavenly Clouds memorial tribute frame</title>
+  <desc id="desc">Transparent 15 by 18 inch memorial artwork master designed for 300 DPI export.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dff4ff"/><stop offset=".52" stop-color="#8bc7e8"/><stop offset="1" stop-color="#4b72a4"/></linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffffff"/><stop offset=".55" stop-color="#d8e2eb"/><stop offset="1" stop-color="#9aa9b8"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="38"/></filter>
+  </defs>
+  <g opacity=".32" fill="#8ecdf0" filter="url(#blur)">
+    <ellipse cx="970" cy="1280" rx="760" ry="360"/><ellipse cx="3520" cy="1380" rx="790" ry="380"/>
+    <ellipse cx="830" cy="4300" rx="760" ry="330"/><ellipse cx="3640" cy="4300" rx="780" ry="350"/>
+  </g>
+  <g fill="url(#silver)" stroke="#9fb6c9" stroke-width="12">
+    <path d="M180 1620c120-330 430-510 760-430 160-330 680-350 850 20 260-70 550 90 610 350-470-95-980-60-1370 150-330-70-610-100-850-90z"/>
+    <path d="M4320 1640c-120-330-430-510-760-430-160-330-680-350-850 20-260-70-550 90-610 350 470-95 980-60 1370 150 330-70 610-100 850-90z"/>
+    <path d="M180 4250c140-300 450-430 760-310 210-300 650-290 830 35 310-80 570 90 630 330-510-70-990-10-1410 210-330-120-600-190-810-265z"/>
+    <path d="M4320 4250c-140-300-450-430-760-310-210-300-650-290-830 35-310-80-570 90-630 330 510-70 990-10 1410 210 330-120 600-190 810-265z"/>
+  </g>
+  <g fill="none" stroke="url(#sky)" stroke-width="22" opacity=".95">
+    <path d="M520 1100C1250 500 1780 410 2250 360"/>
+    <path d="M3980 1100C3250 500 2720 410 2250 360"/>
+    <path d="M560 4700C1250 5100 1770 5200 2250 5160"/>
+    <path d="M3940 4700C3250 5100 2730 5200 2250 5160"/>
+  </g>
+  <g fill="#f7fbff" stroke="#87aac8" stroke-width="10">
+    <path d="M910 1050c330-150 610-40 790 170-210-70-380-60-520 50 170 35 300 110 400 220-300-100-530-70-720 90 100-220 120-390 50-530z"/>
+    <path d="M3590 1050c-330-150-610-40-790 170 210-70 380-60 520 50-170 35-300 110-400 220 300-100 530-70 720 90-100-220-120-390-50-530z"/>
+  </g>
+  <g fill="#dff4ff" opacity=".95">
+    <circle cx="760" cy="720" r="22"/><circle cx="1060" cy="520" r="14"/><circle cx="1470" cy="380" r="18"/>
+    <circle cx="3740" cy="720" r="22"/><circle cx="3440" cy="520" r="14"/><circle cx="3030" cy="380" r="18"/>
+    <circle cx="770" cy="4800" r="20"/><circle cx="3730" cy="4800" r="20"/>
+  </g>
+  <g fill="#ffffff">
+    <path d="M1280 680l34 84 84 34-84 34-34 84-34-84-84-34 84-34z"/>
+    <path d="M3220 680l34 84 84 34-84 34-34 84-34-84-84-34 84-34z"/>
+    <path d="M620 3480l25 62 62 25-62 25-25 62-25-62-62-25 62-25z"/>
+    <path d="M3880 3480l25 62 62 25-62 25-25 62-25-62-62-25 62-25z"/>
+  </g>
+</svg>
