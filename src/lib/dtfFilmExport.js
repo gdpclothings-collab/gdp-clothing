@@ -14,6 +14,12 @@ const canvasBlob = (canvas, type = "image/png", quality) => new Promise((resolve
   canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not create the export file.")), type, quality);
 });
 
+const ensurePngFilename = (filename = "dtf-film-preview.png") => {
+  const name = String(filename || "dtf-film-preview.png");
+  if (/\.png$/i.test(name)) return name;
+  return `${name.replace(/\.[^.]+$/, "")}.png`;
+};
+
 export const watermarkApplies = (settings, target) => Boolean(
   settings?.watermarkedPreviewEnabled &&
   (settings.watermarkApplyTo === "all" || settings.watermarkApplyTo === target)
@@ -54,12 +60,14 @@ export async function renderFilmSegment({ items, width, startY = 0, length, dpi 
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(width * safeDpi));
   canvas.height = Math.max(1, Math.round(length * safeDpi));
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { alpha: true });
   if (!context) throw new Error("This browser cannot create film exports.");
   if (background) {
     context.fillStyle = background;
     context.fillRect(0, 0, canvas.width, canvas.height);
-  } else context.clearRect(0, 0, canvas.width, canvas.height);
+  } else {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+  }
 
   const imageItems = items.filter((item) => item.previewUrl || item.exportUrl);
   const images = await Promise.all(imageItems.map((item) => loadImage(item.exportUrl || item.previewUrl)));
@@ -95,14 +103,17 @@ export function downloadBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function downloadFilmPreview({ items, width, length, settings, filename = "dtf-film-preview.jpg", clean = false }) {
+export async function downloadFilmPreview({ items, width, length, settings, filename = "dtf-film-preview.png", clean = false }) {
   const configuredDpi = Number(settings?.previewDownloadDpi || 72);
   const dpi = Math.max(20, Math.min(configuredDpi, Math.floor(Math.min(2400 / length, 1800 / width))));
   const canvas = await renderFilmSegment({
-    items, width, length, dpi, background: "#f8f8f6",
+    items,
+    width,
+    length,
+    dpi,
     watermark: !clean && watermarkApplies(settings, "download") ? settings : null,
   });
-  downloadBlob(await canvasBlob(canvas, "image/jpeg", Number(settings?.previewDownloadQuality || 0.85)), filename);
+  downloadBlob(await canvasBlob(canvas, "image/png"), ensurePngFilename(filename));
 }
 
 export async function exportProductionPackage({ items, width, length, settings, orderNumber = "DTF", itemId = "film" }) {
