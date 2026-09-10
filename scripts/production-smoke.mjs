@@ -152,7 +152,7 @@ async function assertNoHorizontalOverflow(page, viewport) {
           const rect = element.getBoundingClientRect();
           const className = typeof element.className === "string" ? element.className : "";
           const label = (element.getAttribute("aria-label") || element.textContent || "")
-            .replace(/\\s+/g, " ")
+            .replace(/\s+/g, " ")
             .trim()
             .slice(0, 50);
           return {
@@ -233,7 +233,7 @@ async function main() {
 
       const customCta = page.getByRole("button", { name: /Customize this product/i });
       const readyCta = page.getByRole("button", {
-        name: /Choose colour \+ size|Add to bag|Sold out|Unavailable combination/i,
+        name: /Choose colour \+ size|Choose colour|Choose size|Add to bag|Out of stock|Sold out|Unavailable combination/i,
       });
       assert(
         (await customCta.count()) > 0 || (await readyCta.count()) > 0,
@@ -254,7 +254,7 @@ async function main() {
         }
 
         const afterSelection = page.getByRole("button", {
-          name: /Add to bag|Sold out|Unavailable combination|Choose colour \+ size/i,
+          name: /Add to bag|Out of stock|Sold out|Unavailable combination|Choose colour \+ size|Choose colour|Choose size/i,
         });
         assert((await afterSelection.count()) > 0, "Variant selection removed the purchase CTA.");
       }
