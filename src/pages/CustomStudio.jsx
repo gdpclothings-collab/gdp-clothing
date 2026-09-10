@@ -2291,7 +2291,7 @@ export default function CustomStudio() {
                 </div>
               </button>)}
             </div>
-            {(designPath === "bootleg" || designPath === "memorial") && <div className="mt-3 rounded-xl border border-[#DCE3EA] bg-white px-3 py-2 text-xs text-[#52616F]"><span className="font-semibold text-[#17324D]">{designPath === "memorial" ? "Memorial template applies to: Front." : "Applying template to: Front."}</span> Back printing stays blank until you explicitly add and edit a back print.</div>}
+            {(designPath === "bootleg" || designPath === "memorial") && <div className="hidden"><span className="font-semibold text-[#17324D]">{designPath === "memorial" ? "Memorial template applies to: Front." : "Applying template to: Front."}</span> Back printing stays blank until you explicitly add and edit a back print.</div>}
             </>}
             {designPath !== "upload" && <div data-editor-legacy="color-finish" className="hidden">
               <label className="font-mono text-xs uppercase text-muted-foreground">Color finish</label>
@@ -2303,8 +2303,8 @@ export default function CustomStudio() {
                 {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} finish:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a color finish for the final print.</span>}
               </div>
             </div>}
-            {(designPath === "bootleg" || designPath === "memorial") && activeStyleTemplate && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
-            {(designPath === "bootleg" || designPath === "memorial") && designStyle === NO_TEMPLATE_STYLE && <div className="mt-6 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3 text-sm text-[#52616F]"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
+            {(designPath === "bootleg" || designPath === "memorial") && activeStyleTemplate && <div className="hidden"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
+            {(designPath === "bootleg" || designPath === "memorial") && designStyle === NO_TEMPLATE_STYLE && <div className="hidden"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
             {designPath === "memorial" && <div data-editor-legacy="memorial-details" className="hidden">
               <div className="flex items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#F6EDE8] text-[#8A3B45]"><Heart size={18}/></span>
