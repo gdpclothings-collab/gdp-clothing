@@ -544,7 +544,7 @@ export function EditableOverlayLayers({
     setEditingTextId(layer.id);
   };
 
-  const selectionChrome = (layer, selected) => selected ? (
+  const selectionChrome = (layer, selected, _index) => selected ? (
     <>
       {!layer.locked && <button
         type="button"
