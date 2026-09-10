@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   findProductVariant,
+  isProductOutOfStock,
   isProductVariantAvailable,
   sortApparelSizes,
 } from "../src/lib/productVariants.js";
@@ -20,5 +21,8 @@ assert.equal(variant?.id, "variant-1");
 assert.equal(isProductVariantAvailable(madeToOrder, variant), true);
 assert.equal(isProductVariantAvailable({ ...madeToOrder, trackInventory: true }, variant), false);
 assert.equal(isProductVariantAvailable({ ...madeToOrder, trackInventory: true, sellWhenOutOfStock: true }, variant), true);
+assert.equal(isProductOutOfStock({ ...madeToOrder, trackInventory: true }), true);
+assert.equal(isProductOutOfStock({ ...madeToOrder, trackInventory: true, sellWhenOutOfStock: true }), false);
+assert.equal(isProductOutOfStock({ ...madeToOrder, trackInventory: true, variants: [{ ...variant, stock: 2 }] }), false);
 
 console.log("Product variant verification passed.");

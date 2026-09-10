@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
-import { findProductVariant, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
+import { findProductVariant, isProductOutOfStock, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
 
@@ -117,6 +117,7 @@ export default function ProductDetail() {
   const validCombination = !variants.length || Boolean(selectedVariant);
   const displayPrice = selectedVariant?.price == null ? Number(product.price || 0) : Number(selectedVariant.price);
   const inStock = isProductVariantAvailable(product, selectedVariant);
+  const outOfStock = isProductOutOfStock(product);
   const canAddToCart = selectionComplete && validCombination && inStock;
   const maxQty = product.trackInventory && selectedVariant ? Math.max(0, Number(selectedVariant.stock || 0)) : 99;
   const wished = wishlist.includes(product.id);
@@ -163,6 +164,9 @@ export default function ProductDetail() {
           {visibleImages.map((image, index) => (
             <div key={image || index} className={"relative overflow-hidden bg-[#e9e7e1] " + (visibleImages.length === 1 ? "aspect-[4/5]" : "aspect-[4/5] sm:aspect-[3/4]")}>
               <Image src={image} alt={index === 0 ? product.name : ""} fittingType="fill" className="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.02]" />
+              {index === 0 && outOfStock && (
+                <div className="absolute right-3 top-3 bg-[#e11d2e] px-3 py-2 font-mono text-[9px] font-black uppercase tracking-[0.15em] text-white">Out of Stock</div>
+              )}
               <div className="absolute left-3 top-3 bg-black px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.16em] text-white">
                 GDP / {String(index + 1).padStart(2, "0")}
               </div>
@@ -176,6 +180,7 @@ export default function ProductDetail() {
               <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-black/42">{product.type || "GDP Clothing"}</span>
               {product.bestSeller && <span className="bg-black px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-white">Best seller</span>}
               {product.newArrival && <span className="bg-white px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-black">New drop</span>}
+              {outOfStock && <span className="bg-[#e11d2e] px-2 py-1 font-mono text-[8px] font-black uppercase tracking-[0.13em] text-white">Out of stock</span>}
             </div>
 
             <h1 className="mt-4 font-display text-6xl leading-[0.86] tracking-wide sm:text-7xl">{product.name}</h1>
@@ -260,16 +265,17 @@ export default function ProductDetail() {
             <div className="mt-2">
               {product.customDesignable ? (
                 <button onClick={() => {
+                  if (outOfStock) return;
                   const query = new URLSearchParams({ product: product.id });
                   if (color) query.set("color", color);
                   if (size) query.set("size", size);
                   navigate("/custom-studio?" + query.toString());
-                }} className="flex min-h-14 w-full items-center justify-center gap-3 bg-[#e11d2e] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-black">
-                  <Sparkles size={17} /> Customize this product
+                }} disabled={outOfStock} className="flex min-h-14 w-full items-center justify-center gap-3 bg-[#e11d2e] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-black/30">
+                  <Sparkles size={17} /> {outOfStock ? "Out of stock" : "Customize this product"}
                 </button>
               ) : (
                 <button onClick={addToCart} disabled={!canAddToCart} className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/30">
-                  <ShoppingBag size={17} /> {!selectionComplete ? "Choose colour + size" : !validCombination ? "Unavailable combination" : inStock ? "Add to bag" : "Sold out"}
+                  <ShoppingBag size={17} /> {outOfStock ? "Out of stock" : !selectionComplete ? "Choose colour + size" : !validCombination ? "Unavailable combination" : inStock ? "Add to bag" : "Out of stock"}
                 </button>
               )}
             </div>

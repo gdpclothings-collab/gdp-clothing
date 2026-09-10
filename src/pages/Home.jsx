@@ -17,6 +17,7 @@ import { isLandingDraftPreview, storefrontContentApi } from "@/lib/storefrontCon
 import { storefrontDiscoveryApi } from "@/lib/storefrontDiscoveryApi";
 import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
 import { useProducts } from "@/lib/useProducts";
+import { isProductOutOfStock } from "@/lib/productVariants";
 
 const TRUST_ICONS = { truck: Truck, shield: ShieldCheck, shirt: Shirt, heart: Heart };
 const COLOR_MAP = {
@@ -67,13 +68,16 @@ function CategoryCard({ item }) {
 function HomeProductCard({ product }) {
   const colors = Array.isArray(product.colors) ? product.colors.slice(0, 5) : [];
   const productHref = product.slug === "dtf-gang-sheet" ? "/products/dtf-gang-sheet" : "/product/" + product.id;
+  const outOfStock = isProductOutOfStock(product);
   return (
     <article className="min-w-0">
       <SmartLink to={productHref} className="group relative block overflow-hidden bg-[#ececec]">
         <div className="aspect-square sm:aspect-[1/1.02]">
           <ManagedImage src={product.images?.[0]} fallbackSrc="/images/gdp-tshirt.svg" alt={product.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.025]" />
         </div>
-        {product.bestSeller && <span className="absolute left-2 top-2 rounded-[3px] bg-black px-2 py-1 text-[8px] font-bold text-white sm:text-[9px]">Best Seller</span>}
+        {outOfStock
+          ? <span className="absolute left-2 top-2 rounded-[3px] bg-[#e11d2e] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-white sm:text-[9px]">Out of Stock</span>
+          : product.bestSeller && <span className="absolute left-2 top-2 rounded-[3px] bg-black px-2 py-1 text-[8px] font-bold text-white sm:text-[9px]">Best Seller</span>}
       </SmartLink>
       <div className="pt-2.5">
         <h3 className="truncate text-[11px] font-semibold sm:text-xs"><SmartLink to={productHref}>{product.name}</SmartLink></h3>

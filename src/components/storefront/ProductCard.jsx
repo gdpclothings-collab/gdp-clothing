@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import { ArrowUpRight, Heart } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
+import { isProductOutOfStock } from "@/lib/productVariants";
 
 export default function ProductCard({ product }) {
   const { wishlist, toggleWishlist } = useCart();
   const wished = product.id ? wishlist.includes(product.id) : false;
   const hasSecondImage = Boolean(product.images?.[1]);
   const productHref = product.slug === "dtf-gang-sheet" ? "/products/dtf-gang-sheet" : "/product/" + product.id;
+  const outOfStock = isProductOutOfStock(product);
 
   return (
     <article className="group relative min-w-0">
@@ -31,6 +33,9 @@ export default function ProductCard({ product }) {
         </div>
 
         <div className="absolute left-2.5 top-2.5 flex max-w-[70%] flex-wrap gap-1.5 sm:left-3 sm:top-3">
+          {outOfStock && (
+            <span className="bg-[#e11d2e] px-2 py-1 font-mono text-[8px] font-black uppercase tracking-[0.14em] text-white sm:text-[9px]">Out of stock</span>
+          )}
           {product.compareAtPrice && product.compareAtPrice > product.price && (
             <span className="bg-[#e11d2e] px-2 py-1 font-mono text-[8px] uppercase tracking-[0.14em] text-white sm:text-[9px]">Sale</span>
           )}
@@ -75,7 +80,7 @@ export default function ProductCard({ product }) {
           </div>
         </div>
         <div className="mt-2 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.13em] text-black/38 sm:text-[9px]">
-          <span>{product.slug === "dtf-gang-sheet" ? "Build or upload" : product.customDesignable ? "Customizable" : "Ready to wear"}</span>
+          <span>{outOfStock ? "Currently unavailable" : product.slug === "dtf-gang-sheet" ? "Build or upload" : product.customDesignable ? "Customizable" : "Ready to wear"}</span>
           <span>CAD</span>
         </div>
       </div>

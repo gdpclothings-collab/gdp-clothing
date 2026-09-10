@@ -20,7 +20,7 @@ export const storefrontDiscoveryApi = {
     if (productIds.length) {
       const { data: products, error: productError } = await supabase
         .from("products")
-        .select("*")
+        .select("*, product_variants(*)")
         .in("id", productIds)
         .eq("status", "active");
 
