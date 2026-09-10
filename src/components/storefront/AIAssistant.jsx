@@ -11,8 +11,9 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { getAssistantResponse } from "./gdpAssistantKnowledge";
 
-const STORAGE_KEY = "gdp-assistant-messages-v2";
+const STORAGE_KEY = "gdp-assistant-messages-v3";
 
 const STARTER_ACTIONS = [
   {
@@ -38,83 +39,6 @@ const STARTER_ACTIONS = [
 ];
 
 const HIDDEN_ROUTES = ["/custom-studio", "/design", "/checkout"];
-
-const normalize = (value) => value.trim().toLowerCase();
-
-function getResponse(message) {
-  const q = normalize(message);
-
-  if (/^(hi|hey|hello|yo|good morning|good afternoon|good evening)[!. ]*$/.test(q)) {
-    return {
-      text: "Hey! What can I help you with today — custom apparel, DTF printing, sizing, shipping, or an order question?",
-    };
-  }
-
-  if (q.includes("custom") || q.includes("design") || q.includes("photo bootleg") || q.includes("memorial")) {
-    return {
-      text: "Start in Custom Studio. Choose your design path, garment, artwork or photos, personalize the layout, review the live preview, then continue when everything looks right.",
-      action: { label: "Open Custom Studio", path: "/custom-studio" },
-    };
-  }
-
-  if (q.includes("dtf") || q.includes("gang sheet") || q.includes("gangsheet") || q.includes("film") || q.includes("print ready")) {
-    return {
-      text: "For DTF, you can upload a print-ready gang sheet or build one in the GDP gang-sheet workspace. Your artwork stays arranged in the film preview before you add it to your bag.",
-      action: { label: "Explore DTF Printing", path: "/dtf" },
-    };
-  }
-
-  if (q.includes("size") || q.includes("fit") || q.includes("oversize") || q.includes("oversized")) {
-    return {
-      text: "Use the garment size guide and measurements shown with the product. If you are between sizes, compare the garment measurements with a shirt or hoodie you already like before ordering.",
-      action: { label: "Shop Garments", path: "/shop" },
-    };
-  }
-
-  if (q.includes("production") || q.includes("turnaround") || q.includes("how long") || q.includes("ready")) {
-    return {
-      text: "Production timing depends on the product and customization. Custom production begins after the design or proof is approved, and the applicable timing should be shown before checkout.",
-    };
-  }
-
-  if (q.includes("ship") || q.includes("delivery") || q.includes("pickup") || q.includes("u.s") || q.includes("usa") || q.includes("united states")) {
-    return {
-      text: "Shipping and pickup options are confirmed during checkout. Enter your delivery address to see the available methods and calculated cost for your location.",
-    };
-  }
-
-  if (q.includes("return") || q.includes("refund") || q.includes("exchange")) {
-    return {
-      text: "Return eligibility depends on the item and whether it was customized. Review GDP Clothing's posted policy before ordering, especially for made-to-order or personalized pieces.",
-      action: { label: "View FAQ", path: "/faq" },
-    };
-  }
-
-  if (q.includes("order") || q.includes("track") || q.includes("status") || q.includes("where is my")) {
-    return {
-      text: "For private order details, sign in and open My Account. That keeps order information out of the public chat.",
-      action: { label: "Open My Account", path: "/account" },
-    };
-  }
-
-  if (q.includes("shop") || q.includes("product") || q.includes("tee") || q.includes("t-shirt") || q.includes("hoodie") || q.includes("sweater")) {
-    return {
-      text: "You can browse GDP ready-to-wear and customizable garments in the shop. Product pages show the available colors, sizes, stock status, and customization options.",
-      action: { label: "Shop GDP", path: "/shop" },
-    };
-  }
-
-  if (q.includes("pay") || q.includes("payment") || q.includes("card") || q.includes("checkout")) {
-    return {
-      text: "Available payment options are shown securely during checkout after your contact, shipping, and order details are entered.",
-    };
-  }
-
-  return {
-    text: "I didn't quite catch that. Try asking me about Custom Studio, DTF printing, sizing, production time, shipping, returns, or an order. For account-specific details, use My Account.",
-    showStarters: true,
-  };
-}
 
 function loadStoredMessages() {
   try {
@@ -183,6 +107,11 @@ export default function AIAssistant() {
   const clearConversation = () => {
     setMessages([]);
     setInput("");
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage failures.
+    }
     window.setTimeout(() => inputRef.current?.focus(), 0);
   };
 
@@ -200,13 +129,14 @@ export default function AIAssistant() {
     setLoading(true);
 
     try {
-      const response = getResponse(userMsg);
+      const response = getAssistantResponse(userMsg, location.pathname);
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
           text: response.text,
           action: response.action,
+          suggestions: response.suggestions,
           showStarters: response.showStarters,
         },
       ]);
@@ -250,7 +180,7 @@ export default function AIAssistant() {
                 <div className="font-display text-lg leading-none tracking-wide">GDP ASSISTANT</div>
                 <div className="mt-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground/65">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                  Shopping + custom print help
+                  Free shopping + print help
                 </div>
               </div>
             </div>
@@ -289,7 +219,7 @@ export default function AIAssistant() {
                     <MessageCircle size={15} aria-hidden="true" />
                   </div>
                   <div className="max-w-[88%] rounded-2xl rounded-tl-md bg-secondary px-4 py-3 text-sm leading-relaxed text-foreground">
-                    Hey! I’m the GDP Clothing assistant. I can help you find the right product, understand Custom Studio, build a DTF order, choose a size, or find order help.
+                    Hey! I’m the GDP Clothing assistant. Ask naturally — I can help with products, Custom Studio, DTF, artwork, sizing, stock, pricing, shipping, checkout, returns or order help.
                   </div>
                 </div>
 
@@ -313,7 +243,7 @@ export default function AIAssistant() {
                 </div>
 
                 <div className="rounded-xl border border-border/70 bg-secondary/50 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                  Don’t share passwords or payment details here. For private order information, use My Account.
+                  This assistant uses GDP’s built-in help rules — no paid AI service. Don’t share passwords or payment details here. For private order information, use My Account.
                 </div>
               </div>
             )}
@@ -345,6 +275,21 @@ export default function AIAssistant() {
                         >
                           {message.action.label}
                         </button>
+                      )}
+
+                      {!isUser && Array.isArray(message.suggestions) && message.suggestions.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {message.suggestions.slice(0, 3).map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              onClick={() => ask(suggestion)}
+                              className="min-h-9 rounded-full border border-border bg-background px-3 py-1.5 text-left text-[11px] font-medium leading-4 text-muted-foreground transition hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
                       )}
 
                       {!isUser && message.showStarters && (
