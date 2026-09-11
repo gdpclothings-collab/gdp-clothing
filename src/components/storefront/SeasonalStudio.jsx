@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronDown, Edit3, Maximize2, Move, RotateCcw, Ruler, Search, Shirt, ShoppingBag, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
@@ -162,7 +162,7 @@ function LoadingStudio({ Preview, garment, color, size, previewConfig }) {
   );
 }
 
-export default function SeasonalStudio({ product, garment, color, size, variant, quantity, unitPrice, Preview, onBack, catalog: garmentCatalog = [], availableColors = [], availableSizes = [], onProductChange, onColorChange, onSizeChange, colorSwatch, priceVisibility = 'hidden', initialDraft = null, editCartKey = '' }) {
+export default function SeasonalStudio({ product, garment, color, size, variant, quantity, unitPrice, Preview, onBack, catalog: garmentCatalog = [], availableColors = [], availableSizes = [], onProductChange, onColorChange, onSizeChange, colorSwatch, priceVisibility = 'hidden', initialDraft = null, editCartKey = '', onDraftChange = undefined }) {
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
@@ -178,6 +178,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
   const [showGuides, setShowGuides] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(1.18);
+  const [reviewZoom, setReviewZoom] = useState(1);
   const [reviewMode, setReviewMode] = useState(false);
   const [approved, setApproved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -207,7 +208,10 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
   const allArtworks = catalog?.artworks || [];
   const artworks = allArtworks.filter((artwork) => !artwork.requires_name);
   const area = catalog?.area;
-  const layout = fitSeasonalArtwork(selected, area, requested, position.x, position.y);
+  const layout = useMemo(
+    () => fitSeasonalArtwork(selected, area, requested, position.x, position.y),
+    [selected, area, requested, position.x, position.y]
+  );
   const categories = [...new Set(artworks.map((artwork) => artwork.category))].filter(Boolean).sort();
   const visibleCategories = categories.filter((value) => value.toLowerCase().includes(categoryQuery.trim().toLowerCase()));
   const visible = artworks.filter((artwork) => (!category || category === artwork.category) && [artwork.title, artwork.category, ...(artwork.tags || [])].join(' ').toLowerCase().includes(query.trim().toLowerCase()));
@@ -239,7 +243,32 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
     setPosition(initialDraft.position || { x: 0, y: 0 });
     setRotation(Number(initialDraft.rotation || 0));
     setCategory(initialDraft.category || '');
+    if (Number.isFinite(Number(initialDraft.previewZoom))) {
+      setPreviewZoom(Math.max(.75, Math.min(1.8, Number(initialDraft.previewZoom))));
+    }
+    if (Number.isFinite(Number(initialDraft.reviewZoom))) {
+      setReviewZoom(Math.max(.75, Math.min(1.8, Number(initialDraft.reviewZoom))));
+    }
+    setReviewMode(Boolean(initialDraft.reviewMode));
+    setApproved(false);
   }, [catalog, initialDraft?.artworkId]);
+
+  useEffect(() => {
+    if (!onDraftChange || !selected || !layout) return;
+    onDraftChange({
+      artworkId: selected.id,
+      artworkTitle: selected.title,
+      width: Number(layout.width),
+      height: Number(layout.height),
+      position: { x: Number(layout.x), y: Number(layout.y) },
+      rotation: Number(rotation),
+      category: selected.category,
+      printSide: 'front',
+      previewZoom: Number(previewZoom),
+      reviewZoom: Number(reviewZoom),
+      reviewMode: Boolean(reviewMode),
+    });
+  }, [onDraftChange, selected, layout, rotation, previewZoom, reviewZoom, reviewMode]);
 
   const choose = (artwork) => {
     const initial = fitSeasonalArtwork(artwork, area, 0);
@@ -421,9 +450,19 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
             <div className="mb-5 flex items-start justify-between gap-4"><div><p className="font-mono text-xs uppercase tracking-[.18em] text-[#A66331]">Final review</p><h2 className="mt-1 font-display text-3xl text-[#17324D] sm:text-4xl">CHECK EVERY DETAIL</h2><p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#66717C]">This exact garment preview becomes the locked customer mockup. Artwork dimensions, rotation and placement are saved with the production file.</p></div><button type="button" onClick={() => setReviewMode(false)} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[#DCE3EA] px-3 text-sm font-bold text-[#52616F] hover:bg-[#F7F9FB]"><Edit3 size={15} /> Edit</button></div>
             {error && <div ref={reviewErrorRef} role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">{error}<span className="mt-1 block text-xs font-normal">Your design is preserved. Use Retry add to cart below.</span></div>}
             <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(360px,.7fr)] xl:gap-8">
-              <div><div ref={approvedPreviewRef} className="gdp-seasonal-preview-frame relative aspect-[4/5] overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#F3EEE6] shadow-inner"><div className="absolute inset-0 h-full w-full [&>*]:h-full [&>*]:w-full"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig || {}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{ x: 0, y: 0 }} showGuides={false} showMeasurements={false} printAreaId="gdp-seasonal-production" seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} rotation={rotation} />} /></div></div><div className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"><Check size={14} /> Exact approved customer mockup · Front print</div></div>
+              <div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE3EA] bg-[#F7F9FB] p-2.5">
+                  <div><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#71808D]">Review view</p><p className="text-[11px] text-[#61717F]">Zoom is for inspection only. Print size and placement stay locked.</p></div>
+                  <div className="inline-flex min-h-10 items-center rounded-xl border border-[#DCE3EA] bg-white p-1" aria-label="Review garment zoom controls">
+                    <button type="button" onClick={() => setReviewZoom((value) => Math.max(.75, Number((value - .1).toFixed(2))))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] transition hover:bg-[#F7F9FB] hover:text-[#17324D]" aria-label="Zoom review garment out"><ZoomOut size={14} /></button>
+                    <span className="w-11 text-center font-mono text-[9px] font-bold tabular-nums text-[#52616F]">{Math.round(reviewZoom * 100)}%</span>
+                    <button type="button" onClick={() => setReviewZoom((value) => Math.min(1.8, Number((value + .1).toFixed(2))))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] transition hover:bg-[#F7F9FB] hover:text-[#17324D]" aria-label="Zoom review garment in"><ZoomIn size={14} /></button>
+                    <button type="button" onClick={() => setReviewZoom(1)} className="ml-1 h-8 border-l border-[#DCE3EA] px-2 text-[8px] font-bold uppercase tracking-wide text-[#607080] hover:text-[#17324D]">Fit</button>
+                  </div>
+                </div>
+                <div ref={approvedPreviewRef} className="gdp-seasonal-preview-frame relative aspect-[4/5] overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#F3EEE6] shadow-inner"><div className="absolute inset-0 h-full w-full [&>*]:h-full [&>*]:w-full"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig || {}} zoom={capturing ? 1 : reviewZoom} artworkScale={100} artworkRotation={0} artworkOffset={{ x: 0, y: 0 }} showGuides={false} showMeasurements={false} printAreaId="gdp-seasonal-production" seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} rotation={rotation} />} /></div></div><div className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"><Check size={14} /> Exact approved customer mockup · Front print</div></div>
               <div className="flex flex-col gap-4">
-                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-2"><ReviewDetail label="Garment" value={garment.label || product.name} />{fabricDescription && <ReviewDetail label="Fabric" value={fabricDescription} />}<ReviewDetail label="Colour" value={color} swatch={colorValue} /><ReviewDetail label="Size" value={size} /><ReviewDetail label="Print side" value="Front" /><ReviewDetail label="Artwork" value={selected.title} /><ReviewDetail label="Print dimensions" value={`${layout.width.toFixed(2)} × ${layout.height.toFixed(2)} in`} /><ReviewDetail label="Rotation" value={`${Math.round(rotation)}°`} /><ReviewDetail label="Position" value={`${layout.x.toFixed(2)} in from left · ${layout.y.toFixed(2)} in from top`} /></div>
+                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-2"><ReviewDetail label="Garment" value={garment.label || product.name} />{fabricDescription && <ReviewDetail label="Fabric" value={fabricDescription} />}<ReviewDetail label="Colour" value={color} swatch={colorValue} /><ReviewDetail label="Size" value={size} /><ReviewDetail label="Print side" value="Front" /><ReviewDetail label="Artwork" value={selected.title} /><ReviewDetail label="Print dimensions" value={`${layout.width.toFixed(2)} × ${layout.height.toFixed(2)} in`} /><ReviewDetail label="Rotation" value={`${Math.round(rotation)}°`} /><ReviewDetail label="Position in print area" value={`Left ${layout.x.toFixed(2)} in · Top ${layout.y.toFixed(2)} in`} /></div>
                 <div className="rounded-2xl border border-[#DCE3EA] bg-[#17324D] p-4 text-white"><div className="flex items-center justify-between gap-4 text-sm"><span className="text-white/75">Quantity</span><strong>{quantity}</strong></div><div className="mt-2 flex items-center justify-between gap-4 text-sm"><span className="text-white/75">Price each</span><strong>${Number(unitPrice || 0).toFixed(2)} CAD</strong></div><div className="mt-3 flex items-end justify-between gap-4 border-t border-white/20 pt-3"><span className="font-bold">Design total</span><strong className="font-mono text-xl">${designSubtotal.toFixed(2)} CAD</strong></div><p className="mt-2 text-[11px] leading-relaxed text-white/75">Shipping and taxes are calculated at checkout.</p></div>
                 <button type="button" onClick={() => setReviewMode(false)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#DCE3EA] px-4 text-sm font-bold text-[#52616F] hover:bg-[#F7F9FB]"><Edit3 size={15} /> Edit design</button>
                 <button disabled={saving} onClick={save} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40"><ShoppingBag size={17} />{saving ? (editCartKey ? 'Updating cart…' : 'Adding to cart…') : (error ? 'Retry add to cart' : editCartKey ? 'Update cart' : 'Add design to cart')}</button>

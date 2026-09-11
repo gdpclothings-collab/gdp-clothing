@@ -922,6 +922,7 @@ export default function CustomStudio() {
   const { addItem } = useCart();
   const [step, setStep] = useState(1);
   const [seasonalMode, setSeasonalMode] = useState(false);
+  const [seasonalDraft, setSeasonalDraft] = useState(null);
   const [designPath, setDesignPath] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
@@ -1225,7 +1226,10 @@ export default function CustomStudio() {
         setGarment(garmentFromProduct(p));
         setColor(initialColor);
         setSize(initialSize);
-        if (location.state?.seasonalDraft) setSeasonalMode(true);
+        if (location.state?.seasonalDraft) {
+          setSeasonalDraft(location.state.seasonalDraft);
+          setSeasonalMode(true);
+        }
       } catch (error) {
         if (active) setWarn(error?.message || "Could not load the Custom Studio garment catalog.");
       }
@@ -1282,6 +1286,12 @@ export default function CustomStudio() {
     setPriority(draft.priority === "rush" ? "rush" : "standard");
     setArtworkStates(draft.artworkStates || defaultArtworkStates());
     setPreviewZoom(clampPreview(draft.previewZoom || 1.15));
+    const restoredSeasonalDraft =
+      draft.designPath === "seasonal" && draft.seasonalDraft?.artworkId
+        ? draft.seasonalDraft
+        : null;
+    setSeasonalDraft(restoredSeasonalDraft);
+    setSeasonalMode(Boolean(restoredSeasonalDraft));
     setRightsConfirmed(false);
     setApprovalAcknowledged(false);
     setPendingDraft(null);
@@ -1298,6 +1308,8 @@ export default function CustomStudio() {
     } catch {
       // Starting fresh should still work when browser storage is unavailable.
     }
+    setSeasonalDraft(null);
+    setSeasonalMode(false);
     setPendingDraft(null);
     setDraftRestored(false);
     setDraftStatus("idle");
@@ -1330,7 +1342,7 @@ export default function CustomStudio() {
   }, [catalog, draftReady, pendingDraft]);
 
   useEffect(() => {
-    if (!draftReady || seasonalMode || saving || !product?.id || typeof window === "undefined") return undefined;
+    if (!draftReady || saving || !product?.id || typeof window === "undefined") return undefined;
     setDraftStatus("saving");
     if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
 
@@ -1359,6 +1371,7 @@ export default function CustomStudio() {
         priority,
         artworkStates,
         previewZoom,
+        seasonalDraft,
       };
       try {
         window.localStorage.setItem(STUDIO_DRAFT_KEY, JSON.stringify(snapshot));
@@ -1371,7 +1384,7 @@ export default function CustomStudio() {
     return () => {
       if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
     };
-  }, [draftReady, seasonalMode, saving, product?.id, step, designPath, designStyle, designMood, designIntensity, color, size, qty, placement, previewSide, groupGarments, photos, editorLayersBySide, selectedEditorLayerIds, personalization, memorialNameConfirmed, needByDate, priority, artworkStates, previewZoom]);
+  }, [draftReady, seasonalMode, saving, product?.id, step, designPath, designStyle, designMood, designIntensity, color, size, qty, placement, previewSide, groupGarments, photos, editorLayersBySide, selectedEditorLayerIds, personalization, memorialNameConfirmed, needByDate, priority, artworkStates, previewZoom, seasonalDraft]);
 
   const chooseProduct = (nextProduct) => {
     if (!nextProduct) return;
@@ -2143,7 +2156,8 @@ export default function CustomStudio() {
     catalog={catalog} availableColors={availableColors} availableSizes={availableSizes}
     onProductChange={chooseProduct} onColorChange={chooseColor} onSizeChange={setSize}
     colorSwatch={(value) => swatchFor(product, value)} priceVisibility={priceVisibility}
-    initialDraft={location.state?.seasonalDraft || null} editCartKey={location.state?.editCartKey || ""}
+    initialDraft={seasonalDraft || location.state?.seasonalDraft || null} editCartKey={location.state?.editCartKey || ""}
+    onDraftChange={setSeasonalDraft}
     onBack={() => {setSeasonalMode(false);setStep(1);window.scrollTo({top:0,behavior:'instant'});}} />;
 
 
