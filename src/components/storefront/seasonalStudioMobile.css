@@ -1,6 +1,6 @@
-/* Seasonal Design Lab — mobile-only canvas refinement.
+/* Seasonal Design Lab — responsive canvas refinement.
    Loaded after the shared Custom Studio layers so these fixes stay scoped to
-   the Seasonal mobile editor without changing desktop or other design paths. */
+   the Seasonal editor without changing other design paths. */
 
 @media (max-width: 767px) {
   /* The shared desktop canvas rule used to force a 500px+ frame around a
@@ -121,5 +121,65 @@
   .gdp-studio-active section[aria-label="Review seasonal design"] .gdp-seasonal-preview-frame::after {
     content: none;
     display: none;
+  }
+}
+
+/* ================================================================
+   DESKTOP / TABLET — LIVE SEASONAL CANVAS
+   Match the actual StudioPreview height to the Seasonal frame so the shared
+   desktop min-height can never create a blank strip beneath the garment.
+   ================================================================ */
+@media (min-width: 768px) {
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+    height: clamp(500px, 62dvh, 720px) !important;
+    min-height: 0 !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame > div.relative {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  /* Keep the selected artwork clean: no white/red selection outline. */
+  .gdp-studio-active section[aria-label="Garment preview"] [data-seasonal-artwork] {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Preserve resize/stretch behavior without covering the artwork with the
+     old red zoom control. The bottom-right corner remains a generous invisible
+     resize target and advertises itself with the native resize cursor. */
+  .gdp-studio-active section[aria-label="Garment preview"] [data-seasonal-artwork] > button[data-control] {
+    display: block !important;
+    right: -14px !important;
+    bottom: -14px !important;
+    width: 46px !important;
+    height: 46px !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: transparent !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    cursor: nwse-resize !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] [data-seasonal-artwork] > button[data-control] svg {
+    display: none !important;
+  }
+
+  /* The control is intentionally invisible, so describe the direct gesture
+     instead of referring to the removed red corner icon. */
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame + p {
+    font-size: 0 !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame + p > svg {
+    display: none !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame + p::after {
+    content: "Drag artwork to move · drag the bottom-right edge to stretch or resize · pinch and twist on touch. Garment zoom only changes your editing view, not print size.";
+    font-size: 0.75rem;
+    line-height: 1.5;
   }
 }
