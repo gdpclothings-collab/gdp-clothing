@@ -1,0 +1,223 @@
+/* GDP Custom Studio desktop workspace refinement layer.
+   Scoped to .gdp-studio-active so storefront/admin pages remain unchanged.
+   Mobile behavior remains owned by customStudioMobile.css. */
+
+@media (min-width: 1024px) {
+  /* Give the Studio enough horizontal room to behave like an editor, not a long form. */
+  .gdp-studio-active > main > div > .mx-auto {
+    max-width: 1760px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  /* Compact the presentation header so the working canvas starts sooner. */
+  .gdp-studio-active > main > div > .mx-auto > div:first-child {
+    margin-bottom: 16px;
+    border-radius: 22px;
+    padding: 20px 24px;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:first-child h1 {
+    font-size: clamp(2.75rem, 4vw, 4.25rem);
+  }
+
+  /* Progress/navigation becomes a compact workstation toolbar. */
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) {
+    position: sticky;
+    top: 8px;
+    z-index: 38;
+    margin-bottom: 16px;
+    padding: 6px;
+    border: 1px solid #dce3ea;
+    border-radius: 18px;
+    background: rgba(244, 247, 250, 0.94);
+    box-shadow: 0 12px 34px rgba(23, 50, 77, 0.08);
+    backdrop-filter: blur(16px);
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:first-child {
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  /* How Custom Orders Work remains available but no longer dominates the editor. */
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(2) {
+    margin-top: 6px;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(2) > button {
+    min-height: 38px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(3) {
+    margin-top: 6px;
+  }
+
+  /* Balanced two-column layout for garment/path/review steps. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace) {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 430px);
+    gap: 20px;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace) > aside {
+    top: 124px;
+  }
+
+  /* ================================================================
+     STEP 3 — DESIGN WORKSPACE
+     The old section is intentionally empty because editing moved into
+     GDP Touch Studio. Remove that dead column and turn the page into a
+     true canvas + inspector workspace.
+     ================================================================ */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > #custom-studio-workspace {
+    display: none;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside {
+    position: static;
+    top: auto;
+    display: grid;
+    grid-template-columns: minmax(560px, 1fr) minmax(360px, 420px);
+    grid-template-rows: auto minmax(560px, auto) auto;
+    column-gap: 20px;
+    row-gap: 14px;
+    align-items: start;
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Remove the old one-card stack and promote its three children into the workspace grid. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) {
+    display: contents;
+  }
+
+  /* Canvas title bar. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) > div:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 64px;
+    border: 1px solid #d5dee6;
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 12px 34px rgba(23, 50, 77, 0.06);
+  }
+
+  /* Main garment canvas — this is the visual priority. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) > div:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2 / span 2;
+    height: min(720px, calc(100vh - 220px));
+    min-height: 560px;
+    border: 1px solid #d5dee6;
+    border-radius: 0 0 22px 22px;
+    box-shadow: 0 20px 55px rgba(23, 50, 77, 0.09);
+  }
+
+  /* Right-side contextual inspector. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) > div:last-child {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    max-height: min(720px, calc(100vh - 220px));
+    overflow: hidden;
+    align-self: start;
+    border: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) #gdp-touch-studio-panel {
+    position: static;
+    width: 100%;
+    max-width: none;
+    max-height: min(720px, calc(100vh - 220px));
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 22px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) #gdp-touch-studio-panel::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) #gdp-touch-studio-panel::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.24);
+    background-clip: padding-box;
+  }
+
+  /* Order information is secondary and sits directly below the inspector. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:last-child {
+    grid-column: 2;
+    grid-row: 3;
+    margin: 0;
+    border-radius: 18px;
+    padding: 14px 16px;
+    box-shadow: 0 12px 30px rgba(20, 18, 16, 0.09);
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:last-child > div:nth-child(2) {
+    margin-top: 4px;
+    font-size: 1.55rem;
+    line-height: 1;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:last-child > div[class*="mt-3"] {
+    margin-top: 7px;
+  }
+
+  /* While actively editing, presentation content should not push the canvas below the fold. */
+  .gdp-studio-active > main > div > .mx-auto:has(#custom-studio-workspace > [data-editor-legacy="photo-upload"]) > div:first-child {
+    display: none;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto:has(#custom-studio-workspace > [data-editor-legacy="photo-upload"]) > div:nth-child(2) {
+    top: 6px;
+  }
+
+  /* Seasonal Studio already uses a 3-column architecture; normalize it to the same proportions. */
+  .gdp-studio-active > main > main > .mx-auto {
+    max-width: 1760px;
+  }
+
+  .gdp-studio-active > main > main > .mx-auto > header {
+    margin-bottom: 16px;
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Seasonal: content rail | live canvas | properties, matching the shared Studio shell. */
+  .gdp-studio-active > main > main > .mx-auto > div[class*="xl:grid-cols-[minmax(300px"] {
+    grid-template-columns: minmax(300px, 320px) minmax(600px, 1fr) minmax(360px, 400px);
+    gap: 20px;
+  }
+
+  .gdp-studio-active > main > main .gdp-seasonal-preview-frame {
+    min-height: 560px;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  /* On compact laptops, preserve the canvas before squeezing the inspector. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside {
+    grid-template-columns: minmax(520px, 1fr) minmax(330px, 370px);
+    column-gap: 14px;
+  }
+}
