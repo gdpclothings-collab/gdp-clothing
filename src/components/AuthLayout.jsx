@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
-export default function AuthLayout({ icon: Icon, title, subtitle, children, footer }) {
+export default function AuthLayout({ icon: Icon, title, subtitle = "", children, footer = null }) {
   return (
     <main className="relative min-h-[calc(100vh-5rem)] overflow-hidden bg-background px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14">
       <div className="pointer-events-none absolute inset-0 -z-0">
