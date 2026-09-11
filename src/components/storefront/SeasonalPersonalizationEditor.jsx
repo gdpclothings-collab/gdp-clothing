@@ -57,12 +57,11 @@ export function SeasonalSvgText({ value, style, y = 40, baseSize = 24, idPrefix 
     stroke: normalized.outlineWidth ? normalized.outlineColor : 'none',
     strokeWidth: normalized.outlineWidth,
     paintOrder: 'stroke fill',
-    strokeLinejoin: 'round',
     style: normalized.shadow ? { filter: 'drop-shadow(2px 2px 2px rgba(0,0,0,.34))' } : undefined,
   };
 
   if (Math.abs(normalized.curve) < 1) {
-    return <text x={x} y={y} textAnchor={anchor} dominantBaseline="middle" {...common}>{display}</text>;
+    return <text x={x} y={y} textAnchor={anchor} dominantBaseline="middle" strokeLinejoin="round" {...common}>{display}</text>;
   }
 
   const safeId = `${idPrefix}-${Math.abs(Math.round(normalized.curve * 10))}-${normalized.curve < 0 ? 'down' : 'up'}`;
@@ -71,12 +70,12 @@ export function SeasonalSvgText({ value, style, y = 40, baseSize = 24, idPrefix 
   return (
     <>
       <path id={safeId} d={path} fill="none" stroke="none" />
-      <text textAnchor="middle" {...common}><textPath href={`#${safeId}`} startOffset="50%">{display}</textPath></text>
+      <text textAnchor="middle" strokeLinejoin="round" {...common}><textPath href={`#${safeId}`} startOffset="50%">{display}</textPath></text>
     </>
   );
 }
 
-function StyleButton({ active, children, onClick, title }) {
+function StyleButton({ active, children, onClick, title = undefined }) {
   return <button type="button" onClick={onClick} aria-pressed={active} title={title} className={`min-h-10 rounded-xl border px-3 text-xs font-bold transition ${active ? 'border-[#17324D] bg-[#17324D] text-white' : 'border-[#DCE3EA] bg-white text-[#52616F] hover:border-[#9FB0BE]'}`}>{children}</button>;
 }
 
@@ -125,7 +124,7 @@ export default function SeasonalPersonalizationEditor({ selected, text, activeTa
         </label>
       </div>
 
-      <details className="mt-4 rounded-2xl border border-[#E0E6EB] bg-white" open={false}>
+      <details className="mt-4 rounded-2xl border border-[#E0E6EB] bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3 text-xs font-bold text-[#17324D] [&::-webkit-details-marker]:hidden">
           <span className="inline-flex items-center gap-2"><Sparkles size={14} className="text-[#A66331]" /> Edit {targetLabel.toLowerCase()} style</span>
           <span className="inline-flex items-center gap-2 text-[10px] font-semibold text-[#7A8995]">{styleChanged ? 'Customized' : 'Template default'} <ChevronDown size={14} /></span>
@@ -143,10 +142,10 @@ export default function SeasonalPersonalizationEditor({ selected, text, activeTa
             <label className="text-[10px] font-bold uppercase tracking-wide text-[#6F7D89]">Size · {Math.round(style.scale)}%<input type="range" min="65" max="150" step="1" value={style.scale} onChange={(event) => updateStyle(targetKey, { scale: Number(event.target.value) })} className="mt-3 w-full accent-[#A66331]" /></label>
           </div>
 
-          <div className="mt-3 grid grid-cols-4 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[400, 600, 700, 900].map((weight) => <StyleButton key={weight} active={style.weight === weight} onClick={() => updateStyle(targetKey, { weight })}>{weight === 400 ? 'Regular' : weight === 600 ? 'Medium' : weight === 700 ? 'Bold' : 'Heavy'}</StyleButton>)}
           </div>
-          <div className="mt-2 grid grid-cols-5 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
             <StyleButton active={style.italic} onClick={() => updateStyle(targetKey, { italic: !style.italic })}>Italic</StyleButton>
             <StyleButton active={style.align === 'left'} onClick={() => updateStyle(targetKey, { align: 'left' })}>Left</StyleButton>
             <StyleButton active={style.align === 'center'} onClick={() => updateStyle(targetKey, { align: 'center' })}>Center</StyleButton>
@@ -158,6 +157,7 @@ export default function SeasonalPersonalizationEditor({ selected, text, activeTa
             <label className="text-[10px] font-bold uppercase tracking-wide text-[#6F7D89]">Letter spacing · {Number(style.letterSpacing).toFixed(1)}<input type="range" min="-1" max="6" step="0.5" value={style.letterSpacing} onChange={(event) => updateStyle(targetKey, { letterSpacing: Number(event.target.value) })} className="mt-3 w-full accent-[#A66331]" /></label>
             <label className="text-[10px] font-bold uppercase tracking-wide text-[#6F7D89]">Curve · {Math.round(style.curve)}<input type="range" min="-40" max="40" step="1" value={style.curve} onChange={(event) => updateStyle(targetKey, { curve: Number(event.target.value) })} className="mt-3 w-full accent-[#A66331]" /></label>
           </div>
+          {Math.abs(style.curve) >= 1 && <p className="mt-2 text-[9px] font-semibold text-[#80909D]">Curved text is automatically centered for a balanced print.</p>}
 
           <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <div>
