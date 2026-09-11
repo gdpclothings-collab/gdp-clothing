@@ -1031,7 +1031,7 @@ export default function CustomStudio() {
     if (!sideStyle || designPath === "upload" || sideStyle === NO_TEMPLATE_STYLE) return null;
     return styleTemplateForName(sideStyle, studioSettings.styleTemplates);
   };
-  const activeStyleTemplate = styleTemplateForSide(previewSide);
+  const activeStyleTemplate = designStyle ? styleTemplateForSide(previewSide) : null;
   const activePreviewTemplate = activeStyleTemplate;
   const editorTools = normalizeEditorTools(studioSettings.editorTools);
   const stickerLibrary = normalizeStickerLibrary(studioSettings.stickerLibrary);
