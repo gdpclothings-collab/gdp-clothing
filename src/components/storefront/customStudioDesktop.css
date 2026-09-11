@@ -234,3 +234,37 @@
     column-gap: 14px;
   }
 }
+
+
+/* GDP editor reconstruction 2026-09-10 */
+@media (min-width: 1280px) {
+  /* Give the artwork rail less authority and make the garment canvas the hero. */
+  .gdp-studio-active > main > main > .mx-auto > div[class*="xl:grid-cols-[minmax(300px"] {
+    grid-template-columns: minmax(270px, 292px) minmax(680px, 1fr) minmax(350px, 390px);
+    gap: 18px;
+  }
+
+  .gdp-studio-active > main > main .gdp-seasonal-preview-frame {
+    min-height: 640px;
+    max-height: calc(100dvh - 190px);
+  }
+
+  /* Keep editing properties available without letting them visually compete with the canvas. */
+  .gdp-studio-active > main > main section[aria-label="Garment and artwork controls"] {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(23, 50, 77, .22) transparent;
+  }
+}
+
+/* Selection chrome should never cover customer artwork. */
+.gdp-studio-active [data-seasonal-artwork] > div.pointer-events-none {
+  display: none !important;
+}
+
+.gdp-studio-active [data-seasonal-artwork] {
+  transition: box-shadow 140ms ease;
+}
+
+.gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+  min-height: clamp(500px, 62dvh, 720px);
+}

@@ -974,7 +974,7 @@ export default function CustomStudio() {
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewZoom, setPreviewZoom] = useState(1.15);
   const [artworkStates, setArtworkStates] = useState(() => defaultArtworkStates());
   const activeArtworkState = artworkStates[previewSide] || artworkStates.front;
   const artworkScale = Number(activeArtworkState.scale ?? 92);
@@ -1164,7 +1164,7 @@ export default function CustomStudio() {
       ...current,
       [previewSide]: defaultArtworkState(activeStyleTemplate),
     }));
-    setPreviewZoom(1);
+    setPreviewZoom(1.15);
     const firstPhotoLayer = editorLayers.find((layer) => layer.type === "photo");
     setSelectedEditorLayerId(firstPhotoLayer?.id || "photo");
   };
@@ -1281,7 +1281,7 @@ export default function CustomStudio() {
     setNeedByDate(String(draft.needByDate || ""));
     setPriority(draft.priority === "rush" ? "rush" : "standard");
     setArtworkStates(draft.artworkStates || defaultArtworkStates());
-    setPreviewZoom(clampPreview(draft.previewZoom || 1));
+    setPreviewZoom(clampPreview(draft.previewZoom || 1.15));
     setRightsConfirmed(false);
     setApprovalAcknowledged(false);
     setPendingDraft(null);
@@ -1534,7 +1534,7 @@ export default function CustomStudio() {
         sourcePhotoIndex: Number(current?.[previewSide]?.sourcePhotoIndex || 0),
       },
     }));
-    setPreviewZoom(1);
+    setPreviewZoom(1.15);
   };
 
   async function uploadFiles(files) {
@@ -2948,7 +2948,7 @@ function IntensityExampleVisual({ src, label, className = "", large = false }) {
 }
 
 function clampPreview(value) {
-  return Math.min(1.8, Math.max(0.7, Number(Number(value).toFixed(2))));
+  return Math.min(2, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
 export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {

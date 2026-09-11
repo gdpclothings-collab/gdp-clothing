@@ -1087,8 +1087,9 @@ export function AdvancedEditorPanel({
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.6, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/65" aria-label="Zoom out"><ZoomOut size={14}/></button>
           <span className="w-11 text-center font-mono text-[9px] text-white/45">{Math.round(Number(previewZoom || 1) * 100)}%</span>
-          <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(1.8, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/65" aria-label="Zoom in"><ZoomIn size={14}/></button>
+          <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(2, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/65" aria-label="Zoom in"><ZoomIn size={14}/></button>
           <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 rounded-xl border border-white/10 bg-white/[.04] px-2.5 text-[8px] font-bold uppercase text-white/65">Fit</button>
+          <button type="button" onClick={() => onPreviewZoomChange?.(1.15)} className="h-9 rounded-xl border border-white/10 bg-white/[.04] px-2.5 text-[8px] font-bold uppercase text-white/65">Default</button>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
