@@ -1,5 +1,36 @@
 export const SEASONAL_BUCKET = 'artwork-production';
 
+export const SEASONAL_TEXT_FONTS = ['Arial', 'Trebuchet MS', 'Georgia', 'Impact', 'Courier New'];
+
+const clamp = (value, min, max, fallback = min) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+};
+
+const cleanHex = (value, fallback = '#111111') => {
+  const raw = String(value || '').trim();
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
+  if (/^#[0-9a-f]{3}$/i.test(raw)) return `#${raw.slice(1).split('').map((char) => char + char).join('')}`.toLowerCase();
+  return fallback;
+};
+
+export function normalizeSeasonalTextStyle(style = {}, fallbackColor = '#111111') {
+  return {
+    fontFamily: SEASONAL_TEXT_FONTS.includes(style.fontFamily) ? style.fontFamily : 'Arial',
+    scale: clamp(style.scale, 65, 150, 100),
+    weight: [400, 600, 700, 900].includes(Number(style.weight)) ? Number(style.weight) : 700,
+    italic: Boolean(style.italic),
+    align: ['left', 'center', 'right'].includes(style.align) ? style.align : 'center',
+    letterSpacing: clamp(style.letterSpacing, -1, 6, 0),
+    curve: clamp(style.curve, -40, 40, 0),
+    outlineWidth: clamp(style.outlineWidth, 0, 4, 0),
+    outlineColor: cleanHex(style.outlineColor, '#ffffff'),
+    shadow: Boolean(style.shadow),
+    uppercase: Boolean(style.uppercase),
+    color: cleanHex(style.color, cleanHex(fallbackColor, '#111111')),
+  };
+}
+
 export function fitSeasonalArtwork(artwork, area, requestedWidth, x = 0, y = 0) {
   const ratio = Number(artwork?.aspect_ratio);
   const maxWidth = Math.min(Number(area?.width), Number(artwork?.max_width_in));
@@ -13,13 +44,30 @@ export function fitSeasonalArtwork(artwork, area, requestedWidth, x = 0, y = 0) 
 
 export function seasonalSelection(artwork, layout, text, area, rotation = 0) {
   if (!artwork || !layout) throw new Error('Choose an available artwork.');
-  return { version: 1, artwork_id: artwork.id, source_sha256: artwork.source_sha256,
-    placement: 'front', width: layout.width, height: layout.height, x: layout.x, y: layout.y,
+  const legacyColor = cleanHex(text?.color, '#111111');
+  const nameStyle = normalizeSeasonalTextStyle(text?.nameStyle, legacyColor);
+  const messageStyle = normalizeSeasonalTextStyle(text?.messageStyle, legacyColor);
+  return {
+    version: 2,
+    artwork_id: artwork.id,
+    source_sha256: artwork.source_sha256,
+    placement: 'front',
+    width: layout.width,
+    height: layout.height,
+    x: layout.x,
+    y: layout.y,
     rotation: Math.max(-180, Math.min(180, Number(rotation) || 0)),
-    area_width: area.width, area_height: area.height,
-    name: artwork.customizable ? String(text.name || '').trim().slice(0, 32) : '',
-    message: artwork.customizable ? String(text.message || '').trim().slice(0, 60) : '',
-    text_color: text.color === '#ffffff' ? '#ffffff' : '#111111', text_font: 'Arial',
+    area_width: area.width,
+    area_height: area.height,
+    name: artwork.customizable ? String(text?.name || '').trim().slice(0, 32) : '',
+    message: artwork.customizable ? String(text?.message || '').trim().slice(0, 60) : '',
+    // Keep the legacy fields for existing production/admin readers.
+    text_color: legacyColor === '#ffffff' ? '#ffffff' : '#111111',
+    text_font: nameStyle.fontFamily,
+    text_styles: {
+      name: nameStyle,
+      message: messageStyle,
+    },
   };
 }
 
