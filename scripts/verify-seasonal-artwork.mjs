@@ -39,7 +39,11 @@ sourceCheck(studioSource, "seasonalSummary", 'Seasonal cart items must retain st
 sourceCheck(studioSource, "seasonalSelection(selected, layout, {}, area, rotation)", 'Seasonal Studio must create artwork-only production configuration.');
 sourceCheck(studioSource, "const artworks = allArtworks.filter((artwork) => !artwork.requires_name)", 'Templates that require customer names must not be offered in the artwork-only Seasonal flow.');
 sourceCheck(cartSource, "state={{ seasonalDraft: item.seasonalDraft, editCartKey: item.key }}", 'Cart Edit design must pass the exact saved seasonal draft and cart key.');
-sourceCheck(cartSource, 'fittingType="contain"', 'Custom cart previews must remain uncropped.');
+sourceCheck(cartSource, 'approved custom preview', 'Custom cart previews must keep the approved mockup asset.');
+check(
+  cartSource.includes('fittingType="contain"') || cartSource.includes('object-contain transition-transform'),
+  'Custom cart previews must remain uncropped.'
+);
 
 // Protect the artwork-only product decision.
 check(!studioSource.includes('SeasonalPersonalizationEditor'), 'Seasonal Studio must not load the personalization editor.');
