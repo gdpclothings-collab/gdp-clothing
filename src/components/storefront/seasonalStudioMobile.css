@@ -70,18 +70,19 @@
     display: none;
   }
 
-  /* Keep zoom tools inside the canvas, but away from the garment information
-     and approval content at the bottom. The top-right lane is clear beneath
-     the centered Front View badge on phone layouts. */
+  /* True top-right placement: keep the inspection toolbar in the canvas safe
+     corner and compact enough to clear both the centered Front View badge and
+     the garment shoulder. */
   .gdp-studio-active section[aria-label="Review seasonal design"] [aria-label="Review garment zoom controls"] {
     position: absolute;
-    top: 58px;
-    right: 12px;
+    top: 10px;
+    right: 10px;
     bottom: auto;
     left: auto;
     z-index: 70;
     min-height: 40px;
-    transform: none;
+    transform: scale(.82);
+    transform-origin: top right;
     border-color: rgba(255,255,255,.76);
     background: rgba(255,255,255,.94);
     box-shadow: 0 8px 22px rgba(23,50,77,.16);
