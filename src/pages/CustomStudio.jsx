@@ -927,7 +927,7 @@ export default function CustomStudio() {
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
   const [designStyle, setDesignStyle] = useState("");
-  const [designMood, setDesignMood] = useState("");
+  const [designMood, setDesignMood] = useState("Original");
   const [designIntensity, setDesignIntensity] = useState(3);
   const [garment, setGarment] = useState(FALLBACK_GARMENT);
   const [color, setColor] = useState("");
@@ -975,7 +975,7 @@ export default function CustomStudio() {
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [previewZoom, setPreviewZoom] = useState(1.15);
+  const [previewZoom, setPreviewZoom] = useState(1);
   const [artworkStates, setArtworkStates] = useState(() => defaultArtworkStates());
   const activeArtworkState = artworkStates[previewSide] || artworkStates.front;
   const artworkScale = Number(activeArtworkState.scale ?? 92);
@@ -1165,7 +1165,7 @@ export default function CustomStudio() {
       ...current,
       [previewSide]: defaultArtworkState(activeStyleTemplate),
     }));
-    setPreviewZoom(1.15);
+    setPreviewZoom(1);
     const firstPhotoLayer = editorLayers.find((layer) => layer.type === "photo");
     setSelectedEditorLayerId(firstPhotoLayer?.id || "photo");
   };
@@ -1272,7 +1272,7 @@ export default function CustomStudio() {
     setStep(Math.max(1, Math.min(STEPS.length, Number(draft.step || 1))));
     setDesignPath(String(draft.designPath || ""));
     setDesignStyle(String(draft.designStyle || ""));
-    setDesignMood(String(draft.designMood || ""));
+    setDesignMood("Original");
     setDesignIntensity(Math.max(1, Math.min(5, Number(draft.designIntensity || 3))));
     setPlacement(["front", "back", "front_back"].includes(draft.placement) ? draft.placement : "front");
     setPreviewSide(draft.previewSide === "back" ? "back" : "front");
@@ -1285,7 +1285,7 @@ export default function CustomStudio() {
     setNeedByDate(String(draft.needByDate || ""));
     setPriority(draft.priority === "rush" ? "rush" : "standard");
     setArtworkStates(draft.artworkStates || defaultArtworkStates());
-    setPreviewZoom(clampPreview(draft.previewZoom || 1.15));
+    setPreviewZoom(clampPreview(draft.previewZoom || 1));
     const restoredSeasonalDraft =
       draft.designPath === "seasonal" && draft.seasonalDraft?.artworkId
         ? draft.seasonalDraft
@@ -1439,6 +1439,8 @@ export default function CustomStudio() {
   const chooseStyleTemplate = (style) => {
     if (!style) return;
     setDesignStyle(style.name);
+    setDesignMood("Original");
+    setDesignIntensity(3);
     setPreviewSide("front");
     setPlacement((current) => current === "back" ? "front" : current);
     setArtworkStates((current) => ({
@@ -1453,7 +1455,7 @@ export default function CustomStudio() {
     }));
   };
   const chooseNoTemplate = () => {
-    if (activeStyleTemplate && typeof window !== "undefined" && !window.confirm("Switch to a blank design? Your uploaded photos, text and stickers will be preserved. The GDP template will be removed.")) return;
+    if (activeStyleTemplate && typeof window !== "undefined" && !window.confirm("Switch to a blank design? Your uploaded photos and text will be preserved. The GDP template will be removed.")) return;
     setDesignStyle(NO_TEMPLATE_STYLE);
     setDesignMood("Original");
     setArtworkStates(defaultArtworkStates());
@@ -1547,7 +1549,7 @@ export default function CustomStudio() {
         sourcePhotoIndex: Number(current?.[previewSide]?.sourcePhotoIndex || 0),
       },
     }));
-    setPreviewZoom(1.15);
+    setPreviewZoom(1);
   };
 
   async function uploadFiles(files) {
@@ -1848,7 +1850,7 @@ export default function CustomStudio() {
     if (step === 1) return Boolean(product) && Boolean(color) && Boolean(size) && selectedAvailable;
     if (step === 2) return Boolean(designPath);
     if (step === 3) {
-      return Boolean(designStyle) && Boolean(designMood) && photos.length >= minPhotos && Boolean(designIntensity) && memorialDetailsReady;
+      return Boolean(designStyle) && photos.length >= minPhotos && memorialDetailsReady;
     }
     if (step === 4) return rightsConfirmed && approvalAcknowledged;
     return true;
@@ -1865,9 +1867,7 @@ export default function CustomStudio() {
     if (step === 2) return "Choose a design path to continue.";
     if (step === 3) {
       if (!designStyle) return "Choose an artwork style to continue.";
-      if (!designMood) return "Choose a color finish to continue.";
       if (photos.length < minPhotos) return `Upload at least ${minPhotos} photo${minPhotos === 1 ? "" : "s"} to continue.`;
-      if (!designIntensity) return "Choose a design intensity to continue.";
       if (designPath === "memorial" && !String(personalization.name || "").trim()) return "Enter the memorial name exactly as it should be printed.";
       if (designPath === "memorial" && !memorialNameConfirmed) return "Verify the memorial name spelling to continue.";
     }
@@ -1880,8 +1880,6 @@ export default function CustomStudio() {
     let panelTab = "";
     if (step === 3) {
       if (!designStyle) { targetId = "custom-studio-artwork-style"; panelTab = "design"; }
-      else if (!designMood) { targetId = "custom-studio-color-finish"; panelTab = "design"; }
-      else if (!designIntensity) { targetId = "custom-studio-design-intensity"; panelTab = "design"; }
       else if (photos.length < minPhotos) { targetId = "custom-studio-photo-upload"; panelTab = "photos"; }
       else if (designPath === "memorial" && (!String(personalization.name || "").trim() || !memorialNameConfirmed)) { targetId = "custom-studio-memorial-details"; panelTab = "details"; }
     }
@@ -1926,8 +1924,8 @@ export default function CustomStudio() {
       setWarn("Choose a color and size before adding your custom design to cart.");
       return;
     }
-    if (!designPath || !designStyle || !designMood || !designIntensity) {
-      setWarn("Complete the design path, artwork, color finish and design intensity before adding to cart.");
+    if (!designPath || !designStyle) {
+      setWarn("Complete the design path and artwork before adding to cart.");
       return;
     }
     if (designPath === "memorial" && !memorialDetailsReady) {
@@ -2303,7 +2301,8 @@ export default function CustomStudio() {
                       setDesignIntensity(1);
                     } else if (path.id === "bootleg" || path.id === "memorial") {
                       setDesignStyle("");
-                      setDesignMood("");
+                      setDesignMood("Original");
+                      setDesignIntensity(3);
                     }
                     setStep(3);
                     window.requestAnimationFrame(() => {
@@ -2327,7 +2326,7 @@ export default function CustomStudio() {
               <button type="button" onClick={chooseNoTemplate} aria-pressed={designStyle === NO_TEMPLATE_STYLE} className={"select-none grid min-h-[112px] grid-cols-[1fr_92px] items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 " + (designStyle === NO_TEMPLATE_STYLE ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.06)]" : "border-[#ddd7ce] bg-white/55 hover:border-[#9aa8b5] hover:bg-white")}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 font-bold">No Template — Upload Only {designStyle === NO_TEMPLATE_STYLE && <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] uppercase tracking-wide text-white"><Check size={10}/> Selected</span>}</div>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Start with a blank print area and use only your own photos, text or stickers.</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Start with a blank print area and use only your own photos or text.</p>
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-[0.12em] text-[#65717d]"><Unlock size={11}/> Blank editable canvas</div>
                 </div>
                 <div className="relative grid aspect-square place-items-center overflow-hidden rounded-xl border border-dashed border-[#cfc7bc] bg-[linear-gradient(45deg,#f0ede8_25%,transparent_25%),linear-gradient(-45deg,#f0ede8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f0ede8_75%),linear-gradient(-45deg,transparent_75%,#f0ede8_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px] text-[9px] font-bold uppercase text-[#756f67]">Blank</div>
@@ -3104,7 +3103,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     setZoom(value => clampPreview(value + (event.deltaY < 0 ? .08 : -.08)));
   };
 
-  return <div id={containerId} onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
+  return <div id={containerId} data-gdp-studio-preview={interactiveEditor ? "live" : undefined} onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
     {showMeasurements && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">
@@ -3118,7 +3117,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
 
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={Number(zoom) === 1 ? undefined : { transform: `scale(${zoom})` }}>
       <div
-        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "w-[275px] sm:w-[305px]")}
+        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "h-[82%] w-auto max-w-[90%]")}
         style={{ aspectRatio: `${previewCanvas.width} / ${previewCanvas.height}` }}
       >
         {showMockup ? (

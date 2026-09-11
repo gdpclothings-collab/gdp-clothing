@@ -268,3 +268,28 @@
 .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
   min-height: clamp(500px, 62dvh, 720px);
 }
+
+
+/* 2026-09-10 garment-canvas refinement: controls live with the fabric preview. */
+@media (min-width: 768px) {
+  .gdp-studio-active [data-gdp-studio-preview="live"] #gdp-canvas-control-dock {
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    z-index: 85;
+    width: min(calc(100% - 24px), 620px);
+    transform: translateX(-50%);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 16px;
+    background: rgba(7,19,31,.91);
+    padding: 6px;
+    box-shadow: 0 14px 38px rgba(0,0,0,.22);
+    backdrop-filter: blur(16px);
+  }
+
+  .gdp-studio-active [data-gdp-studio-preview="live"] > div.absolute.inset-0.grid > div.relative {
+    height: 82% !important;
+    width: auto !important;
+    max-width: 90% !important;
+  }
+}
