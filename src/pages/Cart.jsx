@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Heart, MapPin, Minus, Pencil, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from "lucide-react";
+import { ArrowRight, Heart, MapPin, Minus, Pencil, Plus, ShieldCheck, ShoppingBag, Trash2, Truck, ZoomIn, ZoomOut } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 import { calculateCartQuantityDiscount } from "@/lib/cartPricing";
@@ -13,6 +13,67 @@ const seasonalPersonalization = (item) => {
   const text = item.seasonalDraft?.text || {};
   return [text.name, text.message].filter(Boolean).join(" · ") || "None";
 };
+
+function CartPreview({ item }) {
+  const customPreview = Boolean(item.isCustom && !item.isDtf);
+  const [zoom, setZoom] = React.useState(1);
+  const adjustZoom = (delta) => setZoom((value) => Math.max(0.8, Math.min(1.8, Number((value + delta).toFixed(2)))));
+  const frameClass = item.isCustom && !item.isDtf
+    ? "aspect-[4/5] bg-[#f3eee6]"
+    : "aspect-square bg-secondary sm:aspect-[4/5]";
+
+  return (
+    <div className={`${frameClass} relative overflow-hidden border border-black/10`}>
+      {item.isDtf ? (
+        <img src={item.image} alt={`${item.name} film layout`} className="h-full w-full bg-white object-contain" />
+      ) : customPreview ? (
+        <img
+          src={item.image}
+          alt={`${item.name} approved custom preview`}
+          className="h-full w-full object-contain transition-transform duration-200 ease-out"
+          style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
+        />
+      ) : (
+        <Image src={item.image} alt={item.name} fittingType="fill" className="h-full w-full object-cover" />
+      )}
+
+      {customPreview && (
+        <div
+          className="absolute right-2 top-2 z-20 flex items-center overflow-hidden rounded-xl border border-white/80 bg-white/95 shadow-[0_8px_22px_rgba(0,0,0,.14)] backdrop-blur-md sm:hidden"
+          aria-label="Cart garment zoom controls"
+        >
+          <button
+            type="button"
+            onClick={() => adjustZoom(-0.1)}
+            disabled={zoom <= 0.8}
+            className="grid h-9 w-9 place-items-center text-[#52616F] transition hover:bg-black/[.04] disabled:opacity-35"
+            aria-label="Zoom garment preview out"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <span className="min-w-11 text-center font-mono text-[9px] font-bold tabular-nums text-[#52616F]">{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            onClick={() => adjustZoom(0.1)}
+            disabled={zoom >= 1.8}
+            className="grid h-9 w-9 place-items-center text-[#52616F] transition hover:bg-black/[.04] disabled:opacity-35"
+            aria-label="Zoom garment preview in"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            className="h-9 border-l border-[#DCE3EA] px-2.5 text-[8px] font-black uppercase tracking-wide text-[#52616F]"
+            aria-label="Fit garment preview to canvas"
+          >
+            Fit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Cart() {
   const { items, updateQty, removeItem, saveForLater, saved, moveToCart } = useCart();
@@ -54,17 +115,11 @@ export default function Cart() {
               return (
                 <article key={item.key} className="border border-black/10 bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,.035)] sm:p-5">
                   <div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
-                    <div className={`${item.isCustom && !item.isDtf ? "aspect-[4/5] bg-[#f3eee6]" : "aspect-square bg-secondary sm:aspect-[4/5]"} overflow-hidden border border-black/10`}>
-                      {item.isDtf
-                        ? <img src={item.image} alt={`${item.name} film layout`} className="h-full w-full bg-white object-contain" />
-                        : item.isCustom
-                          ? <Image src={item.image} alt={`${item.name} approved custom preview`} fittingType="contain" className="h-full w-full object-contain" />
-                          : <Image src={item.image} alt={item.name} fittingType="fill" className="h-full w-full object-cover" />}
-                    </div>
+                    <CartPreview item={item} />
 
                     <div className="min-w-0">
                       <div className="flex items-start justify-between gap-4">
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-accent">{item.isDtf ? "DTF transfer film" : item.isCustom ? "GDP Custom Studio" : "GDP Clothing"}</div>
                           <h2 className="mt-1 text-lg font-bold leading-tight">{item.name}</h2>
                           {!item.isDtf && <p className="mt-1 text-sm text-muted-foreground">{[item.variant, item.color, item.size].filter(Boolean).join(" · ")}</p>}
