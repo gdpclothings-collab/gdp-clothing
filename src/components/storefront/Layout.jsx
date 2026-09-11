@@ -5,9 +5,11 @@ import StoreFooter from "./StoreFooter";
 import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
 import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
+import CustomStudioShellEnhancer from "./CustomStudioShellEnhancer";
 import "./customStudioMobile.css";
 import "./customStudioDesktop.css";
 import "./seasonalStudioMobile.css";
+import "./customStudioShell.css";
 
 export default function Layout() {
   const location = useLocation();
@@ -22,6 +24,7 @@ export default function Layout() {
         <Outlet />
       </main>
       {studioActive && <SeasonalMobileReviewEnhancer />}
+      {studioActive && <CustomStudioShellEnhancer />}
       {!studioActive && <StoreFooter />}
       <AIAssistant />
       <CookiePreferences />
