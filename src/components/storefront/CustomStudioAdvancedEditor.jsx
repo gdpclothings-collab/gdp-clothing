@@ -1137,26 +1137,98 @@ export function AdvancedEditorPanel({
   ]);
 
   const renderCanvasPanel = () => (
-    <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Garment canvas controls">
-      <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[.04] p-1">
-        <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Fabric side</span>
-        <div className="inline-flex rounded-lg border border-white/10 bg-black/10 p-0.5">
-          <button type="button" onClick={() => onPreviewSideChange?.("front")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "front" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Front</button>
-          {frontBackEnabled && <button type="button" onClick={() => onPreviewSideChange?.("back")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "back" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Back</button>}
+  <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Garment canvas controls">
+    <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[.04] p-1">
+      <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Fabric side</span>
+      <div className="inline-flex rounded-lg border border-white/10 bg-black/10 p-0.5">
+        <button type="button" onClick={() => onPreviewSideChange?.("front")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "front" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Front</button>
+        {frontBackEnabled && <button type="button" onClick={() => onPreviewSideChange?.("back")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "back" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Back</button>}
+      </div>
+    </div>
+    <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
+      <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">View</span>
+      <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.7, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric out"><ZoomOut size={14}/></button>
+      <span className="w-10 text-center font-mono text-[9px] text-white/65">{Math.round(Number(previewZoom || 1) * 100)}%</span>
+      <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(2, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric in"><ZoomIn size={14}/></button>
+      <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase text-white/75 hover:bg-white/[.06]" aria-label="Fit garment to canvas">Fit</button>
+    </div>
+    <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
+      <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Production guides</span>
+      <button type="button" onClick={onToggleGuides} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showGuides ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Eye size={12} className="mr-1 inline"/>Guide</button>
+      <button type="button" onClick={onToggleMeasurements} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showMeasurements ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Ruler size={12} className="mr-1 inline"/>Measure</button>
+    </div>
+  </div>
+);
+
+  const renderDesignPanel = () => (
+    <div className="space-y-4">
+      <div id="custom-studio-artwork-style" className="scroll-mt-28">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div><div className="text-[10px] font-bold uppercase tracking-[.09em] text-white">Choose design</div><div className="mt-0.5 text-[9px] text-white/42">Protected artwork stays locked. Customer content stays editable.</div></div>
+          <Palette size={15} className="text-[#D9273E]"/>
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          {onChooseBlank && <button type="button" onClick={onChooseBlank} className={`rounded-xl border p-2.5 text-left ${designStyle === blankStyleName ? "border-[#D9273E] bg-[#D9273E]/12" : "border-white/10 bg-white/[.035]"}`}><div className="text-[10px] font-bold text-white">No template</div><div className="mt-1 text-[8px] leading-relaxed text-white/38">Blank editable print area</div></button>}
+          {(designOptions || []).map((style) => <button key={style.id || style.name} type="button" onClick={() => { onChooseStyle?.(style); onChooseMood?.("Original"); onChooseIntensity?.(designPath === "upload" ? 1 : 3); }} className={`overflow-hidden rounded-xl border p-1.5 text-left ${designStyle === style.name ? "border-[#D9273E] bg-[#D9273E]/12" : "border-white/10 bg-white/[.035]"}`}><div className="aspect-[4/3] overflow-hidden rounded-lg bg-white/[.05]"><img src={style.thumbnail || style.assetUrl} alt="" className="h-full w-full object-contain"/></div><div className="mt-1.5 truncate text-[9px] font-bold text-white">{String(style.name || "Template").replace(/^GDP\s+/, "")}</div><div className="mt-0.5 text-[8px] text-white/35">Locked GDP artwork</div></button>)}
+        </div>
+        {(designPath === "bootleg" || designPath === "memorial") && <div className="mt-3 rounded-xl border border-white/[.08] bg-white/[.035] p-2.5 text-[9px] leading-relaxed text-white/48"><strong className="text-white/80">{designPath === "memorial" ? "Memorial front design:" : "Front template:"}</strong> {designStyle === blankStyleName ? "Blank canvas selected. Only customer-added photos and text will print." : "The selected GDP artwork is protected. The back stays blank until you add a separate back design."}</div>}
       </div>
-      <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
-        <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">View</span>
-        <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.7, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric out"><ZoomOut size={14}/></button>
-        <span className="w-10 text-center font-mono text-[9px] text-white/65">{Math.round(Number(previewZoom || 1) * 100)}%</span>
-        <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(2, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric in"><ZoomIn size={14}/></button>
-        <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase text-white/75 hover:bg-white/[.06]" aria-label="Fit garment to canvas">Fit</button>
+    </div>
+  );
+
+  const renderLegacyArtworkTool = () => {
+    if (!legacyArtworkActive) return null;
+    return (
+      <div className="space-y-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div><div className="text-[10px] font-bold uppercase tracking-[.09em] text-white">Artwork transform</div><div className="mt-0.5 text-[9px] text-white/42">Edit the selected uploaded artwork directly on the garment.</div></div>
+          <Move size={15} className="text-[#D9273E]"/>
+        </div>
+        {(photoAssets || []).length > 1 && <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Artwork source<select value={Number(artworkSourcePhotoIndex || 0)} onPointerDown={onArtworkTransformStart} onChange={(event) => onArtworkSourcePhotoIndexChange?.(Number(event.target.value))} className="mt-1.5 h-10 w-full rounded-xl border border-white/10 bg-[#0B1A28] px-3 text-[10px] normal-case tracking-normal text-white outline-none">{photoAssets.map((photo, index) => <option key={photo.id || photo.url || index} value={index}>{index + 1}. {photo.name || "Uploaded photo"}</option>)}</select></label>}
+        <RangeRow label="Design size" value={Number(artworkScale || 92)} min={55} max={180} suffix="%" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkScaleChange?.(value)}/>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("fit")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode !== "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fit · no crop</button>
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("crop")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode === "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Crop to fill</button>
+        </div>
+        {artworkFitMode === "crop" && <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">Crop to Fill trims image edges. Use Fit · No Crop to keep the full artwork visible.</div>}
+        {allowFreeStretch && <div className="rounded-xl border border-white/[.08] bg-white/[.035] p-3">
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkConstrainRatioChange?.(!artworkConstrainRatio)} className="inline-flex items-center gap-2 text-[9px] font-bold uppercase text-white/75">{artworkConstrainRatio ? <Lock size={13}/> : <Unlock size={13}/>} {artworkConstrainRatio ? "Constrain aspect ratio" : "Free stretch enabled"}</button>
+          <div className="mt-1 text-[8px] leading-relaxed text-white/35">{artworkConstrainRatio ? "Recommended: resizing keeps the original proportions." : "Advanced: width and height can be adjusted independently."}</div>
+          {!artworkConstrainRatio && <div className="mt-3 grid gap-3 sm:grid-cols-2"><RangeRow label="Width" value={Number(artworkStretchX || 100)} min={60} max={160} suffix="%" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkStretchXChange?.(value)}/><RangeRow label="Height" value={Number(artworkStretchY || 100)} min={60} max={160} suffix="%" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkStretchYChange?.(value)}/></div>}
+        </div>}
+        <RangeRow label="Rotation" value={Number(artworkRotation || 0)} min={-180} max={180} suffix="°" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkRotationChange?.(value)}/>
       </div>
-      <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
-        <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Production guides</span>
-        <button type="button" onClick={onToggleGuides} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showGuides ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Eye size={12} className="mr-1 inline"/>Guide</button>
-        <button type="button" onClick={onToggleMeasurements} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showMeasurements ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Ruler size={12} className="mr-1 inline"/>Measure</button>
-      </div>
+    );
+  };
+
+  const renderUploadPanel = () => (
+    <div id="custom-studio-photo-upload" className="scroll-mt-28 space-y-3">
+      <label className={`flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[.035] px-3 text-center transition hover:border-[#D9273E]/60 ${uploading ? "pointer-events-none opacity-55" : ""}`}>
+        <Upload size={17} className="text-[#D9273E]"/>
+        <span><span className="block text-[10px] font-bold uppercase text-white">{uploading ? "Preparing upload…" : designPath === "upload" ? "Upload print artwork" : "Upload photo"}</span><span className="mt-0.5 block text-[8px] text-white/38">JPG, PNG or WEBP · max {uploadLimitMb}MB each</span></span>
+        <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploading} onChange={(event) => { const files = event.target.files; if (files?.length) onUploadFiles?.(files); event.target.value = ""; }}/>
+      </label>
+      {uploading && Number(uploadProgress?.total || 0) > 0 && <div className="rounded-xl border border-white/10 bg-white/[.035] px-3 py-2 text-[9px] text-white/55">Preparing {uploadProgress.done}/{uploadProgress.total} · {Math.round((Number(uploadProgress.done || 0) / Math.max(1, Number(uploadProgress.total || 1))) * 100)}%</div>}
+      {uploadWarning && <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">{uploadWarning}</div>}
+      {(photoAssets || []).length > 0 && <div><div className="mb-1.5 flex items-center justify-between text-[8px] uppercase tracking-[.1em] text-white/35"><span>Media library</span><span>{photoAssets.length}/{maxPhotos}</span></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{photoAssets.map((photo, index) => <button key={photo.id || index} type="button" onClick={() => { const existing = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || "")); if (existing) chooseLayer(existing.id); else onAddPhoto?.(photo); }} className="w-[104px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[.035] p-1.5 text-left"><img src={photo.url || photo.originalUrl} alt="" className="aspect-square w-full rounded-lg object-cover"/><div className="mt-1 truncate text-[8px] font-semibold text-white/65">{photo.name || `Photo ${index + 1}`}</div></button>)}</div></div>}
+    </div>
+  );
+
+  const renderLetteringPanel = () => {
+    if (selectedLayer?.type === "text") return <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderTextTool()}</div>;
+    const textLayers = editorLayers.filter((layer) => layer.type === "text");
+    return <div className="space-y-2"><button type="button" onClick={() => onAddText?.()} className="w-full rounded-xl border border-[#D9273E]/35 bg-[#D9273E]/10 px-4 py-3 text-[10px] font-bold uppercase text-white"><Type size={14} className="mr-2 inline"/>Add lettering</button>{textLayers.length ? textLayers.map((layer, index) => <button key={layer.id} type="button" onClick={() => chooseLayer(layer.id)} className="w-full rounded-xl border border-white/10 bg-white/[.035] px-3 py-2.5 text-left"><div className="truncate text-[10px] font-bold text-white">{layer.text || `Text ${index + 1}`}</div><div className="mt-0.5 text-[8px] uppercase tracking-wide text-white/35">Tap to edit font, curve, effects and spacing</div></button>) : <div className="rounded-xl border border-dashed border-white/15 p-4 text-center text-[9px] text-white/42">Add a title, message, name or extra wording here.</div>}</div>;
+  };
+
+  const memorialPersonalization = /** @type {{ name?: string, dates?: string, message?: string }} */ (personalization || {});
+
+  const renderMemorialDetails = () => (
+    <div id="custom-studio-memorial-details" className="scroll-mt-28 space-y-3">
+      <div className="rounded-xl border border-white/[.08] bg-white/[.035] p-3 text-[9px] leading-relaxed text-white/50"><strong className="text-white/80">Printed memorial details:</strong> enter the protected-template wording exactly as it should appear. Optional custom text can still be added separately in the Text tab.</div>
+      <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Memorial name <span className="text-[#FF8898]">*</span><input type="text" maxLength={60} value={memorialPersonalization.name || ""} onChange={(event) => { onChangePersonalization?.({ name: event.target.value }); onMemorialNameConfirmedChange?.(false); }} placeholder="Full name as it should print" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-white/[.055] px-3 text-sm normal-case tracking-normal text-white outline-none placeholder:text-white/25 focus:border-[#D9273E]/70"/></label>
+      <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Dates <span className="font-normal text-white/30">optional</span><input type="text" maxLength={40} value={memorialPersonalization.dates || ""} onChange={(event) => onChangePersonalization?.({ dates: event.target.value })} placeholder="e.g. 1984 — 2026" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-white/[.055] px-3 text-sm normal-case tracking-normal text-white outline-none placeholder:text-white/25 focus:border-[#D9273E]/70"/></label>
+      <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Remembrance message <span className="font-normal text-white/30">optional</span><textarea maxLength={140} rows={3} value={memorialPersonalization.message || ""} onChange={(event) => onChangePersonalization?.({ message: event.target.value })} placeholder="Forever loved, always remembered." className="mt-1.5 w-full resize-none rounded-xl border border-white/10 bg-white/[.055] p-3 text-sm normal-case tracking-normal text-white outline-none placeholder:text-white/25 focus:border-[#D9273E]/70"/><span className="mt-1 block text-right font-mono text-[8px] font-normal text-white/30">{String(memorialPersonalization.message || "").length}/140</span></label>
+      <label className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-[9px] leading-relaxed ${memorialNameConfirmed ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[.035] text-white/55"}`}><input type="checkbox" checked={memorialNameConfirmed} disabled={!String(memorialPersonalization.name || "").trim()} onChange={(event) => onMemorialNameConfirmedChange?.(event.target.checked)} className="mt-0.5 accent-[#D9273E]"/><span><strong className="text-white/85">I verified the memorial name spelling.</strong> Changing the name requires verification again.</span></label>
     </div>
   );
 
