@@ -1,0 +1,88 @@
+name: Repair Desktop Editor Helpers
+
+on:
+  push:
+    branches:
+      - fix/desktop-custom-studio-state-ui-20260911
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore editor helpers and reapply grouped toolbar
+        shell: bash
+        run: |
+          git show origin/main:src/components/storefront/CustomStudioAdvancedEditor.jsx > src/components/storefront/CustomStudioAdvancedEditor.jsx
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/storefront/CustomStudioAdvancedEditor.jsx")
+          text = path.read_text()
+          start = text.index('  const renderCanvasPanel = () => (')
+          end = text.index('\n\n  const renderDesignPanel = () => (', start)
+          toolbar = '''  const renderCanvasPanel = () => (
+            <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Garment canvas controls">
+              <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[.04] p-1">
+                <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Fabric side</span>
+                <div className="inline-flex rounded-lg border border-white/10 bg-black/10 p-0.5">
+                  <button type="button" onClick={() => onPreviewSideChange?.("front")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "front" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Front</button>
+                  {frontBackEnabled && <button type="button" onClick={() => onPreviewSideChange?.("back")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "back" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Back</button>}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
+                <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">View</span>
+                <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.7, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric out"><ZoomOut size={14}/></button>
+                <span className="w-10 text-center font-mono text-[9px] text-white/65">{Math.round(Number(previewZoom || 1) * 100)}%</span>
+                <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(2, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric in"><ZoomIn size={14}/></button>
+                <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase text-white/75 hover:bg-white/[.06]" aria-label="Fit garment to canvas">Fit</button>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
+                <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Production guides</span>
+                <button type="button" onClick={onToggleGuides} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showGuides ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Eye size={12} className="mr-1 inline"/>Guide</button>
+                <button type="button" onClick={onToggleMeasurements} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showMeasurements ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Ruler size={12} className="mr-1 inline"/>Measure</button>
+              </div>
+            </div>
+          );'''
+          path.write_text(text[:start] + toolbar + text[end:])
+          PY
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Desktop regression checks
+        run: node scripts/verify-custom-studio-desktop.mjs
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Commit repaired editor
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/storefront/CustomStudioAdvancedEditor.jsx
+          if git diff --cached --quiet; then
+            echo "No editor changes to commit."
+            exit 0
+          fi
+          git commit -m "Restore Custom Studio editor helpers and grouped toolbar"
+          git push origin HEAD
