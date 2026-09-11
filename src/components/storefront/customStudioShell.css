@@ -1,0 +1,59 @@
+/* Shared Custom Studio shell refinements.
+   Keeps Step 1 focused on garment selection and provides one persistent
+   After You Order card at the true bottom of every Custom Studio route. */
+
+/* The old After You Order strip lives inside the collapsible order guide.
+   Hide that embedded copy now that the shared shell owns the persistent card. */
+.gdp-studio-active main button[aria-expanded] + div.border-t > div:last-child {
+  display: none !important;
+}
+
+/* Step 1: use the full content width instead of reserving a second desktop
+   column for a live preview that is not needed during garment selection. */
+.gdp-studio-active[data-gdp-studio-step="1"] .grid:has(> #custom-studio-workspace) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.gdp-studio-active[data-gdp-studio-step="1"] #custom-studio-workspace {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.gdp-studio-active[data-gdp-studio-step="1"] #custom-studio-workspace + aside {
+  position: static !important;
+  top: auto !important;
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* Aside order on the standard Studio is:
+   1) mobile Back / Continue card
+   2) live garment preview
+   3) Your Order card
+   Remove only the Step 1 preview while preserving it for later editing steps. */
+.gdp-studio-active[data-gdp-studio-step="1"] #custom-studio-workspace + aside > div:nth-child(2) {
+  display: none !important;
+}
+
+/* Stretch both remaining bottom cards to the full Step 1 content width. */
+.gdp-studio-active[data-gdp-studio-step="1"] #custom-studio-workspace + aside > div:first-child,
+.gdp-studio-active[data-gdp-studio-step="1"] #custom-studio-workspace + aside > div:last-child,
+.gdp-studio-active[data-gdp-studio-step="1"] #custom-studio-workspace + aside > div:first-child > div {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+@media (max-width: 767px) {
+  .gdp-studio-active[data-gdp-studio-step="1"] .grid:has(> #custom-studio-workspace) {
+    gap: 1rem !important;
+  }
+
+  .gdp-custom-studio-after-order {
+    padding-top: 0.5rem;
+  }
+
+  .gdp-custom-studio-after-order section {
+    border-radius: 20px;
+  }
+}
