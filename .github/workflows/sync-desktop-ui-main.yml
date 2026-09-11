@@ -1,0 +1,97 @@
+name: Sync Desktop UI Fix With Main
+
+on:
+  push:
+    branches:
+      - fix/desktop-custom-studio-state-ui-20260911
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Sync current main and preserve latest garment focus behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "Current main is already contained in this branch."
+            echo "ALREADY_SYNCED=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_status=$?
+          set -e
+
+          # This file changed concurrently on main. Our intended delta is only
+          # faster focus timing, so always take the newest main implementation
+          # and reapply that narrow timing adjustment.
+          git checkout origin/main -- src/components/storefront/DesktopGarmentSelectionFocus.jsx
+          python <<'PY'
+          from pathlib import Path
+          p = Path("src/components/storefront/DesktopGarmentSelectionFocus.jsx")
+          text = p.read_text()
+          text = text.replace("const FADE_MS = 420;", "const FADE_MS = 300;", 1)
+          text = text.replace("const MOVE_MS = 320;", "const MOVE_MS = 260;", 1)
+          text = text.replace("opacity 420ms cubic-bezier(.22,.8,.24,1)", "opacity 300ms cubic-bezier(.22,.8,.24,1)", 1)
+          text = text.replace("transform 420ms cubic-bezier(.22,.8,.24,1)", "transform 300ms cubic-bezier(.22,.8,.24,1)", 1)
+          text = text.replace("filter 420ms cubic-bezier(.22,.8,.24,1)", "filter 300ms cubic-bezier(.22,.8,.24,1)", 1)
+          p.write_text(text)
+          PY
+          git add src/components/storefront/DesktopGarmentSelectionFocus.jsx
+
+          unresolved="$(git diff --name-only --diff-filter=U)"
+          if [[ -n "$unresolved" ]]; then
+            echo "Unresolved merge conflicts remain:"
+            echo "$unresolved"
+            exit 1
+          fi
+
+          if [[ $merge_status -ne 0 ]]; then
+            echo "Merge had conflicts, but all known conflicts were resolved safely."
+          fi
+
+          git commit -m "Merge current main into desktop Custom Studio fix"
+          echo "ALREADY_SYNCED=false" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        if: env.ALREADY_SYNCED != 'true'
+        run: npm install --no-audit --no-fund
+
+      - name: Desktop regression checks
+        if: env.ALREADY_SYNCED != 'true'
+        run: node scripts/verify-custom-studio-desktop.mjs
+
+      - name: TypeScript check
+        if: env.ALREADY_SYNCED != 'true'
+        run: npm run typecheck
+
+      - name: ESLint
+        if: env.ALREADY_SYNCED != 'true'
+        run: npm run lint
+
+      - name: Production build
+        if: env.ALREADY_SYNCED != 'true'
+        run: npm run build
+
+      - name: Push synchronized branch
+        if: env.ALREADY_SYNCED != 'true'
+        run: git push origin HEAD
