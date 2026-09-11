@@ -32,28 +32,50 @@ export default function CustomStudioShellEnhancer() {
     if (!root) return undefined;
 
     const mobile = window.matchMedia("(max-width: 767px)");
-    let appliedMobileStepOneDefault = false;
+    let mobileStepOneGuideOwnedByUser = false;
+    let forcingGuideClosed = false;
 
     const sync = () => {
       detectStudioStep(root);
 
-      // Mobile Step 1 starts with the guide collapsed to keep garment choices
-      // near the top of the screen. Apply this default only once so a customer
-      // can freely reopen the guide without MutationObserver closing it again.
-      if (!appliedMobileStepOneDefault && mobile.matches && root.dataset.gdpStudioStep === "1") {
-        const button = customOrderGuideButton(root);
-        if (!button) return;
-        if (button.getAttribute("aria-expanded") === "true") button.click();
-        appliedMobileStepOneDefault = true;
-      }
+      // Step 1 on mobile must begin collapsed. Custom Studio settings load
+      // asynchronously and can re-open this guide after first paint, so keep
+      // enforcing the closed default until the customer deliberately taps it.
+      if (!mobile.matches || root.dataset.gdpStudioStep !== "1" || mobileStepOneGuideOwnedByUser) return;
+
+      const button = customOrderGuideButton(root);
+      if (!button || button.getAttribute("aria-expanded") !== "true" || forcingGuideClosed) return;
+
+      forcingGuideClosed = true;
+      button.click();
+      window.queueMicrotask(() => {
+        forcingGuideClosed = false;
+      });
     };
+
+    const onTrustedGuideClick = (event) => {
+      if (!event.isTrusted || !mobile.matches || root.dataset.gdpStudioStep !== "1") return;
+      const target = event.target instanceof Element ? event.target.closest("button") : null;
+      const guideButton = customOrderGuideButton(root);
+      if (!target || !guideButton || target !== guideButton) return;
+      mobileStepOneGuideOwnedByUser = true;
+    };
+
+    root.addEventListener("click", onTrustedGuideClick, true);
     sync();
 
     const observer = new MutationObserver(sync);
-    observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["aria-expanded"] });
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["aria-expanded"],
+    });
 
     return () => {
       observer.disconnect();
+      root.removeEventListener("click", onTrustedGuideClick, true);
       delete root.dataset.gdpStudioStep;
     };
   }, []);
