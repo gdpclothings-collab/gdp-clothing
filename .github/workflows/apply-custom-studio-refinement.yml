@@ -14,189 +14,14 @@ jobs:
   refine:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout branch
+        uses: actions/checkout@v4
         with:
           ref: refine/custom-studio-canvas-controls-20260910
           fetch-depth: 0
 
-      - name: Apply guarded editor refinements
-        shell: bash
-        run: |
-          python <<'PY'
-          from pathlib import Path
-          import re
-
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected exactly 1 match, found {count}")
-              return text.replace(old, new, 1)
-
-          advanced_path = Path("src/components/storefront/CustomStudioAdvancedEditor.jsx")
-          advanced = advanced_path.read_text()
-
-          advanced = replace_once(
-              advanced,
-              'import React, { useEffect, useMemo, useRef, useState } from "react";\n',
-              'import React, { useEffect, useMemo, useRef, useState } from "react";\nimport { createPortal } from "react-dom";\n',
-              "react-dom portal import",
-          )
-          advanced = replace_once(advanced, '  stickers: true,\n', '  stickers: false,\n', "default stickers off")
-          advanced = advanced.replace('Add a photo, text or sticker to create editable layers.', 'Add a photo or text to create editable layers.')
-          advanced = advanced.replace('photos, lettering and stickers will print.', 'photos and text will print.')
-          advanced = advanced.replace('Optional custom lettering can still be added separately in the Lettering tab.', 'Optional custom text can still be added separately in the Text tab.')
-
-          marker = '  const [showPhotoPicker, setShowPhotoPicker] = useState(false);\n'
-          addition = '''  const [showPhotoPicker, setShowPhotoPicker] = useState(false);\n  const [canvasDockHost, setCanvasDockHost] = useState(null);\n\n  useEffect(() => {\n    const resolveCanvasDockHost = () => {\n      if (typeof document === "undefined") return;\n      const host = document.querySelector(\n        '.gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) > div:nth-child(2)'\n      );\n      setCanvasDockHost(host || null);\n    };\n    resolveCanvasDockHost();\n    const frame = typeof window !== "undefined" ? window.requestAnimationFrame(resolveCanvasDockHost) : 0;\n    return () => { if (frame && typeof window !== "undefined") window.cancelAnimationFrame(frame); };\n  }, [designPath]);\n\n  useEffect(() => {\n    if (!designStyle) return;\n    const neutralIntensity = designPath === "upload" ? 1 : 3;\n    if (designMood !== "Original") onChooseMood?.("Original");\n    if (Number(designIntensity || 0) !== neutralIntensity) onChooseIntensity?.(neutralIntensity);\n  }, [designPath, designStyle, designMood, designIntensity, onChooseMood, onChooseIntensity]);\n'''
-          advanced = replace_once(advanced, marker, addition, "canvas portal state and neutral legacy values")
-
-          old_context = '''  ] : selectedType === "sticker" ? [\n    ["stickers", Sparkles, "Replace"],\n    ["transform", Move, "Transform"],\n    ["more", Layers, "More"],\n  ] : []);'''
-          new_context = '''  ] : selectedType === "sticker" ? [\n    ["transform", Move, "Transform"],\n    ["more", Layers, "More"],\n  ] : []);'''
-          advanced = replace_once(advanced, old_context, new_context, "remove sticker replacement control")
-
-          old_tabs = '''  const panelTabs = /** @type {Array<[string, React.ComponentType<any>, string]>} */ ([\n    ["canvas", Eye, "Canvas"],\n    ...(designPath !== "upload" ? [["design", Palette, "Design"]] : []),\n    ["photos", ImageIcon, designPath === "upload" ? "Artwork" : "Photos"],\n    ...(tools.text ? [["lettering", Type, "Lettering"]] : []),\n    ...(designPath === "memorial" ? [["details", Heart, "Details"]] : []),\n    ["layers", Layers, "Layers"],\n  ]);'''
-          new_tabs = '''  const panelTabs = /** @type {Array<[string, React.ComponentType<any>, string]>} */ ([\n    ...(designPath !== "upload" ? [["design", Palette, "Design"]] : []),\n    ["photos", ImageIcon, designPath === "upload" ? "Artwork" : "Photos"],\n    ...(tools.text ? [["lettering", Type, "Text"]] : []),\n    ...(designPath === "memorial" ? [["details", Heart, "Details"]] : []),\n    ["layers", Layers, "Layers"],\n  ]);'''
-          advanced = replace_once(advanced, old_tabs, new_tabs, "simplify editor tabs")
-
-          canvas_pattern = re.compile(r'  const renderCanvasPanel = \(\) => \(\n.*?\n  \);\n\n  const renderDesignPanel =', re.S)
-          canvas_replacement = '''  const renderCanvasPanel = () => (\n    <div className="flex flex-wrap items-center justify-center gap-1.5" aria-label="Garment canvas controls">\n      <div className="inline-flex shrink-0 rounded-xl border border-white/10 bg-white/[.04] p-1">\n        <button type="button" onClick={() => onPreviewSideChange?.("front")} className={`rounded-lg px-3 py-2 text-[9px] font-bold uppercase ${previewSide === "front" ? "bg-white text-[#07131F]" : "text-white/60"}`}>Front</button>\n        {frontBackEnabled && <button type="button" onClick={() => onPreviewSideChange?.("back")} className={`rounded-lg px-3 py-2 text-[9px] font-bold uppercase ${previewSide === "back" ? "bg-white text-[#07131F]" : "text-white/60"}`}>Back</button>}\n      </div>\n      <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.7, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/75" aria-label="Zoom fabric out"><ZoomOut size={14}/></button>\n      <span className="w-10 shrink-0 text-center font-mono text-[9px] text-white/65">{Math.round(Number(previewZoom || 1) * 100)}%</span>\n      <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(2, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/75" aria-label="Zoom fabric in"><ZoomIn size={14}/></button>\n      <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 shrink-0 rounded-xl border border-white/10 bg-white/[.04] px-2.5 text-[8px] font-bold uppercase text-white/75">Fit</button>\n      <button type="button" onClick={onToggleGuides} className={`h-9 shrink-0 rounded-xl border px-2.5 text-[8px] font-bold uppercase ${showGuides ? "border-[#D9273E] bg-[#D9273E]/20 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><Eye size={12} className="mr-1 inline"/>Guide</button>\n      <button type="button" onClick={onToggleMeasurements} className={`h-9 shrink-0 rounded-xl border px-2.5 text-[8px] font-bold uppercase ${showMeasurements ? "border-[#D9273E] bg-[#D9273E]/20 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><Ruler size={12} className="mr-1 inline"/>Measure</button>\n    </div>\n  );\n\n  const renderDesignPanel ='''
-          advanced, count = canvas_pattern.subn(canvas_replacement, advanced, count=1)
-          if count != 1:
-              raise SystemExit(f"canvas controls: expected 1 replacement, found {count}")
-
-          advanced = re.sub(
-              r'\n      \{moodOptions\?\.length > 0 && <div id="custom-studio-color-finish".*?</div>\}\n      <div id="custom-studio-design-intensity".*?</div>\n',
-              '\n',
-              advanced,
-              count=1,
-              flags=re.S,
-          )
-          if 'id="custom-studio-color-finish"' in advanced or 'id="custom-studio-design-intensity"' in advanced:
-              raise SystemExit("color finish/design intensity UI removal did not complete")
-
-          advanced = advanced.replace(
-              'onClick={() => onChooseStyle?.(style)}',
-              'onClick={() => { onChooseStyle?.(style); onChooseMood?.("Original"); onChooseIntensity?.(designPath === "upload" ? 1 : 3); }}',
-          )
-
-          return_marker = '  return (\n    <div id="gdp-touch-studio-panel"'
-          if return_marker not in advanced:
-              raise SystemExit("advanced editor return marker missing")
-          advanced = advanced.replace(
-              return_marker,
-              '  return (\n    <>\n      {canvasDockHost ? createPortal(<div id="gdp-canvas-control-dock">{renderCanvasPanel()}</div>, canvasDockHost) : null}\n      <div id="gdp-touch-studio-panel"',
-              1,
-          )
-          advanced = replace_once(
-              advanced,
-              '    </div>\n  );\n}\n\nexport function PhotoBrushEditor',
-              '      </div>\n    </>\n  );\n}\n\nexport function PhotoBrushEditor',
-              "close portal fragment",
-          )
-          advanced = advanced.replace('{panelTab === "canvas" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderCanvasPanel()}</div>}\n      ', '')
-          advanced = advanced.replace('{tools.stickers && <ToolButton icon={Sparkles} label="Sticker"', '{false && tools.stickers && <ToolButton icon={Sparkles} label="Sticker"')
-          advanced = advanced.replace('{showStickers && tools.stickers && <div', '{false && showStickers && tools.stickers && <div')
-
-          # Preserve support for old sticker layers but remove sticker creation/replacement affordances.
-          if 'label="Sticker"' in advanced and '{false && tools.stickers' not in advanced:
-              raise SystemExit("sticker quick action still active")
-          advanced_path.write_text(advanced)
-
-          studio_path = Path("src/pages/CustomStudio.jsx")
-          studio = studio_path.read_text()
-          studio = replace_once(studio, 'const [designMood, setDesignMood] = useState("");', 'const [designMood, setDesignMood] = useState("Original");', "neutral color finish state")
-          studio = replace_once(studio, 'setDesignMood(String(draft.designMood || ""));', 'setDesignMood(String(draft.designMood || "Original"));', "draft neutral mood")
-          studio = replace_once(studio, '    setDesignStyle(style.name);\n    setPreviewSide("front");', '    setDesignStyle(style.name);\n    setDesignMood("Original");\n    setDesignIntensity(3);\n    setPreviewSide("front");', "template neutral legacy values")
-          studio = replace_once(studio, '                    } else if (path.id === "bootleg" || path.id === "memorial") {\n                      setDesignStyle("");\n                      setDesignMood("");\n                    }', '                    } else if (path.id === "bootleg" || path.id === "memorial") {\n                      setDesignStyle("");\n                      setDesignMood("Original");\n                      setDesignIntensity(3);\n                    }', "path neutral legacy values")
-          studio = replace_once(studio, '      return Boolean(designStyle) && Boolean(designMood) && photos.length >= minPhotos && Boolean(designIntensity) && memorialDetailsReady;', '      return Boolean(designStyle) && photos.length >= minPhotos && memorialDetailsReady;', "continue validation")
-          studio = studio.replace('      if (!designMood) return "Choose a color finish to continue.";\n', '')
-          studio = studio.replace('      if (!designIntensity) return "Choose a design intensity to continue.";\n', '')
-          studio = studio.replace('      else if (!designMood) { targetId = "custom-studio-color-finish"; panelTab = "design"; }\n', '')
-          studio = studio.replace('      else if (!designIntensity) { targetId = "custom-studio-design-intensity"; panelTab = "design"; }\n', '')
-          studio = replace_once(studio, '    if (!designPath || !designStyle || !designMood || !designIntensity) {\n      setWarn("Complete the design path, artwork, color finish and design intensity before adding to cart.");', '    if (!designPath || !designStyle) {\n      setWarn("Complete the design path and artwork before adding to cart.");', "cart validation")
-          studio = studio.replace('Your uploaded photos, text and stickers will be preserved.', 'Your uploaded photos and text will be preserved.')
-          studio = studio.replace('use only your own photos, text or stickers.', 'use only your own photos or text.')
-          studio = replace_once(studio, '"w-[275px] sm:w-[305px]"', '"h-[86%] w-auto max-w-[90%]"', "larger garment fit")
-          studio_path.write_text(studio)
-
-          desktop_path = Path("src/components/storefront/customStudioDesktop.css")
-          desktop = desktop_path.read_text()
-          desktop += r'''
-
-/* 2026-09-10 garment-canvas refinement: controls live with the fabric preview. */
-@media (min-width: 768px) {
-  .gdp-studio-active #gdp-canvas-control-dock {
-    position: absolute;
-    left: 50%;
-    bottom: 14px;
-    z-index: 85;
-    width: min(calc(100% - 24px), 620px);
-    transform: translateX(-50%);
-    border: 1px solid rgba(255,255,255,.14);
-    border-radius: 16px;
-    background: rgba(7,19,31,.91);
-    padding: 6px;
-    box-shadow: 0 14px 38px rgba(0,0,0,.22);
-    backdrop-filter: blur(16px);
-  }
-
-  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) > div:nth-child(2) > div.absolute.inset-0.grid > div.relative {
-    height: 88% !important;
-    width: auto !important;
-    max-width: 90% !important;
-  }
-}
-'''
-          desktop_path.write_text(desktop)
-
-          mobile_path = Path("src/components/storefront/customStudioMobile.css")
-          mobile = mobile_path.read_text()
-          mobile += r'''
-
-/* 2026-09-10 mobile canvas refinement. */
-@media (max-width: 767px) {
-  .gdp-studio-active #gdp-canvas-control-dock {
-    position: absolute;
-    left: 50%;
-    bottom: 8px;
-    z-index: 85;
-    width: calc(100% - 16px);
-    transform: translateX(-50%);
-    border: 1px solid rgba(255,255,255,.14);
-    border-radius: 14px;
-    background: rgba(7,19,31,.92);
-    padding: 5px;
-    box-shadow: 0 12px 30px rgba(0,0,0,.22);
-    backdrop-filter: blur(14px);
-  }
-
-  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:nth-child(2) > div:nth-child(2) {
-    height: clamp(350px, 58dvh, 430px);
-  }
-
-  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:nth-child(2) > div:nth-child(2) > div.absolute.inset-0.grid > div.relative {
-    height: 84% !important;
-    width: auto !important;
-    max-width: 92% !important;
-  }
-}
-'''
-          mobile_path.write_text(mobile)
-
-          # Guard the requested removals in the customer editor UI.
-          checks = {
-              "Color finish editor UI": 'id="custom-studio-color-finish"' not in advanced,
-              "Design intensity editor UI": 'id="custom-studio-design-intensity"' not in advanced,
-              "Canvas tab removed": '["canvas", Eye, "Canvas"]' not in advanced,
-              "Canvas dock added": 'id="gdp-canvas-control-dock"' in advanced,
-              "Text tab renamed": '["lettering", Type, "Text"]' in advanced,
-              "Sticker quick action disabled": '{false && tools.stickers' in advanced,
-              "Color/intensity no longer gate Continue": 'Boolean(designMood)' not in studio and 'Boolean(designIntensity)' not in studio,
-          }
-          failed = [name for name, ok in checks.items() if not ok]
-          if failed:
-              raise SystemExit("Guard checks failed: " + ", ".join(failed))
-          PY
+      - name: Apply guarded patch
+        run: python scripts/apply-custom-studio-refinement.py
 
       - name: Install dependencies
         run: npm ci
@@ -210,7 +35,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Focused regression scripts
+      - name: Focused regression tests
         run: |
           npm run test:fresh-session
           npm run test:product-variants
@@ -218,7 +43,6 @@ jobs:
           npm run test:dtf-nesting
 
       - name: Commit refined editor
-        shell: bash
         run: |
           git config user.name "GDP Clothing CI"
           git config user.email "actions@users.noreply.github.com"
