@@ -4,6 +4,7 @@ import StoreNav from "./StoreNav";
 import StoreFooter from "./StoreFooter";
 import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
+import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
 import "./customStudioMobile.css";
 import "./customStudioDesktop.css";
 import "./seasonalStudioMobile.css";
@@ -20,6 +21,7 @@ export default function Layout() {
       <main className="flex-1">
         <Outlet />
       </main>
+      {studioActive && <SeasonalMobileReviewEnhancer />}
       {!studioActive && <StoreFooter />}
       <AIAssistant />
       <CookiePreferences />
