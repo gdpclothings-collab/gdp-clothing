@@ -21,11 +21,10 @@
     font-size: clamp(2.75rem, 4vw, 4.25rem);
   }
 
-  /* Progress/navigation becomes a compact workstation toolbar. */
+  /* Progress/navigation becomes a compact workstation toolbar without trapping a tall guide. */
   .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) {
-    position: sticky;
-    top: 8px;
-    z-index: 38;
+    position: relative;
+    z-index: 2;
     margin-bottom: 16px;
     padding: 6px;
     border: 1px solid #dce3ea;
@@ -41,18 +40,22 @@
     background: transparent;
   }
 
-  /* How Custom Orders Work remains available but no longer dominates the editor. */
+  /* Keep the guide available in setup/review steps, but make it visually secondary. */
   .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(2) {
+    margin-top: 0;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(3) {
     margin-top: 6px;
   }
 
-  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(2) > button {
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(3) > button {
     min-height: 38px;
     padding-top: 8px;
     padding-bottom: 8px;
   }
 
-  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(3) {
+  .gdp-studio-active > main > div > .mx-auto > div:nth-child(2) > div:nth-child(4) {
     margin-top: 6px;
   }
 
@@ -179,15 +182,25 @@
 
   .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:last-child > div[class*="mt-3"] {
     margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.35;
   }
 
-  /* While actively editing, presentation content should not push the canvas below the fold. */
+  /* During active editing, remove presentation-only height and keep just workflow + actions. */
   .gdp-studio-active > main > div > .mx-auto:has(#custom-studio-workspace > [data-editor-legacy="photo-upload"]) > div:first-child {
     display: none;
   }
 
   .gdp-studio-active > main > div > .mx-auto:has(#custom-studio-workspace > [data-editor-legacy="photo-upload"]) > div:nth-child(2) {
+    position: sticky;
     top: 6px;
+    z-index: 38;
+    margin-bottom: 12px;
+  }
+
+  /* The full explanatory order guide is useful before/after editing, not while moving artwork. */
+  .gdp-studio-active > main > div > .mx-auto:has(#custom-studio-workspace > [data-editor-legacy="photo-upload"]) > div:nth-child(2) > div:nth-child(3) {
+    display: none;
   }
 
   /* Seasonal Studio already uses a 3-column architecture; normalize it to the same proportions. */
