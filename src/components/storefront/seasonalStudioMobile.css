@@ -103,6 +103,19 @@
     -webkit-user-select: none;
   }
 
+  /* html2canvas was clipping transformed seasonal artwork at the print-area
+     boundary when it generated the approved mockup used by Cart. Production
+     output is still captured from the print-area element itself, so letting
+     the review mockup render overflow here keeps the complete approved artwork
+     visible without changing its physical print dimensions. */
+  .gdp-studio-active section[aria-label="Review seasonal design"] #gdp-seasonal-production {
+    overflow: visible !important;
+  }
+
+  .gdp-studio-active section[aria-label="Review seasonal design"] #gdp-seasonal-production [data-seasonal-artwork] {
+    overflow: visible !important;
+  }
+
   /* Pinch remains active, but the persistent helper chip is removed because
      it competes with the garment/color badge in the same bottom safe area. */
   .gdp-studio-active section[aria-label="Review seasonal design"] .gdp-seasonal-preview-frame::after {
