@@ -42,13 +42,11 @@ export function fitSeasonalArtwork(artwork, area, requestedWidth, x = 0, y = 0) 
   return { width, height, x: Math.max(0, Math.min(Number(x) || 0, area.width - width)), y: Math.max(0, Math.min(Number(y) || 0, area.height - height)), maxWidth: limit };
 }
 
-export function seasonalSelection(artwork, layout, text, area, rotation = 0) {
+export function seasonalSelection(artwork, layout, _text, area, rotation = 0) {
   if (!artwork || !layout) throw new Error('Choose an available artwork.');
-  const legacyColor = cleanHex(text?.color, '#111111');
-  const nameStyle = normalizeSeasonalTextStyle(text?.nameStyle, legacyColor);
-  const messageStyle = normalizeSeasonalTextStyle(text?.messageStyle, legacyColor);
+  const legacyStyle = normalizeSeasonalTextStyle({}, '#111111');
   return {
-    version: 2,
+    version: 3,
     artwork_id: artwork.id,
     source_sha256: artwork.source_sha256,
     placement: 'front',
@@ -59,14 +57,15 @@ export function seasonalSelection(artwork, layout, text, area, rotation = 0) {
     rotation: Math.max(-180, Math.min(180, Number(rotation) || 0)),
     area_width: area.width,
     area_height: area.height,
-    name: artwork.customizable ? String(text?.name || '').trim().slice(0, 32) : '',
-    message: artwork.customizable ? String(text?.message || '').trim().slice(0, 60) : '',
-    // Keep the legacy fields for existing production/admin readers.
-    text_color: legacyColor === '#ffffff' ? '#ffffff' : '#111111',
-    text_font: nameStyle.fontFamily,
+    // Seasonal Design Lab is artwork-only. Keep empty legacy fields so older
+    // production/admin readers remain compatible without accepting customer text.
+    name: '',
+    message: '',
+    text_color: '#111111',
+    text_font: 'Arial',
     text_styles: {
-      name: nameStyle,
-      message: messageStyle,
+      name: legacyStyle,
+      message: legacyStyle,
     },
   };
 }
