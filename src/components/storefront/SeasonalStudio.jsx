@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Check, ChevronDown, Edit3, Maximize2, Move, RotateCcw, RotateCw, Ruler, Search, Shirt, ShoppingBag, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Edit3, Maximize2, Move, RotateCcw, Ruler, Search, Shirt, ShoppingBag, Sparkles, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { customerApi } from '@/lib/customerApi';
 import { useCart } from '@/lib/CartContext';
@@ -26,7 +26,7 @@ const digestSnapshot = async (value) => {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
-export function SeasonalOverlay({ artwork, layout, area, text, rotation = 0, editable = false, showSelection = true, onMove = undefined, onResize = undefined, onRotate = undefined, onDelete = undefined }) {
+export function SeasonalOverlay({ artwork, layout, area, text, rotation = 0, editable = false, showSelection = true, onMove = undefined, onResize = undefined, onRotate = undefined }) {
   const action = useRef(null);
   const tap = useRef({ at: 0 });
   if (!artwork || !layout) return null;
@@ -196,12 +196,7 @@ export function SeasonalOverlay({ artwork, layout, area, text, rotation = 0, edi
         </svg>
       )}
       {editable && showSelection && (
-        <>
-          <div className="pointer-events-none absolute left-1/2 top-[-31px] -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-[#07131F]/95 px-2.5 py-1 text-[7px] font-bold uppercase tracking-[.09em] text-white shadow-lg backdrop-blur">Artwork · drag · pinch · twist</div>
-          <button data-control type="button" onClick={(event) => { event.stopPropagation(); onDelete?.(); }} className="absolute -right-3 -top-3 z-20 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-[#07131F] text-white shadow-lg" aria-label="Remove artwork"><X size={12} /></button>
-          <button data-control type="button" onPointerDown={(event) => beginHandle(event, 'rotate')} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} className="absolute -left-3 -top-3 z-20 grid h-7 w-7 touch-none place-items-center rounded-full border-2 border-white bg-[#07131F] text-white shadow-lg" aria-label="Rotate artwork"><RotateCw size={12} /></button>
-          <button data-control type="button" onPointerDown={(event) => beginHandle(event, 'resize')} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} className="absolute -bottom-3 -right-3 z-20 grid h-7 w-7 touch-none place-items-center rounded-full border-2 border-white bg-[#D9273E] text-white shadow-lg" aria-label="Resize artwork"><Maximize2 size={12} /></button>
-        </>
+        <button data-control type="button" onPointerDown={(event) => beginHandle(event, 'resize')} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} className="absolute -bottom-3 -right-3 z-20 grid h-8 w-8 touch-none place-items-center rounded-full border-2 border-white bg-[#D9273E] text-white shadow-[0_5px_16px_rgba(0,0,0,.22)]" aria-label="Resize artwork"><Maximize2 size={13} /></button>
       )}
     </div>
   );
@@ -258,6 +253,7 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
   const [showGarmentOptions, setShowGarmentOptions] = useState(false);
   const [showGuides, setShowGuides] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(1.18);
   const [reviewMode, setReviewMode] = useState(false);
   const [text, setText] = useState({ name: '', message: '', color: '#111111' });
   const [approved, setApproved] = useState(false);
@@ -648,15 +644,22 @@ export default function SeasonalStudio({ product, garment, color, size, variant,
               <div className="overflow-hidden rounded-3xl border border-[#CDD7E0] bg-white p-3 shadow-[0_24px_60px_rgba(23,50,77,.12)]">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
                   <div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#A66331]">Live garment preview</p><p className="mt-0.5 text-sm font-bold text-[#17324D]">{garment.label} · {color} · {size}</p></div>
-                  <div className="flex gap-1.5">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <div className="inline-flex min-h-10 items-center rounded-xl border border-[#DCE3EA] bg-[#F7F9FB] p-1" aria-label="Garment view size controls">
+                      <button type="button" onClick={() => setPreviewZoom((value) => Math.max(.75, Number((value - .1).toFixed(2))))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] transition hover:bg-white hover:text-[#17324D]" aria-label="Make garment view smaller"><ZoomOut size={14} /></button>
+                      <span className="w-11 text-center font-mono text-[9px] font-bold tabular-nums text-[#52616F]">{Math.round(previewZoom * 100)}%</span>
+                      <button type="button" onClick={() => setPreviewZoom((value) => Math.min(1.8, Number((value + .1).toFixed(2))))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] transition hover:bg-white hover:text-[#17324D]" aria-label="Make garment view larger"><ZoomIn size={14} /></button>
+                      <button type="button" onClick={() => setPreviewZoom(1)} className="ml-1 h-8 rounded-lg border-l border-[#DCE3EA] px-2 text-[8px] font-bold uppercase tracking-wide text-[#607080] hover:bg-white hover:text-[#17324D]">Fit</button>
+                      <button type="button" onClick={() => setPreviewZoom(1.18)} className="h-8 rounded-lg px-2 text-[8px] font-bold uppercase tracking-wide text-[#607080] hover:bg-white hover:text-[#17324D]">Default</button>
+                    </div>
                     <button type="button" aria-pressed={showGuides} onClick={() => setShowGuides((value) => !value)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold ${showGuides ? 'border-[#17324D] bg-[#17324D] text-white' : 'border-[#DCE3EA] bg-white text-[#607080]'}`}><Maximize2 size={14} /> Print area {showGuides ? 'on' : 'off'}</button>
                     <button type="button" aria-pressed={showMeasurements} onClick={() => setShowMeasurements((value) => !value)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold ${showMeasurements ? 'border-[#A66331] bg-[#A66331] text-white' : 'border-[#DCE3EA] bg-white text-[#607080]'}`}><Ruler size={14} /> Measurements {showMeasurements ? 'on' : 'off'}</button>
                   </div>
                 </div>
                 <div className="gdp-seasonal-preview-frame overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#DCE4E9]">
-                  <Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig || {}} zoom={1} artworkScale={100} artworkRotation={0} artworkOffset={{ x: 0, y: 0 }} showGuides={capturing ? false : showGuides} showMeasurements={capturing ? false : showMeasurements} printAreaId="gdp-seasonal-production" seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation} editable={!capturing} showSelection={showGuides} onMove={updatePosition} onResize={(value) => { setRequested(value); setApproved(false); setReviewMode(false); }} onRotate={(value) => { setRotation(value); setApproved(false); setReviewMode(false); }} onDelete={() => { setSelected(null); setApproved(false); setReviewMode(false); }} />} />
+                  <Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig || {}} zoom={capturing ? 1 : previewZoom} artworkScale={100} artworkRotation={0} artworkOffset={{ x: 0, y: 0 }} showGuides={capturing ? false : showGuides} showMeasurements={capturing ? false : showMeasurements} printAreaId="gdp-seasonal-production" seasonalOverlay={<SeasonalOverlay artwork={selected} layout={layout} area={area} text={text} rotation={rotation} editable={!capturing} showSelection={!capturing} onMove={updatePosition} onResize={(value) => { setRequested(value); setApproved(false); setReviewMode(false); }} onRotate={(value) => { setRotation(value); setApproved(false); setReviewMode(false); }} />} />
                 </div>
-                <p className="px-2 pb-1 pt-3 text-center text-xs text-[#61717F]"><Move size={12} className="mr-1 inline" /> Drag to move · pinch to resize · twist to rotate. Double-tap customizable artwork to jump to wording.</p>
+                <p className="px-2 pb-1 pt-3 text-center text-xs text-[#61717F]"><Move size={12} className="mr-1 inline" /> Drag artwork to move · use the red corner to resize · pinch and twist on touch. Garment zoom only changes your editing view, not print size.</p>
               </div>
             </section>
 
