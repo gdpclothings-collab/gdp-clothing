@@ -6,6 +6,7 @@ import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
 import "./customStudioMobile.css";
 import "./customStudioDesktop.css";
+import "./seasonalStudioMobile.css";
 
 export default function Layout() {
   const location = useLocation();
