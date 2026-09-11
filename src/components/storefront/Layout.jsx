@@ -5,6 +5,7 @@ import StoreFooter from "./StoreFooter";
 import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
 import "./customStudioMobile.css";
+import "./customStudioDesktop.css";
 
 export default function Layout() {
   const location = useLocation();
