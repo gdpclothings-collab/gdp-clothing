@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
+import { MemorialTypographyEditor, MemorialTypographyPreview } from "@/components/storefront/MemorialTypographyEditor";
 import {
   AdvancedEditorPanel,
   EditableOverlayLayers,
@@ -973,7 +974,7 @@ export default function CustomStudio() {
   const [pendingDraft, setPendingDraft] = useState(null);
   const draftSaveTimerRef = useRef(null);
   const [warn, setWarn] = useState("");
-  const [personalization, setPersonalization] = useState({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" });
+  const [personalization, setPersonalization] = useState(/** @type {any} */ ({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" }));
   const [memorialNameConfirmed, setMemorialNameConfirmed] = useState(false);
   const [needByDate, setNeedByDate] = useState("");
   const [priority, setPriority] = useState("standard");
@@ -2440,6 +2441,10 @@ export default function CustomStudio() {
                 />
                 <span><strong>I verified the memorial name is spelled exactly as it should be printed.</strong> Changing the name will require verification again.</span>
               </label>
+              <MemorialTypographyEditor
+                value={personalization.memorialTypography}
+                onChange={(memorialTypography) => setPersonalization((current) => ({ ...current, memorialTypography }))}
+              />
             </div>}
             {designPath === "upload" && <div className="hidden" aria-hidden="true">Your own artwork controls are available in GDP Touch Studio.</div>}
           </div>}
@@ -3255,7 +3260,11 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                 </div>
               )}
 
-              {hasPreviewText && (
+              {hasPreviewText && (personalization?.memorialTypography ? (
+                <div className="absolute inset-0 z-30 pointer-events-none">
+                  <MemorialTypographyPreview personalization={personalization} tone={textZone?.tone || "light"} />
+                </div>
+              ) : (
                 <div
                   className={"absolute z-30 grid content-center px-2 pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,.75)] " + (textZone?.tone === "dark" ? "text-[#26211d]" : "text-white")}
                   style={textZoneStyle}
@@ -3268,7 +3277,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                     {personalization?.message && <div className="text-[6px] leading-tight mt-0.5 line-clamp-2">{personalization.message}</div>}
                   </div>
                 </div>
-              )}
+              ))}
 
             </>
           ))}

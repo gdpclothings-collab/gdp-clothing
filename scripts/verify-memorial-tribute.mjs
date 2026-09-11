@@ -42,6 +42,25 @@ for (const id of [
   if (!styles.includes(`id: "${id}"`)) fail(`Missing template metadata for ${id}`);
 }
 
+const memorialTypography = read("src/components/storefront/MemorialTypographyEditor.jsx");
+for (const required of [
+  "Memorial text & style",
+  "Timeless Serif",
+  "Heavenly Script",
+  "Modern Tribute",
+  "Classic Arch",
+  "Legacy Bold",
+  "Soft Remembrance",
+  "arch-up",
+  "arch-down",
+  "Curve amount",
+  "Auto-fit long text to the safe area",
+  "keepRecommendedPlacement",
+  "memorialTypography",
+]) {
+  if (!memorialTypography.includes(required)) fail(`Memorial typography editor is missing required behavior: ${required}`);
+}
+
 const studio = read("src/pages/CustomStudio.jsx");
 for (const required of [
   'id: "memorial"',
