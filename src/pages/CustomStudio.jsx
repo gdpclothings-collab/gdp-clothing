@@ -926,7 +926,6 @@ export default function CustomStudio() {
   const [designPath, setDesignPath] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
-  const [designStyle, setDesignStyle] = useState("");
   const [designMood, setDesignMood] = useState("Original");
   const [designIntensity, setDesignIntensity] = useState(3);
   const [garment, setGarment] = useState(FALLBACK_GARMENT);
@@ -935,6 +934,12 @@ export default function CustomStudio() {
   const [qty, setQty] = useState(1);
   const [placement, setPlacement] = useState("front");
   const [previewSide, setPreviewSide] = useState("front");
+  const [designStylesBySide, setDesignStylesBySide] = useState({ front: "", back: "" });
+  const designStyleForSide = (side) => String(designStylesBySide?.[side] || "");
+  const frontDesignStyle = designStyleForSide("front");
+  const backDesignStyle = designStyleForSide("back");
+  const designStyle = designStyleForSide(previewSide);
+  const orderDesignStyle = placement === "back" ? backDesignStyle : (frontDesignStyle || backDesignStyle);
   const [groupGarments, setGroupGarments] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [editorLayersBySide, setEditorLayersBySide] = useState({ front: [], back: [] });
@@ -1021,12 +1026,13 @@ export default function CustomStudio() {
   const mobileEndRef = useRef(null);
   const [mobileDockVisible, setMobileDockVisible] = useState(true);
   const styleTemplates = normalizeStyleTemplates(studioSettings.styleTemplates);
-  const activeStyleTemplate = designStyle ?
-    (designPath === "upload" || designStyle === NO_TEMPLATE_STYLE ? null : styleTemplateForName(designStyle, studioSettings.styleTemplates))
-    : null;
-  // Protected GDP layouts are front designs. Back printing is an explicit,
-  // independently edited add-on so a template click cannot add a second print.
-  const activePreviewTemplate = previewSide === "front" ? activeStyleTemplate : null;
+  const styleTemplateForSide = (side) => {
+    const sideStyle = designStyleForSide(side);
+    if (!sideStyle || designPath === "upload" || sideStyle === NO_TEMPLATE_STYLE) return null;
+    return styleTemplateForName(sideStyle, studioSettings.styleTemplates);
+  };
+  const activeStyleTemplate = designStyle ? styleTemplateForSide(previewSide) : null;
+  const activePreviewTemplate = activeStyleTemplate;
   const editorTools = normalizeEditorTools(studioSettings.editorTools);
   const stickerLibrary = normalizeStickerLibrary(studioSettings.stickerLibrary);
 
@@ -1099,7 +1105,8 @@ export default function CustomStudio() {
       id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${layer.type}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     }));
     setEditorLayersBySide((current) => ({ ...current, back: copiedLayers }));
-    setArtworkStates((current) => ({ ...current, back: JSON.parse(JSON.stringify(current.front || defaultArtworkState(activeStyleTemplate))) }));
+    setDesignStylesBySide((current) => ({ ...current, back: current.front || "" }));
+    setArtworkStates((current) => ({ ...current, back: JSON.parse(JSON.stringify(current.front || defaultArtworkState(styleTemplateForSide("front")))) }));
     setPlacement("front_back");
     setPreviewSide("back");
     setSelectedEditorLayerIds((current) => ({ ...current, back: copiedLayers[0]?.id || "photo" }));
@@ -1271,7 +1278,11 @@ export default function CustomStudio() {
     setQty(Math.max(1, Math.min(99, Number(draft.qty || 1))));
     setStep(Math.max(1, Math.min(STEPS.length, Number(draft.step || 1))));
     setDesignPath(String(draft.designPath || ""));
-    setDesignStyle(String(draft.designStyle || ""));
+    setDesignStylesBySide(
+      draft.designStylesBySide && typeof draft.designStylesBySide === "object"
+        ? { front: String(draft.designStylesBySide.front || ""), back: String(draft.designStylesBySide.back || "") }
+        : { front: String(draft.designStyle || ""), back: "" }
+    );
     setDesignMood("Original");
     setDesignIntensity(Math.max(1, Math.min(5, Number(draft.designIntensity || 3))));
     setPlacement(["front", "back", "front_back"].includes(draft.placement) ? draft.placement : "front");
@@ -1353,7 +1364,8 @@ export default function CustomStudio() {
         productId: product.id,
         step,
         designPath,
-        designStyle,
+        designStyle: orderDesignStyle,
+        designStylesBySide,
         designMood,
         designIntensity,
         color,
@@ -1384,7 +1396,7 @@ export default function CustomStudio() {
     return () => {
       if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
     };
-  }, [draftReady, seasonalMode, saving, product?.id, step, designPath, designStyle, designMood, designIntensity, color, size, qty, placement, previewSide, groupGarments, photos, editorLayersBySide, selectedEditorLayerIds, personalization, memorialNameConfirmed, needByDate, priority, artworkStates, previewZoom, seasonalDraft]);
+  }, [draftReady, seasonalMode, saving, product?.id, step, designPath, designStylesBySide, orderDesignStyle, designMood, designIntensity, color, size, qty, placement, previewSide, groupGarments, photos, editorLayersBySide, selectedEditorLayerIds, personalization, memorialNameConfirmed, needByDate, priority, artworkStates, previewZoom, seasonalDraft]);
 
   const chooseProduct = (nextProduct) => {
     if (!nextProduct) return;
@@ -1398,10 +1410,15 @@ export default function CustomStudio() {
     setSize(nextSize);
     setGroupGarments([]);
     const allowedStyles = nextProduct?.customization?.allowedStyles || [];
-    const styleStillAllowed = Boolean(designStyle) && (designPath === "memorial" || !allowedStyles.length || allowedStyles.includes(designStyle));
-    if (designStyle && !styleStillAllowed) {
-      setDesignStyle("");
-      setArtworkStates(defaultArtworkStates());
+    const styleStillAllowed = (value) => !value || designPath === "upload" || designPath === "memorial" || value === NO_TEMPLATE_STYLE || !allowedStyles.length || allowedStyles.includes(value);
+    const nextFrontStyle = styleStillAllowed(frontDesignStyle) ? frontDesignStyle : "";
+    const nextBackStyle = styleStillAllowed(backDesignStyle) ? backDesignStyle : "";
+    if (nextFrontStyle !== frontDesignStyle || nextBackStyle !== backDesignStyle) {
+      setDesignStylesBySide({ front: nextFrontStyle, back: nextBackStyle });
+      setArtworkStates((current) => ({
+        front: nextFrontStyle === frontDesignStyle ? current.front : defaultArtworkState(),
+        back: nextBackStyle === backDesignStyle ? current.back : defaultArtworkState(),
+      }));
     }
     setPreviewSide("front");
   };
@@ -1438,28 +1455,25 @@ export default function CustomStudio() {
       : styleOptions;
   const chooseStyleTemplate = (style) => {
     if (!style) return;
-    setDesignStyle(style.name);
+    const side = previewSide;
+    setDesignStylesBySide((current) => ({ ...current, [side]: style.name }));
     setDesignMood("Original");
     setDesignIntensity(3);
-    setPreviewSide("front");
-    setPlacement((current) => current === "back" ? "front" : current);
+    activatePrintSide(side);
     setArtworkStates((current) => ({
-      front: {
+      ...current,
+      [side]: {
         ...defaultArtworkState(style),
-        sourcePhotoIndex: Number(current?.front?.sourcePhotoIndex || 0),
-      },
-      back: {
-        ...defaultArtworkState(style),
-        sourcePhotoIndex: Number(current?.back?.sourcePhotoIndex || 0),
+        sourcePhotoIndex: Number(current?.[side]?.sourcePhotoIndex || 0),
       },
     }));
   };
   const chooseNoTemplate = () => {
     if (activeStyleTemplate && typeof window !== "undefined" && !window.confirm("Switch to a blank design? Your uploaded photos and text will be preserved. The GDP template will be removed.")) return;
-    setDesignStyle(NO_TEMPLATE_STYLE);
+    const side = previewSide;
+    setDesignStylesBySide((current) => ({ ...current, [side]: NO_TEMPLATE_STYLE }));
     setDesignMood("Original");
-    setArtworkStates(defaultArtworkStates());
-    setPreviewSide("front");
+    setArtworkStates((current) => ({ ...current, [side]: defaultArtworkState() }));
   };
   const maxPhotos = Number(config.maxPhotos || 10);
   const minPhotos = Number(config.minPhotos || 1);
@@ -1850,7 +1864,7 @@ export default function CustomStudio() {
     if (step === 1) return Boolean(product) && Boolean(color) && Boolean(size) && selectedAvailable;
     if (step === 2) return Boolean(designPath);
     if (step === 3) {
-      return Boolean(designStyle) && photos.length >= minPhotos && memorialDetailsReady;
+      return Boolean(orderDesignStyle) && photos.length >= minPhotos && memorialDetailsReady;
     }
     if (step === 4) return rightsConfirmed && approvalAcknowledged;
     return true;
@@ -1866,7 +1880,7 @@ export default function CustomStudio() {
     }
     if (step === 2) return "Choose a design path to continue.";
     if (step === 3) {
-      if (!designStyle) return "Choose an artwork style to continue.";
+      if (!orderDesignStyle) return "Choose an artwork style to continue.";
       if (photos.length < minPhotos) return `Upload at least ${minPhotos} photo${minPhotos === 1 ? "" : "s"} to continue.`;
       if (designPath === "memorial" && !String(personalization.name || "").trim()) return "Enter the memorial name exactly as it should be printed.";
       if (designPath === "memorial" && !memorialNameConfirmed) return "Verify the memorial name spelling to continue.";
@@ -1879,7 +1893,7 @@ export default function CustomStudio() {
     let targetId = "custom-studio-workspace";
     let panelTab = "";
     if (step === 3) {
-      if (!designStyle) { targetId = "custom-studio-artwork-style"; panelTab = "design"; }
+      if (!orderDesignStyle) { targetId = "custom-studio-artwork-style"; panelTab = "design"; }
       else if (photos.length < minPhotos) { targetId = "custom-studio-photo-upload"; panelTab = "photos"; }
       else if (designPath === "memorial" && (!String(personalization.name || "").trim() || !memorialNameConfirmed)) { targetId = "custom-studio-memorial-details"; panelTab = "details"; }
     }
@@ -1924,7 +1938,7 @@ export default function CustomStudio() {
       setWarn("Choose a color and size before adding your custom design to cart.");
       return;
     }
-    if (!designPath || !designStyle) {
+    if (!designPath || !orderDesignStyle) {
       setWarn("Complete the design path and artwork before adding to cart.");
       return;
     }
@@ -1953,16 +1967,25 @@ export default function CustomStudio() {
       });
 
       const approvedAt = new Date().toISOString();
+      const serializeStyleTemplate = (template) => template ? {
+        id: template.id,
+        assetUrl: template.assetUrl || "",
+        photoZone: template.photoZone || null,
+        textZone: template.textZone || null,
+      } : null;
+      const frontStyleTemplate = styleTemplateForSide("front");
+      const backStyleTemplate = styleTemplateForSide("back");
+      const primaryStyleTemplate = placement === "back" ? backStyleTemplate : (frontStyleTemplate || backStyleTemplate);
       const renderSnapshot = {
-        version: 1,
+        version: 2,
         designPath,
-        designStyle,
-        template: activeStyleTemplate ? {
-          id: activeStyleTemplate.id,
-          assetUrl: activeStyleTemplate.assetUrl || "",
-          photoZone: activeStyleTemplate.photoZone || null,
-          textZone: activeStyleTemplate.textZone || null,
-        } : null,
+        designStyle: orderDesignStyle,
+        designStylesBySide: { front: frontDesignStyle, back: backDesignStyle },
+        template: serializeStyleTemplate(primaryStyleTemplate),
+        templatesBySide: {
+          front: serializeStyleTemplate(frontStyleTemplate),
+          back: serializeStyleTemplate(backStyleTemplate),
+        },
         colorFinish: designMood,
         placement,
         garment: { id: productId, variantId: selectedVariant?.id || null, color, size },
@@ -2026,8 +2049,8 @@ export default function CustomStudio() {
       const design = await customerApi.createCustomDesign({
         productId,
         productName: product?.name || garment.label,
-        name: personalization.name || ((designStyle || "Custom") + " Design"),
-        designStyle,
+        name: personalization.name || ((orderDesignStyle || "Custom") + " Design"),
+        designStyle: orderDesignStyle,
         designPath,
         photos: photos.map(p => p.url),
         photoAssets: photos,
@@ -2102,7 +2125,7 @@ export default function CustomStudio() {
         customDesignId: design.id,
         ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
         fulfillmentMode: product?.fulfillmentMode || "in_house",
-        designStyle,
+        designStyle: orderDesignStyle,
         designPath,
         designMood,
         placement,
@@ -2295,12 +2318,14 @@ export default function CustomStudio() {
                       return;
                     }
                     if (path.id === "upload") {
-                      setDesignStyle("Own artwork");
+                      setDesignStylesBySide({ front: "Own artwork", back: "Own artwork" });
+                      setPreviewSide("front");
                       setArtworkStates(defaultArtworkStates());
                       setDesignMood("Original");
                       setDesignIntensity(1);
                     } else if (path.id === "bootleg" || path.id === "memorial") {
-                      setDesignStyle("");
+                      setDesignStylesBySide({ front: "", back: "" });
+                      setPreviewSide("front");
                       setDesignMood("Original");
                       setDesignIntensity(3);
                     }
@@ -2598,7 +2623,7 @@ export default function CustomStudio() {
             <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text="Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue." />
             <div className="grid md:grid-cols-2 gap-4">
               <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={(designPath === "bootleg" || designPath === "memorial") ? "GDP template locked · customer layers editable" : ""} />
-              <ReviewCard label={designPath === "upload" ? "Artwork" : "Ready layout"} value={(designStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designStyle ? `${designMood || "Original"} finish` : ""} />
+              <ReviewCard label={designPath === "upload" ? "Artwork" : "Ready layout"} value={(orderDesignStyle || "Not selected").replace(/^GDP\s+/, "")} sub={orderDesignStyle ? `${designMood || "Original"} finish` : ""} />
               {designPath === "memorial" && <ReviewCard label="Memorial name" value={personalization.name || "Not entered"} sub={personalization.dates ? `Dates: ${personalization.dates}` : "No dates added"} />}
               <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} · ${size || "No size"} · Qty ${qty}` : ""} />
               <ReviewCard
@@ -2652,6 +2677,7 @@ export default function CustomStudio() {
                 garment={garment}
                 color={previewColor}
                 side={previewSide}
+                fillCanvas={designPath === "bootleg"}
                 placement={placement}
                 photo={previewArtworkPhoto}
                 uploading={uploading}
@@ -2696,7 +2722,7 @@ export default function CustomStudio() {
                   onToggleGuides={() => setShowGuides((value) => !value)}
                   showMeasurements={showMeasurements}
                   onToggleMeasurements={() => setShowMeasurements((value) => !value)}
-                  viewGuidance={activePreviewTemplate ? "GDP template is locked. Drag, resize and rotate only customer-added content inside the print guide; lettering stays editable." : previewSide === "back" && activeStyleTemplate ? "Back print is independent. Add your own photos, lettering or stickers; the protected front template is not duplicated here." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, lettering and stickers inside the print guide." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio stays constrained by default."}
+                  viewGuidance={activePreviewTemplate ? "GDP template is locked on this side. Drag, resize and rotate only customer-added content inside the print guide; lettering stays editable." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, lettering and stickers inside the print guide." : previewSide === "back" ? "Back print is independent. Choose a back template or add your own photos and lettering without changing the front." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio stays constrained by default."}
                   sideStatus={activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : `${previewSide === "front" ? "Front" : "Back"} is blank until you add artwork.`}
                   canCopyFrontToBack={previewSide === "back" && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0}
                   onCopyFrontToBack={copyFrontDesignToBack}
@@ -2761,7 +2787,7 @@ export default function CustomStudio() {
                   onTogglePhotoBackground={togglePhotoBackgroundById}
                   onResetAll={resetAllEditable}
                   hasPhoto={Boolean(selectedPhotoAsset)}
-                  templateName={previewSide === "front" && (designPath === "bootleg" || designPath === "memorial") ? activeStyleTemplate?.name || "" : ""}
+                  templateName={(designPath === "bootleg" || designPath === "memorial") ? activeStyleTemplate?.name || "" : ""}
                   outsideWarning={editorOutsideWarning}
                 />}
               </div>
@@ -2897,7 +2923,7 @@ export default function CustomStudio() {
               showMeasurements={false}
               size={size}
               previewConfig={config.preview || {}}
-              styleTemplate={side === "front" ? activeStyleTemplate : null}
+              styleTemplate={styleTemplateForSide(side)}
               mood={designMood}
             />;
           })}
@@ -2964,7 +2990,7 @@ function clampPreview(value) {
   return Math.min(2, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, fillCanvas = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
   const dragRef = useRef(null);
   const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
@@ -3117,7 +3143,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
 
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={Number(zoom) === 1 ? undefined : { transform: `scale(${zoom})` }}>
       <div
-        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : "h-[82%] w-auto max-w-[90%]")}
+        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : fillCanvas ? "h-[86%] w-auto max-w-[94%] sm:h-[96%] sm:max-w-[98%]" : "h-[82%] w-auto max-w-[90%]")}
         style={{ aspectRatio: `${previewCanvas.width} / ${previewCanvas.height}` }}
       >
         {showMockup ? (
