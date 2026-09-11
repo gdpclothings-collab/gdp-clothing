@@ -1,10 +1,9 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-const DESKTOP_QUERY = "(min-width: 1024px)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GARMENT_GRID_SELECTOR = '#custom-studio-workspace div[class~="sm:grid-cols-2"][class~="xl:grid-cols-3"]';
-const LIVE_FRONT_MOCKUP_SELECTOR = 'aside img[alt$=" front mockup"]';
+const FRONT_MOCKUP_SELECTOR = 'img[alt$=" front mockup"]';
 const COLOR_PREVIEW_CLASS = "gdp-garment-color-preview";
 const COLOR_PREVIEW_HOST_CLASS = "gdp-garment-color-preview-host";
 const FADE_MS = 420;
@@ -41,8 +40,24 @@ function clearColorPreview(button) {
 }
 
 function liveFrontMockupImage() {
-  const image = document.querySelector(LIVE_FRONT_MOCKUP_SELECTOR);
-  return image instanceof HTMLImageElement ? image : null;
+  const images = Array.from(document.querySelectorAll(FRONT_MOCKUP_SELECTOR)).filter(
+    (node) => node instanceof HTMLImageElement
+  );
+
+  // Prefer the currently visible storefront preview. This keeps the color-sync
+  // source correct on both the stacked mobile layout and desktop sidebar while
+  // excluding the hidden production-render mockups used for exports.
+  const visible = images.find(
+    (image) => image.offsetParent !== null && !image.closest('[aria-hidden="true"]')
+  );
+  if (visible) return visible;
+
+  const storefront = images.find(
+    (image) => image.closest("aside") && !image.closest('[aria-hidden="true"]')
+  );
+  if (storefront) return storefront;
+
+  return images.find((image) => !image.closest('[aria-hidden="true"]')) || null;
 }
 
 function syncSelectedColorPreview(grid, reducedMotion = false) {
@@ -153,77 +168,93 @@ function animateMove(button, before, duration) {
   );
 }
 
-const DESKTOP_GARMENT_FOCUS_STYLES = `
+const GARMENT_FOCUS_STYLES = `
+.gdp-garment-choice-grid > button {
+  transform-origin: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    opacity 420ms cubic-bezier(.22,.8,.24,1),
+    transform 420ms cubic-bezier(.22,.8,.24,1),
+    filter 420ms cubic-bezier(.22,.8,.24,1),
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+  will-change: opacity, transform;
+}
+
+.gdp-garment-choice-grid[data-gdp-mode="focused"] > button:not([data-gdp-selected="true"]) {
+  opacity: 0;
+  transform: translateY(4px) scale(.965);
+  filter: saturate(.86);
+  pointer-events: none;
+}
+
+.gdp-garment-choice-grid[data-gdp-mode="focused"][data-gdp-settled="true"] > button:not([data-gdp-selected="true"]) {
+  display: none;
+}
+
+.gdp-garment-choice-grid[data-gdp-mode="focused"] > button[data-gdp-selected="true"] {
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  border-color: hsl(var(--accent));
+  box-shadow: 0 12px 28px rgba(25, 22, 18, .10);
+}
+
+.${COLOR_PREVIEW_HOST_CLASS} {
+  position: relative;
+}
+
+.${COLOR_PREVIEW_CLASS} {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #f1ede6;
+  pointer-events: none;
+  transform-origin: center;
+}
+
+.gdp-garment-choice-grid[data-gdp-mode="focused"] > button[data-gdp-selected="true"]::after {
+  content: "Selected · Change garment";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  max-width: calc(100% - 16px);
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 999px;
+  background: rgba(23, 50, 77, .94);
+  color: white;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .18);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
 @media (min-width: 1024px) {
-  .gdp-garment-choice-grid > button {
-    transform-origin: center;
-    transition:
-      opacity 420ms cubic-bezier(.22,.8,.24,1),
-      transform 420ms cubic-bezier(.22,.8,.24,1),
-      filter 420ms cubic-bezier(.22,.8,.24,1),
-      border-color 180ms ease,
-      box-shadow 180ms ease;
-    will-change: opacity, transform;
-  }
-
-  .gdp-garment-choice-grid[data-gdp-mode="focused"] > button:not([data-gdp-selected="true"]) {
-    opacity: 0;
-    transform: translateY(4px) scale(.965);
-    filter: saturate(.86);
-    pointer-events: none;
-  }
-
-  .gdp-garment-choice-grid[data-gdp-mode="focused"][data-gdp-settled="true"] > button:not([data-gdp-selected="true"]) {
-    display: none;
-  }
-
   .gdp-garment-choice-grid[data-gdp-mode="focused"] > button[data-gdp-selected="true"] {
-    position: relative;
-    z-index: 2;
-    cursor: pointer;
-    border-color: hsl(var(--accent));
     box-shadow: 0 14px 34px rgba(25, 22, 18, .10);
   }
 
-  .${COLOR_PREVIEW_HOST_CLASS} {
-    position: relative;
-  }
-
-  .${COLOR_PREVIEW_CLASS} {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background: #f1ede6;
-    pointer-events: none;
-    transform-origin: center;
-  }
-
   .gdp-garment-choice-grid[data-gdp-mode="focused"] > button[data-gdp-selected="true"]::after {
-    content: "Selected · Change garment";
-    position: absolute;
     top: 12px;
     right: 12px;
-    z-index: 4;
-    display: inline-flex;
-    align-items: center;
     min-height: 30px;
     max-width: calc(100% - 24px);
     padding: 7px 10px;
-    border: 1px solid rgba(255, 255, 255, .75);
-    border-radius: 999px;
-    background: rgba(23, 50, 77, .94);
-    color: white;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, .18);
     font-size: 10px;
-    font-weight: 800;
-    line-height: 1;
     letter-spacing: .045em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    backdrop-filter: blur(8px);
   }
 }
 
@@ -241,7 +272,6 @@ export default function DesktopGarmentSelectionFocus() {
     const isStudioRoute = location.pathname === "/custom-studio" || location.pathname === "/design";
     if (!isStudioRoute || typeof window === "undefined" || typeof document === "undefined") return undefined;
 
-    const desktopMedia = window.matchMedia(DESKTOP_QUERY);
     const reducedMotionMedia = window.matchMedia(REDUCED_MOTION_QUERY);
     let currentGrid = null;
     let settleTimer = 0;
@@ -265,7 +295,7 @@ export default function DesktopGarmentSelectionFocus() {
       syncFrame = window.requestAnimationFrame(() => {
         syncFrame = window.requestAnimationFrame(() => {
           syncFrame = 0;
-          if (!currentGrid?.isConnected || !desktopMedia.matches) return;
+          if (!currentGrid?.isConnected) return;
           syncSelectedColorPreview(currentGrid, reducedMotionMedia.matches);
         });
       });
@@ -300,7 +330,7 @@ export default function DesktopGarmentSelectionFocus() {
     };
 
     const focusSelection = (grid, selectedButton) => {
-      if (!grid || !selectedButton || !desktopMedia.matches) return;
+      if (!grid || !selectedButton) return;
       cancelSettle();
       markSelected(grid, selectedButton);
       grid.dataset.gdpMode = "focused";
@@ -326,7 +356,8 @@ export default function DesktopGarmentSelectionFocus() {
       const before = selected?.getBoundingClientRect?.() || null;
       if (selected) clearColorPreview(selected);
 
-      // First restore the original grid slots while the other cards are still transparent.
+      // Restore the original grid slots while the other cards are still
+      // transparent, then fade them back in. This preserves exact React order.
       grid.dataset.gdpSettled = "false";
       window.requestAnimationFrame(() => {
         if (selected && before) animateMove(selected, before, moveDuration());
@@ -345,7 +376,7 @@ export default function DesktopGarmentSelectionFocus() {
     const handleGridClick = (event) => {
       discoverGrid();
       const grid = currentGrid;
-      if (!grid || !desktopMedia.matches) return;
+      if (!grid) return;
 
       const clicked = event.target instanceof Element ? event.target.closest("button") : null;
       if (!(clicked instanceof HTMLButtonElement) || clicked.parentElement !== grid) {
@@ -362,27 +393,15 @@ export default function DesktopGarmentSelectionFocus() {
         return;
       }
 
-      // Let Custom Studio run its existing product/variant logic first. Then only
-      // change the desktop presentation state around the product React selected.
+      // Let Custom Studio run its existing garment/variant state logic first.
+      // This enhancer only changes presentation after React has selected it.
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
-          if (!grid.isConnected || !desktopMedia.matches) return;
+          if (!grid.isConnected) return;
           const active = activeGarmentButton(grid) || clicked;
           focusSelection(grid, active);
         });
       });
-    };
-
-    const handleViewportChange = () => {
-      if (!currentGrid) return;
-      cancelSettle();
-      cancelSync();
-      currentGrid.dataset.gdpMode = "expanded";
-      currentGrid.dataset.gdpSettled = "false";
-      garmentButtons(currentGrid).forEach((button) => clearColorPreview(button));
-      if (!desktopMedia.matches) {
-        garmentButtons(currentGrid).forEach((button) => restoreTitle(button));
-      }
     };
 
     discoverGrid();
@@ -397,17 +416,15 @@ export default function DesktopGarmentSelectionFocus() {
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
     document.addEventListener("click", handleGridClick, true);
-    desktopMedia.addEventListener?.("change", handleViewportChange);
 
     return () => {
       cancelSettle();
       cancelSync();
       observer.disconnect();
       document.removeEventListener("click", handleGridClick, true);
-      desktopMedia.removeEventListener?.("change", handleViewportChange);
       if (currentGrid) clearEnhancement(currentGrid);
     };
   }, [location.pathname]);
 
-  return <style>{DESKTOP_GARMENT_FOCUS_STYLES}</style>;
+  return <style>{GARMENT_FOCUS_STYLES}</style>;
 }
