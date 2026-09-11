@@ -1137,19 +1137,28 @@ export function AdvancedEditorPanel({
   ]);
 
   const renderCanvasPanel = () => (
-    <div className="flex flex-wrap items-center justify-center gap-1.5" aria-label="Garment canvas controls">
-      <div className="inline-flex shrink-0 rounded-xl border border-white/10 bg-white/[.04] p-1">
-        <button type="button" onClick={() => onPreviewSideChange?.("front")} className={`rounded-lg px-3 py-2 text-[9px] font-bold uppercase ${previewSide === "front" ? "bg-white text-[#07131F]" : "text-white/60"}`}>Front</button>
-        {frontBackEnabled && <button type="button" onClick={() => onPreviewSideChange?.("back")} className={`rounded-lg px-3 py-2 text-[9px] font-bold uppercase ${previewSide === "back" ? "bg-white text-[#07131F]" : "text-white/60"}`}>Back</button>}
+  <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Garment canvas controls">
+    <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[.04] p-1">
+      <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Fabric side</span>
+      <div className="inline-flex rounded-lg border border-white/10 bg-black/10 p-0.5">
+        <button type="button" onClick={() => onPreviewSideChange?.("front")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "front" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Front</button>
+        {frontBackEnabled && <button type="button" onClick={() => onPreviewSideChange?.("back")} className={`rounded-md px-3 py-2 text-[9px] font-bold uppercase transition ${previewSide === "back" ? "bg-[#D9273E] text-white shadow-sm" : "text-white/60 hover:text-white"}`}>Back</button>}
       </div>
-      <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.7, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/75" aria-label="Zoom fabric out"><ZoomOut size={14}/></button>
-      <span className="w-10 shrink-0 text-center font-mono text-[9px] text-white/65">{Math.round(Number(previewZoom || 1) * 100)}%</span>
-      <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(2, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-white/75" aria-label="Zoom fabric in"><ZoomIn size={14}/></button>
-      <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 shrink-0 rounded-xl border border-white/10 bg-white/[.04] px-2.5 text-[8px] font-bold uppercase text-white/75">Fit</button>
-      <button type="button" onClick={onToggleGuides} className={`h-9 shrink-0 rounded-xl border px-2.5 text-[8px] font-bold uppercase ${showGuides ? "border-[#D9273E] bg-[#D9273E]/20 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><Eye size={12} className="mr-1 inline"/>Guide</button>
-      <button type="button" onClick={onToggleMeasurements} className={`h-9 shrink-0 rounded-xl border px-2.5 text-[8px] font-bold uppercase ${showMeasurements ? "border-[#D9273E] bg-[#D9273E]/20 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><Ruler size={12} className="mr-1 inline"/>Measure</button>
     </div>
-  );
+    <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
+      <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">View</span>
+      <button type="button" onClick={() => onPreviewZoomChange?.(Math.max(.7, Number(previewZoom || 1) - .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric out"><ZoomOut size={14}/></button>
+      <span className="w-10 text-center font-mono text-[9px] text-white/65">{Math.round(Number(previewZoom || 1) * 100)}%</span>
+      <button type="button" onClick={() => onPreviewZoomChange?.(Math.min(2, Number(previewZoom || 1) + .1))} className="grid h-9 w-9 place-items-center rounded-lg text-white/75 hover:bg-white/[.06]" aria-label="Zoom fabric in"><ZoomIn size={14}/></button>
+      <button type="button" onClick={() => onPreviewZoomChange?.(1)} className="h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase text-white/75 hover:bg-white/[.06]" aria-label="Fit garment to canvas">Fit</button>
+    </div>
+    <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
+      <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Production guides</span>
+      <button type="button" onClick={onToggleGuides} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showGuides ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Eye size={12} className="mr-1 inline"/>Guide</button>
+      <button type="button" onClick={onToggleMeasurements} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showMeasurements ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Ruler size={12} className="mr-1 inline"/>Measure</button>
+    </div>
+  </div>
+);
 
   const renderDesignPanel = () => (
     <div className="space-y-4">

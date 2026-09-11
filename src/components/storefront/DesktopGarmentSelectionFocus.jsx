@@ -6,8 +6,8 @@ const GARMENT_GRID_SELECTOR = '#custom-studio-workspace div[class~="sm:grid-cols
 const FRONT_MOCKUP_SELECTOR = 'img[alt$=" front mockup"]';
 const COLOR_PREVIEW_CLASS = "gdp-garment-color-preview";
 const COLOR_PREVIEW_HOST_CLASS = "gdp-garment-color-preview-host";
-const FADE_MS = 420;
-const MOVE_MS = 320;
+const FADE_MS = 300;
+const MOVE_MS = 260;
 const COLOR_SWAP_MS = 260;
 
 function garmentButtons(grid) {
@@ -174,9 +174,9 @@ const GARMENT_FOCUS_STYLES = `
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition:
-    opacity 420ms cubic-bezier(.22,.8,.24,1),
-    transform 420ms cubic-bezier(.22,.8,.24,1),
-    filter 420ms cubic-bezier(.22,.8,.24,1),
+    opacity 300ms cubic-bezier(.22,.8,.24,1),
+    transform 300ms cubic-bezier(.22,.8,.24,1),
+    filter 300ms cubic-bezier(.22,.8,.24,1),
     border-color 180ms ease,
     box-shadow 180ms ease;
   will-change: opacity, transform;

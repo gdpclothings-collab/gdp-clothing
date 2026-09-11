@@ -956,6 +956,9 @@ export default function CustomStudio() {
   const setSelectedEditorLayerId = (value) => setSelectedEditorLayerIds((current) => ({ ...current, [previewSide]: value }));
   const activatePrintSide = (side = previewSide) => {
     setPlacement((current) => {
+      // Once both print sides are active, choosing or editing artwork on either
+      // side must never disable the opposite side. Side switching is view-only.
+      if (current === "front_back") return current;
       if (side === "back") return current === "front" ? "front_back" : "back";
       return current === "back" ? "front_back" : "front";
     });
@@ -1530,6 +1533,16 @@ export default function CustomStudio() {
   const activeSideHasPrint =
     (previewSide === "front" && placement !== "back") ||
     (previewSide === "back" && placement !== "front");
+  const printSummaryForSide = (side) => {
+    const sideEnabled = side === "front" ? placement !== "back" : placement !== "front";
+    if (!sideEnabled) return "No print";
+    const styleName = designStyleForSide(side);
+    if (styleName) return styleName.replace(/^GDP\s+/, "");
+    const visibleLayers = (editorLayersBySide[side] || []).filter((layer) => layer?.visible !== false);
+    if (visibleLayers.length) return `${visibleLayers.length} editable layer${visibleLayers.length === 1 ? "" : "s"}`;
+    if (designPath === "upload" && photos.length) return "Uploaded artwork";
+    return "Print enabled";
+  };
   const activePhotoIndex = photos.length
     ? Math.min(Math.max(0, Number(activeArtworkState.sourcePhotoIndex || 0)), photos.length - 1)
     : -1;
@@ -2631,8 +2644,8 @@ export default function CustomStudio() {
                 value={placement === "front_back" ? "Front + back" : placement === "back" ? "Back only" : "Front only"}
                 sub={placement === "front_back" ? "Two independent artwork placements saved." : "One print side selected."}
               />
-              {placement !== "back" && <ReviewCard label="Front artwork" value={frontArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
-              {placement !== "front" && <ReviewCard label="Back artwork" value={backArtworkPhoto?.name || "Primary photo"} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
+              {placement !== "back" && <ReviewCard label="Front artwork" value={printSummaryForSide("front")} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
+              {placement !== "front" && <ReviewCard label="Back artwork" value={printSummaryForSide("back")} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
               <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? "One or more photos should ideally be replaced." : "Photo quality check complete."} />
               <ReviewCard label="Production result" value="Customer-approved preview" sub="Locked 300 DPI PNG is generated when added to cart." />
               <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
@@ -2795,8 +2808,9 @@ export default function CustomStudio() {
 
             <div className="rounded-[22px] border border-[#ddd6cc] bg-[#17212B] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
               <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">Your order</div>
-              <div className="font-display text-3xl mt-2">{designStyle ? designStyle.replace(/^GDP\s+/, "") : "Build your order"}</div>
-              <SummaryRow label="Style" value={designStyle ? designStyle.replace("GDP ","") : "Not selected"} />
+              <div className="font-display text-3xl mt-2">{orderDesignStyle ? orderDesignStyle.replace(/^GDP\s+/, "") : "Build your order"}</div>
+              <SummaryRow label="Front" value={printSummaryForSide("front")} />
+              <SummaryRow label="Back" value={printSummaryForSide("back")} />
               <SummaryRow label="Garment" value={product?.name || "Not selected"} />
               <SummaryRow label="Size / Color" value={size && color ? `${size} / ${color}` : "Not selected"} />
               <SummaryRow label="Photos" value={photos.length + "/" + maxPhotos} />
@@ -2992,6 +3006,8 @@ function clampPreview(value) {
 
 export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, fillCanvas = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
   const dragRef = useRef(null);
+  const viewPanRef = useRef(null);
+  const [viewPan, setViewPan] = useState({ x: 0, y: 0 });
   const [failedMockupUrl, setFailedMockupUrl] = useState("");
   const blankArtwork =
     (side === "back" && placement === "front") ||
@@ -3129,6 +3145,44 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     setZoom(value => clampPreview(value + (event.deltaY < 0 ? .08 : -.08)));
   };
 
+  useEffect(() => {
+    setViewPan({ x: 0, y: 0 });
+  }, [side]);
+
+  useEffect(() => {
+    if (Number(zoom || 1) <= 1) setViewPan({ x: 0, y: 0 });
+  }, [zoom]);
+
+  const canPanView = Boolean(interactiveEditor && Number(zoom || 1) > 1);
+  const beginViewPan = (event) => {
+    const target = event.target;
+    const insidePrintArea = typeof Element !== "undefined" && target instanceof Element && target.closest('[data-gdp-print-area="true"]');
+    if (!canPanView || insidePrintArea) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    viewPanRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      startX: Number(viewPan.x || 0),
+      startY: Number(viewPan.y || 0),
+    };
+  };
+  const moveViewPan = (event) => {
+    if (!canPanView || !viewPanRef.current) return;
+    const start = viewPanRef.current;
+    const limit = Math.max(40, Math.round((Number(zoom || 1) - 1) * 240));
+    const clampPan = (value) => Math.min(limit, Math.max(-limit, value));
+    setViewPan({
+      x: clampPan(start.startX + event.clientX - start.x),
+      y: clampPan(start.startY + event.clientY - start.y),
+    });
+  };
+  const endViewPan = (event) => {
+    if (!viewPanRef.current) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    viewPanRef.current = null;
+  };
+
   return <div id={containerId} data-gdp-studio-preview={interactiveEditor ? "live" : undefined} onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
@@ -3141,7 +3195,14 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
       {profile.bottomClearanceIn && <div className="mt-1 text-[8px] font-semibold text-[#8a514b]">Keep ≥ {measurementSingle(profile.bottomClearanceIn)} above pocket.</div>}
     </div>}
 
-    <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={Number(zoom) === 1 ? undefined : { transform: `scale(${zoom})` }}>
+    <div
+      onPointerDown={beginViewPan}
+      onPointerMove={moveViewPan}
+      onPointerUp={endViewPan}
+      onPointerCancel={endViewPan}
+      className={"absolute inset-0 grid place-items-center " + (canPanView ? "cursor-grab active:cursor-grabbing touch-none" : "transition-transform duration-200")}
+      style={{ transform: `translate3d(${viewPan.x}px, ${viewPan.y}px, 0) scale(${Number(zoom || 1)})` }}
+    >
       <div
         className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : fillCanvas ? "h-[86%] w-auto max-w-[94%] sm:h-[96%] sm:max-w-[98%] lg:h-[103%] lg:max-w-[104%]" : "h-[82%] w-auto max-w-[90%]")}
         style={{ aspectRatio: `${previewCanvas.width} / ${previewCanvas.height}` }}
@@ -3192,6 +3253,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
 
         <div
           id={printAreaId}
+          data-gdp-print-area="true"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={stopDrag}
@@ -3295,7 +3357,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
 
     <div className="absolute bottom-3 left-3 right-3 z-30 flex items-end justify-between gap-2 pointer-events-none">
       <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71]">{color} · {garment?.label || "Custom garment"}</span>
-      {!blankArtwork && !seasonalOverlay && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{photo ? <><Move size={10}/> Drag editable layer</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","") || "Own artwork"} · {mood || "Original"}</>}</span>}
+      {!blankArtwork && !seasonalOverlay && <span className="rounded-xl border border-[#d8d2c8] bg-white/80 backdrop-blur px-2.5 py-1.5 text-[9px] uppercase tracking-wide text-[#817b71] inline-flex items-center gap-1">{canPanView ? <><Move size={10}/> Drag canvas to pan</> : photo ? <><Move size={10}/> Drag editable layer</> : <><Sparkles size={10}/> {template?.name?.replace("GDP ","") || "Own artwork"} · {mood || "Original"}</>}</span>}
     </div>
   </div>;
 }
@@ -3392,7 +3454,7 @@ function garmentPalette(color) {
 function StudioStepNav({ step, totalSteps, canContinue, hint, saving, finalDisabled, onPrevious, onContinue, onFinal, compact = false }) {
   const isFinal = step >= totalSteps;
   const disabled = isFinal ? saving || finalDisabled : !canContinue;
-  return <div className={"rounded-2xl border border-[#DCE3EA] bg-white shadow-sm " + (compact ? "px-3 py-3" : "px-3 py-2.5")}>
+  return <div data-gdp-step-nav={compact ? "mobile" : "desktop"} className={"gdp-studio-step-nav rounded-2xl border border-[#DCE3EA] bg-white shadow-sm " + (compact ? "px-3 py-3" : "px-3 py-2.5")}>
     <div className="flex items-center justify-between gap-3">
       <button type="button" onClick={onPrevious} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#DCE3EA] bg-white px-4 py-2.5 text-xs font-bold uppercase text-[#17324D] transition hover:border-[#9fb0c0]"><ArrowLeft size={16}/>{step === 1 ? "Back" : "Previous"}</button>
       <button
