@@ -1,0 +1,47 @@
+/* Seasonal Design Lab — mobile-only canvas refinement.
+   Loaded after the shared Custom Studio layers so these fixes stay scoped to
+   the Seasonal mobile editor without changing desktop or other design paths. */
+
+@media (max-width: 767px) {
+  /* The shared desktop canvas rule used to force a 500px+ frame around a
+     370–430px mobile preview, leaving visible dead space at the bottom. Let
+     the real mobile preview define the frame height instead. */
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+    min-height: 0 !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame > div.relative {
+    height: clamp(390px, 108vw, 460px) !important;
+    min-height: 0 !important;
+  }
+
+  /* Make the garment/fabric the visual focus. At Seasonal's 1.18 default
+     view zoom this nearly fills the usable canvas while keeping the garment
+     centered and preserving its aspect ratio. */
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame > div.relative > div.absolute.inset-0.grid > div.relative {
+    height: 85% !important;
+    width: auto !important;
+    max-width: 96% !important;
+  }
+
+  /* Seasonal already supports pinch-to-resize plus the precision Size slider.
+     Hide the corner resize chrome so it cannot cover the artwork. */
+  .gdp-studio-active section[aria-label="Garment preview"] [data-seasonal-artwork] > button[data-control] {
+    display: none !important;
+  }
+
+  /* Replace the now-obsolete “red corner” instruction on phones. */
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame + p {
+    font-size: 0 !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame + p > svg {
+    display: none !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame + p::after {
+    content: "Drag artwork to move · pinch to resize · twist to rotate. Use Size and Rotation controls for precise adjustments. Garment zoom only changes your editing view, not print size.";
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+}
