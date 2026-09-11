@@ -19,17 +19,38 @@ function detectStudioStep(root) {
   else delete root.dataset.gdpStudioStep;
 }
 
+function customOrderGuideButton(root) {
+  return Array.from(root.querySelectorAll("button")).find((button) =>
+    /how\s+custom\s+orders\s+work/i.test(String(button.textContent || ""))
+  ) || null;
+}
+
 export default function CustomStudioShellEnhancer() {
   useEffect(() => {
-    if (typeof document === "undefined") return undefined;
+    if (typeof document === "undefined" || typeof window === "undefined") return undefined;
     const root = document.querySelector(".gdp-studio-active");
     if (!root) return undefined;
 
-    const sync = () => detectStudioStep(root);
+    const mobile = window.matchMedia("(max-width: 767px)");
+    let appliedMobileStepOneDefault = false;
+
+    const sync = () => {
+      detectStudioStep(root);
+
+      // Mobile Step 1 starts with the guide collapsed to keep garment choices
+      // near the top of the screen. Apply this default only once so a customer
+      // can freely reopen the guide without MutationObserver closing it again.
+      if (!appliedMobileStepOneDefault && mobile.matches && root.dataset.gdpStudioStep === "1") {
+        const button = customOrderGuideButton(root);
+        if (!button) return;
+        if (button.getAttribute("aria-expanded") === "true") button.click();
+        appliedMobileStepOneDefault = true;
+      }
+    };
     sync();
 
     const observer = new MutationObserver(sync);
-    observer.observe(root, { subtree: true, childList: true, characterData: true });
+    observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["aria-expanded"] });
 
     return () => {
       observer.disconnect();
