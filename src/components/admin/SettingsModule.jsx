@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
 import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
+import MaintenanceModeControl from "@/components/admin/MaintenanceModeControl";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 
 export default function SettingsModule() {
@@ -129,6 +130,8 @@ export default function SettingsModule() {
       </div>
 
       {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
+      <MaintenanceModeControl />
 
       <div className="grid xl:grid-cols-[1.25fr_.75fr] gap-6">
         <div className="space-y-4">
