@@ -273,3 +273,32 @@
     font-size: 11px;
   }
 }
+
+
+/* 2026-09-10 mobile garment-canvas refinement. */
+@media (max-width: 767px) {
+  .gdp-studio-active [data-gdp-studio-preview="live"] #gdp-canvas-control-dock {
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    z-index: 85;
+    width: calc(100% - 16px);
+    transform: translateX(-50%);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 14px;
+    background: rgba(7,19,31,.92);
+    padding: 5px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.22);
+    backdrop-filter: blur(14px);
+  }
+
+  .gdp-studio-active main > div > div > div:nth-child(3) > aside > div:nth-child(2) > div:nth-child(2) {
+    height: clamp(350px, 58dvh, 430px);
+  }
+
+  .gdp-studio-active [data-gdp-studio-preview="live"] > div.absolute.inset-0.grid > div.relative {
+    height: 80% !important;
+    width: auto !important;
+    max-width: 92% !important;
+  }
+}
