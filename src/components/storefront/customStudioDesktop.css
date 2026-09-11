@@ -293,3 +293,59 @@
     max-width: 90% !important;
   }
 }
+
+
+/* GDP desktop studio stabilization · 2026-09-11 */
+@media (min-width: 1024px) {
+  #custom-studio-workspace .gdp-garment-choice-grid[data-gdp-mode="focused"][data-gdp-settled="true"] {
+    grid-template-columns: minmax(0, 380px) !important;
+    width: min(100%, 380px) !important;
+    max-width: 380px !important;
+    gap: 0 !important;
+    align-items: start !important;
+  }
+
+  #custom-studio-workspace .gdp-garment-choice-grid[data-gdp-mode="focused"][data-gdp-settled="true"] > button[data-gdp-selected="true"] {
+    width: 100% !important;
+    max-width: 380px !important;
+  }
+
+  #custom-studio-workspace .gdp-garment-choice-grid[data-gdp-mode="focused"][data-gdp-settled="true"] > button[data-gdp-selected="true"] > div:first-child {
+    height: 150px !important;
+    aspect-ratio: auto !important;
+  }
+
+  .gdp-studio-step-nav[data-gdp-step-nav="desktop"] {
+    padding: 6px 8px !important;
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, .92) !important;
+    backdrop-filter: blur(14px);
+  }
+
+  .gdp-studio-step-nav[data-gdp-step-nav="desktop"] button {
+    min-height: 38px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  #gdp-touch-studio-panel {
+    max-height: min(46vh, 430px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  #gdp-touch-studio-panel::-webkit-scrollbar {
+    width: 7px;
+  }
+
+  #gdp-touch-studio-panel::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .18);
+  }
+
+  #gdp-canvas-control-dock > * {
+    width: fit-content;
+    max-width: min(100%, 760px) !important;
+  }
+}

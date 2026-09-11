@@ -7,8 +7,8 @@ const GARMENT_GRID_SELECTOR = '#custom-studio-workspace div[class~="sm:grid-cols
 const LIVE_FRONT_MOCKUP_SELECTOR = 'aside img[alt$=" front mockup"]';
 const COLOR_PREVIEW_CLASS = "gdp-garment-color-preview";
 const COLOR_PREVIEW_HOST_CLASS = "gdp-garment-color-preview-host";
-const FADE_MS = 420;
-const MOVE_MS = 320;
+const FADE_MS = 300;
+const MOVE_MS = 260;
 const COLOR_SWAP_MS = 260;
 
 function garmentButtons(grid) {
