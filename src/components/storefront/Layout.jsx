@@ -16,6 +16,7 @@ export default function Layout() {
   const studioActive = ["/custom-studio", "/design"].some(
     (route) => location.pathname === route || location.pathname.startsWith(`${route}/`)
   );
+  const cartActive = location.pathname === "/cart" || location.pathname.startsWith("/cart/");
 
   return (
     <div className={`gdp-storefront min-h-screen flex flex-col bg-background${studioActive ? " gdp-studio-active" : ""}`}>
@@ -26,7 +27,7 @@ export default function Layout() {
       {studioActive && <SeasonalMobileReviewEnhancer />}
       {studioActive && <CustomStudioShellEnhancer />}
       {!studioActive && <StoreFooter />}
-      <AIAssistant />
+      {!cartActive && <AIAssistant />}
       <CookiePreferences />
     </div>
   );
