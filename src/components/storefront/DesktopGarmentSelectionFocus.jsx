@@ -4,8 +4,12 @@ import { useLocation } from "react-router-dom";
 const DESKTOP_QUERY = "(min-width: 1024px)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GARMENT_GRID_SELECTOR = '#custom-studio-workspace div[class~="sm:grid-cols-2"][class~="xl:grid-cols-3"]';
+const LIVE_FRONT_MOCKUP_SELECTOR = 'aside img[alt$=" front mockup"]';
+const COLOR_PREVIEW_CLASS = "gdp-garment-color-preview";
+const COLOR_PREVIEW_HOST_CLASS = "gdp-garment-color-preview-host";
 const FADE_MS = 420;
 const MOVE_MS = 320;
+const COLOR_SWAP_MS = 260;
 
 function garmentButtons(grid) {
   if (!grid) return [];
@@ -22,6 +26,73 @@ function findGarmentGrid() {
   const candidate = document.querySelector(GARMENT_GRID_SELECTOR);
   if (!(candidate instanceof HTMLElement)) return null;
   return garmentButtons(candidate).length ? candidate : null;
+}
+
+function cardMediaHost(button) {
+  const host = button?.firstElementChild;
+  return host instanceof HTMLElement ? host : null;
+}
+
+function clearColorPreview(button) {
+  const host = cardMediaHost(button);
+  if (!host) return;
+  host.querySelectorAll(`:scope > .${COLOR_PREVIEW_CLASS}`).forEach((node) => node.remove());
+  host.classList.remove(COLOR_PREVIEW_HOST_CLASS);
+}
+
+function liveFrontMockupImage() {
+  const image = document.querySelector(LIVE_FRONT_MOCKUP_SELECTOR);
+  return image instanceof HTMLImageElement ? image : null;
+}
+
+function syncSelectedColorPreview(grid, reducedMotion = false) {
+  if (!grid || grid.dataset.gdpMode !== "focused") return;
+  const selected = garmentButtons(grid).find((button) => button.dataset.gdpSelected === "true");
+  if (!selected) return;
+
+  const sourceImage = liveFrontMockupImage();
+  const nextSrc = sourceImage?.currentSrc || sourceImage?.src || "";
+  if (!nextSrc) {
+    clearColorPreview(selected);
+    return;
+  }
+
+  const host = cardMediaHost(selected);
+  if (!host) return;
+  host.classList.add(COLOR_PREVIEW_HOST_CLASS);
+
+  let overlay = host.querySelector(`:scope > .${COLOR_PREVIEW_CLASS}`);
+  if (!(overlay instanceof HTMLImageElement)) {
+    overlay = document.createElement("img");
+    overlay.className = COLOR_PREVIEW_CLASS;
+    overlay.alt = "";
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.draggable = false;
+    host.appendChild(overlay);
+  }
+
+  if (overlay.dataset.gdpSource === nextSrc) return;
+
+  const applySource = () => {
+    if (!overlay.isConnected || !grid.isConnected || grid.dataset.gdpMode !== "focused") return;
+    overlay.dataset.gdpSource = nextSrc;
+    overlay.src = nextSrc;
+    if (!reducedMotion && typeof overlay.animate === "function") {
+      overlay.animate(
+        [
+          { opacity: 0.38, transform: "scale(.992)" },
+          { opacity: 1, transform: "scale(1)" },
+        ],
+        { duration: COLOR_SWAP_MS, easing: "cubic-bezier(.22,.8,.24,1)" }
+      );
+    }
+  };
+
+  const preload = new Image();
+  preload.decoding = "async";
+  preload.onload = applySource;
+  preload.src = nextSrc;
+  if (preload.complete && preload.naturalWidth > 0) applySource();
 }
 
 function saveTitle(button) {
@@ -48,6 +119,7 @@ function markSelected(grid, selectedButton) {
       button.setAttribute("title", "Selected garment — click to change garment");
     } else {
       delete button.dataset.gdpSelected;
+      clearColorPreview(button);
       restoreTitle(button);
     }
   });
@@ -60,6 +132,7 @@ function clearEnhancement(grid) {
   grid.classList.remove("gdp-garment-choice-grid");
   garmentButtons(grid).forEach((button) => {
     delete button.dataset.gdpSelected;
+    clearColorPreview(button);
     restoreTitle(button);
   });
 }
@@ -112,6 +185,22 @@ const DESKTOP_GARMENT_FOCUS_STYLES = `
     box-shadow: 0 14px 34px rgba(25, 22, 18, .10);
   }
 
+  .${COLOR_PREVIEW_HOST_CLASS} {
+    position: relative;
+  }
+
+  .${COLOR_PREVIEW_CLASS} {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #f1ede6;
+    pointer-events: none;
+    transform-origin: center;
+  }
+
   .gdp-garment-choice-grid[data-gdp-mode="focused"] > button[data-gdp-selected="true"]::after {
     content: "Selected · Change garment";
     position: absolute;
@@ -156,6 +245,7 @@ export default function DesktopGarmentSelectionFocus() {
     const reducedMotionMedia = window.matchMedia(REDUCED_MOTION_QUERY);
     let currentGrid = null;
     let settleTimer = 0;
+    let syncFrame = 0;
 
     const moveDuration = () => (reducedMotionMedia.matches ? 1 : MOVE_MS);
     const fadeDuration = () => (reducedMotionMedia.matches ? 1 : FADE_MS);
@@ -165,10 +255,27 @@ export default function DesktopGarmentSelectionFocus() {
       settleTimer = 0;
     };
 
+    const cancelSync = () => {
+      if (syncFrame) window.cancelAnimationFrame(syncFrame);
+      syncFrame = 0;
+    };
+
+    const scheduleColorSync = () => {
+      cancelSync();
+      syncFrame = window.requestAnimationFrame(() => {
+        syncFrame = window.requestAnimationFrame(() => {
+          syncFrame = 0;
+          if (!currentGrid?.isConnected || !desktopMedia.matches) return;
+          syncSelectedColorPreview(currentGrid, reducedMotionMedia.matches);
+        });
+      });
+    };
+
     const prepareGrid = (grid) => {
       if (!grid || grid === currentGrid) return;
       if (currentGrid) clearEnhancement(currentGrid);
       cancelSettle();
+      cancelSync();
       currentGrid = grid;
       currentGrid.classList.add("gdp-garment-choice-grid");
       currentGrid.dataset.gdpMode = "expanded";
@@ -185,6 +292,7 @@ export default function DesktopGarmentSelectionFocus() {
           clearEnhancement(currentGrid);
           currentGrid = null;
           cancelSettle();
+          cancelSync();
         }
         return;
       }
@@ -197,6 +305,7 @@ export default function DesktopGarmentSelectionFocus() {
       markSelected(grid, selectedButton);
       grid.dataset.gdpMode = "focused";
       grid.dataset.gdpSettled = "false";
+      scheduleColorSync();
 
       settleTimer = window.setTimeout(() => {
         if (!grid.isConnected || grid.dataset.gdpMode !== "focused") return;
@@ -205,14 +314,17 @@ export default function DesktopGarmentSelectionFocus() {
         const before = selected.getBoundingClientRect();
         grid.dataset.gdpSettled = "true";
         window.requestAnimationFrame(() => animateMove(selected, before, moveDuration()));
+        scheduleColorSync();
       }, fadeDuration());
     };
 
     const expandChoices = (grid, selectedButton) => {
       if (!grid) return;
       cancelSettle();
+      cancelSync();
       const selected = selectedButton || garmentButtons(grid).find((button) => button.dataset.gdpSelected === "true");
       const before = selected?.getBoundingClientRect?.() || null;
+      if (selected) clearColorPreview(selected);
 
       // First restore the original grid slots while the other cards are still transparent.
       grid.dataset.gdpSettled = "false";
@@ -236,7 +348,10 @@ export default function DesktopGarmentSelectionFocus() {
       if (!grid || !desktopMedia.matches) return;
 
       const clicked = event.target instanceof Element ? event.target.closest("button") : null;
-      if (!(clicked instanceof HTMLButtonElement) || clicked.parentElement !== grid) return;
+      if (!(clicked instanceof HTMLButtonElement) || clicked.parentElement !== grid) {
+        if (grid.dataset.gdpMode === "focused") scheduleColorSync();
+        return;
+      }
 
       const isSelected = clicked.dataset.gdpSelected === "true" || clicked.classList.contains("border-accent");
       if (grid.dataset.gdpMode === "focused" && isSelected) {
@@ -261,21 +376,32 @@ export default function DesktopGarmentSelectionFocus() {
     const handleViewportChange = () => {
       if (!currentGrid) return;
       cancelSettle();
+      cancelSync();
       currentGrid.dataset.gdpMode = "expanded";
       currentGrid.dataset.gdpSettled = "false";
+      garmentButtons(currentGrid).forEach((button) => clearColorPreview(button));
       if (!desktopMedia.matches) {
         garmentButtons(currentGrid).forEach((button) => restoreTitle(button));
       }
     };
 
     discoverGrid();
-    const observer = new MutationObserver(discoverGrid);
-    observer.observe(document.body, { childList: true, subtree: true });
+    const observer = new MutationObserver((mutations) => {
+      discoverGrid();
+      if (
+        currentGrid?.dataset.gdpMode === "focused" &&
+        mutations.some((mutation) => mutation.type === "childList" || (mutation.type === "attributes" && mutation.attributeName === "src"))
+      ) {
+        scheduleColorSync();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
     document.addEventListener("click", handleGridClick, true);
     desktopMedia.addEventListener?.("change", handleViewportChange);
 
     return () => {
       cancelSettle();
+      cancelSync();
       observer.disconnect();
       document.removeEventListener("click", handleGridClick, true);
       desktopMedia.removeEventListener?.("change", handleViewportChange);
