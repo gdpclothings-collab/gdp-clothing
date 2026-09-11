@@ -76,7 +76,13 @@ jobs:
 
       - name: Run safe storefront wiring canary
         if: success()
-        run: node scripts/production-wiring-smoke.mjs
+        shell: bash
+        run: |
+          if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then
+            echo "Maintenance mode is active; skipping open-storefront wiring checks."
+            exit 0
+          fi
+          node scripts/production-wiring-smoke.mjs
 
       - name: Upload production smoke evidence
         if: always()
