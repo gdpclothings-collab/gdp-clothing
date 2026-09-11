@@ -3143,7 +3143,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
 
     <div className="absolute inset-0 grid place-items-center transition-transform duration-200" style={Number(zoom) === 1 ? undefined : { transform: `scale(${zoom})` }}>
       <div
-        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : fillCanvas ? "h-[86%] w-auto max-w-[94%] sm:h-[96%] sm:max-w-[98%]" : "h-[82%] w-auto max-w-[90%]")}
+        className={"relative " + (fullscreen ? "w-[min(55vh,520px)]" : fillCanvas ? "h-[86%] w-auto max-w-[94%] sm:h-[96%] sm:max-w-[98%] lg:h-[103%] lg:max-w-[104%]" : "h-[82%] w-auto max-w-[90%]")}
         style={{ aspectRatio: `${previewCanvas.width} / ${previewCanvas.height}` }}
       >
         {showMockup ? (

@@ -846,6 +846,25 @@ export function AdvancedEditorPanel({
   const [canvasDockHost, setCanvasDockHost] = useState(null);
 
   useEffect(() => {
+    const handleKeyboardDelete = (event) => {
+      if (event.repeat || (event.key !== "Delete" && event.key !== "Backspace")) return;
+      const target = event.target;
+      const tagName = String(target?.tagName || "").toLowerCase();
+      const isTyping = Boolean(target?.isContentEditable) || tagName === "input" || tagName === "textarea" || tagName === "select";
+      if (isTyping || !selectedLayer || selectedLayer.locked) return;
+      event.preventDefault();
+      onDeleteLayer?.(selectedLayer.id);
+      onSelectLayer?.("photo");
+      setShowStickers(false);
+      setShowPhotoPicker(false);
+      setActiveTool("layers");
+      setPanelTab(selectedLayer.type === "text" ? "lettering" : selectedLayer.type === "sticker" ? "layers" : "photos");
+    };
+    window.addEventListener("keydown", handleKeyboardDelete);
+    return () => window.removeEventListener("keydown", handleKeyboardDelete);
+  }, [selectedLayer?.id, selectedLayer?.locked, selectedLayer?.type, onDeleteLayer, onSelectLayer]);
+
+  useEffect(() => {
     const resolveCanvasDockHost = () => {
       if (typeof document === "undefined") return;
       setCanvasDockHost(document.querySelector('[data-gdp-studio-preview="live"]'));
@@ -918,7 +937,7 @@ export function AdvancedEditorPanel({
         <div className="grid grid-cols-2 gap-2">
           {(tools.erase || tools.restore) && <button type="button" onClick={onOpenPhotoEditor} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><Eraser size={14} className="mx-auto mb-1"/>Erase / Restore</button>}
           <button type="button" onClick={onResetPhoto} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><RotateCcw size={14} className="mx-auto mb-1"/>Reset photo</button>
-          <button type="button" onClick={onDeletePhoto} className="rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/10 px-3 py-3 text-[10px] font-bold uppercase text-[#FF8898]"><Trash2 size={14} className="mx-auto mb-1"/>Delete photo</button>
+          {designPath !== "bootleg" && <button type="button" onClick={onDeletePhoto} className="rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/10 px-3 py-3 text-[10px] font-bold uppercase text-[#FF8898]"><Trash2 size={14} className="mx-auto mb-1"/>Delete photo</button>}
           <button type="button" onClick={onResetAll} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><WandSparkles size={14} className="mx-auto mb-1"/>Reset layers</button>
         </div>
       );
@@ -1065,7 +1084,13 @@ export function AdvancedEditorPanel({
     return <div className="space-y-3"><RangeRow label="Sticker size" value={selectedLayer.size ?? 34} min={14} max={140} suffix="px" onChange={(value) => patch({ size: value })}/><RangeRow label="Rotation" value={selectedLayer.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/><RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/><PositionRows layer={selectedLayer} patch={patch}/></div>;
   };
 
-  const contextTools = /** @type {Array<[string, React.ComponentType<any>, string]>} */ (selectedType === "photo" ? [
+  const photoContextTools = /** @type {Array<[string, React.ComponentType<any>, string]>} */ (designPath === "bootleg" ? [
+    ["transform", Move, "Move / Size"],
+    ["crop", Crop, "Crop"],
+    ["background", WandSparkles, "Remove BG"],
+    ["erase", Eraser, "Erase"],
+    ["more", Layers, "More"],
+  ] : [
     ["replace", ImageIcon, "Replace"],
     ["background", WandSparkles, "Remove BG"],
     ["crop", Crop, "Crop"],
@@ -1073,7 +1098,17 @@ export function AdvancedEditorPanel({
     ["erase", Eraser, "Erase"],
     ["transform", Move, "Transform"],
     ["more", Layers, "More"],
-  ] : selectedType === "text" ? [
+  ]);
+
+  const textContextTools = /** @type {Array<[string, React.ComponentType<any>, string]>} */ (designPath === "bootleg" ? [
+    ["edit", Type, "Edit"],
+    ["font", Type, "Font"],
+    ["style", Sparkles, "Style"],
+    ["color", Sparkles, "Color"],
+    ["curve", RotateCcw, "Curve"],
+    ["transform", Move, "Move / Size"],
+    ["more", Layers, "More"],
+  ] : [
     ["edit", Type, "Edit"],
     ["font", Type, "Font"],
     ["style", Sparkles, "Style"],
@@ -1083,14 +1118,19 @@ export function AdvancedEditorPanel({
     ["spacing", Maximize2, "Spacing"],
     ["transform", Move, "Transform"],
     ["more", Layers, "More"],
-  ] : selectedType === "sticker" ? [
-    ["transform", Move, "Transform"],
-    ["more", Layers, "More"],
-  ] : []);
+  ]);
+
+  const contextTools = selectedType === "photo"
+    ? photoContextTools
+    : selectedType === "text"
+      ? textContextTools
+      : selectedType === "sticker"
+        ? [["transform", Move, "Transform"], ["more", Layers, "More"]]
+        : [];
 
   const panelTabs = /** @type {Array<[string, React.ComponentType<any>, string]>} */ ([
     ...(designPath !== "upload" ? [["design", Palette, "Design"]] : []),
-    ["photos", ImageIcon, designPath === "upload" ? "Artwork" : "Photos"],
+    ["photos", ImageIcon, designPath === "upload" ? "Artwork" : "Media"],
     ...(tools.text ? [["lettering", Type, "Text"]] : []),
     ...(designPath === "memorial" ? [["details", Heart, "Details"]] : []),
     ["layers", Layers, "Layers"],
@@ -1161,7 +1201,7 @@ export function AdvancedEditorPanel({
       </label>
       {uploading && Number(uploadProgress?.total || 0) > 0 && <div className="rounded-xl border border-white/10 bg-white/[.035] px-3 py-2 text-[9px] text-white/55">Preparing {uploadProgress.done}/{uploadProgress.total} · {Math.round((Number(uploadProgress.done || 0) / Math.max(1, Number(uploadProgress.total || 1))) * 100)}%</div>}
       {uploadWarning && <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">{uploadWarning}</div>}
-      {(photoAssets || []).length > 0 && <div><div className="mb-1.5 flex items-center justify-between text-[8px] uppercase tracking-[.1em] text-white/35"><span>Available media</span><span>{photoAssets.length}/{maxPhotos}</span></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{photoAssets.map((photo, index) => <button key={photo.id || index} type="button" onClick={() => { const existing = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || "")); if (existing) chooseLayer(existing.id); else onAddPhoto?.(photo); }} className="w-[104px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[.035] p-1.5 text-left"><img src={photo.url || photo.originalUrl} alt="" className="aspect-square w-full rounded-lg object-cover"/><div className="mt-1 truncate text-[8px] font-semibold text-white/65">{photo.name || `Photo ${index + 1}`}</div></button>)}</div></div>}
+      {(photoAssets || []).length > 0 && <div><div className="mb-1.5 flex items-center justify-between text-[8px] uppercase tracking-[.1em] text-white/35"><span>Media library</span><span>{photoAssets.length}/{maxPhotos}</span></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{photoAssets.map((photo, index) => <button key={photo.id || index} type="button" onClick={() => { const existing = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || "")); if (existing) chooseLayer(existing.id); else onAddPhoto?.(photo); }} className="w-[104px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[.035] p-1.5 text-left"><img src={photo.url || photo.originalUrl} alt="" className="aspect-square w-full rounded-lg object-cover"/><div className="mt-1 truncate text-[8px] font-semibold text-white/65">{photo.name || `Photo ${index + 1}`}</div></button>)}</div></div>}
     </div>
   );
 
@@ -1199,7 +1239,7 @@ export function AdvancedEditorPanel({
       </div>
 
       <div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2 text-[9px] leading-relaxed text-white/48">
-        <strong className="text-white/80">Touch-first:</strong> drag to move · pinch to resize · twist to rotate · double-tap text to type · double-tap a photo for crop mode.
+        {designPath === "bootleg" ? <><strong className="text-white/80">Simple editing:</strong> select a photo or text on the garment, then move, resize or edit it here. Press Delete / Backspace to remove the selected item from the canvas. Uploaded photos stay saved in Media.</> : <><strong className="text-white/80">Touch-first:</strong> drag to move · pinch to resize · twist to rotate · double-tap text to type · double-tap a photo for crop mode.</>}
       </div>
 
       {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold leading-relaxed text-amber-200"><span className="mr-1 uppercase tracking-wide text-amber-100">Print-area check:</span>{outsideWarning}</div>}
@@ -1221,7 +1261,7 @@ export function AdvancedEditorPanel({
       {panelTab === "details" && designPath === "memorial" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderMemorialDetails()}</div>}
       {panelTab === "layers" && <div className="mt-3">{selectedType === "sticker" && activeTool !== "layers" ? <div className="mb-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderStickerTool()}</div> : null}{renderLayers()}</div>}
 
-      <div className="mt-3 border-t border-white/10 pt-3">
+      <div className={designPath === "bootleg" ? "hidden" : "mt-3 border-t border-white/10 pt-3"}>
         <div className="flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">
           {(photoAssets || []).length > 0 && <ToolButton icon={ImageIcon} label="Add photo" onClick={() => { setPanelTab("photos"); setShowPhotoPicker((value) => !value); }} active={showPhotoPicker}/>}
           {tools.text && <ToolButton icon={Type} label="Add text" onClick={() => { onAddText?.(); setPanelTab("lettering"); setShowStickers(false); setShowPhotoPicker(false); }}/>}
