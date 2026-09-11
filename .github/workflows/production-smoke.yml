@@ -71,10 +71,11 @@ jobs:
           echo "Timed out waiting for Cloudflare Pages production deployment."
           exit 1
 
-      - name: Run non-destructive production canary
-        run: node scripts/production-smoke.mjs
+      - name: Run maintenance-aware production canary
+        run: node scripts/production-smoke-gate.mjs
 
       - name: Run safe storefront wiring canary
+        if: success()
         run: node scripts/production-wiring-smoke.mjs
 
       - name: Upload production smoke evidence
