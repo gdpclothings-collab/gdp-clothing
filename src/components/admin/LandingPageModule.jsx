@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
@@ -240,7 +241,7 @@ export default function LandingPageModule() {
   });
 
   const publish = async () => {
-    if (!window.confirm("Publish this landing page now? This will replace the customer-facing homepage content.")) return;
+    if (!await requestConfirmation("Publish this landing page now? This will replace the customer-facing homepage content.")) return;
     setPublishing(true);
     try {
       const state = await adminLandingPageApi.publish(form);
@@ -270,7 +271,7 @@ export default function LandingPageModule() {
   };
 
   const restoreVersion = async (version) => {
-    if (!window.confirm("Restore version " + version + " into the draft? The live storefront will stay unchanged until you publish.")) return;
+    if (!await requestConfirmation("Restore version " + version + " into the draft? The live storefront will stay unchanged until you publish.")) return;
     try {
       const result = await adminLandingPageApi.restoreVersionToDraft(version);
       setForm(result.draft);
@@ -282,8 +283,8 @@ export default function LandingPageModule() {
     }
   };
 
-  const restoreDefaults = () => {
-    if (!window.confirm("Load the built-in GDP defaults into the editor? This will not affect the live site until you save and publish.")) return;
+  const restoreDefaults = async () => {
+    if (!await requestConfirmation("Load the built-in GDP defaults into the editor? This will not affect the live site until you save and publish.")) return;
     setForm(DEFAULT_LANDING_PAGE);
     showNotice("Defaults loaded into the editor. Review before saving.");
   };

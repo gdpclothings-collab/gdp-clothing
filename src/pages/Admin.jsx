@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -212,7 +213,7 @@ export default function Admin() {
   };
 
   const archiveProduct = async product => {
-    if (!window.confirm(`Archive "${product.name}"? It will no longer appear as an active product.`)) return;
+    if (!await requestConfirmation(`Archive "${product.name}"? It will no longer appear as an active product.`)) return;
     await adminApi.archiveProduct(product.id);
     showNotice("Product archived.");
     load();

@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -55,7 +56,7 @@ export default function MaintenanceModeControl() {
     if (!isDirty) return;
 
     if (!saved.enabled && form.enabled) {
-      const confirmed = window.confirm(
+      const confirmed = await requestConfirmation(
         "Enable Maintenance Mode?\n\nPublic visitors will see the maintenance landing page instead of the storefront. Admin routes and admin storefront preview remain accessible."
       );
       if (!confirmed) return;

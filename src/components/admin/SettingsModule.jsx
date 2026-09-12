@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Store,
@@ -59,7 +60,7 @@ export default function SettingsModule() {
       const warning = form.paymentMode === "test"
         ? "Turn on Payment Test Mode? Checkout will use Stripe test credentials and no real money will be collected."
         : "Return payments to LIVE mode? Customers will be charged real money.";
-      if (!window.confirm(`${warning}\n\nConfirm switch to ${destination} mode.`)) return false;
+      if (!await requestConfirmation(`${warning}\n\nConfirm switch to ${destination} mode.`)) return false;
     }
     setSaving(true);
     try {

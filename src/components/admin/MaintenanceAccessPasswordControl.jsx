@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -65,7 +66,7 @@ export default function MaintenanceAccessPasswordControl() {
   };
 
   const clearPassword = async () => {
-    const confirmed = window.confirm(
+    const confirmed = await requestConfirmation(
       "Remove the maintenance access password?\n\nVisitors will no longer have a password option to enter the store while maintenance mode is on."
     );
     if (!confirmed) return;

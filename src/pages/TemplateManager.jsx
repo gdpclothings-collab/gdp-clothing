@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -150,10 +151,10 @@ export default function TemplateManager() {
     setSettings((current) => mergeTemplateOverride(current, styleId, patch));
   };
 
-  const restoreDefault = (styleId) => {
+  const restoreDefault = async (styleId) => {
     const base = GDP_STYLE_TEMPLATES.find((item) => item.id === styleId);
     if (!base) return;
-    const ok = window.confirm(
+    const ok = await requestConfirmation(
       `Restore ${base.name} to the GDP default artwork, wording, order and portrait placement?`
     );
     if (!ok) return;

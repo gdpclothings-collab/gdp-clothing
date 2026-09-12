@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -56,7 +57,7 @@ export default function AdminMediaOptimizer() {
 
   const startOptimization = async () => {
     if (!scan?.candidates || running) return;
-    const confirmed = window.confirm(
+    const confirmed = await requestConfirmation(
       `Optimize ${scan.candidates} referenced product image${scan.candidates === 1 ? "" : "s"}? ` +
       `GDP will create ${scan.maxDimension}px WebP storefront copies, keep the originals, and switch only the product references.`
     );
@@ -84,7 +85,7 @@ export default function AdminMediaOptimizer() {
 
   const startRestore = async () => {
     if (restoring || running) return;
-    const confirmed = window.confirm(
+    const confirmed = await requestConfirmation(
       "Restore product references to their original images? Optimized copies will remain stored, but the storefront will return to the original URLs."
     );
     if (!confirmed) return;

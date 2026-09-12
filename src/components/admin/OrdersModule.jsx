@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -364,7 +365,7 @@ export default function OrdersModule() {
   };
 
   const cancelOrder = async (order) => {
-    if (!window.confirm("Cancel " + order.order_number + "? This changes the order lifecycle status only and does not issue a refund.")) {
+    if (!await requestConfirmation("Cancel " + order.order_number + "? This changes the order lifecycle status only and does not issue a refund.")) {
       return;
     }
     await updateStatus(order, "cancelled");

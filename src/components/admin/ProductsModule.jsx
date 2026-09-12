@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Search,
@@ -1167,9 +1168,9 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     }));
   };
 
-  const clearSelectedMediaAssignments = () => {
+  const clearSelectedMediaAssignments = async () => {
     if (!selectedMedia.length) return;
-    if (!window.confirm(`Clear view, color and alt-text assignments for ${selectedMedia.length} selected media item${selectedMedia.length === 1 ? "" : "s"}?`)) {
+    if (!await requestConfirmation(`Clear view, color and alt-text assignments for ${selectedMedia.length} selected media item${selectedMedia.length === 1 ? "" : "s"}?`)) {
       return;
     }
     updateMediaAssignments(selectedMedia, {}, { clear: true });
@@ -1218,7 +1219,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     );
   };
 
-  const retireSelectedVariants = () => {
+  const retireSelectedVariants = async () => {
     if (!selectedVariantKeys.length) return;
     if (selectedVariantKeys.length >= variants.length) {
       window.alert("Keep at least one variant. Create a replacement variant before retiring the entire set.");
@@ -1230,7 +1231,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     const message = stock > 0
       ? `Retire ${selectedRows.length} selected variants? They currently contain ${stock} unit(s) of inventory, which will be set to 0 after save.`
       : `Retire ${selectedRows.length} selected variant${selectedRows.length === 1 ? "" : "s"}?`;
-    if (!window.confirm(message)) return;
+    if (!await requestConfirmation(message)) return;
     setVariants((current) =>
       current.filter((variant, index) => !selected.has(variantKey(variant, index)))
     );
@@ -1274,7 +1275,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     ]);
   };
 
-  const generateVariantMatrix = () => {
+  const generateVariantMatrix = async () => {
     const colors = splitComma(form.colors);
     const sizes = splitComma(form.sizes);
     if (!colors.length || !sizes.length) {
@@ -1294,7 +1295,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
 
     if (
       removedWithStock.length > 0 &&
-      !window.confirm(
+      !await requestConfirmation(
         `Generating this matrix will retire ${removedWithStock.length} existing variant${removedWithStock.length === 1 ? "" : "s"} that currently contain inventory. Continue?`
       )
     ) {
@@ -1305,11 +1306,11 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     setVariants((current) => buildVariantMatrix(colors, sizes, current));
   };
 
-  const removeVariant = (index) => {
+  const removeVariant = async (index) => {
     const target = variants[index];
     if (
       Number(target?.stock || 0) > 0 &&
-      !window.confirm(
+      !await requestConfirmation(
         `${target?.name || "This variant"} currently has ${Number(target?.stock || 0)} unit(s) in stock. Removing it will retire the variant and set its inventory to 0 after save. Continue?`
       )
     ) {
@@ -1466,7 +1467,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
           );
     if (
       retiringWithStock.length > 0 &&
-      !window.confirm(
+      !await requestConfirmation(
         `Saving will retire ${retiringWithStock.length} variant${retiringWithStock.length === 1 ? "" : "s"} that still contain inventory. Continue?`
       )
     ) {

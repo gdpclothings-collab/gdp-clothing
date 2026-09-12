@@ -1,3 +1,4 @@
+import { requestConfirmation } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FileEdit,
@@ -86,7 +87,7 @@ export default function DraftOrdersModule() {
 
   const convert = async (draft) => {
     if (
-      !window.confirm(
+      !await requestConfirmation(
         `Move ${draft.order_number} from draft to pending payment? This does not charge the customer.`
       )
     ) {
@@ -105,7 +106,7 @@ export default function DraftOrdersModule() {
 
   const remove = async (draft) => {
     if (
-      !window.confirm(
+      !await requestConfirmation(
         `Delete draft ${draft.order_number}? This only deletes an order while it is still a draft.`
       )
     ) {
