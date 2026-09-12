@@ -854,7 +854,7 @@ export function AdvancedEditorPanel({
       if (isTyping || !selectedLayer || selectedLayer.locked) return;
       event.preventDefault();
       onDeleteLayer?.(selectedLayer.id);
-      onSelectLayer?.("photo");
+      onSelectLayer?.("");
       setShowStickers(false);
       setShowPhotoPicker(false);
       setActiveTool("layers");
