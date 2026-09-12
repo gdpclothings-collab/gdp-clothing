@@ -116,6 +116,13 @@ advanced = mustReplace(
 
 studio = mustReplace(
   studio,
+  'ZoomIn, ZoomOut, Lock, Unlock, Trash2 } from "lucide-react";',
+  'ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";',
+  "remove unused Trash2 import"
+);
+
+studio = mustReplace(
+  studio,
   '{selectedPhotoLayer && <button type="button" onClick={() => deleteEditorLayer(selectedPhotoLayer.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/[.06] px-3 py-2 text-[11px] font-bold text-[#B91C31] transition hover:bg-[#D9273E]/10" aria-label={`Remove selected photo from ${previewSide} fabric`}><Trash2 size={14}/> Remove photo</button>}',
   '',
   "duplicate preview remove action"
