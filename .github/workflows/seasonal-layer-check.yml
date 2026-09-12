@@ -6,17 +6,49 @@ on:
       - feat/seasonal-multi-artwork-layers
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: feat/seasonal-multi-artwork-layers
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-      - run: npm ci
+      - name: Apply focused Seasonal Lab typing fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/storefront/SeasonalStudioLayered.jsx')
+          source = path.read_text()
+          replacements = {
+              "const [historyVersion, setHistoryVersion] = useState(0);": "const [, setHistoryVersion] = useState(0);",
+              "function LayerStack({ entries, area, activeId, capturing, onSelect, onBeforeEdit, onMove, onResize, onRotate, review = false })": "function LayerStack({ entries, area, activeId, capturing, onSelect = undefined, onBeforeEdit = undefined, onMove = undefined, onResize = undefined, onRotate = undefined, review = false })",
+              "position: item.position,": "position: { x: Number(item.x), y: Number(item.y) },",
+          }
+          for old, new in replacements.items():
+              if old not in source:
+                  raise SystemExit(f'Expected Seasonal Lab source fragment not found: {old}')
+              source = source.replace(old, new, 1)
+          path.write_text(source)
+          PY
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/verify-seasonal-artwork.mjs
+      - run: npm run typecheck
       - run: npm run build
       - run: npm run lint
+      - name: Commit validated source patch
+        run: |
+          if git diff --quiet; then
+            echo "No source patch required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/storefront/SeasonalStudioLayered.jsx
+          git commit -m "Fix Seasonal Lab layered editor typing"
+          git push origin HEAD:feat/seasonal-multi-artwork-layers
