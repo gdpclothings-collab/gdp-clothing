@@ -9,6 +9,7 @@ import { PRODUCT_SELLING_MODES, resolveProductSellingMode } from "@/lib/productS
 export default function ProductCard({ product }) {
   const { wishlist, toggleWishlist } = useCart();
   const [secondaryRequested, setSecondaryRequested] = React.useState(false);
+  const [secondaryLoaded, setSecondaryLoaded] = React.useState(false);
   const wished = product.id ? wishlist.includes(product.id) : false;
   const hasSecondImage = Boolean(product.images?.[1]);
   const showSecondImage = hasSecondImage && secondaryRequested;
@@ -25,6 +26,11 @@ export default function ProductCard({ product }) {
     if (hasSecondImage) setSecondaryRequested(true);
   };
 
+  React.useEffect(() => {
+    setSecondaryRequested(false);
+    setSecondaryLoaded(false);
+  }, [product.id, product.images?.[1]]);
+
   return (
     <article
       className="group relative min-w-0"
@@ -39,7 +45,7 @@ export default function ProductCard({ product }) {
             fittingType="fill"
             loading="lazy"
             decoding="async"
-            className={"h-full w-full object-cover transition-all duration-700 " + (hasSecondImage ? "group-hover:opacity-0 group-hover:scale-[1.02]" : "group-hover:scale-[1.035]")}
+            className={"h-full w-full object-cover transition-all duration-700 " + (secondaryLoaded ? "group-hover:opacity-0 group-hover:scale-[1.02]" : "group-hover:scale-[1.035]")}
           />
           {showSecondImage && (
             <Image
@@ -48,6 +54,7 @@ export default function ProductCard({ product }) {
               fittingType="fill"
               loading="lazy"
               decoding="async"
+              onLoad={() => setSecondaryLoaded(true)}
               className="absolute inset-0 h-full w-full scale-[1.02] object-cover opacity-0 transition-all duration-700 group-hover:scale-100 group-hover:opacity-100"
             />
           )}
