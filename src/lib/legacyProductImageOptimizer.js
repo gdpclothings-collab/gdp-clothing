@@ -26,21 +26,20 @@ function isCandidate(value) {
   return isDataImage(value) || (isSupabaseProductImage(value) && !isOptimizedProductImage(value));
 }
 
-function filenameFromUrl(value, fallback = "product-image") {
-  if (isDataImage(value)) return `${fallback}.png`;
-  try {
-    const pathname = new URL(value).pathname;
-    const name = decodeURIComponent(pathname.split("/").pop() || "");
-    return name || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function safeFilename(value) {
   return String(value || "product-image")
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "") || "product-image";
+}
+
+function filenameFromUrl(value, fallback = "product-image") {
+  if (isDataImage(value)) return `${fallback}.png`;
+  try {
+    const pathname = new URL(value).pathname;
+    return decodeURIComponent(pathname.split("/").pop() || "") || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function inferMimeType(name) {
@@ -52,13 +51,8 @@ function inferMimeType(name) {
 }
 
 async function fetchImageFile(url, fallbackName) {
-  const response = await fetch(url, {
-    cache: "no-store",
-    credentials: "omit",
-  });
-  if (!response.ok) {
-    throw new Error(`Image download failed (${response.status}).`);
-  }
+  const response = await fetch(url, { cache: "no-store", credentials: "omit" });
+  if (!response.ok) throw new Error(`Image download failed (${response.status}).`);
 
   const blob = await response.blob();
   const name = filenameFromUrl(url, fallbackName);
@@ -67,19 +61,19 @@ async function fetchImageFile(url, fallbackName) {
     throw new Error("Downloaded file is not a supported image.");
   }
 
-  return new File([blob], name, {
-    type,
-    lastModified: Date.now(),
-  });
+  return new File([blob], name, { type, lastModified: Date.now() });
 }
 
-async function getBackup(productId, imageIndex, originalUrl) {
+async function getReusableBackup(productId, imageIndex, originalUrl) {
   const { data, error } = await supabase
     .from("product_image_optimization_backup")
     .select("id, optimized_url, status, original_bytes, optimized_bytes, optimized_width, optimized_height")
     .eq("product_id", productId)
     .eq("image_index", imageIndex)
     .eq("original_url", originalUrl)
+    .neq("status", "reverted")
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) throw error;
@@ -87,8 +81,8 @@ async function getBackup(productId, imageIndex, originalUrl) {
 }
 
 async function prepareOptimizedCopy(product, imageIndex, originalUrl) {
-  const existing = await getBackup(product.id, imageIndex, originalUrl);
-  if (existing?.optimized_url && existing.status !== "reverted") {
+  const existing = await getReusableBackup(product.id, imageIndex, originalUrl);
+  if (existing?.optimized_url) {
     return {
       backupId: existing.id,
       optimizedUrl: existing.optimized_url,
@@ -153,9 +147,7 @@ async function prepareOptimizedCopy(product, imageIndex, originalUrl) {
 
   const { data: backup, error: backupError } = await supabase
     .from("product_image_optimization_backup")
-    .upsert(backupPayload, {
-      onConflict: "product_id,image_index,original_url",
-    })
+    .insert(backupPayload)
     .select("id")
     .single();
   if (backupError) throw backupError;
@@ -256,23 +248,19 @@ export async function optimizeLegacyProductImages({ onProgress } = {}) {
       });
 
       try {
-        const result = await prepareOptimizedCopy(product, index, originalUrl);
-        if (result.skipped) {
+        const item = await prepareOptimizedCopy(product, index, originalUrl);
+        if (item.skipped) {
           skipped += 1;
         } else {
-          nextImages[index] = result.optimizedUrl;
-          prepared.push({
-            ...result,
-            imageIndex: index,
-            originalUrl,
-          });
+          nextImages[index] = item.optimizedUrl;
+          prepared.push({ ...item, imageIndex: index, originalUrl });
         }
-      } catch (error) {
+      } catch (err) {
         errors.push({
           productId: product.id,
           productName: product.name,
           imageIndex: index,
-          message: error?.message || "Image optimization failed.",
+          message: err?.message || "Image optimization failed.",
         });
       } finally {
         processed += 1;
@@ -363,9 +351,9 @@ export async function restoreOriginalProductImages({ onProgress } = {}) {
 
   const grouped = new Map();
   for (const backup of backups || []) {
-    const group = grouped.get(backup.product_id) || [];
-    group.push(backup);
-    grouped.set(backup.product_id, group);
+    const rows = grouped.get(backup.product_id) || [];
+    rows.push(backup);
+    grouped.set(backup.product_id, rows);
   }
 
   let processed = 0;
@@ -374,7 +362,14 @@ export async function restoreOriginalProductImages({ onProgress } = {}) {
   const errors = [];
 
   for (const [productId, rows] of grouped.entries()) {
-    onProgress?.({ phase: "restoring", processed, total: grouped.size, restored, skipped, errors: errors.length });
+    onProgress?.({
+      phase: "restoring",
+      processed,
+      total: grouped.size,
+      restored,
+      skipped,
+      errors: errors.length,
+    });
 
     const { data: product, error: productError } = await supabase
       .from("products")
@@ -410,13 +405,17 @@ export async function restoreOriginalProductImages({ onProgress } = {}) {
         errors.push({ productId, message: restoreError.message });
       } else {
         restored += restoredIds.length;
-        await supabase
+        const { error: markError } = await supabase
           .from("product_image_optimization_backup")
           .update({
             status: "reverted",
             reverted_at: new Date().toISOString(),
           })
           .in("id", restoredIds);
+
+        if (markError) {
+          errors.push({ productId, message: `References restored but rollback metadata was not updated: ${markError.message}` });
+        }
       }
     }
 
