@@ -1,0 +1,31 @@
+name: Verify modern notification migration
+
+on:
+  push:
+    paths:
+      - ".github/workflows/verify-modern-notifications.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for legacy browser dialogs
+        shell: bash
+        run: |
+          if grep -RInE 'window\.(alert|confirm)[[:space:]]*\(' src --include='*.js' --include='*.jsx' --include='*.ts' --include='*.tsx'; then
+            echo "Legacy window.alert/window.confirm calls remain in src/."
+            exit 1
+          fi
+          echo "No legacy window.alert/window.confirm calls found."
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        run: npm run build
