@@ -1,0 +1,60 @@
+name: Seasonal Reset Refinement
+
+on:
+  push:
+    branches:
+      - refine-seasonal-reset-controls-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refine-seasonal-reset-controls-20260912
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply Seasonal reset refinement
+        run: python3 scripts/apply-seasonal-reset-refinement.py
+
+      - name: Verify Seasonal reset contract
+        run: node scripts/verify-seasonal-reset-refinement.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Remove temporary migration files
+        run: |
+          rm -f scripts/apply-seasonal-reset-refinement.py
+          rm -f .github/workflows/seasonal-reset-refinement.yml
+
+      - name: Commit implementation
+        run: |
+          git config user.name "gdpclothings-collab"
+          git config user.email "gdpclothings@gmail.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No implementation changes to commit."
+          else
+            git commit -m "Refine Seasonal Design Lab reset controls"
+            git push origin HEAD:refine-seasonal-reset-controls-20260912
+          fi
