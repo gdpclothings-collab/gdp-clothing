@@ -8,8 +8,10 @@ import { PRODUCT_SELLING_MODES, resolveProductSellingMode } from "@/lib/productS
 
 export default function ProductCard({ product }) {
   const { wishlist, toggleWishlist } = useCart();
+  const [secondaryRequested, setSecondaryRequested] = React.useState(false);
   const wished = product.id ? wishlist.includes(product.id) : false;
   const hasSecondImage = Boolean(product.images?.[1]);
+  const showSecondImage = hasSecondImage && secondaryRequested;
   const productHref = product.slug === "dtf-gang-sheet" ? "/products/dtf-gang-sheet" : "/product/" + product.id;
   const outOfStock = isProductOutOfStock(product);
   const sellingMode = resolveProductSellingMode(product);
@@ -19,21 +21,33 @@ export default function ProductCard({ product }) {
       ? "Customizable"
       : "Ready to wear";
 
+  const requestSecondary = () => {
+    if (hasSecondImage) setSecondaryRequested(true);
+  };
+
   return (
-    <article className="group relative min-w-0">
+    <article
+      className="group relative min-w-0"
+      onPointerEnter={requestSecondary}
+      onFocusCapture={requestSecondary}
+    >
       <Link to={productHref} className="relative block overflow-hidden bg-[#e9e7e1]">
         <div className="aspect-[3/4] overflow-hidden">
           <Image
             src={product.images?.[0]}
             alt={product.name}
             fittingType="fill"
+            loading="lazy"
+            decoding="async"
             className={"h-full w-full object-cover transition-all duration-700 " + (hasSecondImage ? "group-hover:opacity-0 group-hover:scale-[1.02]" : "group-hover:scale-[1.035]")}
           />
-          {hasSecondImage && (
+          {showSecondImage && (
             <Image
               src={product.images?.[1]}
               alt=""
               fittingType="fill"
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 h-full w-full scale-[1.02] object-cover opacity-0 transition-all duration-700 group-hover:scale-100 group-hover:opacity-100"
             />
           )}
