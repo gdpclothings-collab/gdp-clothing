@@ -60,6 +60,45 @@ async function releaseCheckoutReservations(service: any, orderId: string, status
   if (coupon.error) console.error("coupon reservation release failed", coupon.error);
 }
 
+async function resetUnpaidCustomOrderState(service: any, orderId: string) {
+  const { data: items, error: itemError } = await service
+    .from("order_items")
+    .select("custom_design_id")
+    .eq("order_id", orderId)
+    .eq("is_custom", true);
+  if (itemError) throw itemError;
+
+  const designIds = [...new Set((items || []).map((item: any) => item.custom_design_id).filter(Boolean))];
+  if (designIds.length) {
+    const { error: designError } = await service
+      .from("custom_designs")
+      .update({ order_id: null, status: "in_cart" })
+      .in("id", designIds)
+      .eq("order_id", orderId);
+    if (designError) throw designError;
+  }
+
+  const { error: proofError } = await service
+    .from("design_proofs")
+    .delete()
+    .eq("order_id", orderId)
+    .eq("status", "pending");
+  if (proofError) throw proofError;
+
+  const now = new Date().toISOString();
+  const { error: guestError } = await service
+    .from("guest_design_sessions")
+    .update({ converted_order_id: null, converted_at: null, updated_at: now })
+    .eq("converted_order_id", orderId);
+  if (guestError) throw guestError;
+
+  const { error: checkoutError } = await service
+    .from("checkout_sessions")
+    .update({ status: "active", converted_order_id: null, last_activity_at: now })
+    .eq("converted_order_id", orderId);
+  if (checkoutError) throw checkoutError;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
@@ -223,6 +262,7 @@ Deno.serve(async (req: Request) => {
       const orderId = session?.metadata?.order_id;
       if (orderId) {
         await releaseCheckoutReservations(service, orderId, "expired");
+        await resetUnpaidCustomOrderState(service, orderId);
         await service
           .from("orders")
           .update({
@@ -235,20 +275,40 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (event.type === "payment_intent.payment_failed") {
-      const intent = event.data.object;
-      const orderId = intent?.metadata?.order_id;
+    if (event.type === "checkout.session.async_payment_failed") {
+      const session = event.data.object;
+      const orderId = session?.metadata?.order_id;
       if (orderId) {
         await releaseCheckoutReservations(service, orderId);
+        await resetUnpaidCustomOrderState(service, orderId);
         await service
           .from("orders")
           .update({
             payment_status: "failed",
             status: "payment_failed",
             fulfillment_status: "unfulfilled",
-            stripe_payment_intent_id: intent.id,
+            stripe_payment_intent_id: session.payment_intent || null,
           })
           .eq("id", orderId);
+      }
+    }
+
+    if (event.type === "payment_intent.payment_failed") {
+      const intent = event.data.object;
+      const orderId = intent?.metadata?.order_id;
+      if (orderId) {
+        // A failed attempt inside an open Checkout Session is retryable. Keep
+        // the inventory/coupon reservation until the session actually expires.
+        await service
+          .from("orders")
+          .update({
+            payment_status: "pending",
+            status: "pending_payment",
+            fulfillment_status: "unfulfilled",
+            stripe_payment_intent_id: intent.id,
+          })
+          .eq("id", orderId)
+          .eq("payment_status", "pending");
       }
     }
 

@@ -9,14 +9,26 @@ const cors = {
   "Content-Type": "application/json",
 };
 
-function respond(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: cors });
+function respond(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
+  return new Response(JSON.stringify(body), { status, headers: { ...cors, ...extraHeaders } });
 }
 
 function bearerToken(req: Request) {
   const value = req.headers.get("Authorization") || "";
   const match = value.match(/^Bearer\s+(.+)$/i);
   return match?.[1] || "";
+}
+
+function clientIp(req: Request) {
+  const direct = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
+  if (direct) return direct.trim().slice(0, 128);
+  const forwarded = req.headers.get("x-forwarded-for") || "";
+  return (forwarded.split(",")[0] || "unknown").trim().slice(0, 128);
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 Deno.serve(async (req: Request) => {
@@ -106,6 +118,22 @@ Deno.serve(async (req: Request) => {
       const password = typeof body.password === "string" ? body.password : "";
       if (!password || password.length > 128) {
         return respond({ error: true, message: "Enter the maintenance access password." }, 400);
+      }
+
+      const rateKey = await sha256Hex(`maintenance:verify:ip:${clientIp(req)}`);
+      const { data: rateLimit, error: rateLimitError } = await service.rpc("consume_checkout_rate_limit", {
+        p_key: rateKey,
+        p_limit: 10,
+        p_window_seconds: 900,
+      });
+      if (rateLimitError) throw rateLimitError;
+      if (!rateLimit?.allowed) {
+        const retryAfter = Math.max(1, Number(rateLimit?.retry_after || 60));
+        return respond(
+          { error: true, message: "Too many password attempts. Please wait before trying again." },
+          429,
+          { "Retry-After": String(retryAfter) },
+        );
       }
 
       const row = await getPasswordRow();
