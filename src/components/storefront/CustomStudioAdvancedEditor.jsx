@@ -996,6 +996,17 @@ export function AdvancedEditorPanel({
       );
     }
 
+    if (activeTool === "remove") {
+      return (
+        <div className="space-y-2">
+          <div className="rounded-xl border border-white/10 bg-white/[.035] p-3 text-[10px] leading-relaxed text-white/55"><strong className="text-white/85">Remove from {previewSide}:</strong> keeps the upload available in Photos and leaves the locked GDP template untouched.</div>
+          <button type="button" onClick={() => onDeleteLayer?.(selectedLayer.id)} className="w-full rounded-xl border border-[#D9273E]/35 bg-[#D9273E]/10 px-4 py-3 text-[10px] font-bold uppercase text-[#FFB2BD]"><Trash2 size={15} className="mr-2 inline"/>Remove from {previewSide} fabric</button>
+          <button type="button" onClick={onDeletePhoto} className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-[9px] font-bold uppercase text-white/62">Delete upload everywhere</button>
+          <p className="px-1 text-[8px] leading-relaxed text-white/35">Delete upload everywhere removes this customer photo from both fabrics after confirmation. Protected template artwork is never deleted.</p>
+        </div>
+      );
+    }
+
     if (activeTool === "more") return <LayerActionRow layer={selectedLayer} onDuplicate={onDuplicateLayer} onDelete={onDeleteLayer} onMoveLayer={onMoveLayer} onReset={onResetLayer}/>;
 
     return (
@@ -1089,7 +1100,7 @@ export function AdvancedEditorPanel({
     ["crop", Crop, "Crop"],
     ["background", WandSparkles, "Remove BG"],
     ["erase", Eraser, "Erase"],
-    ["more", Layers, "More"],
+    ["remove", Trash2, "Remove"],
   ] : [
     ["replace", ImageIcon, "Replace"],
     ["background", WandSparkles, "Remove BG"],
@@ -1128,7 +1139,12 @@ export function AdvancedEditorPanel({
         ? [["transform", Move, "Transform"], ["more", Layers, "More"]]
         : [];
 
-  const panelTabs = /** @type {Array<[string, React.ComponentType<any>, string]>} */ ([
+  const panelTabs = /** @type {Array<[string, React.ComponentType<any>, string]>} */ (designPath === "bootleg" ? [
+    ["design", Palette, "Template"],
+    ["photos", ImageIcon, "Photos"],
+    ...(tools.text ? [["lettering", Type, "Text"]] : []),
+    ["layers", Layers, "Layers"],
+  ] : [
     ...(designPath !== "upload" ? [["design", Palette, "Design"]] : []),
     ["photos", ImageIcon, designPath === "upload" ? "Artwork" : "Media"],
     ...(tools.text ? [["lettering", Type, "Text"]] : []),
@@ -1210,7 +1226,7 @@ export function AdvancedEditorPanel({
       </label>
       {uploading && Number(uploadProgress?.total || 0) > 0 && <div className="rounded-xl border border-white/10 bg-white/[.035] px-3 py-2 text-[9px] text-white/55">Preparing {uploadProgress.done}/{uploadProgress.total} · {Math.round((Number(uploadProgress.done || 0) / Math.max(1, Number(uploadProgress.total || 1))) * 100)}%</div>}
       {uploadWarning && <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">{uploadWarning}</div>}
-      {(photoAssets || []).length > 0 && <div><div className="mb-1.5 flex items-center justify-between text-[8px] uppercase tracking-[.1em] text-white/35"><span>Media library</span><span>{photoAssets.length}/{maxPhotos}</span></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{photoAssets.map((photo, index) => <button key={photo.id || index} type="button" onClick={() => { const existing = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || "")); if (existing) chooseLayer(existing.id); else onAddPhoto?.(photo); }} className="w-[104px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[.035] p-1.5 text-left"><img src={photo.url || photo.originalUrl} alt="" className="aspect-square w-full rounded-lg object-cover"/><div className="mt-1 truncate text-[8px] font-semibold text-white/65">{photo.name || `Photo ${index + 1}`}</div></button>)}</div></div>}
+      {(photoAssets || []).length > 0 && <div><div className="mb-1.5 flex items-center justify-between text-[8px] uppercase tracking-[.1em] text-white/35"><span>{designPath === "bootleg" ? "Uploaded photos" : "Media library"}</span><span>{photoAssets.length}/{maxPhotos}</span></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{photoAssets.map((photo, index) => <button key={photo.id || index} type="button" onClick={() => { const existing = editorLayers.find((layer) => layer.type === "photo" && String(layer.photoId || "") === String(photo.id || "")); if (existing) chooseLayer(existing.id); else onAddPhoto?.(photo); }} className="w-[104px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[.035] p-1.5 text-left"><img src={photo.url || photo.originalUrl} alt="" className="aspect-square w-full rounded-lg object-cover"/><div className="mt-1 truncate text-[8px] font-semibold text-white/65">{photo.name || `Photo ${index + 1}`}</div></button>)}</div></div>}
     </div>
   );
 
@@ -1238,12 +1254,12 @@ export function AdvancedEditorPanel({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-mono text-[8px] uppercase tracking-[.22em] text-[#D9273E]">GDP Touch Studio</div>
-          <div className="mt-1 truncate text-xs font-bold text-white">{pathLabel || (selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : hasPhoto ? "Photo tools" : "Personalization controls")}</div>
+          <div className="mt-1 truncate text-xs font-bold text-white">{designPath === "bootleg" && selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : (pathLabel || (selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : hasPhoto ? "Photo tools" : "Personalization controls"))}</div>
         </div>
         <div className="flex shrink-0 gap-1">
           <button type="button" onClick={onUndo} disabled={!canUndo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Undo"><Undo2 size={14}/></button>
           <button type="button" onClick={onRedo} disabled={!canRedo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Redo"><Redo2 size={14}/></button>
-          <button type="button" onClick={() => { setPanelTab("layers"); setActiveTool("layers"); }} className={`grid h-9 w-9 place-items-center rounded-xl border ${panelTab === "layers" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.045] text-white/65"}`} aria-label="Layers"><Layers size={14}/></button>
+          {designPath !== "bootleg" && <button type="button" onClick={() => { setPanelTab("layers"); setActiveTool("layers"); }} className={`grid h-9 w-9 place-items-center rounded-xl border ${panelTab === "layers" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.045] text-white/65"}`} aria-label="Layers"><Layers size={14}/></button>}
         </div>
       </div>
 
@@ -1256,7 +1272,7 @@ export function AdvancedEditorPanel({
       {(sideStatus || viewGuidance || canCopyFrontToBack) && <div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2.5 text-[9px] leading-relaxed text-white/48">
         <div className="font-mono text-[8px] uppercase tracking-[.13em] text-white/35">Editing {previewSide}</div>
         {sideStatus && <div className="mt-1 text-white/68">{sideStatus}</div>}
-        {viewGuidance && <div className="mt-2 border-l-2 border-[#D9273E]/60 pl-2.5">{viewGuidance}</div>}
+        {viewGuidance && designPath !== "bootleg" && <div className="mt-2 border-l-2 border-[#D9273E]/60 pl-2.5">{viewGuidance}</div>}
         {canCopyFrontToBack && <button type="button" onClick={onCopyFrontToBack} className="mt-2.5 w-full rounded-xl border border-white/15 bg-white/[.05] px-3 py-2 text-[9px] font-bold uppercase text-white">Copy front design to back</button>}
       </div>}
 
