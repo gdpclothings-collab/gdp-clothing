@@ -431,14 +431,27 @@ async function releaseGuestDesignClaims(service: any, orderId: string) {
   if (error) console.error("guest design claim release failed", error);
 }
 
-async function resumeConvertedCheckout(service: any, orderId: string) {
-  const { data: order, error: orderError } = await service
-    .from("orders")
-    .select("id,order_number,confirmation_token,stripe_checkout_session_id,payment_mode,payment_status,subtotal,discount,shipping,tax,total,shipping_address")
-    .eq("id", orderId)
-    .maybeSingle();
+async function resumeConvertedCheckout(
+  service: any,
+  sessionToken: string,
+  orderId: string,
+) {
+  const [{ data: order, error: orderError }, { data: tracked, error: trackedError }] = await Promise.all([
+    service
+      .from("orders")
+      .select("id,order_number,confirmation_token,payment_mode,payment_status,subtotal,discount,shipping,tax,total,shipping_address")
+      .eq("id", orderId)
+      .maybeSingle(),
+    service
+      .from("checkout_sessions")
+      .select("stripe_client_secret,stripe_checkout_session_id")
+      .eq("session_token", sessionToken)
+      .eq("converted_order_id", orderId)
+      .maybeSingle(),
+  ]);
 
   if (orderError) throw orderError;
+  if (trackedError) throw trackedError;
   if (!order) {
     return { status: 409, body: { error: true, retryable: true, message: "The previous checkout could not be found. Please try again." } };
   }
@@ -455,37 +468,11 @@ async function resumeConvertedCheckout(service: any, orderId: string) {
   }
 
   const paymentMode = order.payment_mode === "test" ? "test" : "live";
-  const stripeSecret = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY");
   const stripePublishableKey = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_PUBLISHABLE_KEY" : "STRIPE_PUBLISHABLE_KEY");
-
-  if (!stripeSecret || !stripePublishableKey || !order.stripe_checkout_session_id) {
+  if (!stripePublishableKey || !tracked?.stripe_client_secret) {
     return {
       status: 409,
-      body: { error: true, retryable: true, message: "The previous payment session is not ready. Please try again." },
-    };
-  }
-
-  const stripeResponse = await fetch(
-    "https://api.stripe.com/v1/checkout/sessions/" + encodeURIComponent(order.stripe_checkout_session_id),
-    {
-      headers: {
-        Authorization: "Bearer " + stripeSecret,
-        "Stripe-Version": "2026-08-26.dahlia",
-      },
-    },
-  );
-  const stripeSession = await stripeResponse.json();
-  if (!stripeResponse.ok) {
-    return {
-      status: 502,
-      body: { error: true, retryable: true, message: stripeSession?.error?.message || "The secure payment session could not be resumed." },
-    };
-  }
-
-  if (stripeSession.status === "expired") {
-    return {
-      status: 409,
-      body: { error: true, retryable: true, message: "This secure payment session expired. Please try checkout again." },
+      body: { error: true, retryable: true, message: "The previous secure payment session is not ready. Please try again." },
     };
   }
 
@@ -495,7 +482,7 @@ async function resumeConvertedCheckout(service: any, orderId: string) {
     body: {
       orderNumber: order.order_number,
       confirmationToken: order.confirmation_token,
-      clientSecret: stripeSession.client_secret,
+      clientSecret: tracked.stripe_client_secret,
       publishableKey: stripePublishableKey,
       configured: true,
       paymentMode,
@@ -1549,7 +1536,11 @@ Deno.serve(async (req: Request) => {
 
     if (!checkoutClaim?.claimed) {
       if (checkoutClaim?.status === "converted" && checkoutClaim?.converted_order_id) {
-        const resumed = await resumeConvertedCheckout(service, String(checkoutClaim.converted_order_id));
+        const resumed = await resumeConvertedCheckout(
+          service,
+          checkoutSessionToken,
+          String(checkoutClaim.converted_order_id),
+        );
         return respond(req, resumed.body, resumed.status);
       }
       if (checkoutClaim?.status === "processing") {
@@ -1792,29 +1783,18 @@ Deno.serve(async (req: Request) => {
 
     if (!stripeSecret || !stripePublishableKey) {
       await releaseCheckoutReservations(service, order.id);
-      await service
-        .from("orders")
-        .update({
-          payment_status: "failed",
-          status: "payment_failed",
-          fulfillment_status: "unfulfilled",
-        })
-        .eq("id", order.id);
-
-      if (checkoutSessionToken) {
+      await releaseGuestDesignClaims(service, order.id);
+      for (const design of uniqueDesigns as any[]) {
         await service
-          .from("checkout_sessions")
-          .update({
-            status: "converted",
-            converted_order_id: order.id,
-            last_activity_at: new Date().toISOString(),
-          })
-          .eq("session_token", checkoutSessionToken);
+          .from("custom_designs")
+          .update({ order_id: null, status: "in_cart" })
+          .eq("id", design.id);
       }
+      await service.from("design_proofs").delete().eq("order_id", order.id).eq("status", "pending");
+      await service.from("orders").delete().eq("id", order.id);
+      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
 
       return respond(req, {
-        orderNumber: order.order_number,
-        confirmationToken: order.confirmation_token,
         configured: false,
         missing: !stripeSecret
           ? (paymentMode === "test" ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY")
@@ -1911,6 +1891,9 @@ Deno.serve(async (req: Request) => {
         .update({
           status: "converted",
           converted_order_id: order.id,
+          stripe_checkout_session_id: stripeData.id,
+          stripe_client_secret: stripeData.client_secret,
+          processing_started_at: null,
           last_activity_at: new Date().toISOString(),
         })
         .eq("session_token", checkoutSessionToken);

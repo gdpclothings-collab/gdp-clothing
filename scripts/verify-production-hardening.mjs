@@ -13,6 +13,9 @@ requireText(checkout, 'consumePublicRateLimit(service, emailRateKey, 8, 600)', '
 requireText(checkout, 'consumePublicRateLimit(service, trackRateKey, 300, 3600)', 'checkout tracking rate limit');
 requireText(checkout, 'service.rpc(\n      "claim_checkout_session"', 'atomic checkout claim');
 requireText(checkout, '"Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`', 'Stripe idempotency key');
+requireText(checkout, 'stripe_client_secret: stripeData.client_secret', 'persisted Stripe client secret');
+if (checkout.includes('https://api.stripe.com/v1/checkout/sessions/" + encodeURIComponent')) throw new Error('Replay path still re-fetches Stripe Checkout Session');
+requireText(webhook, 'stripe_client_secret: null', 'post-payment checkout secret cleanup');
 if ((checkout.match(/releaseCheckoutSessionClaim\(service, checkoutSessionToken\);\n\s*await releaseCheckoutSessionClaim/g) || []).length) {
   throw new Error('Duplicate checkout claim release detected');
 }

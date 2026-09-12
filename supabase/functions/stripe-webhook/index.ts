@@ -94,7 +94,14 @@ async function resetUnpaidCustomOrderState(service: any, orderId: string) {
 
   const { error: checkoutError } = await service
     .from("checkout_sessions")
-    .update({ status: "active", converted_order_id: null, last_activity_at: now })
+    .update({
+      status: "active",
+      converted_order_id: null,
+      stripe_checkout_session_id: null,
+      stripe_client_secret: null,
+      processing_started_at: null,
+      last_activity_at: now,
+    })
     .eq("converted_order_id", orderId);
   if (checkoutError) throw checkoutError;
 }
@@ -194,6 +201,12 @@ Deno.serve(async (req: Request) => {
           })
           .eq("id", orderId);
         if (error) throw error;
+
+        const { error: checkoutCleanupError } = await service
+          .from("checkout_sessions")
+          .update({ stripe_client_secret: null, processing_started_at: null, last_activity_at: new Date().toISOString() })
+          .eq("converted_order_id", orderId);
+        if (checkoutCleanupError) console.error("checkout secret cleanup failed", checkoutCleanupError);
 
         if (matchedMode === "live" && productionReady && readyDesignIds.length) {
           await service
