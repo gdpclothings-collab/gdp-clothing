@@ -63,12 +63,40 @@ const TONE_CONFIG = {
   },
 };
 
+const DESTRUCTIVE_CONFIRM_PATTERN = /\b(delete|remove|clear|archive|retire|cancel|reset|discard)\b/i;
+const WARNING_CONFIRM_PATTERN = /\b(publish|restore|enable|disable|switch|live mode|maintenance|replace|optimize|convert|move|load defaults)\b/i;
+
+function inferLegacyConfirmation(message) {
+  const text = String(message || "")
+    .replace(/\s*\n+\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  const questionIndex = text.indexOf("?");
+  const candidateTitle = questionIndex >= 0 ? text.slice(0, questionIndex + 1).trim() : "";
+  const title = candidateTitle && candidateTitle.length <= 125
+    ? candidateTitle
+    : "Confirm this action?";
+  const trailing = questionIndex >= 0 ? text.slice(questionIndex + 1).trim() : "";
+  const description = trailing || (title === "Confirm this action?" ? text : "Review the details before continuing.");
+  const destructive = DESTRUCTIVE_CONFIRM_PATTERN.test(text);
+  const warning = WARNING_CONFIRM_PATTERN.test(text);
+
+  return {
+    title,
+    description,
+    tone: destructive ? "destructive" : warning ? "warning" : "default",
+    confirmLabel: destructive ? "Confirm action" : "Continue",
+    cancelLabel: destructive ? "Keep current" : "Cancel",
+  };
+}
+
 function normalizeConfirmation(options = {}) {
-  const normalized = typeof options === "string" ? { description: options } : options;
+  const legacy = typeof options === "string" ? inferLegacyConfirmation(options) : null;
+  const normalized = legacy || options;
   return {
     eyebrow: normalized.eyebrow || "GDP Clothing",
-    title: normalized.title || "Confirm action",
-    description: normalized.description || "Are you sure you want to continue?",
+    title: normalized.title || "Confirm this action?",
+    description: normalized.description || "Review the details before continuing.",
     confirmLabel: normalized.confirmLabel || "Continue",
     cancelLabel: normalized.cancelLabel || "Cancel",
     tone: TONE_CONFIG[normalized.tone] ? normalized.tone : "default",
@@ -194,7 +222,7 @@ export function NotificationProvider({ children }) {
                   <AlertDialogTitle className="mt-1.5 text-xl font-semibold leading-tight tracking-[-0.02em] sm:text-[22px]">
                     {confirmation?.title}
                   </AlertDialogTitle>
-                  <AlertDialogDescription className="mt-2 text-sm leading-6 text-muted-foreground">
+                  <AlertDialogDescription className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">
                     {confirmation?.description}
                   </AlertDialogDescription>
                 </div>
