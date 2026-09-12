@@ -5,6 +5,7 @@ import {
   Clock3,
   Facebook,
   Instagram,
+  KeyRound,
   Mail,
   RefreshCw,
   ShieldCheck,
@@ -17,11 +18,25 @@ import {
 } from "@/lib/maintenanceSettingsApi";
 
 const ADMIN_SAFE_PATHS = ["/login", "/forgot-password", "/reset-password"];
+const ACCESS_SESSION_KEY = "gdp_maintenance_access";
+
+function readAccessSession() {
+  try {
+    const value = window.sessionStorage.getItem(ACCESS_SESSION_KEY);
+    if (!value) return null;
+    const parsed = JSON.parse(value);
+    return parsed?.configuredAt || null;
+  } catch {
+    return null;
+  }
+}
 
 export default function MaintenanceGate({ children }) {
   const location = useLocation();
   const { user } = useAuth();
   const [snapshot, setSnapshot] = useState(null);
+  const [accessStatus, setAccessStatus] = useState({ configured: false, configuredAt: null });
+  const [accessGrantedAt, setAccessGrantedAt] = useState(() => readAccessSession());
   const [loading, setLoading] = useState(true);
   const previewRequested = useMemo(
     () => new URLSearchParams(location.search).get("maintenancePreview") === "1",
@@ -47,6 +62,22 @@ export default function MaintenanceGate({ children }) {
       try {
         const next = await maintenanceSettingsApi.loadPublic();
         if (active) setSnapshot(next);
+
+        if (next?.maintenance?.enabled || previewRequested) {
+          try {
+            const access = await maintenanceSettingsApi.getAccessStatus();
+            if (active) {
+              setAccessStatus(access);
+              if (!access?.configured || access?.configuredAt !== readAccessSession()) {
+                window.sessionStorage.removeItem(ACCESS_SESSION_KEY);
+                setAccessGrantedAt(null);
+              }
+            }
+          } catch (accessError) {
+            console.error("Maintenance access status check failed:", accessError);
+            if (active) setAccessStatus({ configured: false, configuredAt: null });
+          }
+        }
       } catch (error) {
         // Fail open: a settings read issue should never make the public store unavailable.
         console.error("Maintenance status check failed:", error);
@@ -72,7 +103,17 @@ export default function MaintenanceGate({ children }) {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [bypassPublicCheck]);
+  }, [bypassPublicCheck, previewRequested]);
+
+  const unlockMaintenance = async (password) => {
+    const result = await maintenanceSettingsApi.verifyAccessPassword(password);
+    if (!result?.verified) throw new Error("Could not verify the maintenance password.");
+
+    const configuredAt = accessStatus?.configuredAt || new Date().toISOString();
+    window.sessionStorage.setItem(ACCESS_SESSION_KEY, JSON.stringify({ configuredAt }));
+    setAccessGrantedAt(configuredAt);
+    return true;
+  };
 
   if (bypassPublicCheck) return children;
 
@@ -88,18 +129,39 @@ export default function MaintenanceGate({ children }) {
   }
 
   const maintenance = snapshot?.maintenance || DEFAULT_MAINTENANCE_SETTINGS;
+  const hasValidAccess = Boolean(
+    accessStatus?.configured &&
+      accessStatus?.configuredAt &&
+      accessGrantedAt === accessStatus.configuredAt
+  );
+
   if (previewRequested && isAdmin) {
-    return <MaintenancePage snapshot={snapshot} preview />;
+    return (
+      <MaintenancePage
+        snapshot={snapshot}
+        preview
+        accessStatus={accessStatus}
+        onUnlock={unlockMaintenance}
+      />
+    );
   }
 
+  if (maintenance.enabled && hasValidAccess) return children;
+
   if (maintenance.enabled) {
-    return <MaintenancePage snapshot={snapshot} />;
+    return (
+      <MaintenancePage
+        snapshot={snapshot}
+        accessStatus={accessStatus}
+        onUnlock={unlockMaintenance}
+      />
+    );
   }
 
   return children;
 }
 
-function MaintenancePage({ snapshot, preview = false }) {
+function MaintenancePage({ snapshot, preview = false, accessStatus, onUnlock }) {
   const maintenance = snapshot?.maintenance || DEFAULT_MAINTENANCE_SETTINGS;
   const storeName = snapshot?.storeName || "GDP Clothing";
   const socialLinks = [
@@ -213,6 +275,10 @@ function MaintenancePage({ snapshot, preview = false }) {
                 </div>
               )}
 
+              {accessStatus?.configured && (
+                <MaintenanceAccessForm onUnlock={onUnlock} preview={preview} />
+              )}
+
               {maintenance.showSocialLinks && socialLinks.length > 0 && (
                 <div className="mt-5 border-t border-white/10 pt-5">
                   <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">Stay connected</div>
@@ -241,6 +307,66 @@ function MaintenancePage({ snapshot, preview = false }) {
         </footer>
       </div>
     </main>
+  );
+}
+
+function MaintenanceAccessForm({ onUnlock, preview }) {
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!password || submitting) return;
+
+    setSubmitting(true);
+    setError("");
+    try {
+      await onUnlock(password);
+      setPassword("");
+    } catch (err) {
+      setError(err?.message || "Incorrect maintenance password.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start gap-3">
+        <KeyRound size={17} className="mt-0.5 shrink-0 text-white/65" />
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-semibold text-white/80">Maintenance access</div>
+          <p className="mt-1 text-xs leading-5 text-white/45">
+            {preview
+              ? "This is the password entry your approved visitors will see."
+              : "Have the private access password? Enter it to continue to the store."}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="current-password"
+          maxLength={128}
+          placeholder="Access password"
+          className="h-11 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:ring-2 focus:ring-white/10"
+        />
+        <button
+          type="submit"
+          disabled={!password || submitting}
+          className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? "Checking…" : "Enter store"}
+        </button>
+      </div>
+
+      {error && <p className="mt-2 text-xs text-[#ff7890]">{error}</p>}
+      <p className="mt-2 text-[11px] leading-4 text-white/30">Access stays active only for this browser tab/session.</p>
+    </form>
   );
 }
 
