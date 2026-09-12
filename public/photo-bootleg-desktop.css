@@ -72,3 +72,13 @@
     grid-template-columns: minmax(760px, 1fr) minmax(430px, 460px) !important;
   }
 }
+
+/* Photo Bootleg mobile preview cleanup · 2026-09-12
+   The live preview toolbar already exposes Front/Back, zoom, print area and
+   measurements on phones. Hide the duplicate dark canvas dock only for the
+   Photo Bootleg mobile path; desktop keeps the dock unchanged. */
+@media (max-width: 767px) {
+  .gdp-studio-active [data-gdp-design-path="bootleg"] [data-gdp-studio-preview="live"] #gdp-canvas-control-dock {
+    display: none !important;
+  }
+}
