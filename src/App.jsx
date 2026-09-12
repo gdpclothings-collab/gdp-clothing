@@ -6,6 +6,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { CartProvider } from '@/lib/CartContext';
+import { NotificationProvider } from '@/lib/NotificationContext';
 import { UnsavedChangesProvider } from '@/lib/UnsavedChangesContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
@@ -126,11 +127,13 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <CartProvider>
           <Router>
-            <UnsavedChangesProvider>
-              <DesktopGarmentSelectionFocus />
-              <ScrollToTop />
-              <AuthenticatedApp />
-            </UnsavedChangesProvider>
+            <NotificationProvider>
+              <UnsavedChangesProvider>
+                <DesktopGarmentSelectionFocus />
+                <ScrollToTop />
+                <AuthenticatedApp />
+              </UnsavedChangesProvider>
+            </NotificationProvider>
           </Router>
           <Toaster />
         </CartProvider>
