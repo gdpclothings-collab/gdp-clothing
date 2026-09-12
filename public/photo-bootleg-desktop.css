@@ -1,0 +1,74 @@
+/* GDP Photo Bootleg desktop card refinement · 2026-09-12
+   Desktop-only override for the Photo Bootleg design path.
+   Keeps the garment canvas dominant while giving the editor a wider,
+   consistent card footprint that fits comfortably in a 1080p viewport. */
+
+@media (min-width: 1024px) {
+  /* The previous Bootleg override allowed a 780px workspace and a narrow
+     340–380px inspector. On 1080p screens that made the canvas feel oversized
+     while the editor card felt cramped. Rebalance both surfaces together. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) {
+    grid-template-columns: minmax(600px, 1fr) minmax(400px, 440px) !important;
+    grid-template-rows: auto minmax(520px, auto) auto !important;
+    column-gap: 20px !important;
+    row-gap: 14px !important;
+  }
+
+  /* Keep the complete garment workspace visible without turning it into a
+     nearly full-screen box. This leaves room for the step bar and order card. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) > div:nth-child(2) > div:nth-child(2) {
+    height: clamp(560px, calc(100dvh - 310px), 660px) !important;
+    min-height: 560px !important;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] > [data-gdp-studio-preview="live"] {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  /* The inspector is now a real desktop editing card instead of a narrow rail.
+     A stable minimum height prevents tab-to-tab layout jumping; longer tools
+     scroll inside the card instead of stretching the whole page. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) > div:nth-child(2) > div:last-child {
+    width: 100% !important;
+    max-height: 580px !important;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel {
+    width: 100% !important;
+    min-height: 400px !important;
+    max-height: clamp(460px, calc(100dvh - 390px), 580px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    border-radius: 20px !important;
+    scrollbar-gutter: stable;
+  }
+
+  /* Give editor controls enough horizontal breathing room while preserving
+     the current component hierarchy and all editing behavior. */
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel button,
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel input,
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel select {
+    min-width: 0;
+  }
+
+  /* Keep the order summary visually aligned with the refined editor rail. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) > div:last-child {
+    width: 100% !important;
+    border-radius: 20px !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) {
+    grid-template-columns: minmax(680px, 1fr) minmax(420px, 450px) !important;
+  }
+}
+
+@media (min-width: 1600px) {
+  /* Large desktop monitors can afford a little more inspector width without
+     allowing the card to grow into an oversized side panel. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) {
+    grid-template-columns: minmax(760px, 1fr) minmax(430px, 460px) !important;
+  }
+}

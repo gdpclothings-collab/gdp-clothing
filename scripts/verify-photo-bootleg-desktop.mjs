@@ -2,7 +2,9 @@ import fs from 'node:fs';
 
 const studio = fs.readFileSync('src/pages/CustomStudio.jsx', 'utf8');
 const desktopCss = fs.readFileSync('src/components/storefront/customStudioDesktop.css', 'utf8');
+const bootlegDesktopCss = fs.readFileSync('public/photo-bootleg-desktop.css', 'utf8');
 const editor = fs.readFileSync('src/components/storefront/CustomStudioAdvancedEditor.jsx', 'utf8');
+const html = fs.readFileSync('index.html', 'utf8');
 
 function assert(condition, message) {
   if (!condition) {
@@ -30,6 +32,14 @@ assert(studio.includes('if (previewSide === "back" && editorLayers.length === 1 
 assert(desktopCss.includes('[data-gdp-design-path="bootleg"] #gdp-canvas-control-dock'), 'redundant in-canvas Bootleg control dock is suppressed');
 assert(desktopCss.includes('[data-gdp-design-path="bootleg"] [data-gdp-studio-preview="live"] > div.absolute.inset-0.grid > div.relative'), 'Bootleg garment receives its own fill-canvas override');
 assert(desktopCss.includes('Photo Bootleg desktop parity'), 'Bootleg desktop refinements remain explicitly scoped and documented');
+
+assert(html.includes('href="/photo-bootleg-desktop.css"'), 'desktop Bootleg refinement stylesheet is loaded by the storefront shell');
+assert(bootlegDesktopCss.includes('Photo Bootleg desktop card refinement'), 'desktop Bootleg card sizing refinement remains documented');
+assert(bootlegDesktopCss.includes('minmax(400px, 440px)'), 'desktop Bootleg inspector has a wider readable card footprint');
+assert(bootlegDesktopCss.includes('clamp(560px, calc(100dvh - 310px), 660px)'), 'desktop Bootleg canvas is capped for 1080p-friendly proportions');
+assert(bootlegDesktopCss.includes('min-height: 400px !important'), 'Bootleg editor keeps a stable minimum card height across tabs');
+assert(bootlegDesktopCss.includes('max-height: clamp(460px, calc(100dvh - 390px), 580px) !important'), 'Bootleg editor scrolls inside a controlled desktop card height');
+assert(bootlegDesktopCss.includes('@media (min-width: 1600px)'), 'large desktop monitors receive a bounded wider inspector rail');
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log('Photo Bootleg desktop verification passed.');
