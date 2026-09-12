@@ -104,6 +104,7 @@ function normalizeConfirmation(options = {}) {
   };
 }
 
+/** @returns {any} */
 function normalizeNotification(options = {}) {
   if (typeof options !== "string") {
     const tone = TONE_CONFIG[options?.tone] ? options.tone : "default";

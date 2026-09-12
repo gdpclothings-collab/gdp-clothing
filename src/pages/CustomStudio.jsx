@@ -15,6 +15,7 @@ import {
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 import { useNotifications } from "@/lib/NotificationContext";
+import { ToastAction } from "@/components/ui/toast";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
 import {
   getMockupLayerStyle,
@@ -921,7 +922,7 @@ export default function CustomStudio() {
   const location = useLocation();
   const navigate = useNavigate();
   const { addItem } = useCart();
-  const { confirmAction } = useNotifications();
+  const { confirmAction, notify } = useNotifications();
   const [step, setStep] = useState(1);
   const [seasonalMode, setSeasonalMode] = useState(false);
   const [seasonalDraft, setSeasonalDraft] = useState(null);
@@ -1045,6 +1046,18 @@ export default function CustomStudio() {
     layersBySide: JSON.parse(JSON.stringify(editorLayersBySide || { front: [], back: [] })),
     photos: JSON.parse(JSON.stringify(photos || [])),
     artworkStates: JSON.parse(JSON.stringify(artworkStates || defaultArtworkStates(activeStyleTemplate))),
+    designStylesBySide: JSON.parse(JSON.stringify(designStylesBySide || { front: "", back: "" })),
+    designMood,
+    designIntensity,
+    personalization: JSON.parse(JSON.stringify(personalization || {})),
+    memorialNameConfirmed,
+    placement,
+    previewSide,
+    previewZoom,
+    seasonalDraft: seasonalDraft ? JSON.parse(JSON.stringify(seasonalDraft)) : null,
+    seasonalMode,
+    rightsConfirmed,
+    approvalAcknowledged,
   });
   const checkpointEditor = () => {
     editorHistoryRef.current = [...editorHistoryRef.current, currentEditorSnapshot()].slice(-40);
@@ -1057,6 +1070,18 @@ export default function CustomStudio() {
     setEditorLayersBySide(nextLayersBySide);
     if (Array.isArray(snapshot.photos)) setPhotos(snapshot.photos);
     setArtworkStates(snapshot.artworkStates || defaultArtworkStates(activeStyleTemplate));
+    if (snapshot.designStylesBySide) setDesignStylesBySide(snapshot.designStylesBySide);
+    if (typeof snapshot.designMood === "string") setDesignMood(snapshot.designMood);
+    if (Number.isFinite(Number(snapshot.designIntensity))) setDesignIntensity(Number(snapshot.designIntensity));
+    if (snapshot.personalization) setPersonalization(snapshot.personalization);
+    if (typeof snapshot.memorialNameConfirmed === "boolean") setMemorialNameConfirmed(snapshot.memorialNameConfirmed);
+    if (["front", "back", "front_back"].includes(snapshot.placement)) setPlacement(snapshot.placement);
+    if (["front", "back"].includes(snapshot.previewSide)) setPreviewSide(snapshot.previewSide);
+    if (Number.isFinite(Number(snapshot.previewZoom))) setPreviewZoom(clampPreview(snapshot.previewZoom));
+    if (Object.prototype.hasOwnProperty.call(snapshot, "seasonalDraft")) setSeasonalDraft(snapshot.seasonalDraft);
+    if (typeof snapshot.seasonalMode === "boolean") setSeasonalMode(snapshot.seasonalMode);
+    if (typeof snapshot.rightsConfirmed === "boolean") setRightsConfirmed(snapshot.rightsConfirmed);
+    if (typeof snapshot.approvalAcknowledged === "boolean") setApprovalAcknowledged(snapshot.approvalAcknowledged);
     setSelectedEditorLayerIds({
       front: nextLayersBySide.front?.find((layer) => layer.type === "photo")?.id || "photo",
       back: nextLayersBySide.back?.find((layer) => layer.type === "photo")?.id || "photo",
@@ -1164,23 +1189,65 @@ export default function CustomStudio() {
     reset.id = source.id;
     setEditorLayers((current) => current.map((layer) => layer.id === layerId ? reset : layer));
   };
-  const resetAllEditable = () => {
+  const resetCurrentSide = () => {
     checkpointEditor();
-    setEditorLayers((current) => current
-      .filter((layer) => layer.type === "photo")
-      .map((layer, index) => {
-        const photo = photos.find((item) => String(item.id || "") === String(layer.photoId || ""));
-        const reset = createPhotoLayer(photo, index);
-        reset.id = layer.id;
-        return reset;
-      }));
+    const side = previewSide;
+    setEditorLayers([]);
     setArtworkStates((current) => ({
       ...current,
-      [previewSide]: defaultArtworkState(activeStyleTemplate),
+      [side]: defaultArtworkState(styleTemplateForSide(side)),
     }));
+    setSelectedEditorLayerId("photo");
     setPreviewZoom(1);
-    const firstPhotoLayer = editorLayers.find((layer) => layer.type === "photo");
-    setSelectedEditorLayerId(firstPhotoLayer?.id || "photo");
+    notify({
+      tone: "success",
+      title: `${side === "front" ? "Front" : "Back"} design reset`,
+      description: "Customer layers were cleared from this side. Uploaded media and protected GDP template artwork were kept.",
+      action: <ToastAction altText="Undo side reset" onClick={undoEditor}>Undo</ToastAction>,
+    });
+  };
+
+  const resetEntireDesign = async ({ removeMedia = false } = {}) => {
+    const confirmed = await confirmAction({
+      eyebrow: "GDP Touch Studio",
+      title: removeMedia ? "Reset design and remove uploads?" : "Reset entire design?",
+      description: removeMedia
+        ? "This clears both fabric sides, selected GDP artwork, lettering, personalization and every uploaded photo from this custom project. Your garment, color and size stay selected."
+        : "This clears both fabric sides, selected GDP artwork, lettering and personalization. Your uploaded photos stay in the Media library so you can reuse them.",
+      confirmLabel: removeMedia ? "Reset & remove media" : "Reset design",
+      cancelLabel: "Keep editing",
+      tone: removeMedia ? "destructive" : "warning",
+    });
+    if (!confirmed) return;
+
+    checkpointEditor();
+    setEditorLayersBySide({ front: [], back: [] });
+    setSelectedEditorLayerIds({ front: "photo", back: "photo" });
+    setDesignStylesBySide({ front: "", back: "" });
+    setDesignMood("Original");
+    setDesignIntensity(3);
+    setPersonalization({ name: "", nickname: "", dates: "", number: "", quote: "", message: "", instructions: "" });
+    setMemorialNameConfirmed(false);
+    setArtworkStates(defaultArtworkStates());
+    setPlacement("front");
+    setPreviewSide("front");
+    setPreviewZoom(1);
+    setSeasonalDraft(null);
+    setSeasonalMode(false);
+    setRightsConfirmed(false);
+    setApprovalAcknowledged(false);
+    setPhotoBrushOpen(false);
+    setWarn("");
+    if (removeMedia) setPhotos([]);
+
+    notify({
+      tone: "success",
+      title: removeMedia ? "Design and media reset" : "Design reset",
+      description: removeMedia
+        ? "The customization and uploaded media were cleared. Undo can restore the previous design."
+        : "The customization was cleared and uploaded media was kept. Undo can restore the previous design.",
+      action: <ToastAction altText="Undo design reset" onClick={undoEditor}>Undo</ToastAction>,
+    });
   };
 
   useEffect(() => {
@@ -2840,7 +2907,8 @@ export default function CustomStudio() {
                   onResetPhoto={resetActivePhoto}
                   onDeletePhoto={deleteActivePhoto}
                   onTogglePhotoBackground={togglePhotoBackgroundById}
-                  onResetAll={resetAllEditable}
+                  onResetCurrentSide={resetCurrentSide}
+                  onResetEntireDesign={resetEntireDesign}
                   hasPhoto={Boolean(selectedPhotoAsset)}
                   templateName={(designPath === "bootleg" || designPath === "memorial") ? activeStyleTemplate?.name || "" : ""}
                   outsideWarning={editorOutsideWarning}
