@@ -13,8 +13,7 @@ create table if not exists public.product_image_optimization_backup (
   status text not null default 'prepared' check (status in ('prepared', 'applied', 'reverted')),
   created_at timestamptz not null default now(),
   applied_at timestamptz,
-  reverted_at timestamptz,
-  unique (product_id, image_index, original_url)
+  reverted_at timestamptz
 );
 
 alter table public.product_image_optimization_backup enable row level security;
@@ -41,4 +40,4 @@ using ((select is_admin()))
 with check ((select is_admin()));
 
 create index if not exists product_image_optimization_backup_product_idx
-  on public.product_image_optimization_backup (product_id, status);
+  on public.product_image_optimization_backup (product_id, status, image_index, created_at desc);
