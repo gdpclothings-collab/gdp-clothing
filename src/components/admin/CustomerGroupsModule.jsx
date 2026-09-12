@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Tags,
@@ -210,7 +211,7 @@ function TagsTab({ data, loading, onCreate, onEdit, onChanged }) {
       await onChanged("Customer tag assigned.");
     } catch (err) {
       console.error("Tag assignment failed:", err);
-      window.alert(err?.message || "Could not assign tag.");
+      requestNotification(err?.message || "Could not assign tag.");
     }
   };
 
@@ -220,7 +221,7 @@ function TagsTab({ data, loading, onCreate, onEdit, onChanged }) {
       await onChanged("Customer tag removed.");
     } catch (err) {
       console.error("Tag removal failed:", err);
-      window.alert(err?.message || "Could not remove tag.");
+      requestNotification(err?.message || "Could not remove tag.");
     }
   };
 
@@ -370,7 +371,7 @@ function SegmentsTab({ data, loading, onCreate, onEdit, onChanged }) {
       await onChanged(`${segment.name} ${segment.active ? "disabled" : "enabled"}.`);
     } catch (err) {
       console.error("Segment toggle failed:", err);
-      window.alert(err?.message || "Could not update segment.");
+      requestNotification(err?.message || "Could not update segment.");
     }
   };
 
@@ -450,7 +451,7 @@ function TagEditor({ tag, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Tag save failed:", err);
-      window.alert(err?.message || "Could not save tag.");
+      requestNotification(err?.message || "Could not save tag.");
       return false;
     } finally {
       setSaving(false);
@@ -555,7 +556,7 @@ function SegmentEditor({ segment, customers, members, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Segment save failed:", err);
-      window.alert(err?.message || "Could not save segment.");
+      requestNotification(err?.message || "Could not save segment.");
       return false;
     } finally {
       setSaving(false);

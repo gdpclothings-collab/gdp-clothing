@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
@@ -162,7 +163,7 @@ export default function SupportTicketsModule() {
       );
     } catch (error) {
       console.error("Support ticket update failed:", error);
-      window.alert(error?.message || "Could not update this ticket.");
+      requestNotification(error?.message || "Could not update this ticket.");
     } finally {
       setUpdating("");
     }

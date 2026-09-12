@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -1443,7 +1444,7 @@ export function PhotoBrushEditor({ open, photo, tools = DEFAULT_EDITOR_TOOLS, on
       await onApply({ file, width: canvas.width, height: canvas.height });
       onClose?.();
     } catch (error) {
-      window.alert(error?.message || "Could not apply the edited photo. Your current photo is unchanged.");
+      requestNotification(error?.message || "Could not apply the edited photo. Your current photo is unchanged.");
     } finally { setApplying(false); }
   };
 

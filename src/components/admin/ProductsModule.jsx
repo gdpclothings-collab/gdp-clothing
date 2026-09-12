@@ -1,4 +1,4 @@
-import { requestConfirmation } from "@/lib/NotificationContext";
+import { requestConfirmation, requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Search,
@@ -1222,7 +1222,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   const retireSelectedVariants = async () => {
     if (!selectedVariantKeys.length) return;
     if (selectedVariantKeys.length >= variants.length) {
-      window.alert("Keep at least one variant. Create a replacement variant before retiring the entire set.");
+      requestNotification("Keep at least one variant. Create a replacement variant before retiring the entire set.");
       return;
     }
     const selected = new Set(selectedVariantKeys);
@@ -1279,7 +1279,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     const colors = splitComma(form.colors);
     const sizes = splitComma(form.sizes);
     if (!colors.length || !sizes.length) {
-      window.alert("Add at least one color and one size first.");
+      requestNotification("Add at least one color and one size first.");
       return;
     }
 
@@ -1428,7 +1428,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       }));
     } catch (err) {
       console.error("Product media upload failed:", err);
-      window.alert(err?.message || "Product image upload failed.");
+      requestNotification(err?.message || "Product image upload failed.");
     } finally {
       setUploading(false);
     }
@@ -1603,7 +1603,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     } catch (err) {
       console.error("Product save failed:", err);
       setSaveState("unsaved");
-      window.alert(err?.message || "Product save failed.");
+      requestNotification(err?.message || "Product save failed.");
       return false;
     } finally {
       setSaving(false);

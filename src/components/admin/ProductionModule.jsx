@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Factory,
@@ -230,7 +231,7 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
       await onChanged("Production checklist saved.");
     } catch (err) {
       console.error("Checklist update failed:", err);
-      window.alert(err?.message || "Could not save checklist.");
+      requestNotification(err?.message || "Could not save checklist.");
       setChecklist(order.production_checklist || {});
     } finally {
       setSavingCheck("");
@@ -242,7 +243,7 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
   const saveStatus = async () => {
     if (status === savedStatus) return true;
     if (status === "printing" && !readyForProduction) {
-      window.alert("Complete every production check before moving this order to printing.");
+      requestNotification("Complete every production check before moving this order to printing.");
       return false;
     }
     const ok = await onStatus(order, status);

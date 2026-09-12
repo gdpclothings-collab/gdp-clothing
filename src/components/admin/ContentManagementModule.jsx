@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FileText,
@@ -432,7 +433,7 @@ function PageEditor({ page, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Page save failed:", err);
-      window.alert(err?.message || "Could not save page.");
+      requestNotification(err?.message || "Could not save page.");
       return false;
     } finally {
       setSaving(false);
@@ -588,7 +589,7 @@ function MenuEditor({ menu, pages, products, collections, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Navigation save failed:", err);
-      window.alert(err?.message || "Could not save navigation.");
+      requestNotification(err?.message || "Could not save navigation.");
       return false;
     } finally {
       setSaving(false);

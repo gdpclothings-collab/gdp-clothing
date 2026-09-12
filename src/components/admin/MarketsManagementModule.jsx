@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useState } from "react";
 import {
   Globe2,
@@ -381,7 +382,7 @@ function MarketEditor({ market, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Market save failed:", err);
-      window.alert(err?.message || "Could not save market.");
+      requestNotification(err?.message || "Could not save market.");
       return false;
     } finally {
       setSaving(false);
@@ -435,7 +436,7 @@ function ShippingEditor({ rate, markets, profiles, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Shipping rate save failed:", err);
-      window.alert(err?.message || "Could not save shipping rate.");
+      requestNotification(err?.message || "Could not save shipping rate.");
       return false;
     } finally {
       setSaving(false);
@@ -497,7 +498,7 @@ function TaxEditor({ rule, markets, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Tax rule save failed:", err);
-      window.alert(err?.message || "Could not save tax rule.");
+      requestNotification(err?.message || "Could not save tax rule.");
       return false;
     } finally {
       setSaving(false);

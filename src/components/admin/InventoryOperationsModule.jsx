@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   MapPin,
@@ -284,7 +285,7 @@ function LocationsTab({
       await onChanged(`${variant.products?.name || "Variant"} inventory updated.`);
     } catch (err) {
       console.error("Location stock save failed:", err);
-      window.alert(err?.message || "Could not update inventory.");
+      requestNotification(err?.message || "Could not update inventory.");
     }
   };
 
@@ -541,7 +542,7 @@ function LocationModal({ onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Create inventory location failed:", err);
-      window.alert(err?.message || "Could not create location.");
+      requestNotification(err?.message || "Could not create location.");
       return false;
     } finally {
       setSaving(false);
@@ -644,7 +645,7 @@ function TransferModal({ locations, variants, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Create transfer failed:", err);
-      window.alert(err?.message || "Could not create transfer.");
+      requestNotification(err?.message || "Could not create transfer.");
       return false;
     } finally {
       setSaving(false);
@@ -768,7 +769,7 @@ function TransferDrawer({ transfer, onClose, onChanged }) {
       );
     } catch (err) {
       console.error("Transfer transition failed:", err);
-      window.alert(err?.message || "Could not update transfer.");
+      requestNotification(err?.message || "Could not update transfer.");
     } finally {
       setSaving(false);
     }

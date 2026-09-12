@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import SeasonalProductionDetails from "./SeasonalProductionDetails";
 import {
@@ -160,7 +161,7 @@ export default function CustomStudioAdminModule() {
       return true;
     } catch (err) {
       console.error("Custom Studio settings save failed:", err);
-      window.alert(err?.message || "Could not save Custom Studio settings.");
+      requestNotification(err?.message || "Could not save Custom Studio settings.");
       return false;
     } finally {
       setSettingsSaving(false);
@@ -187,7 +188,7 @@ export default function CustomStudioAdminModule() {
     } catch (err) {
       console.error("Intensity example save failed:", err);
       setStudioSettings(previous);
-      window.alert(err?.message || "Could not save the intensity example.");
+      requestNotification(err?.message || "Could not save the intensity example.");
     }
   };
 
@@ -494,7 +495,7 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
       updateSticker(sticker.id, { assetUrl: url });
     } catch (err) {
       console.error("GDP sticker upload failed:", err);
-      window.alert(err?.message || "Could not upload the sticker artwork.");
+      requestNotification(err?.message || "Could not upload the sticker artwork.");
     }
   };
 
@@ -527,7 +528,7 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
       updateStyleTemplate(style.id, { assetUrl: url });
     } catch (err) {
       console.error("GDP style artwork upload failed:", err);
-      window.alert(err?.message || "Could not upload the GDP style artwork.");
+      requestNotification(err?.message || "Could not upload the GDP style artwork.");
     } finally {
       setUploadingStyle(null);
     }
@@ -541,7 +542,7 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
       await onIntensityImageChange(level, url);
     } catch (err) {
       console.error("Intensity image upload failed:", err);
-      window.alert(err?.message || "Could not upload the intensity image.");
+      requestNotification(err?.message || "Could not upload the intensity image.");
     } finally {
       setUploadingLevel(null);
     }
@@ -1026,7 +1027,7 @@ function ProofDrawer({ proof, order, design, onClose, onChanged }) {
       await onChanged("New proof version uploaded and sent for approval.");
     } catch (err) {
       console.error("Proof upload failed:", err);
-      window.alert(err?.message || "Proof upload failed.");
+      requestNotification(err?.message || "Proof upload failed.");
     } finally {
       setUploading(false);
     }

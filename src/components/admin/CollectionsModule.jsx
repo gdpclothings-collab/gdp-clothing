@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Tags,
@@ -235,7 +236,7 @@ function CollectionEditor({ collection, products, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Collection save failed:", err);
-      window.alert(err?.message || "Collection save failed.");
+      requestNotification(err?.message || "Collection save failed.");
       return false;
     } finally {
       setSaving(false);

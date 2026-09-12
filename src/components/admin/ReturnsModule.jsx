@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   RotateCcw,
@@ -271,7 +272,7 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
       return true;
     } catch (err) {
       console.error("Return update failed:", err);
-      window.alert(err?.message || "Could not save return.");
+      requestNotification(err?.message || "Could not save return.");
       return false;
     } finally {
       setSaving(false);
@@ -298,7 +299,7 @@ function ReturnDrawer({ returnRow, onClose, onChanged }) {
 
   const recordRefund = async () => {
     if (Number(refundAmount || 0) <= 0) {
-      window.alert("Enter a refund amount greater than zero first.");
+      requestNotification("Enter a refund amount greater than zero first.");
       return;
     }
     setRecordingRefund(true);
@@ -472,7 +473,7 @@ function CreateReturnModal({ onClose, onCreated }) {
       }));
 
     if (!selectedItems.length) {
-      window.alert("Select at least one item and quantity.");
+      requestNotification("Select at least one item and quantity.");
       return false;
     }
 
@@ -489,7 +490,7 @@ function CreateReturnModal({ onClose, onCreated }) {
       return true;
     } catch (err) {
       console.error("Create return failed:", err);
-      window.alert(err?.message || "Could not create return.");
+      requestNotification(err?.message || "Could not create return.");
       return false;
     } finally {
       setCreating(false);

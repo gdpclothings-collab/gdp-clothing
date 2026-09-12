@@ -1,4 +1,4 @@
-import { requestConfirmation } from "@/lib/NotificationContext";
+import { requestConfirmation, requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
@@ -89,7 +89,7 @@ function MediaField({
     try {
       onChange(await adminLandingPageApi.uploadMedia(file, folder));
     } catch (error) {
-      window.alert(error?.message || "Image upload failed.");
+      requestNotification(error?.message || "Image upload failed.");
     } finally {
       setUploading(false);
     }
@@ -197,7 +197,7 @@ export default function LandingPageModule() {
       });
       setVersions(historyItems);
     } catch (error) {
-      window.alert(error?.message || "Could not load landing page settings.");
+      requestNotification(error?.message || "Could not load landing page settings.");
     } finally {
       setLoading(false);
     }
@@ -227,7 +227,7 @@ export default function LandingPageModule() {
       showNotice("Draft saved. Live storefront was not changed.");
       return true;
     } catch (error) {
-      window.alert(error?.message || "Could not save landing page draft.");
+      requestNotification(error?.message || "Could not save landing page draft.");
       return false;
     } finally {
       setSaving(false);
@@ -256,7 +256,7 @@ export default function LandingPageModule() {
       setVersions(await adminLandingPageApi.history());
       showNotice("Landing page published successfully.");
     } catch (error) {
-      window.alert(error?.message || "Could not publish the landing page.");
+      requestNotification(error?.message || "Could not publish the landing page.");
     } finally {
       setPublishing(false);
     }
@@ -279,7 +279,7 @@ export default function LandingPageModule() {
       setMeta((current) => ({ ...current, draftUpdatedAt: result.updatedAt }));
       showNotice("Version " + version + " restored to draft.");
     } catch (error) {
-      window.alert(error?.message || "Could not restore that version.");
+      requestNotification(error?.message || "Could not restore that version.");
     }
   };
 

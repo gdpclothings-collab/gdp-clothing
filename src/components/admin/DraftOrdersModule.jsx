@@ -1,4 +1,4 @@
-import { requestConfirmation } from "@/lib/NotificationContext";
+import { requestConfirmation, requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FileEdit,
@@ -100,7 +100,7 @@ export default function DraftOrdersModule() {
       await load();
     } catch (err) {
       console.error("Draft conversion failed:", err);
-      window.alert(err?.message || "Could not convert draft order.");
+      requestNotification(err?.message || "Could not convert draft order.");
     }
   };
 
@@ -119,7 +119,7 @@ export default function DraftOrdersModule() {
       await load();
     } catch (err) {
       console.error("Draft delete failed:", err);
-      window.alert(err?.message || "Could not delete draft.");
+      requestNotification(err?.message || "Could not delete draft.");
     }
   };
 
@@ -424,7 +424,7 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Draft order save failed:", err);
-      window.alert(err?.message || "Could not save draft order.");
+      requestNotification(err?.message || "Could not save draft order.");
       return false;
     } finally {
       setSaving(false);

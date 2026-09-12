@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { mergeAboutPageBody } from "@/lib/aboutPageDefaults";
@@ -17,7 +18,7 @@ function Media({ label, value, onChange, folder }) {
     if (!file) return;
     setBusy(true);
     try { onChange(await adminLandingPageApi.uploadMedia(file, folder)); }
-    catch (error) { window.alert(error?.message || "Could not upload image."); }
+    catch (error) { requestNotification(error?.message || "Could not upload image."); }
     finally { setBusy(false); if (ref.current) ref.current.value = ""; }
   };
   return (

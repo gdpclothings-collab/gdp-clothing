@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   BadgePercent,
@@ -257,7 +258,7 @@ function DiscountEditor({ discount, references, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Discount save failed:", err);
-      window.alert(err?.message || "Discount save failed.");
+      requestNotification(err?.message || "Discount save failed.");
       return false;
     } finally {
       setSaving(false);

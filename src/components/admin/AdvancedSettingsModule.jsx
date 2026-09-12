@@ -1,3 +1,4 @@
+import { requestNotification } from "@/lib/NotificationContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   UserRoundCog,
@@ -209,7 +210,7 @@ function StaffTab({ data, loading, onCreateRole, onEditRole, onChanged }) {
       await onChanged("Staff role template assigned.");
     } catch (err) {
       console.error("Staff assignment failed:", err);
-      window.alert(err?.message || "Could not assign staff role.");
+      requestNotification(err?.message || "Could not assign staff role.");
     }
   };
 
@@ -219,7 +220,7 @@ function StaffTab({ data, loading, onCreateRole, onEditRole, onChanged }) {
       await onChanged("Staff role template removed.");
     } catch (err) {
       console.error("Staff assignment removal failed:", err);
-      window.alert(err?.message || "Could not remove assignment.");
+      requestNotification(err?.message || "Could not remove assignment.");
     }
   };
 
@@ -324,7 +325,7 @@ function NotificationsTab({ templates, loading, onCreate, onEdit, onChanged }) {
       await onChanged(`${template.name} ${template.active ? "disabled" : "enabled"}.`);
     } catch (err) {
       console.error("Template toggle failed:", err);
-      window.alert(err?.message || "Could not update template.");
+      requestNotification(err?.message || "Could not update template.");
     }
   };
 
@@ -398,7 +399,7 @@ function IntegrationsTab({ integrations, loading, onCreate, onEdit, onChanged })
       );
     } catch (err) {
       console.error("Integration toggle failed:", err);
-      window.alert(err?.message || "Could not update integration.");
+      requestNotification(err?.message || "Could not update integration.");
     }
   };
 
@@ -499,7 +500,7 @@ function RoleEditor({ role, permissions, rolePermissions, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Role save failed:", err);
-      window.alert(err?.message || "Could not save role.");
+      requestNotification(err?.message || "Could not save role.");
       return false;
     } finally {
       setSaving(false);
@@ -589,7 +590,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Template save failed:", err);
-      window.alert(err?.message || "Could not save notification template.");
+      requestNotification(err?.message || "Could not save notification template.");
       return false;
     } finally {
       setSaving(false);
@@ -654,7 +655,7 @@ function IntegrationEditor({ integration, onClose, onSaved }) {
         ? JSON.parse(form.publicConfig)
         : {};
     } catch {
-      window.alert("Public configuration must be valid JSON.");
+      requestNotification("Public configuration must be valid JSON.");
       return false;
     }
 
@@ -668,7 +669,7 @@ function IntegrationEditor({ integration, onClose, onSaved }) {
       return true;
     } catch (err) {
       console.error("Integration save failed:", err);
-      window.alert(err?.message || "Could not save integration.");
+      requestNotification(err?.message || "Could not save integration.");
       return false;
     } finally {
       setSaving(false);
