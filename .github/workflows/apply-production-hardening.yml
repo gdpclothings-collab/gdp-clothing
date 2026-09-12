@@ -1,0 +1,106 @@
+name: Apply GDP Production Hardening
+
+on:
+  push:
+    branches:
+      - hardening/production-flow-2026-09-12
+    paths:
+      - .github/workflows/apply-production-hardening.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout hardening branch
+        uses: actions/checkout@v5
+        with:
+          ref: hardening/production-flow-2026-09-12
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Apply hardening patch
+        run: node scripts/apply-production-hardening.mjs
+
+      - name: Ensure Stripe idempotency is attached only to session creation
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("supabase/functions/checkout/index.ts")
+          text = path.read_text()
+          text = text.replace('        "Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`,\n', '')
+          needle = '''    const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${stripeSecret}`,
+                  "Content-Type": "application/x-www-form-urlencoded",
+                  "Stripe-Version": "2026-08-26.dahlia",
+                },'''
+          if needle not in text:
+              # Preserve the repository's current indentation rather than assuming it.
+              needle = '''    const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${stripeSecret}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Stripe-Version": "2026-08-26.dahlia",
+              },'''
+          if needle not in text:
+              needle = '''    const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${stripeSecret}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Stripe-Version": "2026-08-26.dahlia",
+      },'''
+          if needle not in text:
+              raise SystemExit("Could not locate Stripe Checkout session POST")
+          replacement = needle.replace(
+              '"Stripe-Version": "2026-08-26.dahlia",\n',
+              '"Stripe-Version": "2026-08-26.dahlia",\n        "Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`,\n'
+          )
+          text = text.replace(needle, replacement, 1)
+          path.write_text(text)
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Verify focused workflows
+        run: |
+          npm run test:dtf-nesting
+          npm run test:fresh-session
+          npm run test:product-variants
+          npm run test:memorial
+          node scripts/verify-seasonal-artwork.mjs
+          node scripts/verify-photo-bootleg-desktop.mjs
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Remove temporary patch runner
+        run: |
+          rm -f scripts/apply-production-hardening.mjs
+          rm -f .github/workflows/apply-production-hardening.yml
+
+      - name: Commit verified hardening changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "gdpclothings-collab"
+          git config user.email "gdpclothings@gmail.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Harden production checkout and security flow"
+          git push origin HEAD:hardening/production-flow-2026-09-12
