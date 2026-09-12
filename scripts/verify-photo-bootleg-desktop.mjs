@@ -41,5 +41,11 @@ assert(bootlegDesktopCss.includes('min-height: 400px !important'), 'Bootleg edit
 assert(bootlegDesktopCss.includes('max-height: clamp(460px, calc(100dvh - 390px), 580px) !important'), 'Bootleg editor scrolls inside a controlled desktop card height');
 assert(bootlegDesktopCss.includes('@media (min-width: 1600px)'), 'large desktop monitors receive a bounded wider inspector rail');
 
+assert(bootlegDesktopCss.includes('Photo Bootleg mobile preview cleanup'), 'mobile Bootleg preview cleanup is documented');
+assert(bootlegDesktopCss.includes('@media (max-width: 767px)'), 'mobile cleanup is limited to phone-width viewports');
+assert(bootlegDesktopCss.includes('[data-gdp-design-path="bootleg"] [data-gdp-studio-preview="live"] #gdp-canvas-control-dock'), 'mobile cleanup targets only the Bootleg live-preview canvas dock');
+assert(bootlegDesktopCss.includes('display: none !important;'), 'duplicate dark canvas control dock is removed on Photo Bootleg mobile');
+assert(desktopCss.includes('@media (min-width: 768px)') && desktopCss.includes('#gdp-canvas-control-dock'), 'desktop and tablet canvas dock behavior remains available');
+
 if (process.exitCode) process.exit(process.exitCode);
-console.log('Photo Bootleg desktop verification passed.');
+console.log('Photo Bootleg desktop/mobile verification passed.');
