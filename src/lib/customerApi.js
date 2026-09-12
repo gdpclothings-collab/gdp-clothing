@@ -436,7 +436,7 @@ export const customerApi = {
 
 
   async trackCheckout(cart, customer, totals, sessionToken) {
-    const { data, error } = await supabase.functions.invoke("checkout", {
+    const { data, error } = await supabase.functions.invoke("checkout-gateway", {
       body: {
         action: "trackCheckout",
         cart,
@@ -452,7 +452,7 @@ export const customerApi = {
   },
 
   async createOrder(cart, customer, discountCode, origin, checkoutSessionToken) {
-    const { data, error } = await supabase.functions.invoke("checkout", {
+    const { data, error } = await supabase.functions.invoke("checkout-gateway", {
       body: {
         action: "createOrder",
         cart,

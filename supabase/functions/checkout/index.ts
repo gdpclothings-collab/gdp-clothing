@@ -111,36 +111,6 @@ async function sha256Hex(value: string) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function clientIp(req: Request) {
-  const direct = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
-  if (direct) return direct.trim().slice(0, 128);
-  const forwarded = req.headers.get("x-forwarded-for") || "";
-  return (forwarded.split(",")[0] || "unknown").trim().slice(0, 128);
-}
-
-async function consumePublicRateLimit(
-  service: any,
-  key: string,
-  limit: number,
-  windowSeconds: number,
-) {
-  const { data, error } = await service.rpc("consume_checkout_rate_limit", {
-    p_key: key,
-    p_limit: limit,
-    p_window_seconds: windowSeconds,
-  });
-  if (error) throw error;
-  return data || { allowed: false, retry_after: 60 };
-}
-
-async function releaseCheckoutSessionClaim(service: any, sessionToken: string | null) {
-  if (!sessionToken) return;
-  const { error } = await service.rpc("release_checkout_session_claim", {
-    p_session_token: sessionToken,
-  });
-  if (error) console.error("checkout session claim release failed", error);
-}
-
 function guestUploadPath(value: unknown) {
   const path = String(value || "");
   return /^guest\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(path) ? path : null;
@@ -169,16 +139,8 @@ function validDtfStoragePath(value: unknown) {
   return /^dtf\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(String(value || ""));
 }
 
-function respond(
-  req: Request,
-  body: unknown,
-  status = 200,
-  extraHeaders: Record<string, string> = {},
-) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders(req), ...extraHeaders },
-  });
+function respond(req: Request, body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
 }
 
 function validOrigin(value: unknown) {
@@ -431,76 +393,6 @@ async function releaseGuestDesignClaims(service: any, orderId: string) {
   if (error) console.error("guest design claim release failed", error);
 }
 
-async function resumeConvertedCheckout(
-  service: any,
-  sessionToken: string,
-  orderId: string,
-) {
-  const [{ data: order, error: orderError }, { data: tracked, error: trackedError }] = await Promise.all([
-    service
-      .from("orders")
-      .select("id,order_number,confirmation_token,payment_mode,payment_status,subtotal,discount,shipping,tax,total,shipping_address")
-      .eq("id", orderId)
-      .maybeSingle(),
-    service
-      .from("checkout_sessions")
-      .select("stripe_client_secret,stripe_checkout_session_id")
-      .eq("session_token", sessionToken)
-      .eq("converted_order_id", orderId)
-      .maybeSingle(),
-  ]);
-
-  if (orderError) throw orderError;
-  if (trackedError) throw trackedError;
-  if (!order) {
-    return { status: 409, body: { error: true, retryable: true, message: "The previous checkout could not be found. Please try again." } };
-  }
-
-  if (order.payment_status === "paid") {
-    return {
-      status: 200,
-      body: {
-        paid: true,
-        orderNumber: order.order_number,
-        confirmationToken: order.confirmation_token,
-      },
-    };
-  }
-
-  const paymentMode = order.payment_mode === "test" ? "test" : "live";
-  const stripePublishableKey = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_PUBLISHABLE_KEY" : "STRIPE_PUBLISHABLE_KEY");
-  if (!stripePublishableKey || !tracked?.stripe_client_secret) {
-    return {
-      status: 409,
-      body: { error: true, retryable: true, message: "The previous secure payment session is not ready. Please try again." },
-    };
-  }
-
-  const taxRule = await getTaxRule(service, order.shipping_address?.province);
-  return {
-    status: 200,
-    body: {
-      orderNumber: order.order_number,
-      confirmationToken: order.confirmation_token,
-      clientSecret: tracked.stripe_client_secret,
-      publishableKey: stripePublishableKey,
-      configured: true,
-      paymentMode,
-      uiMode: "custom",
-      resumed: true,
-      pricing: {
-        subtotal: Number(order.subtotal || 0),
-        discount: Number(order.discount || 0),
-        shipping: Number(order.shipping || 0),
-        tax: Number(order.tax || 0),
-        total: Number(order.total || 0),
-        taxRate: Number(taxRule?.rate || 0),
-        taxName: taxRule?.name || "Tax",
-      },
-    },
-  };
-}
-
 function reservationErrorMessage(error: any, fallback: string) {
   const message = String(error?.message || "");
   if (message.includes("INSUFFICIENT_INVENTORY")) {
@@ -524,8 +416,6 @@ Deno.serve(async (req: Request) => {
   const service = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-
-  let checkoutSessionTokenForRecovery: string | null = null;
 
   try {
     const body = await req.json();
@@ -1001,17 +891,6 @@ Deno.serve(async (req: Request) => {
 
     if (action === "trackCheckout") {
       const user = await optionalUser(req, supabaseUrl, anonKey);
-      const trackRateKey = await sha256Hex(`checkout:track:ip:${clientIp(req)}`);
-      const trackRate = await consumePublicRateLimit(service, trackRateKey, 300, 3600);
-      if (!trackRate.allowed) {
-        const retryAfter = Math.max(1, Number(trackRate.retry_after || 60));
-        return respond(
-          req,
-          { error: true, retryable: true, rateLimited: true, message: "Checkout tracking is temporarily rate limited. Please try again shortly." },
-          429,
-          { "Retry-After": String(retryAfter) },
-        );
-      }
       const incomingToken = String(body?.sessionToken || "").trim();
       const sessionToken = uuidRe.test(incomingToken) ? incomingToken : crypto.randomUUID();
       const cart = Array.isArray(body?.cart) ? body.cart.slice(0, 100) : [];
@@ -1055,14 +934,6 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      if (existing?.status === "processing") {
-        return respond(req, {
-          sessionToken,
-          status: "processing",
-          convertedOrderId: existing.converted_order_id,
-        });
-      }
-
       const payload = {
         user_id: user?.id || null,
         session_token: sessionToken,
@@ -1095,24 +966,11 @@ Deno.serve(async (req: Request) => {
       return respond(req, { error: true, message: "Unknown checkout action." }, 400);
     }
 
-    const ipRateKey = await sha256Hex(`checkout:create:ip:${clientIp(req)}`);
-    const ipRate = await consumePublicRateLimit(service, ipRateKey, 20, 600);
-    if (!ipRate.allowed) {
-      const retryAfter = Math.max(1, Number(ipRate.retry_after || 60));
-      return respond(
-        req,
-        { error: true, retryable: true, rateLimited: true, message: "Too many checkout attempts. Please wait a moment and try again." },
-        429,
-        { "Retry-After": String(retryAfter) },
-      );
-    }
-
     const cart = Array.isArray(body?.cart) ? body.cart : [];
     const customer = body?.customer || {};
     const checkoutSessionToken = uuidRe.test(String(body?.checkoutSessionToken || ""))
       ? String(body.checkoutSessionToken)
       : null;
-    checkoutSessionTokenForRecovery = checkoutSessionToken;
     const origin = validOrigin(body?.origin || req.headers.get("origin"));
 
     if (!cart.length || cart.length > 100) {
@@ -1142,18 +1000,6 @@ Deno.serve(async (req: Request) => {
 
     if (customer.termsAccepted !== true) {
       return respond(req, { error: true, message: "Accept the Terms & Conditions and Privacy Policy before checkout." }, 400);
-    }
-
-    const emailRateKey = await sha256Hex(`checkout:create:email:${customerEmail.toLowerCase()}`);
-    const emailRate = await consumePublicRateLimit(service, emailRateKey, 8, 600);
-    if (!emailRate.allowed) {
-      const retryAfter = Math.max(1, Number(emailRate.retry_after || 60));
-      return respond(
-        req,
-        { error: true, retryable: true, rateLimited: true, message: "Too many checkout attempts for this email. Please wait and try again." },
-        429,
-        { "Retry-After": String(retryAfter) },
-      );
     }
 
     customer.email = customerEmail.toLowerCase();
@@ -1520,43 +1366,6 @@ Deno.serve(async (req: Request) => {
     const tax = checkoutRules.tax;
     const total = roundMoney(afterCoupon + shipping + tax);
 
-    if (!checkoutSessionToken) {
-      return respond(req, {
-        error: true,
-        retryable: true,
-        message: "Your checkout session is not ready yet. Please try again.",
-      }, 409);
-    }
-
-    const { data: checkoutClaim, error: checkoutClaimError } = await service.rpc(
-      "claim_checkout_session",
-      { p_session_token: checkoutSessionToken },
-    );
-    if (checkoutClaimError) throw checkoutClaimError;
-
-    if (!checkoutClaim?.claimed) {
-      if (checkoutClaim?.status === "converted" && checkoutClaim?.converted_order_id) {
-        const resumed = await resumeConvertedCheckout(
-          service,
-          checkoutSessionToken,
-          String(checkoutClaim.converted_order_id),
-        );
-        return respond(req, resumed.body, resumed.status);
-      }
-      if (checkoutClaim?.status === "processing") {
-        return respond(req, {
-          error: true,
-          retryable: true,
-          message: "Checkout is already being prepared. Please wait a moment and try again.",
-        }, 409, { "Retry-After": "2" });
-      }
-      return respond(req, {
-        error: true,
-        retryable: true,
-        message: "This checkout session expired. Refresh checkout and try again.",
-      }, 409);
-    }
-
     const prefix = String(storeSettings?.order_prefix || "GDP").replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "GDP";
     const orderNumber = `${prefix}-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
 
@@ -1602,27 +1411,7 @@ Deno.serve(async (req: Request) => {
       .select("id,order_number,confirmation_token")
       .single();
 
-    if (orderError) {
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
-      throw orderError;
-    }
-
-    const { data: linkedCheckout, error: linkCheckoutError } = await service
-      .from("checkout_sessions")
-      .update({
-        converted_order_id: order.id,
-        last_activity_at: new Date().toISOString(),
-      })
-      .eq("session_token", checkoutSessionToken)
-      .eq("status", "processing")
-      .select("id")
-      .maybeSingle();
-
-    if (linkCheckoutError || !linkedCheckout) {
-      await service.from("orders").delete().eq("id", order.id);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
-      throw linkCheckoutError || new Error("Checkout session could not be linked to the order.");
-    }
+    if (orderError) throw orderError;
 
     const acceptedAt = new Date().toISOString();
     const { error: policyAcceptanceError } = await service.from("policy_acceptances").insert([
@@ -1683,7 +1472,6 @@ Deno.serve(async (req: Request) => {
     const { error: itemError } = await service.from("order_items").insert(orderItems);
     if (itemError) {
       await service.from("orders").delete().eq("id", order.id);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
       throw itemError;
     }
 
@@ -1694,7 +1482,6 @@ Deno.serve(async (req: Request) => {
     );
     if (inventoryReservationError) {
       await service.from("orders").delete().eq("id", order.id);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
       return respond(req, {
         error: true,
         message: reservationErrorMessage(
@@ -1716,7 +1503,6 @@ Deno.serve(async (req: Request) => {
       if (couponReservationError) {
         await releaseCheckoutReservations(service, order.id);
         await service.from("orders").delete().eq("id", order.id);
-        await releaseCheckoutSessionClaim(service, checkoutSessionToken);
         return respond(req, {
           error: true,
           message: reservationErrorMessage(
@@ -1746,7 +1532,6 @@ Deno.serve(async (req: Request) => {
           await releaseCheckoutReservations(service, order.id);
           await releaseGuestDesignClaims(service, order.id);
           await service.from("orders").delete().eq("id", order.id);
-        await releaseCheckoutSessionClaim(service, checkoutSessionToken);
           return respond(req, {
             error: true,
             message: "This guest custom design is already attached to another checkout.",
@@ -1783,18 +1568,29 @@ Deno.serve(async (req: Request) => {
 
     if (!stripeSecret || !stripePublishableKey) {
       await releaseCheckoutReservations(service, order.id);
-      await releaseGuestDesignClaims(service, order.id);
-      for (const design of uniqueDesigns as any[]) {
+      await service
+        .from("orders")
+        .update({
+          payment_status: "failed",
+          status: "payment_failed",
+          fulfillment_status: "unfulfilled",
+        })
+        .eq("id", order.id);
+
+      if (checkoutSessionToken) {
         await service
-          .from("custom_designs")
-          .update({ order_id: null, status: "in_cart" })
-          .eq("id", design.id);
+          .from("checkout_sessions")
+          .update({
+            status: "converted",
+            converted_order_id: order.id,
+            last_activity_at: new Date().toISOString(),
+          })
+          .eq("session_token", checkoutSessionToken);
       }
-      await service.from("design_proofs").delete().eq("order_id", order.id).eq("status", "pending");
-      await service.from("orders").delete().eq("id", order.id);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
 
       return respond(req, {
+        orderNumber: order.order_number,
+        confirmationToken: order.confirmation_token,
         configured: false,
         missing: !stripeSecret
           ? (paymentMode === "test" ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY")
@@ -1841,7 +1637,6 @@ Deno.serve(async (req: Request) => {
         Authorization: `Bearer ${stripeSecret}`,
         "Content-Type": "application/x-www-form-urlencoded",
         "Stripe-Version": "2026-08-26.dahlia",
-        "Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`,
       },
       body: form,
     });
@@ -1858,7 +1653,6 @@ Deno.serve(async (req: Request) => {
           .eq("id", design.id);
       }
       await service.from("orders").delete().eq("id", order.id);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
 
       if (checkoutSessionToken) {
         await service
@@ -1891,9 +1685,6 @@ Deno.serve(async (req: Request) => {
         .update({
           status: "converted",
           converted_order_id: order.id,
-          stripe_checkout_session_id: stripeData.id,
-          stripe_client_secret: stripeData.client_secret,
-          processing_started_at: null,
           last_activity_at: new Date().toISOString(),
         })
         .eq("session_token", checkoutSessionToken);
@@ -1918,9 +1709,6 @@ Deno.serve(async (req: Request) => {
       },
     });
   } catch (error) {
-    if (checkoutSessionTokenForRecovery) {
-      await releaseCheckoutSessionClaim(service, checkoutSessionTokenForRecovery);
-    }
     console.error("checkout error", error);
     return respond(req, { error: true, message: error?.message || "Checkout failed." }, 500);
   }
