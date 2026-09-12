@@ -6,6 +6,7 @@ import ProductCard from "@/components/storefront/ProductCard";
 import { ArrowRight, Layers3, SlidersHorizontal } from "lucide-react";
 
 const CATEGORIES = ["All", "T-Shirt", "Hoodie", "Sweatshirt", "Crewneck", "Sweater", "DTF Transfer Film", "Custom"];
+const CATALOG_PAGE_SIZE = 8;
 
 function CollectionCard({ collection }) {
   const image = collection.image || collection.products?.[0]?.images?.[0] || "/images/gdp-sold-categories.webp";
@@ -14,7 +15,13 @@ function CollectionCard({ collection }) {
       to={"/shop?view=collections&collection=" + encodeURIComponent(collection.slug)}
       className="group relative min-h-[310px] overflow-hidden bg-black text-white sm:min-h-[380px]"
     >
-      <img src={image} alt={collection.name} className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.035]" />
+      <img
+        src={image}
+        alt={collection.name}
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.035]"
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10" />
       <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
         {collection.seasonal && <div className="font-mono text-[8px] font-black uppercase tracking-[0.16em] text-white/55">Seasonal collection</div>}
@@ -33,6 +40,7 @@ export default function Shop() {
   const { products, loading } = useProducts({ status: "active" });
   const [collections, setCollections] = useState([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(CATALOG_PAGE_SIZE);
 
   const category = params.get("category") || "All";
   const filter = params.get("filter");
@@ -52,6 +60,10 @@ export default function Shop() {
       .finally(() => { if (active) setCollectionsLoading(false); });
     return () => { active = false; };
   }, [collectionMode]);
+
+  useEffect(() => {
+    setVisibleCount(CATALOG_PAGE_SIZE);
+  }, [category, filter, q, collectionMode, collectionSlug]);
 
   const selectedCollection = useMemo(
     () => collections.find((collection) => collection.slug === collectionSlug) || null,
@@ -73,6 +85,12 @@ export default function Shop() {
     }
     return list;
   }, [products, category, filter, q, collectionMode, selectedCollection]);
+
+  const visibleProducts = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  );
+  const hasMoreProducts = visibleProducts.length < filtered.length;
 
   const setCategory = (nextCategory) => {
     const next = new URLSearchParams(params);
@@ -182,9 +200,22 @@ export default function Shop() {
                 <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-black/50">No products match this view yet. Try another category or collection.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 lg:grid-cols-4 lg:gap-x-4 lg:gap-y-11">
-                {filtered.map((product) => <ProductCard key={product.id} product={product} />)}
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 lg:grid-cols-4 lg:gap-x-4 lg:gap-y-11">
+                  {visibleProducts.map((product) => <ProductCard key={product.id} product={product} />)}
+                </div>
+                {hasMoreProducts && (
+                  <div className="mt-10 flex justify-center border-t border-black/10 pt-8">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((count) => count + CATALOG_PAGE_SIZE)}
+                      className="inline-flex min-h-11 items-center justify-center border border-black bg-black px-7 text-[10px] font-black uppercase tracking-[0.13em] text-white transition hover:bg-[#e11d2e]"
+                    >
+                      Load {Math.min(CATALOG_PAGE_SIZE, filtered.length - visibleProducts.length)} more
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
