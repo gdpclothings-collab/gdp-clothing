@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { AlertTriangle, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from "@/lib/NotificationContext";
 
 const UnsavedChangesContext = createContext(null);
 let guardSequence = 0;
@@ -19,6 +20,7 @@ function getDirtyGuards(guards) {
 
 export function UnsavedChangesProvider({ children }) {
   const navigate = useNavigate();
+  const { notify } = useNotifications();
   const guardsRef = useRef(new Map());
   const [version, setVersion] = useState(0);
   const [pendingAction, setPendingAction] = useState(null);
@@ -138,7 +140,11 @@ export function UnsavedChangesProvider({ children }) {
     }
 
     if (activeGuards.some((guard) => typeof guard.onSave !== "function")) {
-      window.alert("Please save these changes before leaving this editor.");
+      notify({
+        tone: "warning",
+        title: "Save required",
+        description: "Please save these changes before leaving this editor.",
+      });
       return;
     }
 
@@ -154,7 +160,11 @@ export function UnsavedChangesProvider({ children }) {
       action?.();
     } catch (error) {
       console.error("Could not save pending changes:", error);
-      window.alert(error?.message || "Could not save your changes.");
+      notify({
+        tone: "destructive",
+        title: "Changes not saved",
+        description: error?.message || "Could not save your changes.",
+      });
     } finally {
       setSaving(false);
     }
@@ -175,61 +185,76 @@ export function UnsavedChangesProvider({ children }) {
       {children}
 
       {pendingAction && (
-        <div className="fixed inset-0 z-[250] grid place-items-center bg-black/50 p-4" role="presentation">
+        <div
+          className="fixed inset-0 z-[340] grid place-items-center bg-black/55 p-4 backdrop-blur-[3px]"
+          role="presentation"
+        >
           <div
-            className="w-full max-w-md rounded-2xl border border-[#dedede] bg-white p-5 shadow-2xl"
+            className="w-full max-w-[500px] overflow-hidden rounded-3xl border border-border/80 bg-background text-foreground shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="unsaved-changes-title"
             aria-describedby="unsaved-changes-description"
           >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-50 text-amber-700">
-                <AlertTriangle size={20} />
-              </div>
-              <div className="min-w-0">
-                <h2 id="unsaved-changes-title" className="text-base font-semibold text-[#1f1f1f]">
-                  {pendingAction.title}
-                </h2>
-                <p id="unsaved-changes-description" className="mt-1 text-sm leading-5 text-[#666]">
-                  {pendingAction.description}
-                </p>
-                {dirtyGuards.length > 0 && (
-                  <p className="mt-2 text-xs font-medium text-amber-700">
-                    {dirtyGuards.length === 1
-                      ? `${dirtyGuards[0].label || "This editor"} has unsaved changes.`
-                      : `${dirtyGuards.length} editors have unsaved changes.`}
+            <div className="h-1 w-full bg-accent" aria-hidden="true" />
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start gap-3.5">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-500/12 text-amber-700 dark:text-amber-300">
+                  <AlertTriangle size={21} strokeWidth={1.9} />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    GDP Clothing
+                  </div>
+                  <h2
+                    id="unsaved-changes-title"
+                    className="mt-1.5 text-xl font-semibold leading-tight tracking-[-0.02em] sm:text-[22px]"
+                  >
+                    {pendingAction.title}
+                  </h2>
+                  <p
+                    id="unsaved-changes-description"
+                    className="mt-2 text-sm leading-6 text-muted-foreground"
+                  >
+                    {pendingAction.description}
                   </p>
-                )}
+                  {dirtyGuards.length > 0 && (
+                    <p className="mt-3 inline-flex rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                      {dirtyGuards.length === 1
+                        ? `${dirtyGuards[0].label || "This editor"} has unsaved changes.`
+                        : `${dirtyGuards.length} editors have unsaved changes.`}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={keepEditing}
-                disabled={saving}
-                className="h-10 rounded-lg border border-[#d5d5d5] bg-white px-4 text-sm font-medium text-[#333] disabled:opacity-40"
-              >
-                Keep editing
-              </button>
-              <button
-                type="button"
-                onClick={discardAndContinue}
-                disabled={saving}
-                className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 disabled:opacity-40"
-              >
-                Discard changes
-              </button>
-              <button
-                type="button"
-                onClick={saveAndContinue}
-                disabled={saving || !canSave}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#222] px-4 text-sm font-semibold text-white disabled:opacity-40"
-              >
-                <Save size={15} />
-                {saving ? "Saving…" : "Save changes"}
-              </button>
+              <div className="mt-6 grid gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={keepEditing}
+                  disabled={saving}
+                  className="h-11 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition-colors hover:bg-secondary disabled:opacity-40"
+                >
+                  Keep editing
+                </button>
+                <button
+                  type="button"
+                  onClick={discardAndContinue}
+                  disabled={saving}
+                  className="h-11 rounded-xl border border-destructive/25 bg-destructive/5 px-4 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-40"
+                >
+                  Discard changes
+                </button>
+                <button
+                  type="button"
+                  onClick={saveAndContinue}
+                  disabled={saving || !canSave}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
+                >
+                  <Save size={15} />
+                  {saving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
