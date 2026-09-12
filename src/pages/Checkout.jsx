@@ -97,8 +97,12 @@ export default function Checkout() {
     let token = "";
     try {
       token = window.localStorage.getItem(checkoutStorageKey) || "";
+      if (!token) {
+        token = crypto.randomUUID();
+        window.localStorage.setItem(checkoutStorageKey, token);
+      }
     } catch {
-      token = "";
+      token = crypto.randomUUID();
     }
     setCheckoutSessionToken(token);
     setLoadedCheckoutStorageKey(checkoutStorageKey);
@@ -225,13 +229,50 @@ export default function Checkout() {
 
       setPlacing(true);
       try {
+        let orderSessionToken = checkoutSessionToken || crypto.randomUUID();
+        const trackedCheckout = await customerApi.trackCheckout(
+          items,
+          checkoutForm,
+          {
+            subtotal,
+            discount: discountAmt + couponAmt,
+            shipping,
+            tax,
+            total,
+          },
+          orderSessionToken
+        );
+        if (trackedCheckout?.sessionToken) {
+          orderSessionToken = trackedCheckout.sessionToken;
+          setCheckoutSessionToken(orderSessionToken);
+          try {
+            window.localStorage.setItem(checkoutStorageKey, orderSessionToken);
+          } catch {
+            // Checkout can continue for this page without local storage.
+          }
+        }
+
         const data = await customerApi.createOrder(
           items,
           checkoutForm,
           checkoutForm.discountCode,
           window.location.origin,
-          checkoutSessionToken
+          orderSessionToken
         );
+
+        if (data?.paid && data?.orderNumber) {
+          try {
+            window.localStorage.removeItem(checkoutStorageKey);
+          } catch {
+            // Local storage is optional.
+          }
+          clearCart();
+          const paidToken = data.confirmationToken
+            ? `&token=${encodeURIComponent(data.confirmationToken)}`
+            : "";
+          navigate(`/order/${data.orderNumber}?status=success${paidToken}`);
+          return;
+        }
 
         if (data?.error) {
           setError(data.message || "Order could not be prepared. Please try again.");
@@ -283,12 +324,6 @@ export default function Checkout() {
           confirmationToken: data.confirmationToken,
         });
 
-        try {
-          window.localStorage.removeItem(checkoutStorageKey);
-        } catch {
-          // Local storage is optional.
-        }
-
         window.setTimeout(() => {
           paymentHostRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 100);
@@ -316,6 +351,11 @@ export default function Checkout() {
         return;
       }
 
+      try {
+        window.localStorage.removeItem(checkoutStorageKey);
+      } catch {
+        // Local storage is optional.
+      }
       clearCart();
       if (paymentSession?.orderNumber) {
         const token = paymentSession.confirmationToken
