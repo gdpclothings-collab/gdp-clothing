@@ -9,6 +9,9 @@ const FIELD_MAP = {
   fulfillmentMode: "fulfillment_mode",
 };
 
+// Keep this widened to `string` so Supabase's type-level select parser does not
+// recursively instantiate the full nested relationship at build time.
+/** @type {string} */
 const STOREFRONT_PRODUCT_FIELDS = `
   id,
   name,
