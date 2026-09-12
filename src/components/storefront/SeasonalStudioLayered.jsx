@@ -237,7 +237,7 @@ function LoadingStudio({ Preview, garment, color, size, previewConfig }) {
   );
 }
 
-function LayerStack({ entries, area, activeId, capturing, onSelect, onBeforeEdit, onMove, onResize, onRotate, review = false }) {
+function LayerStack({ entries, area, activeId, capturing, onSelect = undefined, onBeforeEdit = undefined, onMove = undefined, onResize = undefined, onRotate = undefined, review = false }) {
   return entries.filter((entry) => entry.layer.visible !== false && entry.artwork && entry.layout).map((entry, index) => (
     <SeasonalOverlay
       key={entry.layer.id}
@@ -297,7 +297,7 @@ export default function SeasonalStudio({
   const [approved, setApproved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [capturing, setCapturing] = useState(false);
-  const [historyVersion, setHistoryVersion] = useState(0);
+  const [, setHistoryVersion] = useState(0);
   const historyRef = useRef([]);
   const redoRef = useRef([]);
   const draftHydratedRef = useRef(false);
@@ -627,7 +627,7 @@ export default function SeasonalStudio({
           width: Number(item.width),
           height: Number(item.height),
           rotation: Number(item.rotation || 0),
-          position: item.position,
+          position: { x: Number(item.x), y: Number(item.y) },
           order: item.order,
         })),
         garment: garment.label || product.name,
