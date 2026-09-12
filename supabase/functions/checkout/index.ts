@@ -1014,6 +1014,17 @@ Deno.serve(async (req: Request) => {
 
     if (action === "trackCheckout") {
       const user = await optionalUser(req, supabaseUrl, anonKey);
+      const trackRateKey = await sha256Hex(`checkout:track:ip:${clientIp(req)}`);
+      const trackRate = await consumePublicRateLimit(service, trackRateKey, 300, 3600);
+      if (!trackRate.allowed) {
+        const retryAfter = Math.max(1, Number(trackRate.retry_after || 60));
+        return respond(
+          req,
+          { error: true, retryable: true, rateLimited: true, message: "Checkout tracking is temporarily rate limited. Please try again shortly." },
+          429,
+          { "Retry-After": String(retryAfter) },
+        );
+      }
       const incomingToken = String(body?.sessionToken || "").trim();
       const sessionToken = uuidRe.test(incomingToken) ? incomingToken : crypto.randomUUID();
       const cart = Array.isArray(body?.cart) ? body.cart.slice(0, 100) : [];
@@ -1619,7 +1630,6 @@ Deno.serve(async (req: Request) => {
     if (linkCheckoutError || !linkedCheckout) {
       await service.from("orders").delete().eq("id", order.id);
       await releaseCheckoutSessionClaim(service, checkoutSessionToken);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
       throw linkCheckoutError || new Error("Checkout session could not be linked to the order.");
     }
 
@@ -1715,7 +1725,7 @@ Deno.serve(async (req: Request) => {
       if (couponReservationError) {
         await releaseCheckoutReservations(service, order.id);
         await service.from("orders").delete().eq("id", order.id);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
+        await releaseCheckoutSessionClaim(service, checkoutSessionToken);
         return respond(req, {
           error: true,
           message: reservationErrorMessage(
@@ -1745,7 +1755,7 @@ Deno.serve(async (req: Request) => {
           await releaseCheckoutReservations(service, order.id);
           await releaseGuestDesignClaims(service, order.id);
           await service.from("orders").delete().eq("id", order.id);
-      await releaseCheckoutSessionClaim(service, checkoutSessionToken);
+        await releaseCheckoutSessionClaim(service, checkoutSessionToken);
           return respond(req, {
             error: true,
             message: "This guest custom design is already attached to another checkout.",

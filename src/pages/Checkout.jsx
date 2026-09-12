@@ -229,12 +229,35 @@ export default function Checkout() {
 
       setPlacing(true);
       try {
+        let orderSessionToken = checkoutSessionToken || crypto.randomUUID();
+        const trackedCheckout = await customerApi.trackCheckout(
+          items,
+          checkoutForm,
+          {
+            subtotal,
+            discount: discountAmt + couponAmt,
+            shipping,
+            tax,
+            total,
+          },
+          orderSessionToken
+        );
+        if (trackedCheckout?.sessionToken) {
+          orderSessionToken = trackedCheckout.sessionToken;
+          setCheckoutSessionToken(orderSessionToken);
+          try {
+            window.localStorage.setItem(checkoutStorageKey, orderSessionToken);
+          } catch {
+            // Checkout can continue for this page without local storage.
+          }
+        }
+
         const data = await customerApi.createOrder(
           items,
           checkoutForm,
           checkoutForm.discountCode,
           window.location.origin,
-          checkoutSessionToken
+          orderSessionToken
         );
 
         if (data?.paid && data?.orderNumber) {
