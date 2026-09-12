@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import {
   AdvancedEditorPanel,
@@ -2701,9 +2701,9 @@ export default function CustomStudio() {
                       <button type="button" onClick={() => setPreviewZoom(1)} className="ml-1 h-8 rounded-lg border-l border-[#DCE3EA] px-2 text-[9px] font-bold uppercase tracking-wide text-[#607080] hover:bg-white hover:text-[#17324D]">Fit</button>
                       <button type="button" onClick={() => setPreviewZoom(1.18)} className="h-8 rounded-lg px-2 text-[9px] font-bold uppercase tracking-wide text-[#607080] hover:bg-white hover:text-[#17324D]">Default</button>
                     </div>
-                    <button type="button" aria-pressed={showGuides} onClick={() => setShowGuides((value) => !value)} className={"inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold " + (showGuides ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#DCE3EA] bg-white text-[#607080]")}><Maximize2 size={14}/> Print area {showGuides ? "on" : "off"}</button>
-                    <button type="button" aria-pressed={showMeasurements} onClick={() => setShowMeasurements((value) => !value)} className={"inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold " + (showMeasurements ? "border-[#A66331] bg-[#A66331] text-white" : "border-[#DCE3EA] bg-white text-[#607080]")}><Ruler size={14}/> Measurements {showMeasurements ? "on" : "off"}</button>
-                    {selectedPhotoLayer && <button type="button" onClick={() => deleteEditorLayer(selectedPhotoLayer.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/[.06] px-3 py-2 text-[11px] font-bold text-[#B91C31] transition hover:bg-[#D9273E]/10" aria-label={`Remove selected photo from ${previewSide} fabric`}><Trash2 size={14}/> Remove photo</button>}
+                    <button type="button" aria-pressed={showGuides} onClick={() => setShowGuides((value) => !value)} className={"inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold " + (showGuides ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#DCE3EA] bg-white text-[#607080]")}><Maximize2 size={14}/> Print Area</button>
+                    <button type="button" aria-pressed={showMeasurements} onClick={() => setShowMeasurements((value) => !value)} className={"inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold " + (showMeasurements ? "border-[#A66331] bg-[#A66331] text-white" : "border-[#DCE3EA] bg-white text-[#607080]")}><Ruler size={14}/> Measurements</button>
+                    
                   </>}
                   {draftReady && product?.id && <span className={"inline-flex rounded-full border px-2 py-1 font-mono text-[7px] uppercase tracking-wide sm:px-2.5 sm:text-[8px] " + (draftStatus === "error" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-[#D5DDE4] bg-[#F8FAFC] text-[#61707D]")} role="status">
                     {draftStatus === "saving" ? "Saving…" : draftStatus === "error" ? "Autosave issue" : draftRestored ? "Draft restored · Saved ✓" : "Saved ✓"}
@@ -3207,7 +3207,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     viewPanRef.current = null;
   };
 
-  return <div id={containerId} data-gdp-studio-preview={interactiveEditor ? "live" : undefined} onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[370px] sm:h-[430px]")}>
+  return <div id={containerId} data-gdp-studio-preview={interactiveEditor ? "live" : undefined} onWheel={onWheel} className={"relative overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#fffdf8_0%,#eee7dc_68%,#e4dbcf_100%)] " + (fullscreen ? "h-full" : "h-[420px] sm:h-[520px] lg:h-[580px]")}>
     <div className="absolute inset-x-0 top-3 z-30 text-center pointer-events-none"><span className="rounded-full border border-[#ddd6cc] bg-white/80 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-[#817b71]">{side} view</span></div>
 
     {showMeasurements && <div className="absolute left-3 top-11 z-30 max-w-[238px] rounded-xl border border-[#d8d2c8] bg-white/90 backdrop-blur px-3 py-2.5 shadow-sm pointer-events-none">

@@ -601,7 +601,7 @@ export function EditableOverlayLayers({
             <div
               key={layer.id}
               data-editor-layer={layer.id}
-              style={{ ...baseStyle, width: clamp(layer.size || 62, 10, 180) + "%", opacity: clamp(layer.opacity ?? 1, 0.1, 1), outline: selected ? "1px solid rgba(255,255,255,.95)" : "none", outlineOffset: selected ? "4px" : "0" }}
+              style={{ ...baseStyle, width: clamp(layer.size || 62, 10, 180) + "%", opacity: clamp(layer.opacity ?? 1, 0.1, 1), outline: selected ? "2px solid rgba(217,39,62,.98)" : "none", outlineOffset: selected ? "5px" : "0", boxShadow: selected ? "0 0 0 5px rgba(217,39,62,.12), 0 10px 28px rgba(7,19,31,.26)" : "none" }}
               onPointerDown={(event) => beginGesture(event, layer)}
               onPointerMove={(event) => moveGesture(event, layer)}
               onPointerUp={(event) => endGesture(event, layer)}
@@ -690,7 +690,7 @@ export function EditableOverlayLayers({
           <div
             key={layer.id}
             data-editor-layer={layer.id}
-            style={{ ...baseStyle, width: Math.max(14, Number(layer.size || 34)) + "px", height: Math.max(14, Number(layer.size || 34)) + "px", display: "grid", placeItems: "center", opacity: clamp(layer.opacity ?? 1, 0.1, 1), outline: selected ? "1px solid rgba(255,255,255,.95)" : "none", outlineOffset: selected ? "4px" : "0" }}
+            style={{ ...baseStyle, width: Math.max(14, Number(layer.size || 34)) + "px", height: Math.max(14, Number(layer.size || 34)) + "px", display: "grid", placeItems: "center", opacity: clamp(layer.opacity ?? 1, 0.1, 1), outline: selected ? "2px solid rgba(217,39,62,.98)" : "none", outlineOffset: selected ? "5px" : "0", boxShadow: selected ? "0 0 0 5px rgba(217,39,62,.12), 0 10px 28px rgba(7,19,31,.26)" : "none" }}
             onPointerDown={(event) => beginGesture(event, layer)}
             onPointerMove={(event) => moveGesture(event, layer)}
             onPointerUp={(event) => endGesture(event, layer)}
@@ -919,9 +919,11 @@ export function AdvancedEditorPanel({
           <div key={layer.id} className={`grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border p-2 ${active ? "border-[#D9273E]/70 bg-[#D9273E]/10" : "border-white/10 bg-white/[.035]"}`}>
             <button type="button" onClick={() => chooseLayer(layer.id)} className="min-w-0 text-left">
               <div className="truncate text-[10px] font-bold text-white">{labelForLayer(layer, index, photosById)}</div>
-              <div className="mt-0.5 text-[8px] uppercase tracking-[.12em] text-white/35">{layer.type}{layer.locked ? " · locked" : ""}</div>
+              <div className="mt-0.5 text-[8px] uppercase tracking-[.12em] text-white/35">{layer.type}{layer.locked ? " · locked" : ""} · Layer {index + 1} of {editorLayers.length}</div>
             </button>
             <div className="flex gap-1">
+              <button type="button" onClick={() => onMoveLayer?.(layer.id, -1)} disabled={index === 0 || layer.locked} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[.04] text-white/65 disabled:opacity-25" title="Send backward"><ArrowDown size={13}/></button>
+              <button type="button" onClick={() => onMoveLayer?.(layer.id, 1)} disabled={index === editorLayers.length - 1 || layer.locked} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[.04] text-white/65 disabled:opacity-25" title="Bring forward"><ArrowUp size={13}/></button>
               <button type="button" onClick={() => onPatchLayer?.(layer.id, { visible: layer.visible === false })} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[.04] text-white/65" title={layer.visible === false ? "Show layer" : "Hide layer"}>{layer.visible === false ? <EyeOff size={13}/> : <Eye size={13}/>}</button>
               <button type="button" onClick={() => onPatchLayer?.(layer.id, { locked: !layer.locked })} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/[.04] text-white/65" title={layer.locked ? "Unlock layer" : "Lock layer"}>{layer.locked ? <Lock size={13}/> : <Unlock size={13}/>}</button>
             </div>
@@ -959,8 +961,8 @@ export function AdvancedEditorPanel({
       return (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => patch({ fitMode: "fit" })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.fitMode !== "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fit · no crop</button>
-            <button type="button" onClick={() => patch({ fitMode: "crop" })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.fitMode === "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Crop 4:5</button>
+            <button type="button" onClick={() => patch({ fitMode: "fit" })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.fitMode !== "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fit Inside</button>
+            <button type="button" onClick={() => patch({ fitMode: "crop" })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.fitMode === "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fill & Crop</button>
           </div>
           {selectedLayer.fitMode === "crop" && <>
             <RangeRow label="Crop left / right" value={selectedLayer.cropX ?? 50} min={0} max={100} suffix="%" onChange={(value) => patch({ cropX: value })}/>
@@ -1015,6 +1017,12 @@ export function AdvancedEditorPanel({
         <RangeRow label="Rotation" value={selectedLayer.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patch({ rotation: value })}/>
         <RangeRow label="Opacity" value={Math.round((selectedLayer.opacity ?? 1) * 100)} min={10} max={100} suffix="%" onChange={(value) => patch({ opacity: value / 100 })}/>
         <PositionRows layer={selectedLayer} patch={patch}/>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <button type="button" onClick={() => patch({ x: 50 })} className="rounded-xl border border-white/10 bg-white/[.04] px-3 py-2 text-[9px] font-bold uppercase text-white/60">Center H</button>
+          <button type="button" onClick={() => patch({ y: 50 })} className="rounded-xl border border-white/10 bg-white/[.04] px-3 py-2 text-[9px] font-bold uppercase text-white/60">Center V</button>
+          <button type="button" onClick={() => patch({ rotation: Math.max(-180, Number(selectedLayer.rotation || 0) - 90) })} className="rounded-xl border border-white/10 bg-white/[.04] px-3 py-2 text-[9px] font-bold uppercase text-white/60">−90°</button>
+          <button type="button" onClick={() => patch({ rotation: Math.min(180, Number(selectedLayer.rotation || 0) + 90) })} className="rounded-xl border border-white/10 bg-white/[.04] px-3 py-2 text-[9px] font-bold uppercase text-white/60">+90°</button>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => patch({ flipX: !selectedLayer.flipX })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.flipX ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><FlipHorizontal size={13} className="mr-1 inline"/>Flip H</button>
           <button type="button" onClick={() => patch({ flipY: !selectedLayer.flipY })} className={`rounded-xl border px-3 py-2 text-[9px] font-bold uppercase ${selectedLayer.flipY ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/60"}`}><FlipVertical size={13} className="mr-1 inline"/>Flip V</button>
@@ -1101,6 +1109,7 @@ export function AdvancedEditorPanel({
     ["background", WandSparkles, "Remove BG"],
     ["erase", Eraser, "Erase"],
     ["remove", Trash2, "Remove"],
+    ["more", Layers, "Layer"],
   ] : [
     ["replace", ImageIcon, "Replace"],
     ["background", WandSparkles, "Remove BG"],
@@ -1170,8 +1179,8 @@ export function AdvancedEditorPanel({
     </div>
     <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[.04] p-1">
       <span className="hidden px-1 font-mono text-[7px] font-bold uppercase tracking-[.16em] text-white/40 xl:inline">Production guides</span>
-      <button type="button" onClick={onToggleGuides} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showGuides ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Eye size={12} className="mr-1 inline"/>Guide</button>
-      <button type="button" onClick={onToggleMeasurements} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showMeasurements ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Ruler size={12} className="mr-1 inline"/>Measure</button>
+      <button type="button" onClick={onToggleGuides} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showGuides ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Eye size={12} className="mr-1 inline"/>Print Area</button>
+      <button type="button" onClick={onToggleMeasurements} className={`h-9 rounded-lg px-2.5 text-[8px] font-bold uppercase transition ${showMeasurements ? "bg-[#D9273E]/20 text-white" : "text-white/60 hover:bg-white/[.06]"}`}><Ruler size={12} className="mr-1 inline"/>Measurements</button>
     </div>
   </div>
 );
@@ -1203,10 +1212,10 @@ export function AdvancedEditorPanel({
         {(photoAssets || []).length > 1 && <label className="block text-[9px] font-bold uppercase tracking-wide text-white/45">Artwork source<select value={Number(artworkSourcePhotoIndex || 0)} onPointerDown={onArtworkTransformStart} onChange={(event) => onArtworkSourcePhotoIndexChange?.(Number(event.target.value))} className="mt-1.5 h-10 w-full rounded-xl border border-white/10 bg-[#0B1A28] px-3 text-[10px] normal-case tracking-normal text-white outline-none">{photoAssets.map((photo, index) => <option key={photo.id || photo.url || index} value={index}>{index + 1}. {photo.name || "Uploaded photo"}</option>)}</select></label>}
         <RangeRow label="Design size" value={Number(artworkScale || 92)} min={55} max={180} suffix="%" onPointerDown={onArtworkTransformStart} onChange={(value) => onArtworkScaleChange?.(value)}/>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("fit")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode !== "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fit · no crop</button>
-          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("crop")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode === "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Crop to fill</button>
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("fit")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode !== "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fit Inside</button>
+          <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkFitModeChange?.("crop")} className={`rounded-xl border px-3 py-2.5 text-[9px] font-bold uppercase ${artworkFitMode === "crop" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.04] text-white/55"}`}>Fill & Crop</button>
         </div>
-        {artworkFitMode === "crop" && <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">Crop to Fill trims image edges. Use Fit · No Crop to keep the full artwork visible.</div>}
+        {artworkFitMode === "crop" && <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-[9px] leading-relaxed text-amber-100">Fill & Crop trims image edges. Use Fit Inside to keep the full artwork visible.</div>}
         {allowFreeStretch && <div className="rounded-xl border border-white/[.08] bg-white/[.035] p-3">
           <button type="button" onPointerDown={onArtworkTransformStart} onClick={() => onArtworkConstrainRatioChange?.(!artworkConstrainRatio)} className="inline-flex items-center gap-2 text-[9px] font-bold uppercase text-white/75">{artworkConstrainRatio ? <Lock size={13}/> : <Unlock size={13}/>} {artworkConstrainRatio ? "Constrain aspect ratio" : "Free stretch enabled"}</button>
           <div className="mt-1 text-[8px] leading-relaxed text-white/35">{artworkConstrainRatio ? "Recommended: resizing keeps the original proportions." : "Advanced: width and height can be adjusted independently."}</div>
@@ -1219,9 +1228,9 @@ export function AdvancedEditorPanel({
 
   const renderUploadPanel = () => (
     <div id="custom-studio-photo-upload" className="scroll-mt-28 space-y-3">
-      <label className={`flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[.035] px-3 text-center transition hover:border-[#D9273E]/60 ${uploading ? "pointer-events-none opacity-55" : ""}`}>
+      <label className={`flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[.035] px-3 text-center transition hover:border-[#D9273E]/60 ${(photoAssets || []).length ? "min-h-12 py-2" : "min-h-20"} ${uploading ? "pointer-events-none opacity-55" : ""}`}>
         <Upload size={17} className="text-[#D9273E]"/>
-        <span><span className="block text-[10px] font-bold uppercase text-white">{uploading ? "Preparing upload…" : designPath === "upload" ? "Upload print artwork" : "Upload photo"}</span><span className="mt-0.5 block text-[8px] text-white/38">JPG, PNG or WEBP · max {uploadLimitMb}MB each</span></span>
+        <span><span className="block text-[10px] font-bold uppercase text-white">{uploading ? "Preparing upload…" : (photoAssets || []).length ? "Add more photos" : designPath === "upload" ? "Upload print artwork" : "Upload photo"}</span>{!(photoAssets || []).length && <span className="mt-0.5 block text-[8px] text-white/38">JPG, PNG or WEBP · max {uploadLimitMb}MB each</span>}</span>
         <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploading} onChange={(event) => { const files = event.target.files; if (files?.length) onUploadFiles?.(files); event.target.value = ""; }}/>
       </label>
       {uploading && Number(uploadProgress?.total || 0) > 0 && <div className="rounded-xl border border-white/10 bg-white/[.035] px-3 py-2 text-[9px] text-white/55">Preparing {uploadProgress.done}/{uploadProgress.total} · {Math.round((Number(uploadProgress.done || 0) / Math.max(1, Number(uploadProgress.total || 1))) * 100)}%</div>}
@@ -1249,7 +1258,7 @@ export function AdvancedEditorPanel({
   );
 
   return (
-    <div id="gdp-touch-studio-panel" className="sticky bottom-2 z-30 mx-auto mt-4 w-full min-w-0 max-w-[430px] max-h-[74dvh] overflow-x-hidden overflow-y-auto overscroll-y-contain rounded-[24px] border border-white/10 bg-[#07131F]/[.97] p-2.5 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl sm:p-3 md:static md:max-h-none md:max-w-full md:overflow-visible">
+    <div id="gdp-touch-studio-panel" className="sticky bottom-2 z-30 mx-auto mt-4 w-full min-w-0 max-w-[430px] max-h-[74dvh] overflow-x-hidden overflow-y-auto overscroll-y-contain rounded-[24px] border border-white/10 bg-[#07131F]/[.97] p-2.5 text-white shadow-[0_24px_70px_rgba(0,0,0,.28)] backdrop-blur-xl sm:p-3 md:sticky md:top-24 md:bottom-auto md:max-h-[calc(100dvh-7rem)] md:max-w-full md:overflow-y-auto">
       {canvasDockHost ? createPortal(<div id="gdp-canvas-control-dock">{renderCanvasPanel()}</div>, canvasDockHost) : null}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -1263,13 +1272,17 @@ export function AdvancedEditorPanel({
         </div>
       </div>
 
-      <div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2 text-[9px] leading-relaxed text-white/48">
-        {designPath === "bootleg" ? <><strong className="text-white/80">Simple editing:</strong> select a photo or text on the garment, then move, resize or edit it here. Press Delete / Backspace to remove the selected item from the canvas. Uploaded photos stay saved in Media.</> : <><strong className="text-white/80">Touch-first:</strong> drag to move · pinch to resize · twist to rotate · double-tap text to type · double-tap a photo for crop mode.</>}
-      </div>
+      {designPath === "bootleg" ? <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2 text-[9px] text-white/55">
+        <span className="font-mono uppercase tracking-[.12em] text-[#FF8A9A]">Editing {previewSide}</span>
+        <span className="text-white/25">•</span>
+        <span className="min-w-0 truncate"><strong className="text-white/80">Selected:</strong> {selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : "Choose a layer"}</span>
+        {selectedLayer && <><span className="text-white/25">•</span><span>Layer {Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)) + 1} of {editorLayers.length}</span></>}
+        <span className="ml-auto rounded-full border border-[#D9273E]/35 bg-[#D9273E]/10 px-2 py-1 font-mono text-[8px] font-bold uppercase tracking-[.1em] text-white">{String(activeTool || "layers").replace(/[-_]/g, " ")}</span>
+      </div> : <div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2 text-[9px] leading-relaxed text-white/48"><strong className="text-white/80">Touch-first:</strong> drag to move · pinch to resize · twist to rotate · double-tap text to type · double-tap a photo for crop mode.</div>}
 
-      {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold leading-relaxed text-amber-200"><span className="mr-1 uppercase tracking-wide text-amber-100">Print-area check:</span>{outsideWarning}</div>}
+      {outsideWarning && <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[9px] font-semibold leading-relaxed text-amber-200"><span className="mr-1 uppercase tracking-wide text-amber-100">Production check:</span>{outsideWarning}</div>}
 
-      {(sideStatus || viewGuidance || canCopyFrontToBack) && <div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2.5 text-[9px] leading-relaxed text-white/48">
+      {designPath !== "bootleg" && (sideStatus || viewGuidance || canCopyFrontToBack) && <div className="mt-2 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2.5 text-[9px] leading-relaxed text-white/48">
         <div className="font-mono text-[8px] uppercase tracking-[.13em] text-white/35">Editing {previewSide}</div>
         {sideStatus && <div className="mt-1 text-white/68">{sideStatus}</div>}
         {viewGuidance && designPath !== "bootleg" && <div className="mt-2 border-l-2 border-[#D9273E]/60 pl-2.5">{viewGuidance}</div>}
@@ -1281,7 +1294,7 @@ export function AdvancedEditorPanel({
       {((panelTab === "photos" && selectedType === "photo") || (panelTab === "lettering" && selectedType === "text") || (panelTab === "layers" && selectedType === "sticker")) && contextTools.length > 0 && <div className="mt-3 grid grid-cols-3 gap-1.5 sm:flex sm:max-w-full sm:overflow-x-auto sm:overscroll-x-contain sm:pb-1 sm:touch-pan-x">{contextTools.map(([id, icon, label]) => <ToolButton key={id} mobileFill active={activeTool === id} icon={icon} label={label} onClick={() => setActiveTool(id)} disabled={id === "erase" && !hasPhoto}/>)}</div>}
 
       {panelTab === "design" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderDesignPanel()}</div>}
-      {panelTab === "photos" && <div className="mt-3 space-y-3"><div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderUploadPanel()}</div>{legacyArtworkActive && !selectedLayer ? renderLegacyArtworkTool() : selectedType === "photo" && <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderPhotoTool()}</div>}</div>}
+      {panelTab === "photos" && <div className="mt-3 space-y-3"><div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderUploadPanel()}</div>{legacyArtworkActive && !selectedLayer ? renderLegacyArtworkTool() : selectedType === "photo" && <div className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3"><div className="mb-3 flex min-w-0 items-center justify-between gap-2 border-b border-white/[.07] pb-2"><div className="min-w-0"><div className="font-mono text-[8px] font-bold uppercase tracking-[.15em] text-[#FF8A9A]">{String(activeTool || "transform").replace(/[-_]/g, " ")}</div><div className="mt-0.5 truncate text-[10px] font-semibold text-white/78">{selectedLayer ? labelForLayer(selectedLayer, Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer.id)), photosById) : "Photo"}</div></div><div className="shrink-0 rounded-full border border-white/10 bg-white/[.04] px-2 py-1 font-mono text-[8px] uppercase text-white/45">{previewSide} · Layer {Math.max(0, editorLayers.findIndex((item) => item.id === selectedLayer?.id)) + 1}/{Math.max(1, editorLayers.length)}</div></div>{renderPhotoTool()}</div>}</div>}
       {panelTab === "lettering" && <div className="mt-3">{renderLetteringPanel()}</div>}
       {panelTab === "details" && designPath === "memorial" && <div className="mt-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderMemorialDetails()}</div>}
       {panelTab === "layers" && <div className="mt-3">{selectedType === "sticker" && activeTool !== "layers" ? <div className="mb-3 min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-white/[.07] bg-black/10 p-3">{renderStickerTool()}</div> : null}{renderLayers()}</div>}
