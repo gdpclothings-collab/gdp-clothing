@@ -65,6 +65,7 @@ const TONE_CONFIG = {
 
 const DESTRUCTIVE_CONFIRM_PATTERN = /\b(delete|remove|clear|archive|retire|cancel|reset|discard)\b/i;
 const WARNING_CONFIRM_PATTERN = /\b(publish|restore|enable|disable|switch|live mode|maintenance|replace|optimize|convert|move|load defaults)\b/i;
+const ERROR_NOTIFICATION_PATTERN = /\b(could not|failed|failure|error|unable|invalid|unexpected|problem)\b/i;
 
 function inferLegacyConfirmation(message) {
   const text = String(message || "")
@@ -103,6 +104,33 @@ function normalizeConfirmation(options = {}) {
   };
 }
 
+function normalizeNotification(options = {}) {
+  if (typeof options !== "string") {
+    const tone = TONE_CONFIG[options?.tone] ? options.tone : "default";
+    return { ...options, tone };
+  }
+
+  const description = String(options).trim() || "Something needs your attention.";
+  const isError = ERROR_NOTIFICATION_PATTERN.test(description);
+  return {
+    tone: isError ? "destructive" : "warning",
+    title: isError ? "Something went wrong" : "Action needs attention",
+    description,
+  };
+}
+
+export function requestNotification(options = {}) {
+  const normalized = normalizeNotification(options);
+  const config = TONE_CONFIG[normalized.tone] || TONE_CONFIG.default;
+  return toast({
+    title: normalized.title,
+    description: normalized.description,
+    variant: config.variant,
+    duration: Number(normalized.duration || 4800),
+    action: normalized.action,
+  });
+}
+
 export function requestConfirmation(options = {}) {
   if (typeof externalConfirmAction !== "function") {
     console.warn("GDP confirmation requested before NotificationProvider was ready.");
@@ -134,19 +162,7 @@ export function NotificationProvider({ children }) {
     });
   }, []);
 
-  const notify = useCallback((options = {}) => {
-    const normalized = typeof options === "string" ? { description: options } : options;
-    const tone = TONE_CONFIG[normalized.tone] ? normalized.tone : "default";
-    const config = TONE_CONFIG[tone];
-
-    return toast({
-      title: normalized.title,
-      description: normalized.description,
-      variant: config.variant,
-      duration: Number(normalized.duration || 4800),
-      action: normalized.action,
-    });
-  }, []);
+  const notify = useCallback((options = {}) => requestNotification(options), []);
 
   useEffect(() => {
     externalConfirmAction = confirmAction;
@@ -158,21 +174,13 @@ export function NotificationProvider({ children }) {
     }
 
     const previousAlert = window.alert;
-    window.alert = (message) => {
-      const description = String(message ?? "").trim() || "Something needs your attention.";
-      const isError = /could not|failed|failure|error|unable|invalid/i.test(description);
-      notify({
-        tone: isError ? "destructive" : "warning",
-        title: isError ? "Something went wrong" : "Action needs attention",
-        description,
-      });
-    };
+    window.alert = (message) => requestNotification(String(message ?? ""));
 
     return () => {
       if (externalConfirmAction === confirmAction) externalConfirmAction = null;
       if (window.alert !== previousAlert) window.alert = previousAlert;
     };
-  }, [confirmAction, notify]);
+  }, [confirmAction]);
 
   useEffect(
     () => () => {
