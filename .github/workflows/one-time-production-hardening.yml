@@ -1,0 +1,67 @@
+name: One-Time GDP Production Hardening Runner
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/one-time-production-hardening.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-feature-branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout hardening branch
+        uses: actions/checkout@v5
+        with:
+          ref: hardening/production-flow-2026-09-12
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Apply hardening patch
+        run: node scripts/apply-production-hardening.mjs
+      - name: Normalize Stripe idempotency placement
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'supabase/functions/checkout/index.ts';
+          let s = fs.readFileSync(path, 'utf8');
+          const line = '        "Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`,\n';
+          s = s.split(line).join('');
+          const startNeedle = 'const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {';
+          const start = s.indexOf(startNeedle);
+          if (start < 0) throw new Error('Stripe Checkout session POST not found');
+          const versionNeedle = '"Stripe-Version": "2026-08-26.dahlia",';
+          const pos = s.indexOf(versionNeedle, start);
+          if (pos < 0) throw new Error('Stripe version header not found');
+          const insertAt = pos + versionNeedle.length;
+          s = s.slice(0, insertAt) + '\n' + line.trimEnd() + s.slice(insertAt);
+          fs.writeFileSync(path, s);
+          NODE
+      - name: Install dependencies and verify
+        run: |
+          npm install --no-audit --no-fund
+          npm run typecheck
+          npm run lint
+          npm run test:dtf-nesting
+          npm run test:fresh-session
+          npm run test:product-variants
+          npm run test:memorial
+          node scripts/verify-seasonal-artwork.mjs
+          node scripts/verify-photo-bootleg-desktop.mjs
+          npm run build
+      - name: Commit hardening branch
+        run: |
+          rm -f scripts/apply-production-hardening.mjs
+          rm -f .github/workflows/apply-production-hardening.yml
+          rm -f .github/workflows/apply-production-hardening-v2.yml
+          git config user.name "gdpclothings-collab"
+          git config user.email "gdpclothings@gmail.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Harden production checkout and security flow"
+          git push origin HEAD:hardening/production-flow-2026-09-12
