@@ -69,7 +69,10 @@ jobs:
           photo_tools_start = editor.index('  const photoContextTools =')
           text_tools_start = editor.index('  const textContextTools =', photo_tools_start)
           photo_tools = editor[photo_tools_start:text_tools_start]
-          photo_tools = replace_once(photo_tools, '["more", Layers, "More"]', '["remove", Trash2, "Remove"]', 'Bootleg contextual remove tool')
+          more_token = '["more", Layers, "More"]'
+          if photo_tools.count(more_token) != 2:
+              raise SystemExit(f'Bootleg contextual remove tool: expected two photo-tool More entries, found {photo_tools.count(more_token)}')
+          photo_tools = photo_tools.replace(more_token, '["remove", Trash2, "Remove"]', 1)
           editor = editor[:photo_tools_start] + photo_tools + editor[text_tools_start:]
 
           old_tabs = "\n".join([
