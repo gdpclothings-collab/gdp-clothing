@@ -52,6 +52,27 @@ async function loadSnapshot() {
   return mapSnapshot(data);
 }
 
+async function invokeMaintenanceAccess(body) {
+  const { data, error } = await supabase.functions.invoke("maintenance-access", { body });
+
+  if (error) {
+    let message = error?.message || "Maintenance access request failed.";
+    try {
+      const payload = await error?.context?.json?.();
+      if (payload?.message) message = payload.message;
+    } catch {
+      // Keep the connector error message when the response body cannot be read.
+    }
+    throw new Error(message);
+  }
+
+  if (data?.error) {
+    throw new Error(data.message || "Maintenance access request failed.");
+  }
+
+  return data?.data ?? data ?? {};
+}
+
 export const maintenanceSettingsApi = {
   async loadPublic() {
     return loadSnapshot();
@@ -75,5 +96,21 @@ export const maintenanceSettingsApi = {
 
     if (error) throw error;
     return normalizeMaintenanceSettings(data?.maintenance_settings);
+  },
+
+  async getAccessStatus() {
+    return invokeMaintenanceAccess({ action: "status" });
+  },
+
+  async verifyAccessPassword(password) {
+    return invokeMaintenanceAccess({ action: "verify", password });
+  },
+
+  async setAccessPassword(password) {
+    return invokeMaintenanceAccess({ action: "set_password", password });
+  },
+
+  async clearAccessPassword() {
+    return invokeMaintenanceAccess({ action: "clear_password" });
   },
 };
