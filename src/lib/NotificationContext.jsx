@@ -28,6 +28,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 
 const NotificationContext = createContext(null);
+let externalConfirmAction = null;
 
 const TONE_CONFIG = {
   default: {
@@ -74,6 +75,14 @@ function normalizeConfirmation(options = {}) {
   };
 }
 
+export function requestConfirmation(options = {}) {
+  if (typeof externalConfirmAction !== "function") {
+    console.warn("GDP confirmation requested before NotificationProvider was ready.");
+    return Promise.resolve(false);
+  }
+  return externalConfirmAction(options);
+}
+
 export function NotificationProvider({ children }) {
   const [confirmation, setConfirmation] = useState(null);
   const resolverRef = useRef(null);
@@ -110,6 +119,32 @@ export function NotificationProvider({ children }) {
       action: normalized.action,
     });
   }, []);
+
+  useEffect(() => {
+    externalConfirmAction = confirmAction;
+
+    if (typeof window === "undefined") {
+      return () => {
+        if (externalConfirmAction === confirmAction) externalConfirmAction = null;
+      };
+    }
+
+    const previousAlert = window.alert;
+    window.alert = (message) => {
+      const description = String(message ?? "").trim() || "Something needs your attention.";
+      const isError = /could not|failed|failure|error|unable|invalid/i.test(description);
+      notify({
+        tone: isError ? "destructive" : "warning",
+        title: isError ? "Something went wrong" : "Action needs attention",
+        description,
+      });
+    };
+
+    return () => {
+      if (externalConfirmAction === confirmAction) externalConfirmAction = null;
+      if (window.alert !== previousAlert) window.alert = previousAlert;
+    };
+  }, [confirmAction, notify]);
 
   useEffect(
     () => () => {
