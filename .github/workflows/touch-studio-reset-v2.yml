@@ -28,7 +28,9 @@ jobs:
         run: npm ci
 
       - name: Apply reset controls
-        run: python3 scripts/apply-touch-studio-reset-v2.py
+        run: |
+          python3 scripts/apply-touch-studio-reset-v2.py
+          python3 scripts/fix-notification-context-types.py
 
       - name: Verify reset contract
         run: node scripts/verify-touch-studio-reset.mjs
@@ -45,6 +47,7 @@ jobs:
       - name: Remove temporary implementation files
         run: |
           rm -f scripts/apply-touch-studio-reset-v2.py
+          rm -f scripts/fix-notification-context-types.py
           rm -f .github/workflows/touch-studio-reset-v2.yml
 
       - name: Commit implementation
