@@ -1,0 +1,114 @@
+name: One-off Photo Bootleg Delete Key Fix
+
+on:
+  push:
+    branches:
+      - fix/photo-bootleg-delete-key
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/photo-bootleg-delete-key
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply focused source fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          studio_path = Path('src/pages/CustomStudio.jsx')
+          editor_path = Path('src/components/storefront/CustomStudioAdvancedEditor.jsx')
+          studio = studio_path.read_text()
+          editor = editor_path.read_text()
+
+          signature_old = 'interactiveEditor = false, onArtworkDragStart = null, zoom,'
+          signature_new = 'interactiveEditor = false, preferEditablePhotoLayers = false, onArtworkDragStart = null, zoom,'
+          if signature_old in studio:
+              studio = studio.replace(signature_old, signature_new, 1)
+          elif signature_new not in studio:
+              raise SystemExit('StudioPreview signature anchor not found')
+
+          drag_old = 'const canDrag = Boolean(photo && !hasEditablePhotoLayers && !blankArtwork && setArtworkOffset);'
+          drag_new = 'const canDrag = Boolean(photo && !hasEditablePhotoLayers && !preferEditablePhotoLayers && !blankArtwork && setArtworkOffset);'
+          if drag_old in studio:
+              studio = studio.replace(drag_old, drag_new, 1)
+          elif drag_new not in studio:
+              raise SystemExit('Legacy drag guard anchor not found')
+
+          fallback_old = 'photo && !hasEditablePhotoLayers ? ('
+          fallback_new = 'photo && !hasEditablePhotoLayers && !preferEditablePhotoLayers ? ('
+          if fallback_old in studio:
+              studio = studio.replace(fallback_old, fallback_new)
+          if studio.count(fallback_new) < 2:
+              raise SystemExit('Expected both legacy fallback branches to be guarded')
+
+          delete_old = 'setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));\n    setSelectedEditorLayerId("photo");'
+          delete_new = 'setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));\n    setSelectedEditorLayerId("");'
+          if delete_old in studio:
+              studio = studio.replace(delete_old, delete_new, 1)
+          elif delete_new not in studio:
+              raise SystemExit('deleteEditorLayer selection anchor not found')
+
+          prop = 'preferEditablePhotoLayers={designPath === "bootleg" || designPath === "memorial"}'
+          tag_pattern = re.compile(r'<StudioPreview\b(?:(?!/>).)*?/>', re.S)
+          tags = list(tag_pattern.finditer(studio))
+          if len(tags) < 3:
+              raise SystemExit(f'Expected at least 3 StudioPreview usages, found {len(tags)}')
+
+          def inject_prop(match):
+              tag = match.group(0)
+              if prop in tag:
+                  return tag
+              return tag[:-2].rstrip() + ' ' + prop + ' />'
+
+          studio = tag_pattern.sub(inject_prop, studio)
+          if studio.count(prop) < 3:
+              raise SystemExit('Failed to wire editable-photo-only behavior to every StudioPreview')
+
+          keyboard_old = 'onDeleteLayer?.(selectedLayer.id);\n      onSelectLayer?.("photo");'
+          keyboard_new = 'onDeleteLayer?.(selectedLayer.id);\n      onSelectLayer?.("");'
+          if keyboard_old in editor:
+              editor = editor.replace(keyboard_old, keyboard_new, 1)
+          elif keyboard_new not in editor:
+              raise SystemExit('Keyboard delete selection anchor not found')
+
+          studio_path.write_text(studio)
+          editor_path.write_text(editor)
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run focused regression test after fix
+        run: |
+          node scripts/verify-photo-delete-key-regression.mjs
+          node scripts/verify-photo-bootleg-desktop.mjs
+
+      - name: Build application
+        run: npm run build
+
+      - name: Commit verified fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CustomStudio.jsx src/components/storefront/CustomStudioAdvancedEditor.jsx scripts/verify-photo-delete-key-regression.mjs
+          git commit -m "fix: delete selected Photo Bootleg layer from keyboard"
+          git push origin HEAD:fix/photo-bootleg-delete-key
