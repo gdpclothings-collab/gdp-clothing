@@ -1135,7 +1135,7 @@ export default function CustomStudio() {
       setPlacement((current) => current === "front_back" ? "front" : current);
     }
     setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));
-    setSelectedEditorLayerId("photo");
+    setSelectedEditorLayerId("");
   };
   const moveEditorLayer = (layerId, direction) => {
     const index = editorLayers.findIndex((layer) => layer.id === layerId);
@@ -2744,8 +2744,7 @@ export default function CustomStudio() {
                 size={size}
                 previewConfig={config.preview || {}}
                 styleTemplate={activePreviewTemplate}
-                mood={designMood}
-              />
+                mood={designMood} preferEditablePhotoLayers={designPath === "bootleg" || designPath === "memorial"} />
 
               <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
                 {step === 3 && <AdvancedEditorPanel
@@ -2964,8 +2963,7 @@ export default function CustomStudio() {
               size={size}
               previewConfig={config.preview || {}}
               styleTemplate={styleTemplateForSide(side)}
-              mood={designMood}
-            />;
+              mood={designMood} preferEditablePhotoLayers={designPath === "bootleg" || designPath === "memorial"} />;
           })}
         </div>
 
@@ -2990,7 +2988,7 @@ export default function CustomStudio() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} photoAssets={photos} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activePreviewTemplate} mood={designMood} fullscreen />
+              <StudioPreview garment={garment} color={previewColor} side={previewSide} placement={placement} photo={previewArtworkPhoto} uploading={uploading} personalization={personalization} editorLayers={editorLayers} stickerLibrary={stickerLibrary} photoAssets={photos} selectedEditorLayerId={selectedEditorLayerId} onSelectEditorLayer={setSelectedEditorLayerId} onPatchEditorLayer={patchEditorLayer} onEditorDragStart={checkpointEditor} interactiveEditor={step === 3} onArtworkDragStart={checkpointEditor} zoom={previewZoom} setZoom={setPreviewZoom} artworkScale={artworkScale} artworkStretchX={artworkStretchX} artworkStretchY={artworkStretchY} artworkRotation={artworkRotation} artworkOffset={artworkOffset} setArtworkOffset={setArtworkOffset} artworkFitMode={artworkFitMode} showGuides={showGuides} showMeasurements={showMeasurements} size={size} previewConfig={config.preview || {}} styleTemplate={activePreviewTemplate} mood={designMood} fullscreen preferEditablePhotoLayers={designPath === "bootleg" || designPath === "memorial"} />
             </div>
           </div>
         </div>}
@@ -3030,7 +3028,7 @@ function clampPreview(value) {
   return Math.min(2, Math.max(0.7, Number(Number(value).toFixed(2))));
 }
 
-export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, fillCanvas = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
+export function StudioPreview({ garment, color, side, placement, photo, uploading = false, personalization, editorLayers = [], stickerLibrary = [], photoAssets = [], selectedEditorLayerId = "", onSelectEditorLayer = null, onPatchEditorLayer = null, onEditorDragStart = null, interactiveEditor = false, preferEditablePhotoLayers = false, onArtworkDragStart = null, zoom, setZoom = null, artworkScale, artworkStretchX = 100, artworkStretchY = 100, artworkRotation, artworkOffset, setArtworkOffset = null, artworkFitMode = "crop", showGuides, showMeasurements, size, previewConfig = {}, styleTemplate, mood = "", fullscreen = false, fillCanvas = false, seasonalOverlay = null, containerId = "", printAreaId = "" }) {
   const dragRef = useRef(null);
   const viewPanRef = useRef(null);
   const [viewPan, setViewPan] = useState({ x: 0, y: 0 });
@@ -3049,7 +3047,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
   // Protected-template photos are independent editable layers. The legacy artwork drag
   // remains only for Upload My Own Artwork and older saved designs.
   const hasEditablePhotoLayers = editorLayers.some((layer) => layer?.type === "photo" && layer?.visible !== false);
-  const canDrag = Boolean(photo && !hasEditablePhotoLayers && !blankArtwork && setArtworkOffset);
+  const canDrag = Boolean(photo && !hasEditablePhotoLayers && !preferEditablePhotoLayers && !blankArtwork && setArtworkOffset);
   const previewSettings = /** @type {any} */ (previewConfig || {});
   const colorPreview = previewSettings?.colorMockups?.[color] || {};
   const frontMockupUrl =
@@ -3290,7 +3288,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
           {seasonalOverlay || (blankArtwork ? (
             <div className="absolute inset-0 grid place-items-center text-center px-2 text-[8px] uppercase tracking-wide text-[#8b847a]">No {side} print selected</div>
           ) : !styleTemplate ? (
-            photo && !hasEditablePhotoLayers ? (
+            photo && !hasEditablePhotoLayers && !preferEditablePhotoLayers ? (
               artworkFitMode === "crop" ? (
                 <div className="absolute h-full w-full pointer-events-none" style={artworkLayerStyle}>
                   <img src={photo.url} alt="Customer print artwork" draggable="false" className="h-full w-full object-cover pointer-events-none" style={{ filter: moodTreatment.photoFilter }} />
@@ -3312,7 +3310,7 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                 />
               )}
 
-              {photo && !hasEditablePhotoLayers ? (
+              {photo && !hasEditablePhotoLayers && !preferEditablePhotoLayers ? (
                 artworkFitMode === "crop" ? (
                   <div className="absolute inset-0 z-20 pointer-events-none" style={artworkLayerStyle}>
                     <img
