@@ -22,45 +22,71 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - name: Fix temporary patch runner quoting
+      - name: Apply review fixes
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("scripts/apply-production-hardening.mjs")
-          s = p.read_text()
+
+          checkout = Path("supabase/functions/checkout/index.ts")
+          s = checkout.read_text()
           s = s.replace(
-              '    `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(order.stripe_checkout_session_id)}`,',
-              '    "https://api.stripe.com/v1/checkout/sessions/" + encodeURIComponent(order.stripe_checkout_session_id),'
+              "      await releaseCheckoutSessionClaim(service, checkoutSessionToken);\n      await releaseCheckoutSessionClaim(service, checkoutSessionToken);",
+              "      await releaseCheckoutSessionClaim(service, checkoutSessionToken);"
           )
           s = s.replace(
-              '        Authorization: `Bearer ${stripeSecret}`,',
-              '        Authorization: "Bearer " + stripeSecret,'
+              '    if (action === "trackCheckout") {\n      const user = await optionalUser(req, supabaseUrl, anonKey);\n      const incomingToken = String(body?.sessionToken || "").trim();',
+              '    if (action === "trackCheckout") {\n      const user = await optionalUser(req, supabaseUrl, anonKey);\n      const trackRateKey = await sha256Hex(`checkout:track:ip:${clientIp(req)}`);\n      const trackRate = await consumePublicRateLimit(service, trackRateKey, 300, 3600);\n      if (!trackRate.allowed) {\n        const retryAfter = Math.max(1, Number(trackRate.retry_after || 60));\n        return respond(\n          req,\n          { error: true, retryable: true, rateLimited: true, message: "Checkout tracking is temporarily rate limited. Please try again shortly." },\n          429,\n          { "Retry-After": String(retryAfter) },\n        );\n      }\n      const incomingToken = String(body?.sessionToken || "").trim();'
           )
-          p.write_text(s)
+          s = s.replace(
+              '        await service.from("orders").delete().eq("id", order.id);\n      await releaseCheckoutSessionClaim(service, checkoutSessionToken);',
+              '        await service.from("orders").delete().eq("id", order.id);\n        await releaseCheckoutSessionClaim(service, checkoutSessionToken);'
+          )
+          checkout.write_text(s)
+
+          page = Path("src/pages/Checkout.jsx")
+          p = page.read_text()
+          old = '''      setPlacing(true);\n      try {\n        const data = await customerApi.createOrder(\n          items,\n          checkoutForm,\n          checkoutForm.discountCode,\n          window.location.origin,\n          checkoutSessionToken\n        );'''
+          new = '''      setPlacing(true);\n      try {\n        let orderSessionToken = checkoutSessionToken || crypto.randomUUID();\n        const trackedCheckout = await customerApi.trackCheckout(\n          items,\n          checkoutForm,\n          {\n            subtotal,\n            discount: discountAmt + couponAmt,\n            shipping,\n            tax,\n            total,\n          },\n          orderSessionToken\n        );\n        if (trackedCheckout?.sessionToken) {\n          orderSessionToken = trackedCheckout.sessionToken;\n          setCheckoutSessionToken(orderSessionToken);\n          try {\n            window.localStorage.setItem(checkoutStorageKey, orderSessionToken);\n          } catch {\n            // Checkout can continue for this page without local storage.\n          }\n        }\n\n        const data = await customerApi.createOrder(\n          items,\n          checkoutForm,\n          checkoutForm.discountCode,\n          window.location.origin,\n          orderSessionToken\n        );'''
+          if old not in p:
+              raise SystemExit("Checkout synchronous tracking patch target not found")
+          p = p.replace(old, new, 1)
+          page.write_text(p)
           PY
-      - name: Apply hardening patch
-        run: node scripts/apply-production-hardening.mjs
-      - name: Normalize Stripe idempotency placement
+      - name: Add hardening verification
         run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'supabase/functions/checkout/index.ts';
-          let s = fs.readFileSync(path, 'utf8');
-          const line = '        "Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`,\n';
-          s = s.split(line).join('');
-          const startNeedle = 'const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {';
-          const start = s.indexOf(startNeedle);
-          if (start < 0) throw new Error('Stripe Checkout session POST not found');
-          const versionNeedle = '"Stripe-Version": "2026-08-26.dahlia",';
-          const pos = s.indexOf(versionNeedle, start);
-          if (pos < 0) throw new Error('Stripe version header not found');
-          const insertAt = pos + versionNeedle.length;
-          s = s.slice(0, insertAt) + '\n' + line.trimEnd() + s.slice(insertAt);
-          fs.writeFileSync(path, s);
-          NODE
+          cat > scripts/verify-production-hardening.mjs <<'EOF'
+          import fs from "node:fs";
+          function text(path) { return fs.readFileSync(path, "utf8"); }
+          function requireText(source, needle, label) {
+            if (!source.includes(needle)) throw new Error(`Missing hardening control: ${label}`);
+          }
+          const checkout = text("supabase/functions/checkout/index.ts");
+          const webhook = text("supabase/functions/stripe-webhook/index.ts");
+          const maintenance = text("supabase/functions/maintenance-access/index.ts");
+          const page = text("src/pages/Checkout.jsx");
+          const headers = text("public/_headers");
+          requireText(checkout, 'consumePublicRateLimit(service, ipRateKey, 20, 600)', 'create-order IP rate limit');
+          requireText(checkout, 'consumePublicRateLimit(service, emailRateKey, 8, 600)', 'create-order email rate limit');
+          requireText(checkout, 'consumePublicRateLimit(service, trackRateKey, 300, 3600)', 'checkout tracking rate limit');
+          requireText(checkout, 'service.rpc(\n      "claim_checkout_session"', 'atomic checkout claim');
+          requireText(checkout, '"Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`', 'Stripe idempotency key');
+          if ((checkout.match(/releaseCheckoutSessionClaim\(service, checkoutSessionToken\);\n\s*await releaseCheckoutSessionClaim/g) || []).length) {
+            throw new Error('Duplicate checkout claim release detected');
+          }
+          requireText(webhook, 'event.type === "checkout.session.expired"', 'expired checkout cleanup');
+          requireText(webhook, 'event.type === "checkout.session.async_payment_failed"', 'async payment failure cleanup');
+          const failedBlock = webhook.split('event.type === "payment_intent.payment_failed"')[1]?.split('event.type === "charge.refunded"')[0] || '';
+          if (failedBlock.includes('releaseCheckoutReservations')) throw new Error('Retryable payment failure still releases reservations');
+          requireText(maintenance, 'p_limit: 10', 'maintenance password attempt limit');
+          requireText(page, 'const trackedCheckout = await customerApi.trackCheckout(', 'synchronous checkout tracking');
+          requireText(headers, 'https://fonts.googleapis.com', 'Google Fonts CSP');
+          requireText(headers, 'https://static.cloudflareinsights.com', 'Cloudflare Insights CSP');
+          console.log('Production hardening controls verified.');
+          EOF
       - name: Install dependencies and verify
         run: |
           npm install --no-audit --no-fund
+          node scripts/verify-production-hardening.mjs
           npm run typecheck
           npm run lint
           npm run test:dtf-nesting
@@ -70,14 +96,11 @@ jobs:
           node scripts/verify-seasonal-artwork.mjs
           node scripts/verify-photo-bootleg-desktop.mjs
           npm run build
-      - name: Commit hardening branch
+      - name: Commit reviewed hardening branch
         run: |
-          rm -f scripts/apply-production-hardening.mjs
-          rm -f .github/workflows/apply-production-hardening.yml
-          rm -f .github/workflows/apply-production-hardening-v2.yml
           git config user.name "gdpclothings-collab"
           git config user.email "gdpclothings@gmail.com"
           git add -A
           git diff --cached --check
-          git commit -m "Harden production checkout and security flow"
+          git commit -m "Validate production checkout hardening"
           git push origin HEAD:hardening/production-flow-2026-09-12
