@@ -67,7 +67,7 @@ advanced = mustReplaceAll(
   advanced,
   'outline: selected ? "1px solid rgba(255,255,255,.95)" : "none", outlineOffset: selected ? "4px" : "0"',
   'outline: selected ? "2px solid rgba(217,39,62,.98)" : "none", outlineOffset: selected ? "5px" : "0", boxShadow: selected ? "0 0 0 5px rgba(217,39,62,.12), 0 10px 28px rgba(7,19,31,.26)" : "none"',
-  3,
+  2,
   "selected layer canvas emphasis"
 );
 
