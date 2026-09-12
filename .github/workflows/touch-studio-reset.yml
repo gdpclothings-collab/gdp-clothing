@@ -44,9 +44,8 @@ jobs:
 
       - name: Remove temporary implementation files
         run: |
-          rm scripts/apply-touch-studio-reset.mjs
-          rm scripts/apply-touch-studio-reset.py
-          rm .github/workflows/touch-studio-reset.yml
+          rm -f scripts/apply-touch-studio-reset.py
+          rm -f .github/workflows/touch-studio-reset.yml
 
       - name: Commit implementation
         run: |
