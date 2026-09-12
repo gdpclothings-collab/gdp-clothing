@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock, Trash2 } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import {
   AdvancedEditorPanel,
@@ -1130,7 +1130,8 @@ export default function CustomStudio() {
   const deleteEditorLayer = (layerId) => {
     if (!editorLayers.some((layer) => layer.id === layerId)) return;
     checkpointEditor();
-    if (previewSide === "back" && editorLayers.length === 1) {
+    const backHasLockedTemplate = previewSide === "back" && Boolean(styleTemplateForSide("back"));
+    if (previewSide === "back" && editorLayers.length === 1 && !backHasLockedTemplate) {
       setPlacement((current) => current === "front_back" ? "front" : current);
     }
     setEditorLayers((current) => current.filter((layer) => layer.id !== layerId));
@@ -2672,13 +2673,29 @@ export default function CustomStudio() {
               />
             </div>
 
-            <div className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
-              <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#FFFFFF]">
+            <div data-gdp-design-path={designPath || "none"} className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
+              <div className="gdp-bootleg-preview-toolbar flex flex-col gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#FFFFFF] lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.18em] text-accent">Live garment preview</div>
-                  <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || "Choose a garment"}</div>
+                  <div className="text-sm font-semibold mt-0.5 text-[#25231f]">{product?.name || "Choose a garment"}{product ? ` · ${previewColor} · ${size || "Choose size"} · ${previewSide === "back" ? "Back" : "Front"}` : ""}</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  {designPath === "bootleg" && <>
+                    <div className="inline-flex min-h-10 items-center rounded-xl border border-[#DCE3EA] bg-[#F7F9FB] p-1" aria-label="Fabric side controls">
+                      <button type="button" onClick={() => setPreviewSide("front")} className={"h-8 rounded-lg px-3 text-[10px] font-bold uppercase transition " + (previewSide === "front" ? "bg-[#17324D] text-white" : "text-[#607080] hover:bg-white hover:text-[#17324D]")}>Front</button>
+                      <button type="button" disabled={!frontBackEnabled} onClick={() => setPreviewSide("back")} className={"h-8 rounded-lg px-3 text-[10px] font-bold uppercase transition disabled:opacity-35 " + (previewSide === "back" ? "bg-[#17324D] text-white" : "text-[#607080] hover:bg-white hover:text-[#17324D]")}>Back</button>
+                    </div>
+                    <div className="inline-flex min-h-10 items-center rounded-xl border border-[#DCE3EA] bg-[#F7F9FB] p-1" aria-label="Garment view size controls">
+                      <button type="button" onClick={() => setPreviewZoom((value) => clampPreview(value - .1))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] transition hover:bg-white hover:text-[#17324D]" aria-label="Make garment view smaller"><ZoomOut size={14}/></button>
+                      <span className="w-11 text-center font-mono text-[10px] font-bold tabular-nums text-[#52616F]">{Math.round(previewZoom * 100)}%</span>
+                      <button type="button" onClick={() => setPreviewZoom((value) => clampPreview(value + .1))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] transition hover:bg-white hover:text-[#17324D]" aria-label="Make garment view larger"><ZoomIn size={14}/></button>
+                      <button type="button" onClick={() => setPreviewZoom(1)} className="ml-1 h-8 rounded-lg border-l border-[#DCE3EA] px-2 text-[9px] font-bold uppercase tracking-wide text-[#607080] hover:bg-white hover:text-[#17324D]">Fit</button>
+                      <button type="button" onClick={() => setPreviewZoom(1.18)} className="h-8 rounded-lg px-2 text-[9px] font-bold uppercase tracking-wide text-[#607080] hover:bg-white hover:text-[#17324D]">Default</button>
+                    </div>
+                    <button type="button" aria-pressed={showGuides} onClick={() => setShowGuides((value) => !value)} className={"inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold " + (showGuides ? "border-[#17324D] bg-[#17324D] text-white" : "border-[#DCE3EA] bg-white text-[#607080]")}><Maximize2 size={14}/> Print area {showGuides ? "on" : "off"}</button>
+                    <button type="button" aria-pressed={showMeasurements} onClick={() => setShowMeasurements((value) => !value)} className={"inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold " + (showMeasurements ? "border-[#A66331] bg-[#A66331] text-white" : "border-[#DCE3EA] bg-white text-[#607080]")}><Ruler size={14}/> Measurements {showMeasurements ? "on" : "off"}</button>
+                    {selectedPhotoLayer && <button type="button" onClick={() => deleteEditorLayer(selectedPhotoLayer.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/[.06] px-3 py-2 text-[11px] font-bold text-[#B91C31] transition hover:bg-[#D9273E]/10" aria-label={`Remove selected photo from ${previewSide} fabric`}><Trash2 size={14}/> Remove photo</button>}
+                  </>}
                   {draftReady && product?.id && <span className={"inline-flex rounded-full border px-2 py-1 font-mono text-[7px] uppercase tracking-wide sm:px-2.5 sm:text-[8px] " + (draftStatus === "error" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-[#D5DDE4] bg-[#F8FAFC] text-[#61707D]")} role="status">
                     {draftStatus === "saving" ? "Saving…" : draftStatus === "error" ? "Autosave issue" : draftRestored ? "Draft restored · Saved ✓" : "Saved ✓"}
                   </span>}

@@ -349,3 +349,62 @@
     max-width: min(100%, 760px) !important;
   }
 }
+
+
+/* Photo Bootleg desktop parity · 2026-09-11 */
+@media (min-width: 1024px) {
+  /* Seasonal-style preview controls replace the redundant floating canvas dock for Bootleg only. */
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-canvas-control-dock {
+    display: none !important;
+  }
+
+  /* The fillCanvas React mode was previously being overridden by the generic 82% desktop rule. */
+  .gdp-studio-active [data-gdp-design-path="bootleg"] [data-gdp-studio-preview="live"] > div.absolute.inset-0.grid > div.relative {
+    height: 103% !important;
+    width: auto !important;
+    max-width: 104% !important;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] > [data-gdp-studio-preview="live"] {
+    height: min(780px, calc(100dvh - 185px)) !important;
+    min-height: 620px;
+  }
+
+  /* Give the garment more room and make the inspector a lighter secondary rail. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) {
+    grid-template-columns: minmax(660px, 1fr) minmax(340px, 380px);
+    column-gap: 18px;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel {
+    max-height: min(780px, calc(100dvh - 185px));
+    border-radius: 18px;
+  }
+
+  /* Raise tiny inspector typography without changing Memorial/Upload editor sizing. */
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel [class*="text-[8px]"] {
+    font-size: 10px !important;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel [class*="text-[9px]"] {
+    font-size: 11px !important;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel [class*="text-[10px]"] {
+    font-size: 12px !important;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] #gdp-touch-studio-panel [class~="text-xs"] {
+    font-size: 13px !important;
+  }
+
+  .gdp-studio-active [data-gdp-design-path="bootleg"] .gdp-bootleg-preview-toolbar {
+    min-height: 68px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside:has([data-gdp-design-path="bootleg"]) {
+    grid-template-columns: minmax(720px, 1fr) minmax(350px, 380px);
+  }
+}
