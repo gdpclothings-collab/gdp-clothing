@@ -205,7 +205,11 @@ export async function scanLegacyProductImages() {
   };
 }
 
-export async function optimizeLegacyProductImages({ onProgress } = {}) {
+/**
+ * @param {{ onProgress?: (progress: any) => void }} [options]
+ */
+export async function optimizeLegacyProductImages(options = {}) {
+  const { onProgress } = options;
   const scan = await scanLegacyProductImages();
   let processed = 0;
   let optimized = 0;
@@ -341,7 +345,11 @@ export async function optimizeLegacyProductImages({ onProgress } = {}) {
   return result;
 }
 
-export async function restoreOriginalProductImages({ onProgress } = {}) {
+/**
+ * @param {{ onProgress?: (progress: any) => void }} [options]
+ */
+export async function restoreOriginalProductImages(options = {}) {
+  const { onProgress } = options;
   const { data: backups, error } = await supabase
     .from("product_image_optimization_backup")
     .select("id, product_id, image_index, original_url, optimized_url, status")
