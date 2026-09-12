@@ -39,6 +39,7 @@ jobs:
           node --check scripts/production-wiring-smoke.mjs
           node --check scripts/assert-safe-staging-target.mjs
           node --check scripts/verify-seasonal-artwork.mjs
+          node --check scripts/verify-photo-bootleg-desktop.mjs
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -57,6 +58,9 @@ jobs:
 
       - name: Verify Seasonal Studio workflow
         run: node scripts/verify-seasonal-artwork.mjs
+
+      - name: Verify Photo Bootleg workspace
+        run: node scripts/verify-photo-bootleg-desktop.mjs
 
       - name: Build production app
         run: npm run build
