@@ -22,6 +22,22 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "22"
+      - name: Fix temporary patch runner quoting
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/apply-production-hardening.mjs")
+          s = p.read_text()
+          s = s.replace(
+              '    `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(order.stripe_checkout_session_id)}`,',
+              '    "https://api.stripe.com/v1/checkout/sessions/" + encodeURIComponent(order.stripe_checkout_session_id),'
+          )
+          s = s.replace(
+              '        Authorization: `Bearer ${stripeSecret}`,',
+              '        Authorization: "Bearer " + stripeSecret,'
+          )
+          p.write_text(s)
+          PY
       - name: Apply hardening patch
         run: node scripts/apply-production-hardening.mjs
       - name: Normalize Stripe idempotency placement
