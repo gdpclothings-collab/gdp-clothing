@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
+import MaintenanceAccessPasswordControl from "@/components/admin/MaintenanceAccessPasswordControl";
 import {
   DEFAULT_MAINTENANCE_SETTINGS,
   maintenanceSettingsApi,
@@ -223,6 +224,8 @@ export default function MaintenanceModeControl() {
             />
           </Field>
 
+          <MaintenanceAccessPasswordControl />
+
           <div className="grid gap-4 md:grid-cols-2">
             <OptionCard
               icon={Clock3}
@@ -289,6 +292,7 @@ export default function MaintenanceModeControl() {
             <div className="mt-3 space-y-2 text-xs leading-5 text-[#555]">
               <div className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> Keep maintenance OFF during normal selling.</div>
               <div className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> Preview before enabling.</div>
+              <div className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> Use the access password only for people you intentionally allow through.</div>
               <div className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> Add an ETA only when you are confident about it.</div>
             </div>
           </div>
