@@ -16,6 +16,12 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminMfaGate from '@/components/AdminMfaGate';
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
+
+const loadAdminPage = async (loader) => {
+  await import('@/lib/installAdminProductMediaOptimization');
+  return loader();
+};
+
 const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
@@ -24,8 +30,8 @@ const Cart = lazy(() => import('@/pages/Cart'));
 const Checkout = lazy(() => import('@/pages/Checkout'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
 const Account = lazy(() => import('@/pages/Account'));
-const Admin = lazy(() => import('@/pages/Admin'));
-const AdminV2 = lazy(() => import('@/pages/AdminV2'));
+const Admin = lazy(() => loadAdminPage(() => import('@/pages/Admin')));
+const AdminV2 = lazy(() => loadAdminPage(() => import('@/pages/AdminV2')));
 const TemplateManager = lazy(() => import('@/pages/TemplateManager'));
 const FAQ = lazy(() => import('@/pages/FAQ'));
 const ContentPage = lazy(() => import('@/pages/ContentPage'));
