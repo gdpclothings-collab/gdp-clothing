@@ -32,6 +32,7 @@ const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
 const Account = lazy(() => import('@/pages/Account'));
 const Admin = lazy(() => loadAdminPage(() => import('@/pages/Admin')));
 const AdminV2 = lazy(() => loadAdminPage(() => import('@/pages/AdminV2')));
+const AdminMediaOptimizer = lazy(() => loadAdminPage(() => import('@/pages/AdminMediaOptimizer')));
 const TemplateManager = lazy(() => import('@/pages/TemplateManager'));
 const FAQ = lazy(() => import('@/pages/FAQ'));
 const ContentPage = lazy(() => import('@/pages/ContentPage'));
@@ -105,6 +106,7 @@ const AuthenticatedApp = () => {
             <Route element={<AdminMfaGate />}>
               <Route path="/admin/legacy" element={<Admin />} />
               <Route path="/admin/custom-studio/templates" element={<TemplateManager />} />
+              <Route path="/admin/media-optimizer" element={<AdminMediaOptimizer />} />
               <Route path="/admin/*" element={<AdminV2 />} />
             </Route>
           </Route>

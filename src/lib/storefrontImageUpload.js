@@ -4,8 +4,11 @@ const OPTIMIZABLE_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 
-export const STOREFRONT_IMAGE_MAX_DIMENSION = 1600;
-export const STOREFRONT_IMAGE_QUALITY = 0.84;
+// 1400px keeps product-detail media crisp on high-density displays while
+// avoiding multi-megabyte storefront assets. Product cards render much smaller
+// than this, so one 1400px source remains a good quality/bandwidth compromise.
+export const STOREFRONT_IMAGE_MAX_DIMENSION = 1400;
+export const STOREFRONT_IMAGE_QUALITY = 0.82;
 export const STOREFRONT_IMAGE_CACHE_SECONDS = "31536000";
 
 function webpName(filename = "product-image") {
@@ -86,12 +89,14 @@ export async function optimizeStorefrontImageUpload(
   let decoded;
   try {
     decoded = await decodeImage(file);
-    const largestSide = Math.max(decoded.width || 0, decoded.height || 0);
+    const originalWidth = decoded.width || 0;
+    const originalHeight = decoded.height || 0;
+    const largestSide = Math.max(originalWidth, originalHeight);
     if (!largestSide) return { file, optimized: false };
 
     const scale = Math.min(1, Number(maxDimension) / largestSide);
-    const width = Math.max(1, Math.round(decoded.width * scale));
-    const height = Math.max(1, Math.round(decoded.height * scale));
+    const width = Math.max(1, Math.round(originalWidth * scale));
+    const height = Math.max(1, Math.round(originalHeight * scale));
 
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -109,7 +114,15 @@ export async function optimizeStorefrontImageUpload(
 
     // Avoid replacing an already-efficient source with a larger encoded copy.
     if (blob.size >= file.size * 0.95) {
-      return { file, optimized: false };
+      return {
+        file,
+        optimized: false,
+        originalBytes: file.size,
+        originalWidth,
+        originalHeight,
+        width,
+        height,
+      };
     }
 
     const optimizedFile = new File([blob], webpName(file.name), {
@@ -122,6 +135,8 @@ export async function optimizeStorefrontImageUpload(
       optimized: true,
       originalBytes: file.size,
       optimizedBytes: optimizedFile.size,
+      originalWidth,
+      originalHeight,
       width,
       height,
     };
