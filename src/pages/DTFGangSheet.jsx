@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
 import { useAuth } from "@/lib/AuthContext";
+import { useNotifications } from "@/lib/NotificationContext";
 import {
   artworkOverlaps,
   autoArrangeArtwork,
@@ -459,6 +460,7 @@ export default function DTFGangSheet() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const { addItem, replaceItem } = useCart();
+  const { confirmAction } = useNotifications();
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
   const selectedPanelRef = useRef(null);
@@ -1054,7 +1056,7 @@ export default function DTFGangSheet() {
     removeArtwork(selectedArtwork.id);
   };
 
-  const resetWorkspace = () => {
+  const resetWorkspace = async () => {
     const hasWorkspaceChanges =
       artworks.length > 0 ||
       sheetWidth !== settings.defaultWidth ||
@@ -1062,12 +1064,15 @@ export default function DTFGangSheet() {
       approval ||
       artworkReviewRequested;
 
-    if (
-      hasWorkspaceChanges &&
-      typeof window !== "undefined" &&
-      !window.confirm("Reset this DTF workspace? All uploaded artwork and layout changes will be cleared.")
-    ) {
-      return;
+    if (hasWorkspaceChanges) {
+      const confirmed = await confirmAction({
+        tone: "destructive",
+        title: "Reset DTF workspace?",
+        description: "All uploaded artwork, placement, sizing, and layout changes in this workspace will be cleared.",
+        confirmLabel: "Reset workspace",
+        cancelLabel: "Keep editing",
+      });
+      if (!confirmed) return;
     }
 
     artworks.forEach((item) => {

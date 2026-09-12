@@ -14,6 +14,7 @@ import {
 } from "@/components/storefront/CustomStudioAdvancedEditor";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
+import { useNotifications } from "@/lib/NotificationContext";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
 import {
   getMockupLayerStyle,
@@ -920,6 +921,7 @@ export default function CustomStudio() {
   const location = useLocation();
   const navigate = useNavigate();
   const { addItem } = useCart();
+  const { confirmAction } = useNotifications();
   const [step, setStep] = useState(1);
   const [seasonalMode, setSeasonalMode] = useState(false);
   const [seasonalDraft, setSeasonalDraft] = useState(null);
@@ -1472,8 +1474,17 @@ export default function CustomStudio() {
       },
     }));
   };
-  const chooseNoTemplate = () => {
-    if (activeStyleTemplate && typeof window !== "undefined" && !window.confirm("Switch to a blank design? Your uploaded photos and text will be preserved. The GDP template will be removed.")) return;
+  const chooseNoTemplate = async () => {
+    if (activeStyleTemplate) {
+      const confirmed = await confirmAction({
+        tone: "warning",
+        title: "Switch to a blank design?",
+        description: "Your uploaded photos and text will be preserved. The GDP template will be removed from this fabric.",
+        confirmLabel: "Switch to blank",
+        cancelLabel: "Keep design",
+      });
+      if (!confirmed) return;
+    }
     const side = previewSide;
     setDesignStylesBySide((current) => ({ ...current, [side]: NO_TEMPLATE_STYLE }));
     setDesignMood("Original");
@@ -1865,15 +1876,21 @@ export default function CustomStudio() {
     }
   };
 
-  const deleteActivePhoto = () => {
+  const deleteActivePhoto = async () => {
     if (selectedPhotoIndex < 0) return;
     const photo = photos[selectedPhotoIndex];
-    if (designPath === "bootleg" && photo && typeof window !== "undefined") {
+    if (designPath === "bootleg" && photo) {
       const photoId = String(photo.id || "");
       const usedSides = ["front", "back"].filter((side) => (editorLayersBySide[side] || []).some((layer) => layer.type === "photo" && String(layer.photoId || "") === photoId));
-      const usedMessage = usedSides.length ? ` It is currently placed on ${usedSides.join(" and ")}.` : "";
+      const usedMessage = usedSides.length ? `It is currently placed on ${usedSides.join(" and ")}. ` : "";
       const label = String(photo.name || "this uploaded photo");
-      const confirmed = window.confirm(`Delete "${label}" from this custom project?${usedMessage} This removes every editable instance of the photo from both fabrics. Protected GDP template artwork will stay.`);
+      const confirmed = await confirmAction({
+        tone: "destructive",
+        title: `Delete “${label}”?`,
+        description: `${usedMessage}This removes every editable instance of the photo from both fabrics. Protected GDP template artwork will stay.`,
+        confirmLabel: "Delete photo",
+        cancelLabel: "Keep photo",
+      });
       if (!confirmed) return;
     }
     removePhoto(selectedPhotoIndex);
