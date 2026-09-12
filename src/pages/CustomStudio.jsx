@@ -1867,6 +1867,15 @@ export default function CustomStudio() {
 
   const deleteActivePhoto = () => {
     if (selectedPhotoIndex < 0) return;
+    const photo = photos[selectedPhotoIndex];
+    if (designPath === "bootleg" && photo && typeof window !== "undefined") {
+      const photoId = String(photo.id || "");
+      const usedSides = ["front", "back"].filter((side) => (editorLayersBySide[side] || []).some((layer) => layer.type === "photo" && String(layer.photoId || "") === photoId));
+      const usedMessage = usedSides.length ? ` It is currently placed on ${usedSides.join(" and ")}.` : "";
+      const label = String(photo.name || "this uploaded photo");
+      const confirmed = window.confirm(`Delete "${label}" from this custom project?${usedMessage} This removes every editable instance of the photo from both fabrics. Protected GDP template artwork will stay.`);
+      if (!confirmed) return;
+    }
     removePhoto(selectedPhotoIndex);
   };
 
