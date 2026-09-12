@@ -46,6 +46,9 @@ function stableFilter(filter = {}) {
 }
 
 async function fetchProducts(filter) {
+  // Filters use runtime field names, so keeping the builder shallow avoids
+  // exploding Supabase's recursive generic types while preserving runtime safety.
+  /** @type {any} */
   let query = supabase
     .from("products")
     .select(STOREFRONT_PRODUCT_FIELDS)
