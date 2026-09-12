@@ -22,67 +22,62 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - name: Apply review fixes
+      - name: Refine persisted checkout replay state
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           checkout = Path("supabase/functions/checkout/index.ts")
           s = checkout.read_text()
+          start = s.index("async function resumeConvertedCheckout(")
+          end = s.index("function reservationErrorMessage", start)
+          replacement = '''async function resumeConvertedCheckout(\n  service: any,\n  sessionToken: string,\n  orderId: string,\n) {\n  const [{ data: order, error: orderError }, { data: tracked, error: trackedError }] = await Promise.all([\n    service\n      .from("orders")\n      .select("id,order_number,confirmation_token,payment_mode,payment_status,subtotal,discount,shipping,tax,total,shipping_address")\n      .eq("id", orderId)\n      .maybeSingle(),\n    service\n      .from("checkout_sessions")\n      .select("stripe_client_secret,stripe_checkout_session_id")\n      .eq("session_token", sessionToken)\n      .eq("converted_order_id", orderId)\n      .maybeSingle(),\n  ]);\n\n  if (orderError) throw orderError;\n  if (trackedError) throw trackedError;\n  if (!order) {\n    return { status: 409, body: { error: true, retryable: true, message: "The previous checkout could not be found. Please try again." } };\n  }\n\n  if (order.payment_status === "paid") {\n    return {\n      status: 200,\n      body: {\n        paid: true,\n        orderNumber: order.order_number,\n        confirmationToken: order.confirmation_token,\n      },\n    };\n  }\n\n  const paymentMode = order.payment_mode === "test" ? "test" : "live";\n  const stripePublishableKey = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_PUBLISHABLE_KEY" : "STRIPE_PUBLISHABLE_KEY");\n  if (!stripePublishableKey || !tracked?.stripe_client_secret) {\n    return {\n      status: 409,\n      body: { error: true, retryable: true, message: "The previous secure payment session is not ready. Please try again." },\n    };\n  }\n\n  const taxRule = await getTaxRule(service, order.shipping_address?.province);\n  return {\n    status: 200,\n    body: {\n      orderNumber: order.order_number,\n      confirmationToken: order.confirmation_token,\n      clientSecret: tracked.stripe_client_secret,\n      publishableKey: stripePublishableKey,\n      configured: true,\n      paymentMode,\n      uiMode: "custom",\n      resumed: true,\n      pricing: {\n        subtotal: Number(order.subtotal || 0),\n        discount: Number(order.discount || 0),\n        shipping: Number(order.shipping || 0),\n        tax: Number(order.tax || 0),\n        total: Number(order.total || 0),\n        taxRate: Number(taxRule?.rate || 0),\n        taxName: taxRule?.name || "Tax",\n      },\n    },\n  };\n}\n\n'''
+          s = s[:start] + replacement + s[end:]
           s = s.replace(
-              "      await releaseCheckoutSessionClaim(service, checkoutSessionToken);\n      await releaseCheckoutSessionClaim(service, checkoutSessionToken);",
-              "      await releaseCheckoutSessionClaim(service, checkoutSessionToken);"
+              '        const resumed = await resumeConvertedCheckout(service, String(checkoutClaim.converted_order_id));',
+              '        const resumed = await resumeConvertedCheckout(\n          service,\n          checkoutSessionToken,\n          String(checkoutClaim.converted_order_id),\n        );'
           )
-          s = s.replace(
-              '    if (action === "trackCheckout") {\n      const user = await optionalUser(req, supabaseUrl, anonKey);\n      const incomingToken = String(body?.sessionToken || "").trim();',
-              '    if (action === "trackCheckout") {\n      const user = await optionalUser(req, supabaseUrl, anonKey);\n      const trackRateKey = await sha256Hex(`checkout:track:ip:${clientIp(req)}`);\n      const trackRate = await consumePublicRateLimit(service, trackRateKey, 300, 3600);\n      if (!trackRate.allowed) {\n        const retryAfter = Math.max(1, Number(trackRate.retry_after || 60));\n        return respond(\n          req,\n          { error: true, retryable: true, rateLimited: true, message: "Checkout tracking is temporarily rate limited. Please try again shortly." },\n          429,\n          { "Retry-After": String(retryAfter) },\n        );\n      }\n      const incomingToken = String(body?.sessionToken || "").trim();'
-          )
-          s = s.replace(
-              '        await service.from("orders").delete().eq("id", order.id);\n      await releaseCheckoutSessionClaim(service, checkoutSessionToken);',
-              '        await service.from("orders").delete().eq("id", order.id);\n        await releaseCheckoutSessionClaim(service, checkoutSessionToken);'
-          )
+          old_success = '''    if (checkoutSessionToken) {\n      await service\n        .from("checkout_sessions")\n        .update({\n          status: "converted",\n          converted_order_id: order.id,\n          last_activity_at: new Date().toISOString(),\n        })\n        .eq("session_token", checkoutSessionToken);\n    }\n\n    return respond(req, {'''
+          new_success = '''    if (checkoutSessionToken) {\n      await service\n        .from("checkout_sessions")\n        .update({\n          status: "converted",\n          converted_order_id: order.id,\n          stripe_checkout_session_id: stripeData.id,\n          stripe_client_secret: stripeData.client_secret,\n          processing_started_at: null,\n          last_activity_at: new Date().toISOString(),\n        })\n        .eq("session_token", checkoutSessionToken);\n    }\n\n    return respond(req, {'''
+          if old_success not in s:
+              raise SystemExit("Checkout success persistence target not found")
+          s = s.replace(old_success, new_success, 1)
+
+          old_missing = '''    if (!stripeSecret || !stripePublishableKey) {\n      await releaseCheckoutReservations(service, order.id);\n      await service\n        .from("orders")\n        .update({\n          payment_status: "failed",\n          status: "payment_failed",\n          fulfillment_status: "unfulfilled",\n        })\n        .eq("id", order.id);\n\n      if (checkoutSessionToken) {\n        await service\n          .from("checkout_sessions")\n          .update({\n            status: "converted",\n            converted_order_id: order.id,\n            last_activity_at: new Date().toISOString(),\n          })\n          .eq("session_token", checkoutSessionToken);\n      }\n\n      return respond(req, {\n        orderNumber: order.order_number,\n        confirmationToken: order.confirmation_token,\n        configured: false,'''
+          new_missing = '''    if (!stripeSecret || !stripePublishableKey) {\n      await releaseCheckoutReservations(service, order.id);\n      await releaseGuestDesignClaims(service, order.id);\n      for (const design of uniqueDesigns as any[]) {\n        await service\n          .from("custom_designs")\n          .update({ order_id: null, status: "in_cart" })\n          .eq("id", design.id);\n      }\n      await service.from("design_proofs").delete().eq("order_id", order.id).eq("status", "pending");\n      await service.from("orders").delete().eq("id", order.id);\n      await releaseCheckoutSessionClaim(service, checkoutSessionToken);\n\n      return respond(req, {\n        configured: false,'''
+          if old_missing not in s:
+              raise SystemExit("Missing Stripe configuration rollback target not found")
+          s = s.replace(old_missing, new_missing, 1)
           checkout.write_text(s)
 
-          page = Path("src/pages/Checkout.jsx")
-          p = page.read_text()
-          old = '''      setPlacing(true);\n      try {\n        const data = await customerApi.createOrder(\n          items,\n          checkoutForm,\n          checkoutForm.discountCode,\n          window.location.origin,\n          checkoutSessionToken\n        );'''
-          new = '''      setPlacing(true);\n      try {\n        let orderSessionToken = checkoutSessionToken || crypto.randomUUID();\n        const trackedCheckout = await customerApi.trackCheckout(\n          items,\n          checkoutForm,\n          {\n            subtotal,\n            discount: discountAmt + couponAmt,\n            shipping,\n            tax,\n            total,\n          },\n          orderSessionToken\n        );\n        if (trackedCheckout?.sessionToken) {\n          orderSessionToken = trackedCheckout.sessionToken;\n          setCheckoutSessionToken(orderSessionToken);\n          try {\n            window.localStorage.setItem(checkoutStorageKey, orderSessionToken);\n          } catch {\n            // Checkout can continue for this page without local storage.\n          }\n        }\n\n        const data = await customerApi.createOrder(\n          items,\n          checkoutForm,\n          checkoutForm.discountCode,\n          window.location.origin,\n          orderSessionToken\n        );'''
-          if old not in p:
-              raise SystemExit("Checkout synchronous tracking patch target not found")
-          p = p.replace(old, new, 1)
-          page.write_text(p)
+          webhook = Path("supabase/functions/stripe-webhook/index.ts")
+          w = webhook.read_text()
+          w = w.replace(
+              '''    .update({ status: "active", converted_order_id: null, last_activity_at: now })''',
+              '''    .update({\n      status: "active",\n      converted_order_id: null,\n      stripe_checkout_session_id: null,\n      stripe_client_secret: null,\n      processing_started_at: null,\n      last_activity_at: now,\n    })'''
+          )
+          paid_anchor = '''        if (error) throw error;\n\n        if (matchedMode === "live" && productionReady && readyDesignIds.length) {'''
+          paid_replace = '''        if (error) throw error;\n\n        const { error: checkoutCleanupError } = await service\n          .from("checkout_sessions")\n          .update({ stripe_client_secret: null, processing_started_at: null, last_activity_at: new Date().toISOString() })\n          .eq("converted_order_id", orderId);\n        if (checkoutCleanupError) console.error("checkout secret cleanup failed", checkoutCleanupError);\n\n        if (matchedMode === "live" && productionReady && readyDesignIds.length) {'''
+          if paid_anchor not in w:
+              raise SystemExit("Paid checkout cleanup anchor not found")
+          w = w.replace(paid_anchor, paid_replace, 1)
+          webhook.write_text(w)
+
+          migration = Path("supabase/migrations/20260912215000_refine_checkout_claim_state.sql")
+          migration.write_text('''-- Refine checkout replay state using existing checkout_sessions hardening columns.\n\ncreate or replace function public.claim_checkout_session(p_session_token uuid)\nreturns jsonb\nlanguage plpgsql\nset search_path to 'public'\nas $$\ndeclare\n  v_session public.checkout_sessions%rowtype;\n  v_started_at timestamptz;\nbegin\n  select * into v_session\n  from public.checkout_sessions\n  where session_token = p_session_token\n  for update;\n\n  if not found then\n    return jsonb_build_object('claimed', false, 'status', 'missing');\n  end if;\n\n  if v_session.expires_at is not null and v_session.expires_at <= now() then\n    update public.checkout_sessions\n    set status = 'expired', processing_started_at = null, last_activity_at = now()\n    where id = v_session.id;\n    return jsonb_build_object('claimed', false, 'status', 'expired');\n  end if;\n\n  if v_session.status = 'converted' then\n    return jsonb_build_object(\n      'claimed', false,\n      'status', 'converted',\n      'converted_order_id', v_session.converted_order_id\n    );\n  end if;\n\n  v_started_at := coalesce(v_session.processing_started_at, v_session.last_activity_at);\n  if v_session.status = 'processing' and v_started_at > now() - interval '10 minutes' then\n    return jsonb_build_object(\n      'claimed', false,\n      'status', 'processing',\n      'converted_order_id', v_session.converted_order_id\n    );\n  end if;\n\n  if v_session.status not in ('active', 'processing') then\n    return jsonb_build_object('claimed', false, 'status', v_session.status);\n  end if;\n\n  update public.checkout_sessions\n  set status = 'processing', processing_started_at = now(), last_activity_at = now()\n  where id = v_session.id;\n\n  return jsonb_build_object(\n    'claimed', true,\n    'status', 'processing',\n    'converted_order_id', v_session.converted_order_id\n  );\nend;\n$$;\n\ncreate or replace function public.release_checkout_session_claim(p_session_token uuid)\nreturns boolean\nlanguage plpgsql\nset search_path to 'public'\nas $$\ndeclare\n  v_count integer;\nbegin\n  update public.checkout_sessions\n  set status = 'active',\n      converted_order_id = null,\n      stripe_checkout_session_id = null,\n      stripe_client_secret = null,\n      processing_started_at = null,\n      last_activity_at = now()\n  where session_token = p_session_token\n    and status = 'processing';\n\n  get diagnostics v_count = row_count;\n  return v_count > 0;\nend;\n$$;\n\nrevoke execute on function public.claim_checkout_session(uuid) from public, anon, authenticated;\nrevoke execute on function public.release_checkout_session_claim(uuid) from public, anon, authenticated;\ngrant execute on function public.claim_checkout_session(uuid) to service_role;\ngrant execute on function public.release_checkout_session_claim(uuid) to service_role;\n''')
           PY
-      - name: Add hardening verification
+      - name: Extend hardening verification
         run: |
-          cat > scripts/verify-production-hardening.mjs <<'EOF'
-          import fs from "node:fs";
-          function text(path) { return fs.readFileSync(path, "utf8"); }
-          function requireText(source, needle, label) {
-            if (!source.includes(needle)) throw new Error(`Missing hardening control: ${label}`);
-          }
-          const checkout = text("supabase/functions/checkout/index.ts");
-          const webhook = text("supabase/functions/stripe-webhook/index.ts");
-          const maintenance = text("supabase/functions/maintenance-access/index.ts");
-          const page = text("src/pages/Checkout.jsx");
-          const headers = text("public/_headers");
-          requireText(checkout, 'consumePublicRateLimit(service, ipRateKey, 20, 600)', 'create-order IP rate limit');
-          requireText(checkout, 'consumePublicRateLimit(service, emailRateKey, 8, 600)', 'create-order email rate limit');
-          requireText(checkout, 'consumePublicRateLimit(service, trackRateKey, 300, 3600)', 'checkout tracking rate limit');
-          requireText(checkout, 'service.rpc(\n      "claim_checkout_session"', 'atomic checkout claim');
-          requireText(checkout, '"Idempotency-Key": `gdp-checkout-${checkoutSessionToken}`', 'Stripe idempotency key');
-          if ((checkout.match(/releaseCheckoutSessionClaim\(service, checkoutSessionToken\);\n\s*await releaseCheckoutSessionClaim/g) || []).length) {
-            throw new Error('Duplicate checkout claim release detected');
-          }
-          requireText(webhook, 'event.type === "checkout.session.expired"', 'expired checkout cleanup');
-          requireText(webhook, 'event.type === "checkout.session.async_payment_failed"', 'async payment failure cleanup');
-          const failedBlock = webhook.split('event.type === "payment_intent.payment_failed"')[1]?.split('event.type === "charge.refunded"')[0] || '';
-          if (failedBlock.includes('releaseCheckoutReservations')) throw new Error('Retryable payment failure still releases reservations');
-          requireText(maintenance, 'p_limit: 10', 'maintenance password attempt limit');
-          requireText(page, 'const trackedCheckout = await customerApi.trackCheckout(', 'synchronous checkout tracking');
-          requireText(headers, 'https://fonts.googleapis.com', 'Google Fonts CSP');
-          requireText(headers, 'https://static.cloudflareinsights.com', 'Cloudflare Insights CSP');
-          console.log('Production hardening controls verified.');
-          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/verify-production-hardening.mjs")
+          s = p.read_text()
+          marker = "requireText(checkout, '\"Idempotency-Key\": `gdp-checkout-${checkoutSessionToken}`', 'Stripe idempotency key');"
+          addition = marker + "\nrequireText(checkout, 'stripe_client_secret: stripeData.client_secret', 'persisted Stripe client secret');\nif (checkout.includes('https://api.stripe.com/v1/checkout/sessions/\" + encodeURIComponent')) throw new Error('Replay path still re-fetches Stripe Checkout Session');\nrequireText(webhook, 'stripe_client_secret: null', 'post-payment checkout secret cleanup');"
+          if marker not in s:
+              raise SystemExit("Hardening verification insertion target not found")
+          p.write_text(s.replace(marker, addition, 1))
+          PY
       - name: Install dependencies and verify
         run: |
           npm install --no-audit --no-fund
@@ -96,11 +91,11 @@ jobs:
           node scripts/verify-seasonal-artwork.mjs
           node scripts/verify-photo-bootleg-desktop.mjs
           npm run build
-      - name: Commit reviewed hardening branch
+      - name: Commit replay hardening
         run: |
           git config user.name "gdpclothings-collab"
           git config user.email "gdpclothings@gmail.com"
           git add -A
           git diff --cached --check
-          git commit -m "Validate production checkout hardening"
+          git commit -m "Persist checkout replay state safely"
           git push origin HEAD:hardening/production-flow-2026-09-12
