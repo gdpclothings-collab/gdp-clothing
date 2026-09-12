@@ -773,7 +773,8 @@ export function AdvancedEditorPanel({
   onResetPhoto,
   onDeletePhoto,
   onTogglePhotoBackground,
-  onResetAll,
+  onResetCurrentSide,
+  onResetEntireDesign,
   hasPhoto,
   templateName,
   outsideWarning = "",
@@ -844,6 +845,7 @@ export function AdvancedEditorPanel({
   const [panelTab, setPanelTab] = useState(designPath === "upload" ? "photos" : "design");
   const [showStickers, setShowStickers] = useState(false);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
+  const [showResetMenu, setShowResetMenu] = useState(false);
   const [canvasDockHost, setCanvasDockHost] = useState(null);
 
   useEffect(() => {
@@ -941,7 +943,7 @@ export function AdvancedEditorPanel({
           {(tools.erase || tools.restore) && <button type="button" onClick={onOpenPhotoEditor} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><Eraser size={14} className="mx-auto mb-1"/>Erase / Restore</button>}
           <button type="button" onClick={onResetPhoto} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><RotateCcw size={14} className="mx-auto mb-1"/>Reset photo</button>
           {designPath !== "bootleg" && <button type="button" onClick={onDeletePhoto} className="rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/10 px-3 py-3 text-[10px] font-bold uppercase text-[#FF8898]"><Trash2 size={14} className="mx-auto mb-1"/>Delete photo</button>}
-          <button type="button" onClick={onResetAll} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><WandSparkles size={14} className="mx-auto mb-1"/>Reset layers</button>
+          <button type="button" onClick={onResetCurrentSide} className="rounded-xl border border-white/10 bg-white/[.05] px-3 py-3 text-[10px] font-bold uppercase text-white"><WandSparkles size={14} className="mx-auto mb-1"/>Reset current side</button>
         </div>
       );
     }
@@ -1269,9 +1271,24 @@ export function AdvancedEditorPanel({
         <div className="flex shrink-0 gap-1">
           <button type="button" onClick={onUndo} disabled={!canUndo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Undo"><Undo2 size={14}/></button>
           <button type="button" onClick={onRedo} disabled={!canRedo} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-white/65 disabled:opacity-25" aria-label="Redo"><Redo2 size={14}/></button>
+          <button type="button" onClick={() => setShowResetMenu((value) => !value)} className={`grid h-9 w-9 place-items-center rounded-xl border ${showResetMenu ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.045] text-white/65"}`} aria-label="Reset options" aria-expanded={showResetMenu}><RotateCcw size={14}/></button>
           {designPath !== "bootleg" && <button type="button" onClick={() => { setPanelTab("layers"); setActiveTool("layers"); }} className={`grid h-9 w-9 place-items-center rounded-xl border ${panelTab === "layers" ? "border-[#D9273E] bg-[#D9273E]/15 text-white" : "border-white/10 bg-white/[.045] text-white/65"}`} aria-label="Layers"><Layers size={14}/></button>}
         </div>
       </div>
+
+      {showResetMenu && <div className="mt-2 rounded-2xl border border-white/10 bg-[#0A1927] p-2.5 shadow-[0_16px_40px_rgba(0,0,0,.22)]">
+        <div className="px-1 pb-2">
+          <div className="font-mono text-[8px] font-bold uppercase tracking-[.16em] text-[#FF8A9A]">Reset workspace</div>
+          <div className="mt-1 text-[9px] leading-relaxed text-white/45">Choose how much to reset. Uploaded media stays reusable unless you explicitly remove it.</div>
+        </div>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <button type="button" disabled={!selectedLayer} onClick={() => { if (selectedLayer) onResetLayer?.(selectedLayer.id); setShowResetMenu(false); }} className="rounded-xl border border-white/10 bg-white/[.04] px-3 py-2.5 text-left disabled:opacity-35"><span className="block text-[9px] font-bold uppercase text-white">Reset selected item</span><span className="mt-0.5 block text-[8px] text-white/35">Restore the selected photo, text or sticker layer.</span></button>
+          <button type="button" onClick={() => { onResetCurrentSide?.(); setShowResetMenu(false); }} className="rounded-xl border border-white/10 bg-white/[.04] px-3 py-2.5 text-left"><span className="block text-[9px] font-bold uppercase text-white">Reset current {previewSide}</span><span className="mt-0.5 block text-[8px] text-white/35">Clear customer layers on this side. Keep uploads and protected template.</span></button>
+          <button type="button" onClick={() => { onResetEntireDesign?.({ removeMedia: false }); setShowResetMenu(false); }} className="rounded-xl border border-amber-300/20 bg-amber-300/[.07] px-3 py-2.5 text-left"><span className="block text-[9px] font-bold uppercase text-amber-100">Reset entire design</span><span className="mt-0.5 block text-[8px] text-amber-100/55">Clear both sides, artwork and personalization. Keep uploaded media.</span></button>
+          <button type="button" onClick={() => { onResetEntireDesign?.({ removeMedia: true }); setShowResetMenu(false); }} className="rounded-xl border border-[#D9273E]/30 bg-[#D9273E]/10 px-3 py-2.5 text-left"><span className="block text-[9px] font-bold uppercase text-[#FFB2BD]">Reset & remove media</span><span className="mt-0.5 block text-[8px] text-[#FFB2BD]/55">Start completely fresh and remove uploaded photos from this project.</span></button>
+        </div>
+        <div className="mt-2 flex items-center gap-1.5 px-1 font-mono text-[8px] uppercase tracking-[.1em] text-white/30"><Undo2 size={10}/> Reset actions can be undone once</div>
+      </div>}
 
       {designPath === "bootleg" ? <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-white/[.08] bg-white/[.035] px-3 py-2 text-[9px] text-white/55">
         <span className="font-mono uppercase tracking-[.12em] text-[#FF8A9A]">Editing {previewSide}</span>
@@ -1306,7 +1323,7 @@ export function AdvancedEditorPanel({
           {tools.text && <ToolButton icon={Type} label="Add text" onClick={() => { onAddText?.(); setPanelTab("lettering"); setShowStickers(false); setShowPhotoPicker(false); }}/>}
           {false && tools.stickers && <ToolButton icon={Sparkles} label="Sticker" onClick={() => { setPanelTab("layers"); setShowStickers((value) => !value); setShowPhotoPicker(false); }} active={showStickers}/>}
           <ToolButton icon={Layers} label="Layers" onClick={() => { setPanelTab("layers"); setActiveTool("layers"); setShowStickers(false); setShowPhotoPicker(false); }} active={panelTab === "layers"}/>
-          <ToolButton icon={RotateCcw} label="Reset all" onClick={onResetAll}/>
+          <ToolButton icon={RotateCcw} label="Reset" onClick={() => setShowResetMenu((value) => !value)} active={showResetMenu}/>
         </div>
 
         {showPhotoPicker && <div className="mt-2 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 touch-pan-x">{(photoAssets || []).map((photo, index) => {
