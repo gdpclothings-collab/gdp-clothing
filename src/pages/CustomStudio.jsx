@@ -2809,7 +2809,7 @@ export default function CustomStudio() {
           </div>}
 
           {step === 4 && <div>
-            <StepTitle eyebrow="Approve the result" title="TIMING + FINAL APPROVAL" text="The preview you approve is converted into the exact 300 DPI production file before it enters your cart." />
+            <StepTitle eyebrow="Approve the result" title="TIMING + FINAL APPROVAL" text={designPath === "seasonal" ? "Your exact 300 DPI seasonal composite is prepared below. Confirm timing, artwork rights and this exact preview before it can enter your cart." : "The preview you approve is converted into the exact 300 DPI production file before it enters your cart."} />
             <div className="grid md:grid-cols-2 gap-4">
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Need it by</label><input type="date" value={needByDate} onChange={e => setNeedByDate(e.target.value)} className="w-full border border-border bg-background px-3 py-2 mt-1"/></div>
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Priority</label><div className="flex gap-2 mt-1"><Choice active={priority === "standard"} onClick={() => setPriority("standard")}>Standard</Choice><Choice active={priority === "rush"} onClick={() => setPriority("rush")}>Rush (+{"$" + rushFee})</Choice></div></div>
@@ -2820,7 +2820,7 @@ export default function CustomStudio() {
           </div>}
 
           {step === 5 && <div>
-            <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text="Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue." />
+            <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text={designPath === "seasonal" ? "This is the prepared seasonal production composite you approved. Adding it to cart locks that exact 300 DPI file to the order." : "Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue."} />
             <div className="grid md:grid-cols-2 gap-4">
               <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={(designPath === "bootleg" || designPath === "memorial") ? "GDP template locked · customer layers editable" : ""} />
               <ReviewCard label={designPath === "seasonal" ? "Seasonal artwork" : designPath === "upload" ? "Artwork" : "Ready layout"} value={designPath === "seasonal" ? (seasonalPrepared?.seasonalSummary?.artwork || seasonalDraft?.artworkTitle || "Layered seasonal design") : (orderDesignStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designPath === "seasonal" ? `${seasonalPrepared?.seasonalSummary?.layerCount || seasonalDraft?.layers?.length || 0} print layer(s)` : orderDesignStyle ? `${designMood || "Original"} finish` : ""} />
@@ -2831,10 +2831,10 @@ export default function CustomStudio() {
                 value={placement === "front_back" ? "Front + back" : placement === "back" ? "Back only" : "Front only"}
                 sub={placement === "front_back" ? "Two independent artwork placements saved." : "One print side selected."}
               />
-              {placement !== "back" && <ReviewCard label="Front artwork" value={printSummaryForSide("front")} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
-              {placement !== "front" && <ReviewCard label="Back artwork" value={printSummaryForSide("back")} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
+              {designPath !== "seasonal" && placement !== "back" && <ReviewCard label="Front artwork" value={printSummaryForSide("front")} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
+              {designPath !== "seasonal" && placement !== "front" && <ReviewCard label="Back artwork" value={printSummaryForSide("back")} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
               {designPath !== "seasonal" && <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? `Print-quality warning · smallest upload ${Math.min(...photos.map((p) => Math.max(Number(p.width || 0), Number(p.height || 0)))) || 0}px on its longest edge. Replace low-resolution photos when possible.` : "Photo quality check complete."} />}
-              <ReviewCard label="Production result" value="Customer-approved preview" sub="Locked 300 DPI PNG is generated when added to cart." />
+              <ReviewCard label="Production result" value="Customer-approved preview" sub={designPath === "seasonal" ? "Prepared 300 DPI layered composite · locked to this approval when added to cart." : "Locked 300 DPI PNG is generated when added to cart."} />
               <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
             </div>
             {groupGarments.length > 0 && <div className="mt-4 border border-border p-4"><div className="font-bold">Additional shirts using the same design</div>{groupGarments.map((g,i) => <div key={i} className="text-sm text-muted-foreground mt-1">{g.quantity}× {g.color} · {g.size}</div>)}</div>}
@@ -2889,6 +2889,12 @@ export default function CustomStudio() {
                 </div>
               </div>
 
+              {designPath === "seasonal" && step >= 4 && seasonalPrepared?.cartItemBase?.image ? (
+                <div className="relative grid aspect-[4/5] place-items-center overflow-hidden bg-[#F3EEE6] p-4 sm:p-6" data-seasonal-approved-preview>
+                  <img src={seasonalPrepared.cartItemBase.image} alt="Exact prepared Seasonal Design garment preview" className="h-full w-full object-contain" />
+                  <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-emerald-200 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 shadow-sm">Exact prepared preview · 300 DPI composite</div>
+                </div>
+              ) : (
               <StudioPreview
                 garment={garment}
                 color={previewColor}
@@ -2922,6 +2928,7 @@ export default function CustomStudio() {
                 previewConfig={config.preview || {}}
                 styleTemplate={activePreviewTemplate}
                 mood={designMood} preferEditablePhotoLayers={designPath === "bootleg" || designPath === "memorial"} />
+              )}
 
               <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
                 {step === 3 && <AdvancedEditorPanel
