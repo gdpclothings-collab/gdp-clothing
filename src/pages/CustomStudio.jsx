@@ -2046,6 +2046,23 @@ export default function CustomStudio() {
     });
   };
 
+  const goToStudioStep = (targetStep) => {
+    const nextStep = Math.max(1, Math.min(STEPS.length, Number(targetStep || 1)));
+    if (designPath === "seasonal" && nextStep === 3 && seasonalDraft) {
+      setSeasonalPrepared(null);
+      setRightsConfirmed(false);
+      setApprovalAcknowledged(false);
+      setSeasonalMode(true);
+    } else if (nextStep !== 3) {
+      setSeasonalMode(false);
+    }
+    setStep(nextStep);
+    window.requestAnimationFrame(() => {
+      if (designPath === "seasonal" && nextStep === 3) window.scrollTo({ top: 0, behavior: "smooth" });
+      else document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   async function createAndAdd() {
     if (!rightsConfirmed || !approvalAcknowledged) return;
     if (!product?.id) {
@@ -2422,7 +2439,7 @@ export default function CustomStudio() {
               const complete = step > number;
               const active = step === number;
               return <React.Fragment key={label}>
-                <button onClick={() => number < step && setStep(number)} className={"group flex items-center gap-2 px-3 py-2 rounded-xl whitespace-nowrap transition " + (active ? "bg-[#17324D] text-white shadow-sm" : complete ? "text-accent" : "text-[#8b857d]")}>
+                <button onClick={() => number < step && goToStudioStep(number)} className={"group flex items-center gap-2 px-3 py-2 rounded-xl whitespace-nowrap transition " + (active ? "bg-[#17324D] text-white shadow-sm" : complete ? "text-accent" : "text-[#8b857d]")}>
                   <span className={"grid h-6 w-6 place-items-center rounded-full border text-[10px] font-bold " + (active ? "border-white/30" : complete ? "border-accent/30 bg-accent/[0.06]" : "border-[#d8d2c9]")}>{complete ? <Check size={12} /> : number}</span>
                   <span className="text-[11px] font-bold uppercase tracking-wide">{label}</span>
                 </button>
@@ -2456,7 +2473,7 @@ export default function CustomStudio() {
                     return <button
                       type="button"
                       key={guide.title}
-                      onClick={() => number < step && setStep(number)}
+                      onClick={() => number < step && goToStudioStep(number)}
                       className={"w-[82%] shrink-0 snap-start p-4 text-left transition md:w-auto md:shrink " + (active ? "bg-accent/[0.065]" : complete ? "bg-[#F8FAFC]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
                     >
                       <div className="flex items-center gap-2">
@@ -2489,7 +2506,7 @@ export default function CustomStudio() {
               hint={continueHint()}
               saving={saving}
               finalDisabled={!rightsConfirmed || !approvalAcknowledged}
-              onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
+              onPrevious={() => step === 1 ? navigate(-1) : goToStudioStep(step - 1)}
               onContinue={handleContinue}
               onFinal={createAndAdd}
             />
@@ -2852,7 +2869,7 @@ export default function CustomStudio() {
                 hint={continueHint()}
                 saving={saving}
                 finalDisabled={!rightsConfirmed || !approvalAcknowledged}
-                onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
+                onPrevious={() => step === 1 ? navigate(-1) : goToStudioStep(step - 1)}
                 onContinue={handleContinue}
                 onFinal={createAndAdd}
                 compact
