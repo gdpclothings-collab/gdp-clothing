@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const seasonal = fs.readFileSync('src/components/storefront/SeasonalStudioLayered.jsx', 'utf8');
+const studio = fs.readFileSync('src/pages/CustomStudio.jsx', 'utf8');
+const checkout = fs.readFileSync('src/pages/Checkout.jsx', 'utf8');
+assert.ok(seasonal.includes('onReadyForApproval'), 'Seasonal must hand off to shared approval');
+assert.ok(!seasonal.includes("navigate('/cart')"), 'Seasonal Step 3 must not navigate directly to cart');
+assert.ok(!seasonal.includes('useCart'), 'Seasonal Step 3 must not mutate cart directly');
+assert.ok(seasonal.includes('Continue to timing & approval'), 'Seasonal must expose canonical continue CTA');
+assert.ok(studio.includes('setStep(4)'), 'Seasonal handoff must enter shared Timing & Approval');
+assert.ok(studio.includes('seasonalPrepared?.designPayload'), 'Final approval must use staged Seasonal production data');
+assert.ok(studio.includes('proofStatus: "approved"'), 'Final Seasonal cart item must carry approval state');
+assert.ok(checkout.includes('Customer approved'), 'Checkout must show approved proof state');
+assert.ok(!checkout.includes('Proof skipped'), 'Customer-facing checkout must not use Proof skipped wording');
+console.log('Canonical Custom Studio approval flow verified.');

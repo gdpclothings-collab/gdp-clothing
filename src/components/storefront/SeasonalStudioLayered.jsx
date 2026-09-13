@@ -1,8 +1,8 @@
 import { requestConfirmation, requestNotification } from "@/lib/NotificationContext";
 import { ToastAction } from "@/components/ui/toast";
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
+  ArrowRight,
   Check,
   ChevronDown,
   Copy,
@@ -19,7 +19,6 @@ import {
   Ruler,
   Search,
   Shirt,
-  ShoppingBag,
   Trash2,
   Undo2,
   Unlock,
@@ -29,7 +28,6 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { customerApi } from '@/lib/customerApi';
-import { useCart } from '@/lib/CartContext';
 import { fitSeasonalArtwork, seasonalSelection } from '@/lib/seasonalArtwork';
 
 const MAX_LAYERS = 10;
@@ -194,7 +192,7 @@ export function SeasonalOverlay({
       onPointerMove={move}
       onPointerUp={stop}
       onPointerCancel={stop}
-      className={`absolute touch-none select-none ${editable ? 'cursor-move' : onSelect ? 'cursor-pointer' : 'pointer-events-none'} ${selected ? 'ring-1 ring-white shadow-[0_0_0_1px_rgba(217,39,62,.92),0_0_28px_rgba(217,39,62,.16)]' : ''}`}
+      className={`absolute touch-none select-none ${editable ? 'cursor-move' : onSelect ? 'cursor-pointer' : 'pointer-events-none'} ${selected ? 'ring-1 ring-white shadow-[0_0_0_1px_rgba(23,50,77,.92),0_0_28px_rgba(23,50,77,.16)]' : ''}`}
       style={{
         left: `${layout.x / area.width * 100}%`,
         top: `${layout.y / area.height * 100}%`,
@@ -280,6 +278,7 @@ export default function SeasonalStudio({
   initialDraft = null,
   editCartKey = '',
   onDraftChange = undefined,
+  onReadyForApproval = undefined,
 }) {
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
@@ -311,8 +310,6 @@ export default function SeasonalStudio({
   const reviewErrorRef = useRef(null);
   const saveLock = useRef(false);
   const saveRequestId = useRef('');
-  const navigate = useNavigate();
-  const { addItem, replaceItem } = useCart();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -587,6 +584,10 @@ export default function SeasonalStudio({
 
   const save = async () => {
     if (!visibleResolvedLayers.length || !approved || saving || saveLock.current) return;
+    if (typeof onReadyForApproval !== 'function') {
+      setError('Custom Studio approval flow is not ready. Please reload and try again.');
+      return;
+    }
     saveLock.current = true;
     setSaving(true);
     setError('');
@@ -606,22 +607,41 @@ export default function SeasonalStudio({
       await document.fonts?.ready;
       const { default: html2canvas } = await import('html2canvas');
       const printElement = document.getElementById('gdp-seasonal-production');
-      if (!printElement || !approvedPreviewRef.current) throw new Error('The approved seasonal preview is not ready. Please try again.');
+      if (!printElement || !approvedPreviewRef.current) throw new Error('The seasonal preview is not ready. Please try again.');
       const printRect = printElement.getBoundingClientRect();
       const previewRect = approvedPreviewRef.current.getBoundingClientRect();
       const printCanvas = await html2canvas(printElement, { backgroundColor: null, scale: Math.max(1, Number(area.width) * 300 / printRect.width), useCORS: true, logging: false, imageTimeout: 15000 });
       const mockupCanvas = await html2canvas(approvedPreviewRef.current, { backgroundColor: '#f3eee6', scale: Math.max(1, 900 / previewRect.width), useCORS: true, logging: false, imageTimeout: 15000, width: previewRect.width, height: previewRect.height, scrollX: 0, scrollY: 0 });
-      const approvedAt = new Date().toISOString();
+      const preparedAt = new Date().toISOString();
       const renderSnapshot = { version: 4, designPath: 'seasonal', layers: configurations, garment: { id: product.id, variantId: variant?.id || null, color, size } };
       const lockedHash = await digestSnapshot(renderSnapshot);
       const [productionUpload, mockupUpload] = await Promise.all([
         customerApi.uploadArtwork(new File([await canvasPng(printCanvas)], `gdp-${lockedHash.slice(0, 12)}-front-300dpi.png`, { type: 'image/png' })),
-        customerApi.uploadArtwork(new File([await canvasPng(mockupCanvas)], `gdp-${lockedHash.slice(0, 12)}-approved-mockup.png`, { type: 'image/png' })),
+        customerApi.uploadArtwork(new File([await canvasPng(mockupCanvas)], `gdp-${lockedHash.slice(0, 12)}-approval-preview.png`, { type: 'image/png' })),
       ]);
       setCapturing(false);
       const artworkTitles = configurations.map((item) => item.artworkTitle);
       const collectionNames = configurations.map((item) => item.category);
-      const design = await customerApi.createCustomDesign({
+      const seasonalSummary = {
+        artwork: artworkTitles.join(' + '),
+        artworks: artworkTitles,
+        layerCount: configurations.length,
+        collection: uniqueText(collectionNames),
+        printSide: 'Front',
+        layers: configurations.map((item) => ({
+          artworkId: item.artworkId,
+          artworkTitle: item.artworkTitle,
+          width: Number(item.width),
+          height: Number(item.height),
+          rotation: Number(item.rotation || 0),
+          position: { x: Number(item.x), y: Number(item.y) },
+          order: item.order,
+        })),
+        garment: garment.label || product.name,
+        color,
+        size,
+      };
+      const designPayload = {
         productId: product.id,
         productName: product.name,
         name: artworkTitles.length === 1 ? artworkTitles[0] : `${artworkTitles.length} Layer Seasonal Design`,
@@ -642,40 +662,14 @@ export default function SeasonalStudio({
         customerMockupPath: mockupUpload.storage_path,
         renderStatus: 'locked',
         lockedHash,
-        customerApprovedAt: approvedAt,
-        preflight: { version: 2, status: 'passed', checkedAt: approvedAt, expectedSides: ['front'], dpi: 300, layerCount: configurations.length },
-        customerConfirmedRights: true,
-        approvalPolicyAcknowledged: approved,
+        preflight: { version: 2, status: 'passed', checkedAt: preparedAt, expectedSides: ['front'], dpi: 300, layerCount: configurations.length },
         proofRequired: false,
-        status: 'in_cart',
-        priority: 'standard',
-      });
-      const seasonalSummary = {
-        artwork: artworkTitles.join(' + '),
-        artworks: artworkTitles,
-        layerCount: configurations.length,
-        collection: uniqueText(collectionNames),
-        printSide: 'Front',
-        layers: configurations.map((item) => ({
-          artworkId: item.artworkId,
-          artworkTitle: item.artworkTitle,
-          width: Number(item.width),
-          height: Number(item.height),
-          rotation: Number(item.rotation || 0),
-          position: { x: Number(item.x), y: Number(item.y) },
-          order: item.order,
-        })),
-        garment: garment.label || product.name,
-        color,
-        size,
       };
-      const cartItem = {
+      const cartItemBase = {
         productId: product.id,
         name: product.name,
         image: mockupUpload.file_url,
         isCustom: true,
-        customDesignId: design.id,
-        ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
         variantId: variant?.id || null,
         variant: variant?.name || garment.label,
         color,
@@ -684,19 +678,18 @@ export default function SeasonalStudio({
         price: unitPrice,
         placement: 'front',
         fulfillmentMode: product.fulfillmentMode || 'in_house',
-        designStyle: `Seasonal Layers: ${artworkTitles.join(' + ')}`,
-        occasion: uniqueText(collectionNames),
+        designStyle: designPayload.designStyle,
+        designPath: 'seasonal',
+        occasion: uniqueText(collectionNames) || 'Seasonal',
         proofRequired: false,
         renderStatus: 'locked',
         ...(fabricDescription ? { fabric: fabricDescription } : {}),
         seasonalSummary,
         seasonalDraft: { version: 2, layers: cloneLayers(layers), printSide: 'front', previewZoom, reviewZoom },
       };
-      if (editCartKey) replaceItem(editCartKey, cartItem);
-      else addItem(cartItem);
-      navigate('/cart');
+      onReadyForApproval({ designPayload, cartItemBase, seasonalSummary, editCartKey });
     } catch (failure) {
-      setError(failure.message || 'Could not save this design. Please try again.');
+      setError(failure.message || 'Could not prepare this design. Please try again.');
       window.setTimeout(() => reviewErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
     } finally {
       setCapturing(false);
@@ -742,20 +735,20 @@ export default function SeasonalStudio({
 
         {reviewMode && visibleResolvedLayers.length > 0 && (
           <section aria-label="Review seasonal design" className="mx-auto max-w-[1320px] rounded-3xl border border-[#CDD7E0] bg-white p-4 shadow-[0_24px_70px_rgba(23,50,77,.12)] sm:p-6 lg:p-7">
-            <div className="mb-5 flex items-start justify-between gap-4"><div><p className="font-mono text-xs uppercase tracking-[.18em] text-[#A66331]">Final review</p><h2 className="mt-1 font-display text-3xl text-[#17324D] sm:text-4xl">CHECK EVERY LAYER</h2><p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#66717C]">This exact layered garment preview becomes the locked customer mockup. Artwork order, overlap, dimensions, rotations and placements are saved into the production composite.</p></div><button type="button" onClick={() => setReviewMode(false)} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[#DCE3EA] px-3 text-sm font-bold text-[#52616F] hover:bg-[#F7F9FB]"><Edit3 size={15} /> Edit</button></div>
-            {error && <div ref={reviewErrorRef} role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">{error}<span className="mt-1 block text-xs font-normal">Your design is preserved. Use Retry add to cart below.</span></div>}
+            <div className="mb-5 flex items-start justify-between gap-4"><div><p className="font-mono text-xs uppercase tracking-[.18em] text-[#A66331]">Seasonal design check</p><h2 className="mt-1 font-display text-3xl text-[#17324D] sm:text-4xl">CHECK EVERY LAYER</h2><p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#66717C]">This exact layered garment preview becomes the locked customer mockup. Artwork order, overlap, dimensions, rotations and placements are saved into the production composite.</p></div><button type="button" onClick={() => setReviewMode(false)} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[#DCE3EA] px-3 text-sm font-bold text-[#52616F] hover:bg-[#F7F9FB]"><Edit3 size={15} /> Edit</button></div>
+            {error && <div ref={reviewErrorRef} role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">{error}<span className="mt-1 block text-xs font-normal">Your design is preserved. Use Retry continue below.</span></div>}
             <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(360px,.7fr)] xl:gap-8">
               <div>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE3EA] bg-[#F7F9FB] p-2.5"><div><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#71808D]">Review view</p><p className="text-[11px] text-[#61717F]">Zoom is for inspection only. Print size, layer order and placement stay locked.</p></div><div className="inline-flex min-h-10 items-center rounded-xl border border-[#DCE3EA] bg-white p-1"><button type="button" onClick={() => setReviewZoom((value) => Math.max(.75, Number((value - .1).toFixed(2))))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] hover:bg-[#F7F9FB]" aria-label="Zoom review garment out"><ZoomOut size={14} /></button><span className="w-11 text-center font-mono text-[9px] font-bold tabular-nums text-[#52616F]">{Math.round(reviewZoom * 100)}%</span><button type="button" onClick={() => setReviewZoom((value) => Math.min(1.8, Number((value + .1).toFixed(2))))} className="grid h-8 w-8 place-items-center rounded-lg text-[#607080] hover:bg-[#F7F9FB]" aria-label="Zoom review garment in"><ZoomIn size={14} /></button><button type="button" onClick={() => setReviewZoom(1)} className="ml-1 h-8 border-l border-[#DCE3EA] px-2 text-[8px] font-bold uppercase tracking-wide text-[#607080]">Fit</button></div></div>
                 <div ref={approvedPreviewRef} className="gdp-seasonal-preview-frame relative aspect-[4/5] overflow-hidden rounded-2xl border border-[#D5DEE6] bg-[#F3EEE6] shadow-inner"><div className="absolute inset-0 h-full w-full [&>*]:h-full [&>*]:w-full"><Preview garment={garment} color={color} side="front" placement="front" size={size} previewConfig={previewConfig || {}} zoom={capturing ? 1 : reviewZoom} artworkScale={100} artworkRotation={0} artworkOffset={{ x: 0, y: 0 }} showGuides={false} showMeasurements={false} printAreaId="gdp-seasonal-production" seasonalOverlay={<LayerStack entries={resolvedLayers} area={area} activeId={selectedLayerId} capturing={capturing} review />} /></div></div>
-                <div className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"><Check size={14} /> Exact approved layered mockup · Front print</div>
+                <div className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"><Check size={14} /> Exact layered mockup ready for approval · Front print</div>
               </div>
               <div className="flex flex-col gap-4">
                 <div className="grid gap-2.5 sm:grid-cols-2"><ReviewDetail label="Garment" value={garment.label || product.name} />{fabricDescription && <ReviewDetail label="Fabric" value={fabricDescription} />}<ReviewDetail label="Colour" value={color} swatch={colorValue} /><ReviewDetail label="Size" value={size} /><ReviewDetail label="Print side" value="Front" /><ReviewDetail label="Artwork layers" value={`${visibleResolvedLayers.length} layer${visibleResolvedLayers.length === 1 ? '' : 's'}`} /></div>
                 <div className="rounded-2xl border border-[#DCE3EA] bg-[#F7F9FB] p-3"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#71808D]">Layer order · top to bottom</p><div className="mt-2 space-y-1.5">{[...visibleResolvedLayers].reverse().map((entry, index) => <div key={entry.layer.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-xs"><span className="font-semibold text-[#17324D]">{index + 1}. {entry.artwork.title}</span><span className="text-[#71808D]">{entry.layout.width.toFixed(2)} × {entry.layout.height.toFixed(2)} in · {Math.round(entry.layer.rotation || 0)}°</span></div>)}</div></div>
                 <div className="rounded-2xl border border-[#DCE3EA] bg-[#17324D] p-4 text-white"><div className="flex items-center justify-between gap-4 text-sm"><span className="text-white/75">Quantity</span><strong>{quantity}</strong></div><div className="mt-2 flex items-center justify-between gap-4 text-sm"><span className="text-white/75">Price each</span><strong>${Number(unitPrice || 0).toFixed(2)} CAD</strong></div><div className="mt-3 flex items-end justify-between gap-4 border-t border-white/20 pt-3"><span className="font-bold">Design total</span><strong className="font-mono text-xl">${designSubtotal.toFixed(2)} CAD</strong></div><p className="mt-2 text-[11px] leading-relaxed text-white/75">Shipping and taxes are calculated at checkout.</p></div>
                 <button type="button" onClick={() => setReviewMode(false)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#DCE3EA] px-4 text-sm font-bold text-[#52616F] hover:bg-[#F7F9FB]"><Edit3 size={15} /> Edit design</button>
-                <button disabled={saving} onClick={save} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40"><ShoppingBag size={17} />{saving ? (editCartKey ? 'Updating cart…' : 'Adding to cart…') : (error ? 'Retry add to cart' : editCartKey ? 'Update cart' : 'Add design to cart')}</button>
+                <button disabled={saving} onClick={save} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40">{saving ? 'Preparing production files…' : (error ? 'Retry continue' : 'Continue to timing & approval')} <ArrowRight size={17} /></button>
               </div>
             </div>
           </section>
@@ -794,7 +787,7 @@ export default function SeasonalStudio({
                 <div className="rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-3 text-[10px] leading-relaxed text-[#61717F]">Artwork can overlap. Layer order determines what prints in front. Lock finished layers to prevent accidental movement.</div>
               </div> : <div className="rounded-3xl border border-dashed border-[#C9D3DC] bg-white/65 p-6 text-center"><Shirt className="mx-auto text-[#9AA7B2]" /><p className="mt-3 text-sm font-bold text-[#17324D]">Add artwork to begin</p><p className="mt-1 text-xs text-[#61717F]">Your layer controls will appear here.</p></div>}
 
-              {layers.length > 0 && <div className="space-y-3 rounded-3xl border border-[#DCE3EA] bg-white/90 p-4 shadow-[0_14px_40px_rgba(23,50,77,.07)]">{priceVisibility !== 'hidden' && <p className="rounded-xl bg-[#F3F6F8] p-3 text-xs text-[#52616F]">Front print · ${Number(unitPrice).toFixed(2)} CAD each{priceVisibility === 'total' && ` · $${designSubtotal.toFixed(2)} CAD total`} before shipping and tax.</p>}<label className="flex items-start gap-2 text-sm leading-relaxed text-[#46596A]"><input type="checkbox" checked={approved} onChange={(event) => { setApproved(event.target.checked); setReviewMode(false); if (event.target.checked) { setShowGuides(false); setShowMeasurements(false); } }} className="mt-1" /><span>I approve the exact garment preview, artwork layers, overlap, order, sizes, rotations and placements. I understand this composite will be locked and printed after successful payment.</span></label><button disabled={!approved || !visibleResolvedLayers.length} onClick={() => { setShowGuides(false); setShowMeasurements(false); setReviewMode(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40">Review design</button></div>}
+              {layers.length > 0 && <div className="space-y-3 rounded-3xl border border-[#DCE3EA] bg-white/90 p-4 shadow-[0_14px_40px_rgba(23,50,77,.07)]">{priceVisibility !== 'hidden' && <p className="rounded-xl bg-[#F3F6F8] p-3 text-xs text-[#52616F]">Front print · ${Number(unitPrice).toFixed(2)} CAD each{priceVisibility === 'total' && ` · $${designSubtotal.toFixed(2)} CAD total`} before shipping and tax.</p>}<label className="flex items-start gap-2 text-sm leading-relaxed text-[#46596A]"><input type="checkbox" checked={approved} onChange={(event) => { setApproved(event.target.checked); setReviewMode(false); if (event.target.checked) { setShowGuides(false); setShowMeasurements(false); } }} className="mt-1" /><span>I’m done arranging the seasonal artwork layers, overlap, order, sizes, rotations and placements. I’ll confirm final approval in the Custom Studio approval step.</span></label><button disabled={!approved || !visibleResolvedLayers.length} onClick={() => { setShowGuides(false); setShowMeasurements(false); setReviewMode(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40">Review design</button></div>}
               </div>
             </section>
           </div>
