@@ -11,7 +11,6 @@ import { UnsavedChangesProvider } from '@/lib/UnsavedChangesContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import StoreLayout from '@/components/storefront/Layout';
-import DesktopGarmentSelectionFocus from '@/components/storefront/DesktopGarmentSelectionFocus';
 import MaintenanceGate from '@/components/storefront/MaintenanceGate';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminMfaGate from '@/components/AdminMfaGate';
@@ -129,7 +128,6 @@ function App() {
           <Router>
             <NotificationProvider>
               <UnsavedChangesProvider>
-                <DesktopGarmentSelectionFocus />
                 <ScrollToTop />
                 <AuthenticatedApp />
               </UnsavedChangesProvider>
