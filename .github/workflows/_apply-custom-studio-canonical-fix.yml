@@ -22,20 +22,18 @@ jobs:
       - name: Apply deterministic source patch
         run: node scripts/_apply_custom_studio_canonical_fix.mjs
 
+      - name: Keep CI workflow edits out of the automation commit
+        run: git checkout -- .github/workflows/build-verification.yml
+
       - name: Syntax-check new regression guards
         run: |
           node --check scripts/verify-cart-pricing.mjs
           node --check scripts/verify-custom-studio-canonical-flow.mjs
 
-      - name: Remove one-time patch machinery
-        run: |
-          git rm scripts/_apply_custom_studio_canonical_fix.mjs
-          git rm .github/workflows/_apply-custom-studio-canonical-fix.yml
-
       - name: Commit patched source
         run: |
           git config user.name "GDP Clothing Automation"
           git config user.email "actions@users.noreply.github.com"
-          git add -A
+          git add src scripts/verify-cart-pricing.mjs scripts/verify-custom-studio-canonical-flow.mjs
           git commit -m "fix(custom-studio): unify approval flow and desktop UX [canonical-fix-applied]"
           git push origin HEAD:fix/custom-studio-canonical-flow-20260913
