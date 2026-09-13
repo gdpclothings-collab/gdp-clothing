@@ -5,6 +5,7 @@ const studioSource = fs.readFileSync("src/pages/CustomStudio.jsx", "utf8");
 const v8Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV8.jsx", "utf8");
 const v9Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV9.jsx", "utf8");
 const v10Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV10.jsx", "utf8");
+const v11Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV11.jsx", "utf8");
 
 function fail(message) {
   console.error(`FAIL Custom Studio garment interaction guard: ${message}`);
@@ -15,8 +16,24 @@ if (/DesktopGarmentSelectionFocus/.test(appSource)) {
   fail("DesktopGarmentSelectionFocus must not be imported or mounted in App.jsx because it can intercept native garment-card clicks.");
 }
 
-if (!appSource.includes("CustomStudioDesktopWorkspaceV10")) {
-  fail("App.jsx must route Custom Studio through the V10 Step 1 shell.");
+if (!appSource.includes("CustomStudioDesktopWorkspaceV11")) {
+  fail("App.jsx must route Custom Studio through the V11 visibility shell.");
+}
+
+if (!v11Source.includes("CustomStudioDesktopWorkspaceV10")) {
+  fail("V11 must wrap V10 so the proven Step 1 shell and V9/V8 interaction protection stay active.");
+}
+
+if (!v11Source.includes("[data-studio-rail]" ) || !v11Source.includes("z-index: 260 !important")) {
+  fail("V11 must lift the desktop rail above the Step 1 workspace so the expanded custom-order guide stays visible.");
+}
+
+if (!v11Source.includes("[data-guide] > div") || !v11Source.includes("z-index: 999 !important")) {
+  fail("V11 must keep the expanded How Custom Orders Work panel above the configurator.");
+}
+
+if (!v11Source.includes("Restore the helper copy")) {
+  fail("V11 must restore the guide helper copy compressed by V10.");
 }
 
 if (!v10Source.includes("CustomStudioDesktopWorkspaceV9")) {
@@ -92,7 +109,8 @@ if (!v10Source.includes("Your account and unrelated cart items are not affected.
 }
 
 console.log("PASS Custom Studio garment interaction guard");
-console.log("- App routes Custom Studio through V10 while preserving V9/V8 interaction protection");
+console.log("- App routes Custom Studio through V11 while preserving V10/V9/V8 interaction protection");
+console.log("- V11 keeps How Custom Orders Work above the Step 1 workspace and restores its helper copy");
 console.log("- native Step 1 chooseProduct handler and stable product identity remain present");
 console.log("- V8 pointer-up fallback remains present without cancelling native events");
 console.log("- V9 preserves original catalog images and restores them whenever the full chooser opens");
