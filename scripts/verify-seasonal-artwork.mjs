@@ -26,6 +26,7 @@ check(configured.rotation === 22, 'Seasonal production must preserve artwork rot
 
 const entrySource = readFileSync(new URL('../src/components/storefront/SeasonalStudio.jsx', import.meta.url), 'utf8');
 const studioSource = readFileSync(new URL('../src/components/storefront/SeasonalStudioLayered.jsx', import.meta.url), 'utf8');
+const customStudioSource = readFileSync(new URL('../src/pages/CustomStudio.jsx', import.meta.url), 'utf8');
 const cartSource = readFileSync(new URL('../src/pages/Cart.jsx', import.meta.url), 'utf8');
 const validationMigrationSource = readFileSync(new URL('../supabase/migrations/20260913182934_layered_seasonal_design_validation.sql', import.meta.url), 'utf8');
 const sourceCheck = (source, fragment, message) => check(source.includes(fragment), message);
@@ -40,7 +41,8 @@ sourceCheck(studioSource, "requested: Number(initialDraft.width || 0)", 'Seasona
 sourceCheck(studioSource, "position: initialDraft.position || { x: 0, y: 0 }", 'Seasonal Studio must restore legacy artwork position.');
 sourceCheck(studioSource, "rotation: Number(initialDraft.rotation || 0)", 'Seasonal Studio must restore legacy artwork rotation.');
 sourceCheck(studioSource, "Array.isArray(initialDraft?.layers)", 'Seasonal Studio must restore layered drafts.');
-sourceCheck(studioSource, "if (editCartKey) replaceItem(editCartKey, cartItem)", 'Editing a saved design must replace the same cart item.');
+sourceCheck(studioSource, "onReadyForApproval", 'Seasonal Studio must hand its prepared design to the shared approval flow.');
+sourceCheck(customStudioSource, "if (editCartKey) replaceItem(editCartKey, primaryItem)", 'Editing a saved Seasonal design must replace the same cart item after shared approval.');
 sourceCheck(studioSource, "approvedPreviewRef", 'Seasonal Studio must keep a dedicated approved mockup capture frame.');
 sourceCheck(studioSource, "seasonalSummary", 'Seasonal cart items must retain structured production details.');
 sourceCheck(studioSource, "seasonalSelection(entry.artwork, entry.layout, {}, area", 'Every visible seasonal layer must create artwork-only production configuration.');
@@ -52,7 +54,7 @@ check(
   'Custom cart previews must remain uncropped.'
 );
 
-// Protect the new multi-artwork layer architecture.
+// Protect the multi-artwork layer architecture and canonical approval path.
 sourceCheck(studioSource, 'const MAX_LAYERS = 10;', 'Seasonal Studio must cap layer count for predictable browser performance.');
 sourceCheck(studioSource, 'const [layers, setLayers] = useState([]);', 'Seasonal Studio must use a real artwork layer stack.');
 sourceCheck(studioSource, 'const addArtwork = (artwork) =>', 'Artwork library clicks must add instead of replace artwork.');
@@ -69,7 +71,10 @@ sourceCheck(studioSource, 'redoRef', 'Layer edits must support redo history.');
 sourceCheck(studioSource, "seasonalConfiguration: { version: 2, layers: configurations", 'Saved seasonal designs must carry the complete ordered layer stack.');
 sourceCheck(studioSource, "renderSnapshot = { version: 4, designPath: 'seasonal', layers: configurations", 'Locked production snapshots must contain the layered composition.');
 sourceCheck(studioSource, 'Artwork can overlap. Layer order determines what prints in front.', 'Seasonal controls must explain intentional artwork overlap.');
-sourceCheck(studioSource, 'I approve the exact garment preview, artwork layers, overlap, order, sizes, rotations and placements.', 'Approval copy must cover the complete layered composition.');
+sourceCheck(studioSource, 'I’m done arranging the seasonal artwork layers', 'Seasonal review must distinguish layout completion from final customer approval.');
+sourceCheck(customStudioSource, '<strong>I approve the exact live preview shown.</strong>', 'Final approval must occur in the shared Timing & Approval step.');
+sourceCheck(customStudioSource, 'data-seasonal-approved-preview', 'Shared approval must display the exact prepared Seasonal mockup.');
+sourceCheck(customStudioSource, 'proofStatus: "approved"', 'Approved Seasonal cart items must retain explicit approval state.');
 
 // The database validator must understand the same layered v2 payload the UI saves.
 sourceCheck(validationMigrationSource, "s->>'version' = '2'", 'Seasonal database validation must branch for layered v2 designs.');
@@ -87,6 +92,6 @@ check(!studioSource.includes('seasonal-personalization-name'), 'Seasonal Studio 
 check(!studioSource.includes('seasonal-personalization-message'), 'Seasonal Studio must not render a customer message field.');
 check(!studioSource.includes('initialDraft.text'), 'Seasonal Studio must not restore legacy customer text.');
 check(!studioSource.includes('Personalization"'), 'Seasonal review must not include a personalization detail.');
-sourceCheck(studioSource, '<button disabled={!approved || !visibleResolvedLayers.length}', 'Review must require an approved, visible layered composition only.');
+sourceCheck(studioSource, '<button disabled={!approved || !visibleResolvedLayers.length}', 'Seasonal layout review must require a completed, visible layered composition before preparation.');
 
-console.log(`${checks} seasonal sizing, layered artwork, snapshot, database-validation, and edit-design regression checks passed`);
+console.log(`${checks} seasonal sizing, layered artwork, snapshot, database-validation, edit-design, and canonical-approval regression checks passed`);
