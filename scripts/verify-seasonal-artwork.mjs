@@ -27,7 +27,7 @@ check(configured.rotation === 22, 'Seasonal production must preserve artwork rot
 const entrySource = readFileSync(new URL('../src/components/storefront/SeasonalStudio.jsx', import.meta.url), 'utf8');
 const studioSource = readFileSync(new URL('../src/components/storefront/SeasonalStudioLayered.jsx', import.meta.url), 'utf8');
 const cartSource = readFileSync(new URL('../src/pages/Cart.jsx', import.meta.url), 'utf8');
-const validationMigrationSource = readFileSync(new URL('../supabase/migrations/202609130001_layered_seasonal_design_validation.sql', import.meta.url), 'utf8');
+const validationMigrationSource = readFileSync(new URL('../supabase/migrations/20260913182934_layered_seasonal_design_validation.sql', import.meta.url), 'utf8');
 const sourceCheck = (source, fragment, message) => check(source.includes(fragment), message);
 
 // Keep all existing imports stable while the implementation lives in the layered module.
