@@ -27,6 +27,7 @@ check(configured.rotation === 22, 'Seasonal production must preserve artwork rot
 const entrySource = readFileSync(new URL('../src/components/storefront/SeasonalStudio.jsx', import.meta.url), 'utf8');
 const studioSource = readFileSync(new URL('../src/components/storefront/SeasonalStudioLayered.jsx', import.meta.url), 'utf8');
 const cartSource = readFileSync(new URL('../src/pages/Cart.jsx', import.meta.url), 'utf8');
+const validationMigrationSource = readFileSync(new URL('../supabase/migrations/202609130001_layered_seasonal_design_validation.sql', import.meta.url), 'utf8');
 const sourceCheck = (source, fragment, message) => check(source.includes(fragment), message);
 
 // Keep all existing imports stable while the implementation lives in the layered module.
@@ -70,6 +71,15 @@ sourceCheck(studioSource, "renderSnapshot = { version: 4, designPath: 'seasonal'
 sourceCheck(studioSource, 'Artwork can overlap. Layer order determines what prints in front.', 'Seasonal controls must explain intentional artwork overlap.');
 sourceCheck(studioSource, 'I approve the exact garment preview, artwork layers, overlap, order, sizes, rotations and placements.', 'Approval copy must cover the complete layered composition.');
 
+// The database validator must understand the same layered v2 payload the UI saves.
+sourceCheck(validationMigrationSource, "s->>'version' = '2'", 'Seasonal database validation must branch for layered v2 designs.');
+sourceCheck(validationMigrationSource, "jsonb_array_elements(s->'layers')", 'Seasonal database validation must inspect every saved artwork layer.');
+sourceCheck(validationMigrationSource, "layer->>'source_sha256' is distinct from a.source_sha256", 'Every layered artwork must be SHA-validated against the current approved source.');
+sourceCheck(validationMigrationSource, "layer_count < 1 or layer_count > 10", 'Database validation must enforce the same one-to-ten layer boundary as the editor.');
+sourceCheck(validationMigrationSource, "first_artwork_id is distinct from new.seasonal_artwork_id", 'The primary seasonal artwork must match the first validated layer.');
+sourceCheck(validationMigrationSource, "new.proof_required := old.proof_required;", 'Status updates must not reopen proof requirements on an immutable locked seasonal design.');
+sourceCheck(validationMigrationSource, "new.proof_required := case when new.render_status = 'locked' then false else true end;", 'Locked seasonal renders must preserve no-extra-proof checkout behavior.');
+
 // Protect the artwork-only product decision.
 check(!studioSource.includes('SeasonalPersonalizationEditor'), 'Seasonal Studio must not load the personalization editor.');
 check(!studioSource.includes('Personalize your design'), 'Seasonal Studio must not show Name/Message personalization.');
@@ -79,4 +89,4 @@ check(!studioSource.includes('initialDraft.text'), 'Seasonal Studio must not res
 check(!studioSource.includes('Personalization"'), 'Seasonal review must not include a personalization detail.');
 sourceCheck(studioSource, '<button disabled={!approved || !visibleResolvedLayers.length}', 'Review must require an approved, visible layered composition only.');
 
-console.log(`${checks} seasonal sizing, layered artwork, snapshot, and edit-design regression checks passed`);
+console.log(`${checks} seasonal sizing, layered artwork, snapshot, database-validation, and edit-design regression checks passed`);
