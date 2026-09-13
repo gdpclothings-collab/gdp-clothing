@@ -9,7 +9,11 @@ assert.ok(!seasonal.includes('useCart'), 'Seasonal Step 3 must not mutate cart d
 assert.ok(seasonal.includes('Continue to timing & approval'), 'Seasonal must expose canonical continue CTA');
 assert.ok(studio.includes('setStep(4)'), 'Seasonal handoff must enter shared Timing & Approval');
 assert.ok(studio.includes('seasonalPrepared?.designPayload'), 'Final approval must use staged Seasonal production data');
+assert.ok(studio.includes('data-seasonal-approved-preview'), 'Timing and Review must show the exact prepared Seasonal mockup');
 assert.ok(studio.includes('proofStatus: "approved"'), 'Final Seasonal cart item must carry approval state');
+assert.ok(studio.includes('const goToStudioStep = (targetStep) =>'), 'Shared navigation must use a canonical step helper');
+assert.ok(studio.includes('designPath === "seasonal" && nextStep === 3 && seasonalDraft'), 'Returning to Step 3 must restore Seasonal Lab rather than the generic editor');
+assert.ok(studio.includes('goToStudioStep(step - 1)'), 'Previous navigation must preserve the correct Seasonal workspace');
 assert.ok(checkout.includes('Customer approved'), 'Checkout must show approved proof state');
 assert.ok(!checkout.includes('Proof skipped'), 'Customer-facing checkout must not use Proof skipped wording');
-console.log('Canonical Custom Studio approval flow verified.');
+console.log('Canonical Custom Studio approval and navigation flow verified.');
