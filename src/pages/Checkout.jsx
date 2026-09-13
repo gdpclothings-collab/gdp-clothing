@@ -72,6 +72,11 @@ export default function Checkout() {
   const paymentHostRef = useRef(null);
   const autoPreparingRef = useRef(false);
 
+  useEffect(() => {
+    if (!user?.email) return;
+    setForm((current) => current.email ? current : { ...current, email: user.email });
+  }, [user?.email]);
+
   const quantityPricing = calculateCartQuantityDiscount(items);
   const subtotal = quantityPricing.subtotal;
   const discounted = quantityPricing.afterDiscount;
@@ -532,7 +537,7 @@ export default function Checkout() {
                 )}
                 <span className="min-w-0 flex-1 pr-2">
                   {i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span>
-                  {i.isCustom && <span className="block text-[10px] font-mono uppercase text-accent">{i.occasion || "Custom"} · {i.proofRequired === false ? "Proof skipped" : "Proof before print"}</span>}
+                  {i.isCustom && <span className="block text-[10px] font-mono uppercase text-accent">{i.occasion || i.designPath || "Custom"} · {(i.proofStatus === "approved" || i.customerApprovedAt || i.renderStatus === "locked") ? "Customer approved" : i.proofRequired === false ? "Proof not required" : "Proof before print"}</span>}
                   {i.isDtf && i.dtfSpec && (
                     <span className="block text-[10px] font-mono uppercase text-accent">
                       DTF film · {i.dtfSpec.width}" × {i.dtfSpec.length}" · {i.dtfSpec.layout?.length || 0} artwork item{i.dtfSpec.layout?.length === 1 ? "" : "s"}

@@ -42,9 +42,17 @@ jobs:
           node --check scripts/assert-safe-staging-target.mjs
           node --check scripts/verify-seasonal-artwork.mjs
           node --check scripts/verify-photo-bootleg-desktop.mjs
+          node --check scripts/verify-cart-pricing.mjs
+          node --check scripts/verify-custom-studio-canonical-flow.mjs
 
       - name: Verify Custom Studio garment interactions
         run: node scripts/verify-custom-studio-garment-interactions.mjs
+
+      - name: Verify Custom Studio canonical approval flow
+        run: node scripts/verify-custom-studio-canonical-flow.mjs
+
+      - name: Verify cart quantity pricing policy
+        run: node scripts/verify-cart-pricing.mjs
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund

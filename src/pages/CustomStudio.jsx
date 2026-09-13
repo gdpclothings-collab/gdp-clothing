@@ -921,11 +921,12 @@ export default function CustomStudio() {
   const [params] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { addItem } = useCart();
+  const { addItem, replaceItem } = useCart();
   const { confirmAction, notify } = useNotifications();
   const [step, setStep] = useState(1);
   const [seasonalMode, setSeasonalMode] = useState(false);
   const [seasonalDraft, setSeasonalDraft] = useState(null);
+  const [seasonalPrepared, setSeasonalPrepared] = useState(null);
   const [designPath, setDesignPath] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [product, setProduct] = useState(null);
@@ -1055,6 +1056,7 @@ export default function CustomStudio() {
     previewSide,
     previewZoom,
     seasonalDraft: seasonalDraft ? JSON.parse(JSON.stringify(seasonalDraft)) : null,
+    seasonalPrepared: seasonalPrepared ? JSON.parse(JSON.stringify(seasonalPrepared)) : null,
     seasonalMode,
     rightsConfirmed,
     approvalAcknowledged,
@@ -1079,6 +1081,7 @@ export default function CustomStudio() {
     if (["front", "back"].includes(snapshot.previewSide)) setPreviewSide(snapshot.previewSide);
     if (Number.isFinite(Number(snapshot.previewZoom))) setPreviewZoom(clampPreview(snapshot.previewZoom));
     if (Object.prototype.hasOwnProperty.call(snapshot, "seasonalDraft")) setSeasonalDraft(snapshot.seasonalDraft);
+    if (Object.prototype.hasOwnProperty.call(snapshot, "seasonalPrepared")) setSeasonalPrepared(snapshot.seasonalPrepared);
     if (typeof snapshot.seasonalMode === "boolean") setSeasonalMode(snapshot.seasonalMode);
     if (typeof snapshot.rightsConfirmed === "boolean") setRightsConfirmed(snapshot.rightsConfirmed);
     if (typeof snapshot.approvalAcknowledged === "boolean") setApprovalAcknowledged(snapshot.approvalAcknowledged);
@@ -1233,6 +1236,7 @@ export default function CustomStudio() {
     setPreviewSide("front");
     setPreviewZoom(1);
     setSeasonalDraft(null);
+    setSeasonalPrepared(null);
     setSeasonalMode(false);
     setRightsConfirmed(false);
     setApprovalAcknowledged(false);
@@ -1371,11 +1375,16 @@ export default function CustomStudio() {
     setArtworkStates(draft.artworkStates || defaultArtworkStates());
     setPreviewZoom(clampPreview(draft.previewZoom || 1));
     const restoredSeasonalDraft =
-      draft.designPath === "seasonal" && draft.seasonalDraft?.artworkId
+      draft.designPath === "seasonal" && (draft.seasonalDraft?.artworkId || draft.seasonalDraft?.layers?.length)
         ? draft.seasonalDraft
         : null;
+    const restoredSeasonalPrepared =
+      draft.designPath === "seasonal" && draft.seasonalPrepared?.designPayload && draft.seasonalPrepared?.cartItemBase
+        ? draft.seasonalPrepared
+        : null;
     setSeasonalDraft(restoredSeasonalDraft);
-    setSeasonalMode(Boolean(restoredSeasonalDraft));
+    setSeasonalPrepared(restoredSeasonalPrepared);
+    setSeasonalMode(Boolean(restoredSeasonalDraft) && !restoredSeasonalPrepared && Number(draft.step || 1) <= 3);
     setRightsConfirmed(false);
     setApprovalAcknowledged(false);
     setPendingDraft(null);
@@ -1393,6 +1402,7 @@ export default function CustomStudio() {
       // Starting fresh should still work when browser storage is unavailable.
     }
     setSeasonalDraft(null);
+    setSeasonalPrepared(null);
     setSeasonalMode(false);
     setPendingDraft(null);
     setDraftRestored(false);
@@ -1457,6 +1467,7 @@ export default function CustomStudio() {
         artworkStates,
         previewZoom,
         seasonalDraft,
+        seasonalPrepared,
       };
       try {
         window.localStorage.setItem(STUDIO_DRAFT_KEY, JSON.stringify(snapshot));
@@ -1469,7 +1480,7 @@ export default function CustomStudio() {
     return () => {
       if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
     };
-  }, [draftReady, seasonalMode, saving, product?.id, step, designPath, designStylesBySide, orderDesignStyle, designMood, designIntensity, color, size, qty, placement, previewSide, groupGarments, photos, editorLayersBySide, selectedEditorLayerIds, personalization, memorialNameConfirmed, needByDate, priority, artworkStates, previewZoom, seasonalDraft]);
+  }, [draftReady, seasonalMode, saving, product?.id, step, designPath, designStylesBySide, orderDesignStyle, designMood, designIntensity, color, size, qty, placement, previewSide, groupGarments, photos, editorLayersBySide, selectedEditorLayerIds, personalization, memorialNameConfirmed, needByDate, priority, artworkStates, previewZoom, seasonalDraft, seasonalPrepared]);
 
   const chooseProduct = (nextProduct) => {
     if (!nextProduct) return;
@@ -2035,8 +2046,25 @@ export default function CustomStudio() {
     });
   };
 
+  const goToStudioStep = (targetStep) => {
+    const nextStep = Math.max(1, Math.min(STEPS.length, Number(targetStep || 1)));
+    if (designPath === "seasonal" && nextStep === 3 && seasonalDraft) {
+      setSeasonalPrepared(null);
+      setRightsConfirmed(false);
+      setApprovalAcknowledged(false);
+      setSeasonalMode(true);
+    } else if (nextStep !== 3) {
+      setSeasonalMode(false);
+    }
+    setStep(nextStep);
+    window.requestAnimationFrame(() => {
+      if (designPath === "seasonal" && nextStep === 3) window.scrollTo({ top: 0, behavior: "smooth" });
+      else document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   async function createAndAdd() {
-    if (!rightsConfirmed || !approvalAcknowledged || photos.length < minPhotos) return;
+    if (!rightsConfirmed || !approvalAcknowledged) return;
     if (!product?.id) {
       setWarn("Choose a garment before adding your custom design to cart.");
       return;
@@ -2045,16 +2073,90 @@ export default function CustomStudio() {
       setWarn("Choose a color and size before adding your custom design to cart.");
       return;
     }
+    if (product?.variants?.length && !selectedAvailable) {
+      setWarn("The selected color and size is currently unavailable. Choose another variant.");
+      return;
+    }
+
+    if (designPath === "seasonal") {
+      if (!seasonalPrepared?.designPayload || !seasonalPrepared?.cartItemBase) {
+        setWarn("Return to Seasonal Designs and prepare the layered preview before final approval.");
+        return;
+      }
+      setSaving(true);
+      try {
+        const approvedAt = new Date().toISOString();
+        const normalizedSeasonalGroups = groupGarments.map((item) => {
+          const groupVariant = variantFor(product, item.color, item.size);
+          return {
+            ...item,
+            variantId: groupVariant?.id || null,
+            variantName: groupVariant?.name || "",
+            unitPrice: priceFor(item.color, item.size),
+          };
+        });
+        const design = await customerApi.createCustomDesign({
+          ...seasonalPrepared.designPayload,
+          needByDate: needByDate || undefined,
+          priority,
+          customerConfirmedRights: true,
+          approvalPolicyAcknowledged: true,
+          customerApprovedAt: approvedAt,
+          proofRequired: false,
+          additionalGarments: normalizedSeasonalGroups,
+          status: "in_cart",
+        });
+        const common = {
+          ...seasonalPrepared.cartItemBase,
+          customDesignId: design.id,
+          ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
+          needByDate,
+          priority,
+          proofRequired: false,
+          proofStatus: "approved",
+          customerApprovedAt: approvedAt,
+          renderStatus: "locked",
+        };
+        const primaryItem = {
+          ...common,
+          variantId: selectedVariant?.id || common.variantId || null,
+          variant: selectedVariant?.name || garment.label,
+          price: priceFor(color, size),
+          color,
+          size,
+          quantity: qty,
+        };
+        const editCartKey = seasonalPrepared.editCartKey || location.state?.editCartKey || "";
+        if (editCartKey) replaceItem(editCartKey, primaryItem);
+        else addItem(primaryItem);
+        normalizedSeasonalGroups.forEach((item) => addItem({
+          ...common,
+          variantId: item.variantId,
+          variant: item.variantName || garment.label,
+          price: item.unitPrice,
+          color: item.color,
+          size: item.size,
+          quantity: Number(item.quantity || 1),
+        }));
+        try { window.localStorage.removeItem(STUDIO_DRAFT_KEY); } catch { /* cart completion does not depend on draft cleanup */ }
+        setSeasonalPrepared(null);
+        setDraftStatus("idle");
+        navigate("/cart");
+      } catch (error) {
+        setWarn(error?.message || "Could not save your seasonal custom design.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    if (photos.length < minPhotos) return;
     if (!designPath || !orderDesignStyle) {
       setWarn("Complete the design path and artwork before adding to cart.");
       return;
     }
     if (designPath === "memorial" && !memorialDetailsReady) {
       setWarn("Enter the memorial name and verify its spelling before approval.");
-      return;
-    }
-    if (product?.variants?.length && !selectedAvailable) {
-      setWarn("The selected color and size is currently unavailable. Choose another variant.");
       return;
     }
 
@@ -2285,8 +2387,16 @@ export default function CustomStudio() {
     onProductChange={chooseProduct} onColorChange={chooseColor} onSizeChange={setSize}
     colorSwatch={(value) => swatchFor(product, value)} priceVisibility={priceVisibility}
     initialDraft={seasonalDraft || location.state?.seasonalDraft || null} editCartKey={location.state?.editCartKey || ""}
-    onDraftChange={setSeasonalDraft}
-    onBack={() => {setSeasonalMode(false);setStep(1);window.scrollTo({top:0,behavior:'instant'});}} />;
+    onDraftChange={(nextDraft) => { setSeasonalDraft(nextDraft); setSeasonalPrepared(null); }}
+    onReadyForApproval={(prepared) => {
+      setSeasonalPrepared(prepared);
+      setSeasonalMode(false);
+      setRightsConfirmed(false);
+      setApprovalAcknowledged(false);
+      setStep(4);
+      window.requestAnimationFrame(() => document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }}
+    onBack={() => {setSeasonalMode(false);setStep(2);window.scrollTo({top:0,behavior:'instant'});}} />;
 
 
   return (
@@ -2329,7 +2439,7 @@ export default function CustomStudio() {
               const complete = step > number;
               const active = step === number;
               return <React.Fragment key={label}>
-                <button onClick={() => number < step && setStep(number)} className={"group flex items-center gap-2 px-3 py-2 rounded-xl whitespace-nowrap transition " + (active ? "bg-[#17324D] text-white shadow-sm" : complete ? "text-accent" : "text-[#8b857d]")}>
+                <button onClick={() => number < step && goToStudioStep(number)} className={"group flex items-center gap-2 px-3 py-2 rounded-xl whitespace-nowrap transition " + (active ? "bg-[#17324D] text-white shadow-sm" : complete ? "text-accent" : "text-[#8b857d]")}>
                   <span className={"grid h-6 w-6 place-items-center rounded-full border text-[10px] font-bold " + (active ? "border-white/30" : complete ? "border-accent/30 bg-accent/[0.06]" : "border-[#d8d2c9]")}>{complete ? <Check size={12} /> : number}</span>
                   <span className="text-[11px] font-bold uppercase tracking-wide">{label}</span>
                 </button>
@@ -2363,7 +2473,7 @@ export default function CustomStudio() {
                     return <button
                       type="button"
                       key={guide.title}
-                      onClick={() => number < step && setStep(number)}
+                      onClick={() => number < step && goToStudioStep(number)}
                       className={"w-[82%] shrink-0 snap-start p-4 text-left transition md:w-auto md:shrink " + (active ? "bg-accent/[0.065]" : complete ? "bg-[#F8FAFC]" : "bg-white/50") + (number < step ? " hover:bg-[#f7f2eb]" : "")}
                     >
                       <div className="flex items-center gap-2">
@@ -2396,7 +2506,7 @@ export default function CustomStudio() {
               hint={continueHint()}
               saving={saving}
               finalDisabled={!rightsConfirmed || !approvalAcknowledged}
-              onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
+              onPrevious={() => step === 1 ? navigate(-1) : goToStudioStep(step - 1)}
               onContinue={handleContinue}
               onFinal={createAndAdd}
             />
@@ -2716,7 +2826,7 @@ export default function CustomStudio() {
           </div>}
 
           {step === 4 && <div>
-            <StepTitle eyebrow="Approve the result" title="TIMING + FINAL APPROVAL" text="The preview you approve is converted into the exact 300 DPI production file before it enters your cart." />
+            <StepTitle eyebrow="Approve the result" title="TIMING + FINAL APPROVAL" text={designPath === "seasonal" ? "Your exact 300 DPI seasonal composite is prepared below. Confirm timing, artwork rights and this exact preview before it can enter your cart." : "The preview you approve is converted into the exact 300 DPI production file before it enters your cart."} />
             <div className="grid md:grid-cols-2 gap-4">
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Need it by</label><input type="date" value={needByDate} onChange={e => setNeedByDate(e.target.value)} className="w-full border border-border bg-background px-3 py-2 mt-1"/></div>
               <div><label className="font-mono text-xs uppercase text-muted-foreground">Priority</label><div className="flex gap-2 mt-1"><Choice active={priority === "standard"} onClick={() => setPriority("standard")}>Standard</Choice><Choice active={priority === "rush"} onClick={() => setPriority("rush")}>Rush (+{"$" + rushFee})</Choice></div></div>
@@ -2727,10 +2837,10 @@ export default function CustomStudio() {
           </div>}
 
           {step === 5 && <div>
-            <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text="Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue." />
+            <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text={designPath === "seasonal" ? "This is the prepared seasonal production composite you approved. Adding it to cart locks that exact 300 DPI file to the order." : "Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue."} />
             <div className="grid md:grid-cols-2 gap-4">
               <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={(designPath === "bootleg" || designPath === "memorial") ? "GDP template locked · customer layers editable" : ""} />
-              <ReviewCard label={designPath === "upload" ? "Artwork" : "Ready layout"} value={(orderDesignStyle || "Not selected").replace(/^GDP\s+/, "")} sub={orderDesignStyle ? `${designMood || "Original"} finish` : ""} />
+              <ReviewCard label={designPath === "seasonal" ? "Seasonal artwork" : designPath === "upload" ? "Artwork" : "Ready layout"} value={designPath === "seasonal" ? (seasonalPrepared?.seasonalSummary?.artwork || seasonalDraft?.artworkTitle || "Layered seasonal design") : (orderDesignStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designPath === "seasonal" ? `${seasonalPrepared?.seasonalSummary?.layerCount || seasonalDraft?.layers?.length || 0} print layer(s)` : orderDesignStyle ? `${designMood || "Original"} finish` : ""} />
               {designPath === "memorial" && <ReviewCard label="Memorial name" value={personalization.name || "Not entered"} sub={personalization.dates ? `Dates: ${personalization.dates}` : "No dates added"} />}
               <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} · ${size || "No size"} · Qty ${qty}` : ""} />
               <ReviewCard
@@ -2738,14 +2848,14 @@ export default function CustomStudio() {
                 value={placement === "front_back" ? "Front + back" : placement === "back" ? "Back only" : "Front only"}
                 sub={placement === "front_back" ? "Two independent artwork placements saved." : "One print side selected."}
               />
-              {placement !== "back" && <ReviewCard label="Front artwork" value={printSummaryForSide("front")} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
-              {placement !== "front" && <ReviewCard label="Back artwork" value={printSummaryForSide("back")} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
-              <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? "One or more photos should ideally be replaced." : "Photo quality check complete."} />
-              <ReviewCard label="Production result" value="Customer-approved preview" sub="Locked 300 DPI PNG is generated when added to cart." />
+              {designPath !== "seasonal" && placement !== "back" && <ReviewCard label="Front artwork" value={printSummaryForSide("front")} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
+              {designPath !== "seasonal" && placement !== "front" && <ReviewCard label="Back artwork" value={printSummaryForSide("back")} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
+              {designPath !== "seasonal" && <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? `Print-quality warning · smallest upload ${Math.min(...photos.map((p) => Math.max(Number(p.width || 0), Number(p.height || 0)))) || 0}px on its longest edge. Replace low-resolution photos when possible.` : "Photo quality check complete."} />}
+              <ReviewCard label="Production result" value="Customer-approved preview" sub={designPath === "seasonal" ? "Prepared 300 DPI layered composite · locked to this approval when added to cart." : "Locked 300 DPI PNG is generated when added to cart."} />
               <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
             </div>
             {groupGarments.length > 0 && <div className="mt-4 border border-border p-4"><div className="font-bold">Additional shirts using the same design</div>{groupGarments.map((g,i) => <div key={i} className="text-sm text-muted-foreground mt-1">{g.quantity}× {g.color} · {g.size}</div>)}</div>}
-            {showOrderPrice && <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Before cart discounts, shipping, tax or coupon.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>}
+            <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Garment, selected print sides and rush fee included. Cart discounts, shipping, tax and coupons are calculated later.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>
             <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide disabled:opacity-50">{saving ? "Generating production artwork…" : "Approve, Lock & Add to Cart →"}</button>
           </div>}
         </section>
@@ -2759,7 +2869,7 @@ export default function CustomStudio() {
                 hint={continueHint()}
                 saving={saving}
                 finalDisabled={!rightsConfirmed || !approvalAcknowledged}
-                onPrevious={() => step === 1 ? navigate(-1) : setStep(step - 1)}
+                onPrevious={() => step === 1 ? navigate(-1) : goToStudioStep(step - 1)}
                 onContinue={handleContinue}
                 onFinal={createAndAdd}
                 compact
@@ -2796,6 +2906,12 @@ export default function CustomStudio() {
                 </div>
               </div>
 
+              {designPath === "seasonal" && step >= 4 && seasonalPrepared?.cartItemBase?.image ? (
+                <div className="relative grid aspect-[4/5] place-items-center overflow-hidden bg-[#F3EEE6] p-4 sm:p-6" data-seasonal-approved-preview>
+                  <img src={seasonalPrepared.cartItemBase.image} alt="Exact prepared Seasonal Design garment preview" className="h-full w-full object-contain" />
+                  <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-emerald-200 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 shadow-sm">Exact prepared preview · 300 DPI composite</div>
+                </div>
+              ) : (
               <StudioPreview
                 garment={garment}
                 color={previewColor}
@@ -2829,6 +2945,7 @@ export default function CustomStudio() {
                 previewConfig={config.preview || {}}
                 styleTemplate={activePreviewTemplate}
                 mood={designMood} preferEditablePhotoLayers={designPath === "bootleg" || designPath === "memorial"} />
+              )}
 
               <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
                 {step === 3 && <AdvancedEditorPanel
@@ -3562,6 +3679,7 @@ function garmentPalette(color) {
 
 function StudioStepNav({ step, totalSteps, canContinue, hint, saving, finalDisabled, onPrevious, onContinue, onFinal, compact = false }) {
   const isFinal = step >= totalSteps;
+  if (compact && isFinal) return null;
   const disabled = isFinal ? saving || finalDisabled : !canContinue;
   return <div data-gdp-step-nav={compact ? "mobile" : "desktop"} className={"gdp-studio-step-nav rounded-2xl border border-[#DCE3EA] bg-white shadow-sm " + (compact ? "px-3 py-3" : "px-3 py-2.5")}>
     <div className="flex items-center justify-between gap-3">
