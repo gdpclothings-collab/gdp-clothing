@@ -79,7 +79,23 @@ jobs:
         shell: bash
         run: |
           if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then
-            echo "Maintenance mode is active; skipping Custom Studio garment interaction checks."
+            echo "::notice title=Custom Studio garment regression skipped::Maintenance mode is active, so the public garment interaction could not be exercised. This is SKIPPED, not PASSED."
+            mkdir -p "${SMOKE_ARTIFACT_DIR}"
+            cat > "${SMOKE_ARTIFACT_DIR}/custom-studio-garment-report.json" <<'JSON'
+          {
+            "status": "skipped",
+            "reason": "maintenance",
+            "message": "Maintenance mode blocked the public Custom Studio garment interaction. No live garment click assertion was executed."
+          }
+          JSON
+            cat > "${SMOKE_ARTIFACT_DIR}/custom-studio-garment-summary.md" <<'MD'
+          # GDP Clothing Custom Studio Garment Regression
+
+          Status: SKIPPED
+          Reason: maintenance mode
+
+          The public Custom Studio garment click was not exercised. Do not interpret the workflow's overall success as a garment-interaction pass.
+          MD
             exit 0
           fi
           node scripts/custom-studio-garment-smoke.mjs
