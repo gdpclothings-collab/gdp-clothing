@@ -6,6 +6,7 @@ const v8Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV8.jsx",
 const v9Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV9.jsx", "utf8");
 const v10Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV10.jsx", "utf8");
 const v11Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV11.jsx", "utf8");
+const v12Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV12.jsx", "utf8");
 
 function fail(message) {
   console.error(`FAIL Custom Studio garment interaction guard: ${message}`);
@@ -16,8 +17,12 @@ if (/DesktopGarmentSelectionFocus/.test(appSource)) {
   fail("DesktopGarmentSelectionFocus must not be imported or mounted in App.jsx because it can intercept native garment-card clicks.");
 }
 
-if (!appSource.includes("CustomStudioDesktopWorkspaceV11")) {
-  fail("App.jsx must route Custom Studio through the V11 visibility shell.");
+if (!appSource.includes("CustomStudioDesktopWorkspaceV12")) {
+  fail("App.jsx must route Custom Studio through the V12 guide drawer shell.");
+}
+
+if (!v12Source.includes("CustomStudioDesktopWorkspaceV11")) {
+  fail("V12 must wrap V11 so the proven visibility, Step 1 shell, and V9/V8 interaction protection stay active.");
 }
 
 if (!v11Source.includes("CustomStudioDesktopWorkspaceV10")) {
@@ -32,8 +37,12 @@ if (!v11Source.includes("[data-guide] > div") || !v11Source.includes("z-index: 9
   fail("V11 must keep the expanded How Custom Orders Work panel above the configurator.");
 }
 
-if (!v11Source.includes("Restore the helper copy")) {
-  fail("V11 must restore the guide helper copy compressed by V10.");
+if (!v12Source.includes('data-guide-open={guideOpen ? "true" : "false"}')) {
+  fail("V12 must track the guide open state without replacing React-owned garment controls.");
+}
+
+if (!v12Source.includes("gdp-custom-guide-backdrop") || !v12Source.includes("gdp-custom-guide-close")) {
+  fail("V12 must keep the guide dismissible without intercepting normal garment interactions while closed.");
 }
 
 if (!v10Source.includes("CustomStudioDesktopWorkspaceV9")) {
@@ -109,8 +118,8 @@ if (!v10Source.includes("Your account and unrelated cart items are not affected.
 }
 
 console.log("PASS Custom Studio garment interaction guard");
-console.log("- App routes Custom Studio through V11 while preserving V10/V9/V8 interaction protection");
-console.log("- V11 keeps How Custom Orders Work above the Step 1 workspace and restores its helper copy");
+console.log("- App routes Custom Studio through V12 while preserving V11/V10/V9/V8 interaction protection");
+console.log("- V12 refines How Custom Orders Work without replacing React-owned garment controls");
 console.log("- native Step 1 chooseProduct handler and stable product identity remain present");
 console.log("- V8 pointer-up fallback remains present without cancelling native events");
 console.log("- V9 preserves original catalog images and restores them whenever the full chooser opens");
