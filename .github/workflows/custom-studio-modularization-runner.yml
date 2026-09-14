@@ -1,0 +1,43 @@
+name: Custom Studio Modularization Runner
+
+on:
+  pull_request:
+    branches:
+      - automation/custom-studio-modularization-runner
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  refactor:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'refactor/custom-studio-modularization-20260914'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout modularization branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Apply deterministic modularization
+        run: node scripts/refactor-custom-studio-modularization.mjs
+
+      - name: Commit generated source
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No modularization changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CustomStudio.jsx src/components/storefront/custom-studio src/hooks/useCustomStudioWorkflowState.js scripts/verify-custom-studio-shell-architecture.mjs scripts/verify-custom-studio-garment-interactions.mjs
+          git commit -m "Modularize Custom Studio workflow steps"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
