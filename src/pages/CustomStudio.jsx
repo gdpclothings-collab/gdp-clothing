@@ -2400,7 +2400,7 @@ export default function CustomStudio() {
 
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
+    <div data-studio-shell data-step={step} className="gdp-custom-studio-core min-h-screen w-full max-w-full overflow-x-clip bg-[linear-gradient(180deg,#F4F7FA_0%,#EDF2F6_38%,#F8FAFC_100%)]">
       {pendingDraft && <div className="fixed inset-0 z-[150] grid place-items-center bg-[#07131F]/70 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="saved-studio-draft-title">
         <div className="w-full max-w-[390px] rounded-[24px] border border-white/10 bg-[#07131F] p-5 text-white shadow-[0_28px_90px_rgba(0,0,0,.45)]">
           <div className="font-mono text-[9px] uppercase tracking-[.2em] text-[#D9273E]">Saved custom design</div>
@@ -2413,8 +2413,8 @@ export default function CustomStudio() {
           <p className="mt-3 text-center text-[9px] leading-relaxed text-white/35">Starting fresh clears the saved unfinished draft. Completed cart designs are not affected.</p>
         </div>
       </div>}
-      <div className="mx-auto w-full min-w-0 max-w-[1540px] px-4 py-6 md:py-10 lg:px-8">
-        <div className="relative overflow-hidden rounded-[28px] border border-[#DCE3EA] bg-[linear-gradient(135deg,#FFFFFF_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
+      <div data-studio-container className="mx-auto w-full min-w-0 max-w-[1540px] px-4 py-6 md:py-10 lg:px-8">
+        <div data-studio-hero className="relative overflow-hidden rounded-[28px] border border-[#DCE3EA] bg-[linear-gradient(135deg,#FFFFFF_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
           <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-accent/[0.06] blur-3xl pointer-events-none" />
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
             <div>
@@ -2428,12 +2428,12 @@ export default function CustomStudio() {
           </div>
         </div>
 
-        <div className="mb-7">
-          <div className="md:hidden mb-3">
+        <div data-studio-rail className="mb-7">
+          <div data-mobile-progress className="md:hidden mb-3">
             <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wide text-[#736d65]"><span>Step {step} of {STEPS.length}</span><span>{STEPS[step - 1]}</span></div>
             <div className="h-1.5 rounded-full bg-[#E3E9EF] mt-2 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${(step / STEPS.length) * 100}%` }} /></div>
           </div>
-          <div className="hidden md:flex items-center gap-0 rounded-2xl border border-[#DCE3EA] bg-white/70 p-2 shadow-sm overflow-x-auto">
+          <div data-stepper className="hidden md:flex items-center gap-0 rounded-2xl border border-[#DCE3EA] bg-white/70 p-2 shadow-sm overflow-x-auto">
             {STEPS.map((label, index) => {
               const number = index + 1;
               const complete = step > number;
@@ -2448,7 +2448,7 @@ export default function CustomStudio() {
             })}
           </div>
 
-          <div className="mt-3 overflow-hidden rounded-2xl border border-[#DCE3EA] bg-white/75 shadow-sm">
+          <div data-guide className="mt-3 overflow-hidden rounded-2xl border border-[#DCE3EA] bg-white/75 shadow-sm">
             <button
               type="button"
               onClick={() => setShowOrderGuide((visible) => !visible)}
@@ -2498,7 +2498,7 @@ export default function CustomStudio() {
             </div>}
           </div>
 
-          <div className="mt-3">
+          <div data-actions className="mt-3">
             <StudioStepNav
               step={step}
               totalSteps={STEPS.length}
@@ -2513,8 +2513,8 @@ export default function CustomStudio() {
           </div>
         </div>
 
-        <div className="grid w-full min-w-0 max-w-full items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)]">
-          <section id="custom-studio-workspace" className="scroll-mt-24 min-w-0 max-w-full overflow-x-clip rounded-[24px] border border-[#e2dcd3] bg-[#FFFFFF] p-4 shadow-[0_18px_50px_rgba(28,24,20,.055)] md:p-8 md:min-h-[560px]">
+        <div data-studio-row className="grid w-full min-w-0 max-w-full items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)]">
+          <section id="custom-studio-workspace" data-workspace className="scroll-mt-24 min-w-0 max-w-full overflow-x-clip rounded-[24px] border border-[#e2dcd3] bg-[#FFFFFF] p-4 shadow-[0_18px_50px_rgba(28,24,20,.055)] md:p-8 md:min-h-[560px]">
           {step === 2 && <div>
             <StepTitle eyebrow="Start your design" title="CHOOSE YOUR DESIGN PATH" text="Choose the kind of design you want. You will customize everything in the next workspace." />
             <div className="grid sm:grid-cols-2 gap-4">
@@ -2664,7 +2664,7 @@ export default function CustomStudio() {
           {step === 1 && <div>
             <StepTitle eyebrow="Choose your blank" title="CLOTHING, COLOR & SIZE" text="Pick the exact garment first. Colors, sizes, pricing and availability update automatically for that clothing type." />
 
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div data-garment-grid className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {(catalog.length ? catalog : (product ? [product] : [])).map((option) => {
                 const optionGarment = garmentFromProduct(option);
                 const optionImage = studioCardImage(option);
@@ -2704,7 +2704,7 @@ export default function CustomStudio() {
             {!product && catalog.length > 0 && <div className="mt-5 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 text-sm text-[#52616F]">Choose a garment above to begin. Nothing has been selected for you.</div>}
 
             {product && <>
-              <div className="mt-7">
+              <div data-step1-color className="mt-7">
                 <div className="flex items-center justify-between gap-3">
                   <label className="font-mono text-xs uppercase text-muted-foreground">Color</label>
                   <span className="text-xs font-semibold">{color}</span>
@@ -2727,8 +2727,8 @@ export default function CustomStudio() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-[1fr_auto] gap-5 mt-6 items-start">
-                <div>
+              <div data-step1-size-quantity className="grid md:grid-cols-[1fr_auto] gap-5 mt-6 items-start">
+                <div data-step1-size>
                   <label className="font-mono text-xs uppercase text-muted-foreground">Size</label>
                   <div className="mt-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
                     {availableSizes.map((optionSize) => {
@@ -2751,7 +2751,7 @@ export default function CustomStudio() {
                   {product.trackInventory === false && <div className="mt-2 text-[10px] text-[#817b73]">Made to order · inventory tracking is currently off for this blank.</div>}
                 </div>
 
-                <div>
+                <div data-step1-quantity>
                   <label className="font-mono text-xs uppercase text-muted-foreground">Quantity</label>
                   <div className="mt-2 flex items-center rounded-xl border border-[#ddd7ce] bg-white overflow-hidden w-fit">
                     <button type="button" onClick={() => setQty(v => Math.max(1,v-1))} className="p-2.5 hover:bg-[#f5f1eb]"><Minus size={15}/></button>
@@ -2761,7 +2761,7 @@ export default function CustomStudio() {
                 </div>
               </div>
 
-              <div className="mt-7 border-t border-border pt-5">
+              <div data-step1-group className="mt-7 border-t border-border pt-5">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="font-bold">Same design, different sizes or colors</div>
@@ -2781,10 +2781,10 @@ export default function CustomStudio() {
               </div>
 
               {!selectedAvailable && product?.variants?.length > 0 && (
-                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose an available size before continuing.</div>
+                <div data-step1-validation-message className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose an available size before continuing.</div>
               )}
 
-              <div className="mt-7 hidden items-center justify-between gap-5 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 lg:flex">
+              <div data-step1-complete className="mt-7 hidden items-center justify-between gap-5 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 lg:flex">
                 <div>
                   <div className="text-sm font-bold text-[#17324D]">Garment selection complete</div>
                   <p className="mt-1 text-xs text-[#64707C]">{canContinue() ? `${product.name} · ${color} · ${size} · Qty ${qty}` : continueHint()}</p>
@@ -2860,7 +2860,7 @@ export default function CustomStudio() {
           </div>}
         </section>
 
-          <aside className="h-fit min-w-0 max-w-full space-y-4 lg:sticky lg:top-24">
+          <aside data-aside className="h-fit min-w-0 max-w-full space-y-4 lg:sticky lg:top-24">
             <div ref={mobileEndRef} className="lg:hidden">
               <StudioStepNav
                 step={step}
@@ -2876,7 +2876,7 @@ export default function CustomStudio() {
               />
             </div>
 
-            <div data-gdp-design-path={designPath || "none"} className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
+            <div data-preview-card data-gdp-design-path={designPath || "none"} className="overflow-hidden rounded-[24px] border border-[#dcd5ca] bg-white shadow-[0_18px_55px_rgba(25,22,18,.085)]">
               <div className="gdp-bootleg-preview-toolbar flex flex-col gap-3 px-4 py-3.5 border-b border-[#ebe5dc] bg-[#FFFFFF] lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.18em] text-accent">Live garment preview</div>
@@ -3033,7 +3033,7 @@ export default function CustomStudio() {
               </div>
             </div>
 
-            <div className="rounded-[22px] border border-[#ddd6cc] bg-[#17212B] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
+            <div data-order-card className="rounded-[22px] border border-[#ddd6cc] bg-[#17212B] text-white p-5 shadow-[0_14px_40px_rgba(20,18,16,.11)]">
               <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">Your order</div>
               <div className="font-display text-3xl mt-2">{orderDesignStyle ? orderDesignStyle.replace(/^GDP\s+/, "") : "Build your order"}</div>
               <SummaryRow label="Front" value={printSummaryForSide("front")} />
