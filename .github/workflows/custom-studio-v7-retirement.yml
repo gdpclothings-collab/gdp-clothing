@@ -1,0 +1,42 @@
+name: Custom Studio V7 Retirement Refactor
+
+on:
+  push:
+    branches:
+      - refactor/custom-studio-v7-retirement-20260914
+    paths:
+      - scripts/refactor-custom-studio-v7-retirement.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout refactor branch
+        uses: actions/checkout@v5
+        with:
+          ref: refactor/custom-studio-v7-retirement-20260914
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Apply V7 retirement transformation
+        run: node scripts/refactor-custom-studio-v7-retirement.mjs
+
+      - name: Commit transformed source
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No refactor changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CustomStudio.jsx src/pages/CustomStudioDesktopWorkspace.jsx scripts/verify-custom-studio-shell-architecture.mjs scripts/verify-custom-studio-garment-interactions.mjs scripts/verify-custom-order-guide-visibility.mjs src/pages/CustomStudioDesktopWorkspaceV7.jsx
+          git commit -m "Retire Custom Studio V7 annotation layer"
+          git push origin HEAD:refactor/custom-studio-v7-retirement-20260914
