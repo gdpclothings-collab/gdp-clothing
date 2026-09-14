@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import GarmentStep from "@/components/storefront/custom-studio/GarmentStep";
 import ChooseDesignStep from "@/components/storefront/custom-studio/ChooseDesignStep";
