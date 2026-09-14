@@ -46,7 +46,10 @@ function createInitialWorkflowState(fallbackGarment) {
 
 /** @param {any} fallbackGarment */
 export function useCustomStudioWorkflowState(fallbackGarment) {
-  const [state, dispatch] = useReducer(workflowReducer, createInitialWorkflowState(fallbackGarment));
+  const [state, dispatch] = useReducer(
+    /** @type {import("react").Reducer<Record<string, any>, WorkflowAction>} */ (workflowReducer),
+    /** @type {Record<string, any>} */ (createInitialWorkflowState(fallbackGarment))
+  );
 
   const setters = useMemo(() => ({
     setStep: (value) => dispatch({ type: "set", key: "step", value }),
