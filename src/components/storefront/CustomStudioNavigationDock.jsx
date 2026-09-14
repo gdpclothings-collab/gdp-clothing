@@ -35,6 +35,16 @@ function readState() {
   };
 }
 
+function sameState(a, b) {
+  return a?.target === b?.target &&
+    a?.step === b?.step &&
+    a?.previousLabel === b?.previousLabel &&
+    a?.primaryLabel === b?.primaryLabel &&
+    a?.primaryDisabled === b?.primaryDisabled &&
+    a?.primaryBlocked === b?.primaryBlocked &&
+    a?.hint === b?.hint;
+}
+
 export default function CustomStudioNavigationDock() {
   const [state, setState] = useState(() => readState());
 
@@ -43,7 +53,10 @@ export default function CustomStudioNavigationDock() {
     let frame = 0;
     const refresh = () => {
       if (frame) window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => setState(readState()));
+      frame = window.requestAnimationFrame(() => {
+        const next = readState();
+        setState((current) => sameState(current, next) ? current : next);
+      });
     };
     refresh();
     const observer = new MutationObserver(refresh);
