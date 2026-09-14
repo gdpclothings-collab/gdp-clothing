@@ -2627,7 +2627,7 @@ export default function CustomStudio() {
 
           {step === 1 && <GarmentStep model={{
             StepTitle, catalog, product, garmentFromProduct, studioCardImage, chooseProduct, GarmentShape, showGarmentPrices,
-            availableColors, color, chooseColor, swatchFor, availableSizes, variantFor, variantAvailable, setSize, qty, setQty,
+            availableColors, color, chooseColor, swatchFor, availableSizes, variantFor, variantAvailable, setSize, size, qty, setQty,
             addGroupGarment, groupGarments, GroupRow, updateGroup, removeGroup, selectedAvailable, canContinue, continueHint, setStep,
           }} />}
 

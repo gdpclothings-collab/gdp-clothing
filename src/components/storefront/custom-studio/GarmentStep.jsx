@@ -19,6 +19,7 @@ export default function GarmentStep({ model }) {
     variantFor,
     variantAvailable,
     setSize,
+    size,
     qty,
     setQty,
     addGroupGarment,
