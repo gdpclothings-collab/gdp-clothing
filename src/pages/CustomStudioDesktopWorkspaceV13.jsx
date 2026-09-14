@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { RotateCcw, X } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import CustomStudioDesktopWorkspaceV12 from "@/pages/CustomStudioDesktopWorkspaceV12";
 import { customerApi } from "@/lib/customerApi";
 import { clearStudioEditIntent, readCurrentStudioDraft } from "@/lib/customStudioDraftBridge";
@@ -137,8 +137,9 @@ function selectedColor(section) {
 }
 
 function selectedGarmentCard(shell) {
-  return shell?.querySelector('[data-step="1"] [data-garment-grid][data-gdp-collapsed="true"] > button.border-accent') ||
-    shell?.querySelector('[data-step="1"] [data-garment-grid] > button.border-accent') || null;
+  if (!shell || shell.dataset.step !== "1") return null;
+  return shell.querySelector('[data-garment-grid][data-gdp-collapsed="true"] > button.border-accent') ||
+    shell.querySelector('[data-garment-grid] > button.border-accent') || null;
 }
 
 function productForCard(catalog, card) {
