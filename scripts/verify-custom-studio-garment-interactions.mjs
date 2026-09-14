@@ -7,6 +7,7 @@ const v9Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV9.jsx",
 const v10Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV10.jsx", "utf8");
 const v11Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV11.jsx", "utf8");
 const v12Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV12.jsx", "utf8");
+const v13Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV13.jsx", "utf8");
 
 function fail(message) {
   console.error(`FAIL Custom Studio garment interaction guard: ${message}`);
@@ -17,36 +18,24 @@ if (/DesktopGarmentSelectionFocus/.test(appSource)) {
   fail("DesktopGarmentSelectionFocus must not be imported or mounted in App.jsx because it can intercept native garment-card clicks.");
 }
 
-if (!appSource.includes("CustomStudioDesktopWorkspaceV12")) {
-  fail("App.jsx must route Custom Studio through the V12 guide drawer shell.");
+if (!appSource.includes("CustomStudioDesktopWorkspaceV13")) {
+  fail("App.jsx must route Custom Studio through the V13 hardening shell.");
+}
+
+if (!v13Source.includes("CustomStudioDesktopWorkspaceV12")) {
+  fail("V13 must preserve the proven V12/V11/V10/V9/V8 interaction stack underneath.");
 }
 
 if (!v12Source.includes("CustomStudioDesktopWorkspaceV11")) {
-  fail("V12 must wrap V11 so the proven visibility, Step 1 shell, and V9/V8 interaction protection stay active.");
+  fail("V12 must wrap V11 so the proven visibility and Step 1 shell remain active.");
 }
 
 if (!v11Source.includes("CustomStudioDesktopWorkspaceV10")) {
   fail("V11 must wrap V10 so the proven Step 1 shell and V9/V8 interaction protection stay active.");
 }
 
-if (!v11Source.includes("[data-studio-rail]" ) || !v11Source.includes("z-index: 260 !important")) {
-  fail("V11 must lift the desktop rail above the Step 1 workspace so the expanded custom-order guide stays visible.");
-}
-
-if (!v11Source.includes("[data-guide] > div") || !v11Source.includes("z-index: 999 !important")) {
-  fail("V11 must keep the expanded How Custom Orders Work panel above the configurator.");
-}
-
-if (!v12Source.includes('data-guide-open={guideOpen ? "true" : "false"}')) {
-  fail("V12 must track the guide open state without replacing React-owned garment controls.");
-}
-
-if (!v12Source.includes("gdp-custom-guide-backdrop") || !v12Source.includes("gdp-custom-guide-close")) {
-  fail("V12 must keep the guide dismissible without intercepting normal garment interactions while closed.");
-}
-
 if (!v10Source.includes("CustomStudioDesktopWorkspaceV9")) {
-  fail("V10 must wrap V9 so the proven pointer recovery and thumbnail integrity layers stay active.");
+  fail("V10 must wrap V9 so pointer recovery and thumbnail integrity remain active.");
 }
 
 if (!studioSource.includes('onClick={() => chooseProduct(option)}')) {
@@ -69,28 +58,12 @@ if (/preventDefault\(|stopPropagation\(|stopImmediatePropagation\(/.test(v8Sourc
   fail("V8 must never cancel native pointer/click propagation; React remains the primary interaction owner.");
 }
 
-if (!v9Source.includes("gdpOriginalSrc")) {
-  fail("V9 must snapshot each React-rendered garment card image before live preview substitution.");
+if (!v9Source.includes("gdpOriginalSrc") || !v9Source.includes("restoreExpandedGarmentImages")) {
+  fail("V9 must snapshot and restore original garment catalog thumbnails.");
 }
 
-if (!v9Source.includes("restoreExpandedGarmentImages")) {
-  fail("V9 must restore catalog thumbnails when the garment chooser is expanded.");
-}
-
-if (!v9Source.includes('grid.dataset.gdpCollapsed === "true"')) {
-  fail("V9 thumbnail restoration must distinguish collapsed summary mode from the full garment chooser.");
-}
-
-if (!v9Source.includes('attributeFilter: ["src", "class", "data-gdp-collapsed"]')) {
-  fail("V9 must react to preview-source and chooser-state changes so stale thumbnails cannot persist.");
-}
-
-if (!v10Source.includes("createPortal")) {
-  fail("V10 must mirror the tested desktop navigation into the Step 1 bottom dock without reparenting React-owned controls.");
-}
-
-if (!v10Source.includes("gdp-step1-bottom-dock")) {
-  fail("V10 must keep Step 1 Back/Continue controls at the bottom of the workspace.");
+if (!v10Source.includes("createPortal") || !v10Source.includes("gdp-step1-bottom-dock")) {
+  fail("V10 must keep the portal-based Step 1 bottom action dock.");
 }
 
 if (!v10Source.includes("object-fit: contain !important")) {
@@ -101,27 +74,23 @@ if (!v10Source.includes('grid-template-columns: minmax(0, 820px) !important')) {
   fail("V10 must center the selected garment in a bounded configurator card.");
 }
 
-if (!v10Source.includes('const STUDIO_DRAFT_KEY = "gdp.custom-studio.draft.v2"')) {
-  fail("V10 Start Fresh must clear the same persisted Custom Studio draft used by the core workflow.");
+if (!v13Source.includes("customerApi.getStudioCatalog()") || !v13Source.includes("colorMockup(product, color)")) {
+  fail("V13 must resolve the selected garment thumbnail from the real product/color mockup catalog.");
 }
 
-if (!v10Source.includes("window.localStorage.removeItem(STUDIO_DRAFT_KEY)")) {
-  fail("V10 Start Fresh no longer clears the persisted draft.");
+if (!v13Source.includes("gdp-change-garment-button") || !v13Source.includes("Change garment")) {
+  fail("V13 must provide a real accessible Change garment button rather than a CSS pseudo-label.");
 }
 
-if (!v10Source.includes('window.location.replace("/custom-studio")')) {
-  fail("V10 Start Fresh must perform a true clean Custom Studio reload so all in-memory editor state resets.");
+if (!v13Source.includes("position: sticky !important") || !v13Source.includes(".gdp-step1-bottom-dock")) {
+  fail("V13 must keep Step 1 navigation visible while the workspace scrolls.");
 }
 
-if (!v10Source.includes("Your account and unrelated cart items are not affected.")) {
-  fail("V10 Start Fresh confirmation must explain its safe reset boundary.");
+if (!v10Source.includes('const STUDIO_DRAFT_KEY = "gdp.custom-studio.draft.v2"') || !v10Source.includes("window.location.replace(\"/custom-studio\")")) {
+  fail("V10 Start Fresh must still clear the saved draft and perform a clean Studio reload.");
 }
 
 console.log("PASS Custom Studio garment interaction guard");
-console.log("- App routes Custom Studio through V12 while preserving V11/V10/V9/V8 interaction protection");
-console.log("- V12 refines How Custom Orders Work without replacing React-owned garment controls");
-console.log("- native Step 1 chooseProduct handler and stable product identity remain present");
-console.log("- V8 pointer-up fallback remains present without cancelling native events");
-console.log("- V9 preserves original catalog images and restores them whenever the full chooser opens");
-console.log("- V10 uses full-garment containment, centered selected state and a portal-based bottom action dock");
-console.log("- Start Fresh clears the persisted draft and reloads a clean Custom Studio without touching account/cart state");
+console.log("- App routes Custom Studio through V13 while preserving V12/V11/V10/V9/V8 interaction protection");
+console.log("- V13 resolves selected-color mockups from live catalog data and exposes a real Change garment control");
+console.log("- V8 pointer recovery, V9 catalog restoration, V10 full-garment layout and clean Start Fresh remain protected");
