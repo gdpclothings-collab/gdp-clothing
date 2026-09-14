@@ -25,7 +25,7 @@ const loadAdminPage = async (loader) => {
 const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
-const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspaceV13'));
+const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspace'));
 const Cart = lazy(() => import('@/pages/CartV2'));
 const Checkout = lazy(() => import('@/pages/Checkout'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));

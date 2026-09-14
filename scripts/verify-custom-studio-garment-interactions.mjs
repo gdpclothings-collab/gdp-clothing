@@ -2,12 +2,8 @@ import fs from "node:fs";
 
 const appSource = fs.readFileSync("src/App.jsx", "utf8");
 const studioSource = fs.readFileSync("src/pages/CustomStudio.jsx", "utf8");
-const v8Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV8.jsx", "utf8");
-const v9Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV9.jsx", "utf8");
-const v10Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV10.jsx", "utf8");
-const v11Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV11.jsx", "utf8");
-const v12Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV12.jsx", "utf8");
-const v13Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV13.jsx", "utf8");
+const workspaceSource = fs.readFileSync("src/pages/CustomStudioDesktopWorkspace.jsx", "utf8");
+const v7Source = fs.readFileSync("src/pages/CustomStudioDesktopWorkspaceV7.jsx", "utf8");
 
 function fail(message) {
   console.error(`FAIL Custom Studio garment interaction guard: ${message}`);
@@ -18,24 +14,20 @@ if (/DesktopGarmentSelectionFocus/.test(appSource)) {
   fail("DesktopGarmentSelectionFocus must not be imported or mounted in App.jsx because it can intercept native garment-card clicks.");
 }
 
-if (!appSource.includes("CustomStudioDesktopWorkspaceV13")) {
-  fail("App.jsx must route Custom Studio through the V13 hardening shell.");
+if (!appSource.includes("CustomStudioDesktopWorkspace'))")) {
+  fail("App.jsx must route Custom Studio through the unified desktop workspace.");
 }
 
-if (!v13Source.includes("CustomStudioDesktopWorkspaceV12")) {
-  fail("V13 must preserve the proven V12/V11/V10/V9/V8 interaction stack underneath.");
+if (/CustomStudioDesktopWorkspaceV(?:8|9|10|11|12|13)/.test(appSource)) {
+  fail("App.jsx must not route through the retired V8-V13 wrapper chain.");
 }
 
-if (!v12Source.includes("CustomStudioDesktopWorkspaceV11")) {
-  fail("V12 must wrap V11 so the proven visibility and Step 1 shell remain active.");
+if (!workspaceSource.includes("CustomStudioDesktopWorkspaceV7")) {
+  fail("The unified workspace must keep V7 as the temporary stable DOM-annotation/base-layout layer.");
 }
 
-if (!v11Source.includes("CustomStudioDesktopWorkspaceV10")) {
-  fail("V11 must wrap V10 so the proven Step 1 shell and V9/V8 interaction protection stay active.");
-}
-
-if (!v10Source.includes("CustomStudioDesktopWorkspaceV9")) {
-  fail("V10 must wrap V9 so pointer recovery and thumbnail integrity remain active.");
+if (/CustomStudioDesktopWorkspaceV(?:8|9|10|11|12|13)/.test(workspaceSource)) {
+  fail("The unified workspace must not nest any retired V8-V13 wrapper.");
 }
 
 if (!studioSource.includes('onClick={() => chooseProduct(option)}')) {
@@ -46,51 +38,55 @@ if (!studioSource.includes('key={option.id}')) {
   fail("The Step 1 garment-card mapping no longer exposes stable product identity.");
 }
 
-if (!v8Source.includes('document.addEventListener("pointerup", onPointerUp, true)')) {
-  fail("The V8 pointer-up recovery path is missing.");
+if (!v7Source.includes('data-garment-grid') || !v7Source.includes('data-gdp-collapsed')) {
+  fail("V7 must continue annotating the garment grid and selected/collapsed state until it is retired separately.");
 }
 
-if (!v8Source.includes("pending.card.click()")) {
-  fail("The V8 fallback no longer retries a swallowed garment-card click.");
+if (!workspaceSource.includes('document.addEventListener("pointerup", onPointerUp, true)')) {
+  fail("The unified workspace must retain pointer-up garment recovery.");
 }
 
-if (/preventDefault\(|stopPropagation\(|stopImmediatePropagation\(/.test(v8Source)) {
-  fail("V8 must never cancel native pointer/click propagation; React remains the primary interaction owner.");
+if (!workspaceSource.includes("pending.card.click()")) {
+  fail("The unified workspace must retry a swallowed native garment-card click.");
 }
 
-if (!v9Source.includes("gdpOriginalSrc") || !v9Source.includes("restoreExpandedGarmentImages")) {
-  fail("V9 must snapshot and restore original garment catalog thumbnails.");
+if (!workspaceSource.includes("gdpOriginalSrc") || !workspaceSource.includes("restoreExpandedGarmentImages")) {
+  fail("The unified workspace must snapshot and restore catalog thumbnails when the chooser expands.");
 }
 
-if (!v10Source.includes("createPortal") || !v10Source.includes("gdp-step1-bottom-dock")) {
-  fail("V10 must keep the portal-based Step 1 bottom action dock.");
+if (!workspaceSource.includes("createPortal") || !workspaceSource.includes("gdp-step1-bottom-dock")) {
+  fail("The unified workspace must keep the portal-based Step 1 bottom action dock.");
 }
 
-if (!v10Source.includes("object-fit: contain !important")) {
-  fail("V10 must force full-garment containment so catalog cards cannot collapse to collar-only crops.");
+if (!workspaceSource.includes("object-fit: contain !important")) {
+  fail("The unified workspace must force full-garment containment.");
 }
 
-if (!v10Source.includes('grid-template-columns: minmax(0, 820px) !important')) {
-  fail("V10 must center the selected garment in a bounded configurator card.");
+if (!workspaceSource.includes('grid-template-columns: minmax(0, 820px) !important')) {
+  fail("The unified workspace must keep the selected garment centered in a bounded configurator card.");
 }
 
-if (!v13Source.includes("customerApi.getStudioCatalog()") || !v13Source.includes("colorMockup(product, color)")) {
-  fail("V13 must resolve the selected garment thumbnail from the real product/color mockup catalog.");
+if (!workspaceSource.includes("customerApi.getStudioCatalog()") || !workspaceSource.includes("colorMockup(product, color)")) {
+  fail("The unified workspace must resolve selected garment thumbnails from canonical product/color mockup data.");
 }
 
-if (!v13Source.includes("gdp-change-garment-button") || !v13Source.includes("Change garment")) {
-  fail("V13 must provide a real accessible Change garment button rather than a CSS pseudo-label.");
+if (!workspaceSource.includes("gdp-change-garment-button") || !workspaceSource.includes("Change garment")) {
+  fail("The unified workspace must provide a real accessible Change garment control.");
 }
 
-if (!v13Source.includes("position: sticky !important") || !v13Source.includes(".gdp-step1-bottom-dock")) {
-  fail("V13 must keep Step 1 navigation visible while the workspace scrolls.");
+if (!workspaceSource.includes("position: sticky !important") || !workspaceSource.includes(".gdp-step1-bottom-dock")) {
+  fail("The unified workspace must keep Step 1 navigation visible while the workspace scrolls.");
 }
 
-if (!v10Source.includes('const STUDIO_DRAFT_KEY = "gdp.custom-studio.draft.v2"') || !v10Source.includes("window.location.replace(\"/custom-studio\")")) {
-  fail("V10 Start Fresh must still clear the saved draft and perform a clean Studio reload.");
+if (!workspaceSource.includes('const STUDIO_DRAFT_KEY = "gdp.custom-studio.draft.v2"') || !workspaceSource.includes('window.location.replace("/custom-studio")')) {
+  fail("Start Fresh must still clear the saved draft and perform a clean Studio reload.");
+}
+
+if (!workspaceSource.includes("clearStudioEditIntent()")) {
+  fail("Start Fresh must clear pending cart-edit replacement intent.");
 }
 
 console.log("PASS Custom Studio garment interaction guard");
-console.log("- App routes Custom Studio through V13 while preserving V12/V11/V10/V9/V8 interaction protection");
-console.log("- V13 resolves selected-color mockups from live catalog data and exposes a real Change garment control");
-console.log("- V8 pointer recovery, V9 catalog restoration, V10 full-garment layout and clean Start Fresh remain protected");
+console.log("- App routes through one unified workspace instead of the retired V8-V13 wrapper chain");
+console.log("- pointer recovery, catalog restoration, exact-color mockups, full-garment layout and sticky navigation remain protected");
+console.log("- V7 remains the only temporary legacy layout/annotation layer under the consolidated workspace");
