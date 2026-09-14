@@ -1,0 +1,42 @@
+name: Custom Studio Modularization Refactor
+
+on:
+  push:
+    branches:
+      - refactor/custom-studio-modularization-20260914
+    paths:
+      - scripts/refactor-custom-studio-modularization.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout refactor branch
+        uses: actions/checkout@v5
+        with:
+          ref: refactor/custom-studio-modularization-20260914
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Apply Custom Studio modularization
+        run: node scripts/refactor-custom-studio-modularization.mjs
+
+      - name: Commit modularized source
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No modularization changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CustomStudio.jsx src/components/storefront/custom-studio src/hooks/useCustomStudioWorkflowState.js scripts/verify-custom-studio-shell-architecture.mjs scripts/verify-custom-studio-garment-interactions.mjs
+          git commit -m "Modularize Custom Studio workflow steps"
+          git push origin HEAD:refactor/custom-studio-modularization-20260914
