@@ -100,6 +100,16 @@ jobs:
           fi
           node scripts/custom-studio-garment-smoke.mjs
 
+      - name: Run Custom Studio hardening regression
+        if: success()
+        shell: bash
+        run: |
+          if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then
+            echo "Maintenance mode is active; skipping Custom Studio hardening browser checks."
+            exit 0
+          fi
+          node scripts/custom-studio-hardening-smoke.mjs
+
       - name: Run safe storefront wiring canary
         if: success()
         shell: bash
