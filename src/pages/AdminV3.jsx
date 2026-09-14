@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Activity, ArrowLeft, ExternalLink, HeartPulse } from "lucide-react";
 import AdminV2 from "@/pages/AdminV2";
 import SystemHealthModule from "@/components/admin/SystemHealthModule";
+import { systemHealthApi } from "@/lib/systemHealthApi";
 
 function SystemHealthPage() {
   return (
@@ -58,14 +59,49 @@ function SystemHealthPage() {
 }
 
 function HealthShortcut() {
+  const [health, setHealth] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const snapshot = await systemHealthApi.loadSnapshot();
+        if (active) setHealth(snapshot);
+      } catch {
+        if (active) setHealth(null);
+      }
+    };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const status = health?.status || "unknown";
+  const dotClass = status === "healthy"
+    ? "bg-emerald-500"
+    : status === "critical"
+      ? "bg-red-500"
+      : status === "warning"
+        ? "bg-amber-500"
+        : "bg-slate-400";
+  const scoreLabel = Number.isFinite(Number(health?.score)) ? `${health.score}%` : "Check";
+
   return (
     <Link
       to="/admin/system-health"
       className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8] focus:outline-none focus:ring-2 focus:ring-[#d7193f]/30"
       aria-label="Open System Health"
+      title={health ? `System Health: ${status} (${health.score}/100)` : "Open System Health"}
     >
-      <Activity size={17} />
-      System Health
+      <span className="relative grid place-items-center">
+        <Activity size={17} />
+        <span className={`absolute -right-1 -top-1 w-2 h-2 rounded-full ring-2 ring-white ${dotClass}`} />
+      </span>
+      <span>System Health</span>
+      <span className="rounded-md bg-[#f0f1f3] px-1.5 py-0.5 text-[11px] font-bold tabular-nums">{scoreLabel}</span>
     </Link>
   );
 }
