@@ -25,14 +25,14 @@ const loadAdminPage = async (loader) => {
 const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
-const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspaceV12'));
-const Cart = lazy(() => import('@/pages/Cart'));
+const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspaceV13'));
+const Cart = lazy(() => import('@/pages/CartV2'));
 const Checkout = lazy(() => import('@/pages/Checkout'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
 const Account = lazy(() => import('@/pages/Account'));
 const Admin = lazy(() => loadAdminPage(() => import('@/pages/Admin')));
 const AdminV3 = lazy(() => loadAdminPage(() => import('@/pages/AdminV3')));
-const AdminMediaOptimizer = lazy(() => loadAdminPage(() => import('@/pages/AdminMediaOptimizer')));
+const AdminMediaOptimizer = lazy(() => import('@/pages/AdminMediaOptimizer'));
 const TemplateManager = lazy(() => import('@/pages/TemplateManager'));
 const FAQ = lazy(() => import('@/pages/FAQ'));
 const ContentPage = lazy(() => import('@/pages/ContentPage'));
