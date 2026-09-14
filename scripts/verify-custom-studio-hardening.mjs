@@ -34,6 +34,6 @@ assert.ok(cartContext.includes('clearStudioEditIntent()'), 'Replacement intent m
 assert.ok(cart.includes('beginStudioCartEdit(item)'), 'Cart must restore custom designs through the shared edit bridge.');
 assert.ok(cart.includes('item.studioDraft || item.seasonalDraft'), 'Edit Design must be offered across saved Custom Studio paths.');
 assert.ok(!cart.includes('<Spec label="Personalization" value={seasonalPersonalization(item)}'), 'Artwork-only Seasonal cart details must not show meaningless Personalization: None.');
-assert.ok(cart.includes('requires approval again'), 'Cart edit helper must explain that re-approval is required.');
+assert.ok(cart.includes('must approve it again') || cart.includes('requires approval again'), 'Cart edit helper must explain that re-approval is required.');
 
 console.log('Custom Studio hardening guard passed.');
