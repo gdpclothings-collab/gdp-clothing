@@ -1,0 +1,383 @@
+/* GDP Touch Studio production UI refinement.
+ * Presentation only: the canonical Custom Studio handlers/state remain in the
+ * existing components. This layer keeps the editor and garment preview as
+ * stable peer surfaces and prevents nested-sticky reflow from hiding controls.
+ */
+
+#gdp-touch-studio-panel {
+  scrollbar-gutter: stable;
+}
+
+#gdp-touch-studio-panel input[type="range"] {
+  accent-color: #667788 !important;
+}
+
+.gdp-protected-artwork-controls {
+  border: 1px solid #dce3ea;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 12px;
+  color: #263746;
+}
+
+.gdp-protected-artwork-controls__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gdp-protected-artwork-controls__eyebrow {
+  color: #72808c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+
+.gdp-protected-artwork-controls__title {
+  margin-top: 2px;
+  color: #243746;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.gdp-protected-artwork-controls__badge {
+  max-width: 190px;
+  border: 1px solid #d7dee4;
+  border-radius: 999px;
+  background: #f5f7f9;
+  padding: 5px 8px;
+  color: #687783;
+  font-size: 8px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.gdp-protected-artwork-controls__copy {
+  margin-top: 8px;
+  color: #697883;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.gdp-protected-artwork-controls__ranges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.gdp-protected-artwork-controls__ranges label {
+  min-width: 0;
+  border: 1px solid #e1e7eb;
+  border-radius: 12px;
+  background: #f8fafb;
+  padding: 9px;
+  color: #647581;
+  font-size: 8px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.gdp-protected-artwork-controls__ranges label > span,
+.gdp-protected-artwork-controls__ranges label > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gdp-protected-artwork-controls__ranges label > strong {
+  float: right;
+  color: #314858;
+}
+
+.gdp-protected-artwork-controls__ranges input {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  accent-color: #667788;
+}
+
+.gdp-protected-artwork-controls__actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.gdp-protected-artwork-controls__actions button {
+  min-height: 34px;
+  border: 1px solid #dce3e8;
+  border-radius: 10px;
+  background: #f8fafb;
+  color: #506574;
+  font-size: 9px;
+  font-weight: 800;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+
+.gdp-protected-artwork-controls__actions button:hover {
+  border-color: #aebbc5;
+  background: #ffffff;
+  color: #263f50;
+}
+
+.gdp-protected-artwork-controls__actions button:nth-child(3),
+.gdp-protected-artwork-controls__reset,
+.gdp-protected-artwork-controls__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.gdp-protected-artwork-controls__reset {
+  grid-column: span 2;
+}
+
+.gdp-protected-artwork-controls__remove {
+  grid-column: span 3;
+  border-color: #dfcfd1 !important;
+  background: #fbf7f7 !important;
+  color: #845b61 !important;
+}
+
+/* Navigation dock used on Steps 2–5. It delegates all clicks to the original
+ * Custom Studio nav so validation, review, cart and checkout wiring are not
+ * reimplemented here. */
+.gdp-studio-navigation-dock {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #dce3ea;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .98);
+  padding: 8px 10px;
+  box-shadow: 0 10px 28px rgba(23, 50, 77, .08);
+}
+
+.gdp-studio-navigation-dock__button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 11px;
+  padding: 9px 14px;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.gdp-studio-navigation-dock__button--previous {
+  border: 1px solid #d7e0e6;
+  background: #ffffff;
+  color: #385164;
+}
+
+.gdp-studio-navigation-dock__button--primary {
+  border: 1px solid #334b5c;
+  background: #334b5c;
+  color: #ffffff;
+}
+
+.gdp-studio-navigation-dock__button--primary[aria-disabled="true"]:not(:disabled) {
+  background: #6e7e89;
+  border-color: #6e7e89;
+}
+
+.gdp-studio-navigation-dock__button:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+.gdp-studio-navigation-dock__status {
+  min-width: 0;
+  text-align: center;
+}
+
+.gdp-studio-navigation-dock__eyebrow {
+  color: #788690;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.gdp-studio-navigation-dock__message {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #586b79;
+  font-size: 9.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gdp-studio-navigation-dock__message.is-blocked {
+  color: #805e56;
+}
+
+@media (min-width: 1280px) {
+  .gdp-custom-studio-core[data-step="3"] [data-preview-card] {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    gap: 14px !important;
+    overflow: visible !important;
+  }
+
+  .gdp-custom-studio-core[data-step="3"] [data-preview-card] > :first-child {
+    grid-column: 1 / -1 !important;
+    border: 1px solid #dce3ea !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    overflow: hidden !important;
+  }
+
+  .gdp-custom-studio-core[data-step="3"] [data-preview-card] > :nth-child(2),
+  .gdp-custom-studio-core[data-step="3"] [data-preview-card] > [data-touch-studio-card="true"] {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border: 1px solid #dce3ea !important;
+    border-radius: 20px !important;
+    background: #ffffff !important;
+    box-shadow: 0 12px 32px rgba(23, 50, 77, .055) !important;
+  }
+
+  .gdp-custom-studio-core[data-step="3"] [data-preview-card] > :nth-child(2) {
+    overflow: hidden !important;
+  }
+
+  .gdp-custom-studio-core[data-step="3"] [data-preview-card] > [data-touch-studio-card="true"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    overflow: hidden !important;
+    padding: 10px !important;
+    border-top: 1px solid #dce3ea !important;
+  }
+
+  /* Root-cause fix for the disappearing editor: do not make the editor sticky
+   * inside another independently scrolling grid cell. Keep one bounded peer
+   * card and let only the editor's content area scroll. */
+  .gdp-custom-studio-core[data-step="3"] #gdp-touch-studio-panel {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    z-index: 1 !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    border: 0 !important;
+    border-radius: 14px !important;
+    background: #f8fafb !important;
+    padding: 10px !important;
+    color: #334a5b !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    isolation: isolate;
+  }
+
+  /* Neutralize the previous high-contrast editor skin while retaining muted
+   * danger styling for destructive actions. */
+  #gdp-touch-studio-panel [class*="text-white"] { color: #5c6f7c !important; }
+  #gdp-touch-studio-panel [class*="text-[#D9273E]"] { color: #647784 !important; }
+  #gdp-touch-studio-panel [class*="text-[#FF8A9A]"] { color: #6e7f8a !important; }
+  #gdp-touch-studio-panel [class*="text-[#FFB2BD]"] { color: #875e64 !important; }
+  #gdp-touch-studio-panel [class*="border-white"] { border-color: #dce3e8 !important; }
+  #gdp-touch-studio-panel [class*="bg-black/10"] { background: #eef2f5 !important; }
+  #gdp-touch-studio-panel [class*="bg-white/[.0"] { background-color: #ffffff !important; }
+  #gdp-touch-studio-panel [class*="border-[#D9273E]"] { border-color: #aebbc5 !important; }
+  #gdp-touch-studio-panel [class*="bg-[#D9273E]"] { background-color: #e8edf1 !important; color: #314b5c !important; }
+  #gdp-touch-studio-panel button[class*="bg-[#D9273E]"]:not([class*="Trash"]):not([title="Delete"]) { color: #314b5c !important; }
+  #gdp-touch-studio-panel input,
+  #gdp-touch-studio-panel textarea,
+  #gdp-touch-studio-panel select { color: #344b5b !important; }
+
+  .gdp-custom-studio-core[data-step="2"] [data-studio-row],
+  .gdp-custom-studio-core[data-step="3"] [data-studio-row],
+  .gdp-custom-studio-core[data-step="4"] [data-studio-row],
+  .gdp-custom-studio-core[data-step="5"] [data-studio-row] {
+    position: relative !important;
+    box-sizing: border-box !important;
+    padding-bottom: 62px !important;
+  }
+
+  .gdp-custom-studio-core[data-step="2"] [data-actions],
+  .gdp-custom-studio-core[data-step="3"] [data-actions],
+  .gdp-custom-studio-core[data-step="4"] [data-actions],
+  .gdp-custom-studio-core[data-step="5"] [data-actions] {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+  }
+
+  .gdp-studio-navigation-dock {
+    position: absolute;
+    z-index: 70;
+    right: 0;
+    bottom: 0;
+    left: 0;
+  }
+
+  /* View Guide drawer refinement. Existing click/Escape/backdrop handlers stay
+   * authoritative; this only makes the drawer clearer and easier to scan. */
+  .gdp-custom-studio-workspace[data-guide-open="true"] [data-guide] {
+    z-index: 121 !important;
+  }
+
+  .gdp-custom-studio-workspace[data-guide-open="true"] [data-guide] > div {
+    border-color: #d9e1e6 !important;
+    background: #ffffff !important;
+    box-shadow: 0 26px 80px rgba(23, 50, 77, .18) !important;
+  }
+
+  .gdp-custom-studio-workspace[data-guide-open="true"] [data-guide] button {
+    min-height: 44px;
+  }
+
+  .gdp-custom-guide-close {
+    width: 40px !important;
+    height: 40px !important;
+    border: 1px solid #dce3e8 !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    color: #455c6b !important;
+    font-size: 22px !important;
+    line-height: 1 !important;
+    box-shadow: 0 8px 20px rgba(23, 50, 77, .1) !important;
+  }
+
+  .gdp-guide-after-order {
+    border-top: 1px solid #e2e8ec !important;
+    background: #f5f7f9 !important;
+    color: #536875 !important;
+  }
+}
+
+@media (max-width: 1279px) {
+  .gdp-studio-navigation-dock { display: none; }
+  .gdp-protected-artwork-controls__ranges { grid-template-columns: 1fr; }
+  .gdp-protected-artwork-controls__actions { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
