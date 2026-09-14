@@ -21,7 +21,12 @@ jobs:
           fetch-depth: 0
 
       - name: Apply guarded source patch
-        run: node scripts/apply-touch-studio-source-patch.mjs
+        run: |
+          node scripts/apply-touch-studio-source-patch.mjs
+          # The GitHub Actions token may not update workflow files. Source
+          # changes are committed here; the connected GitHub integration adds
+          # the verification step separately.
+          git checkout -- .github/workflows/build-verification.yml
 
       - name: Verify patch diff
         run: |
@@ -32,6 +37,6 @@ jobs:
         run: |
           git config user.name "gdpclothings-collab"
           git config user.email "gdpclothings@gmail.com"
-          git add src/pages/CustomStudio.jsx src/components/storefront/StoreNav.jsx .github/workflows/build-verification.yml
+          git add src/pages/CustomStudio.jsx src/components/storefront/StoreNav.jsx
           git commit -m "fix: refine GDP Touch Studio interactions and layout"
           git push origin HEAD:fix/custom-studio-touch-studio-pass
