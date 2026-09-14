@@ -27,6 +27,7 @@ check(configured.rotation === 22, 'Seasonal production must preserve artwork rot
 const entrySource = readFileSync(new URL('../src/components/storefront/SeasonalStudio.jsx', import.meta.url), 'utf8');
 const studioSource = readFileSync(new URL('../src/components/storefront/SeasonalStudioLayered.jsx', import.meta.url), 'utf8');
 const customStudioSource = readFileSync(new URL('../src/pages/CustomStudio.jsx', import.meta.url), 'utf8');
+const timingApprovalSource = readFileSync(new URL('../src/components/storefront/custom-studio/TimingApprovalStep.jsx', import.meta.url), 'utf8');
 const cartSource = readFileSync(new URL('../src/pages/Cart.jsx', import.meta.url), 'utf8');
 const validationMigrationSource = readFileSync(new URL('../supabase/migrations/20260913182934_layered_seasonal_design_validation.sql', import.meta.url), 'utf8');
 const sourceCheck = (source, fragment, message) => check(source.includes(fragment), message);
@@ -72,7 +73,7 @@ sourceCheck(studioSource, "seasonalConfiguration: { version: 2, layers: configur
 sourceCheck(studioSource, "renderSnapshot = { version: 4, designPath: 'seasonal', layers: configurations", 'Locked production snapshots must contain the layered composition.');
 sourceCheck(studioSource, 'Artwork can overlap. Layer order determines what prints in front.', 'Seasonal controls must explain intentional artwork overlap.');
 sourceCheck(studioSource, 'I’m done arranging the seasonal artwork layers', 'Seasonal review must distinguish layout completion from final customer approval.');
-sourceCheck(customStudioSource, '<strong>I approve the exact live preview shown.</strong>', 'Final approval must occur in the shared Timing & Approval step.');
+sourceCheck(timingApprovalSource, '<strong>I approve the exact live preview shown.</strong>', 'Final approval must occur in the shared Timing & Approval step.');
 sourceCheck(customStudioSource, 'data-seasonal-approved-preview', 'Shared approval must display the exact prepared Seasonal mockup.');
 sourceCheck(customStudioSource, 'proofStatus: "approved"', 'Approved Seasonal cart items must retain explicit approval state.');
 
