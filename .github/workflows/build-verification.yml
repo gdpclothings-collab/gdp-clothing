@@ -38,6 +38,7 @@ jobs:
           node --check scripts/production-smoke.mjs
           node --check scripts/production-wiring-smoke.mjs
           node --check scripts/custom-studio-garment-smoke.mjs
+          node --check scripts/custom-studio-hardening-smoke.mjs
           node --check scripts/verify-custom-studio-garment-interactions.mjs
           node --check scripts/verify-custom-order-guide-visibility.mjs
           node --check scripts/verify-custom-studio-hardening.mjs
