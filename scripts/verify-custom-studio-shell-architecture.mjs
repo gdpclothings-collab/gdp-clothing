@@ -28,8 +28,11 @@ for (const path of retired) {
   assert.equal(fs.existsSync(path), false, `${path} must stay retired; use git history for rollback.`);
 }
 
-for (const hook of ['data-studio-shell','data-studio-container','data-studio-hero','data-studio-rail','data-mobile-progress','data-stepper','data-guide','data-actions','data-studio-row','data-workspace','data-aside','data-preview-card','data-order-card','data-garment-grid','data-step1-color','data-step1-size-quantity','data-step1-size','data-step1-quantity','data-step1-group','data-step1-complete']) {
+for (const hook of ['data-studio-shell','data-studio-container','data-studio-hero','data-studio-rail','data-mobile-progress','data-stepper','data-guide','data-actions','data-studio-row','data-workspace','data-aside','data-preview-card','data-order-card']) {
   assert.ok(core.includes(hook), `Core CustomStudio must own explicit semantic hook ${hook}.`);
+}
+for (const hook of ['data-garment-grid','data-step1-color','data-step1-size-quantity','data-step1-size','data-step1-quantity','data-step1-group','data-step1-complete']) {
+  assert.ok(garmentStep.includes(hook), `GarmentStep must own extracted Step 1 semantic hook ${hook}.`);
 }
 assert.ok(core.includes('data-step={step}'), 'Core CustomStudio must expose the canonical active step without DOM inference.');
 assert.ok(core.includes('className="gdp-custom-studio-core'), 'Core CustomStudio must expose the stable unversioned shell class.');
@@ -61,6 +64,6 @@ assert.ok(workspace.includes('estimatedPhotoDpi'), 'Print-quality refinement mus
 
 console.log('PASS Custom Studio shell architecture guard');
 console.log('- V7-V13 are retired');
-console.log('- core CustomStudio owns semantic layout hooks and active-step identity');
+console.log('- core CustomStudio owns shell semantics while GarmentStep owns Step 1 semantics');
 console.log('- one unversioned desktop runtime owns desktop-only presentation behavior');
 console.log('- stable customer steps are isolated modules and workflow state is reducer-backed');
