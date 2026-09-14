@@ -1,0 +1,386 @@
+/* GDP Custom Studio mobile/tablet refinement.
+ * IMPORTANT: This file intentionally contains only max-width media queries so
+ * the desktop workspace (1280px+) and all canonical ecommerce/editor handlers
+ * remain untouched.
+ */
+
+@media (max-width: 1279px) {
+  .gdp-custom-studio-workspace,
+  .gdp-custom-studio-core,
+  .gdp-custom-studio-core [data-studio-container],
+  .gdp-custom-studio-core [data-studio-row],
+  .gdp-custom-studio-core [data-workspace],
+  .gdp-custom-studio-core [data-aside],
+  .gdp-custom-studio-core [data-preview-card] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .gdp-custom-studio-workspace,
+  .gdp-custom-studio-core {
+    overflow-x: clip !important;
+  }
+
+  .gdp-custom-studio-core [data-studio-container] {
+    width: 100% !important;
+    padding-inline: clamp(8px, 2.8vw, 16px) !important;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .gdp-custom-studio-core [data-studio-hero] {
+    margin-bottom: 8px !important;
+    padding: 12px !important;
+    border-radius: 16px !important;
+  }
+
+  .gdp-custom-studio-core [data-studio-hero] h1 {
+    font-size: clamp(1.45rem, 6vw, 2rem) !important;
+    line-height: 1.02 !important;
+  }
+
+  .gdp-custom-studio-core [data-studio-hero] p {
+    margin-top: 5px !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+  }
+
+  /* Keep step context visible without consuming a tall vertical rail. */
+  .gdp-custom-studio-core [data-mobile-progress],
+  .gdp-custom-studio-core [data-stepper] {
+    max-width: 100% !important;
+  }
+
+  .gdp-custom-studio-core [data-stepper] {
+    display: flex !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain !important;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    padding: 4px 1px 8px !important;
+  }
+
+  .gdp-custom-studio-core [data-stepper]::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gdp-custom-studio-core [data-stepper] > button {
+    min-width: max-content !important;
+    min-height: 42px !important;
+    flex: 0 0 auto !important;
+    scroll-snap-align: start;
+    touch-action: manipulation;
+  }
+
+  .gdp-custom-studio-core [data-stepper] > div {
+    flex: 0 0 10px !important;
+    width: 10px !important;
+    min-width: 10px !important;
+  }
+
+  /* Mobile work surface stays in normal document flow. No nested sticky panels. */
+  .gdp-custom-studio-core [data-studio-row] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .gdp-custom-studio-core [data-workspace],
+  .gdp-custom-studio-core [data-aside] {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+  }
+
+  .gdp-custom-studio-core [data-workspace] {
+    padding: clamp(10px, 2.8vw, 14px) !important;
+    border-radius: 18px !important;
+  }
+
+  .gdp-custom-studio-core [data-aside] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 0 !important;
+  }
+
+  .gdp-custom-studio-core [data-preview-card] {
+    position: relative !important;
+    top: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    border-radius: 18px !important;
+  }
+
+  .gdp-custom-studio-core [data-preview-card] > :first-child {
+    position: relative !important;
+    z-index: 25 !important;
+    padding: 9px 10px !important;
+  }
+
+  /* Give the garment enough screen presence for finger editing while avoiding
+   * a full-screen preview that forces the controls too far below the fold. */
+  .gdp-custom-studio-core [data-gdp-studio-preview="live"] {
+    height: clamp(360px, 56svh, 520px) !important;
+    min-height: 360px !important;
+    max-height: 520px !important;
+    touch-action: pan-y pinch-zoom;
+  }
+
+  .gdp-custom-studio-core [data-preview-card] [data-touch-studio-card="true"] {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin-top: 10px !important;
+    border: 1px solid #dce3ea !important;
+    border-radius: 18px !important;
+    background: #ffffff !important;
+    padding: 10px !important;
+    box-shadow: 0 10px 26px rgba(23, 50, 77, .055) !important;
+  }
+
+  .gdp-custom-studio-core #gdp-touch-studio-panel {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    z-index: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 14px !important;
+    background: #f8fafb !important;
+    padding: 10px !important;
+    color: #334a5b !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Reuse the cleaner neutral Touch Studio treatment on mobile. */
+  #gdp-touch-studio-panel [class*="text-white"] { color: #5c6f7c !important; }
+  #gdp-touch-studio-panel [class*="text-[#D9273E]"] { color: #647784 !important; }
+  #gdp-touch-studio-panel [class*="text-[#FF8A9A]"] { color: #6e7f8a !important; }
+  #gdp-touch-studio-panel [class*="text-[#FFB2BD]"] { color: #875e64 !important; }
+  #gdp-touch-studio-panel [class*="border-white"] { border-color: #dce3e8 !important; }
+  #gdp-touch-studio-panel [class*="bg-black/10"] { background: #eef2f5 !important; }
+  #gdp-touch-studio-panel [class*="border-[#D9273E]"] { border-color: #aebbc5 !important; }
+  #gdp-touch-studio-panel [class*="bg-[#D9273E]"] { background-color: #e8edf1 !important; color: #314b5c !important; }
+
+  /* Prevent iOS input zoom and make editing controls genuinely touch-sized. */
+  #gdp-touch-studio-panel input:not([type="range"]),
+  #gdp-touch-studio-panel textarea,
+  #gdp-touch-studio-panel select {
+    min-height: 44px !important;
+    font-size: 16px !important;
+    line-height: 1.3 !important;
+  }
+
+  #gdp-touch-studio-panel textarea {
+    min-height: 92px !important;
+  }
+
+  #gdp-touch-studio-panel button,
+  .gdp-protected-artwork-controls button,
+  .gdp-custom-studio-core [data-preview-card] > :first-child button {
+    min-height: 42px;
+    touch-action: manipulation;
+  }
+
+  #gdp-touch-studio-panel input[type="range"],
+  .gdp-protected-artwork-controls input[type="range"] {
+    min-height: 38px;
+    touch-action: pan-x;
+  }
+
+  #gdp-touch-studio-panel input[type="range"]::-webkit-slider-thumb,
+  .gdp-protected-artwork-controls input[type="range"]::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  .gdp-protected-artwork-controls {
+    padding: 10px !important;
+  }
+
+  .gdp-protected-artwork-controls__heading {
+    gap: 8px !important;
+  }
+
+  .gdp-protected-artwork-controls__badge {
+    max-width: 46% !important;
+  }
+
+  .gdp-protected-artwork-controls__ranges {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .gdp-protected-artwork-controls__actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .gdp-protected-artwork-controls__reset {
+    grid-column: span 1 !important;
+  }
+
+  .gdp-protected-artwork-controls__remove {
+    grid-column: span 2 !important;
+  }
+
+  /* Canonical Previous/Continue/Add-to-cart navigation stays authoritative,
+   * but becomes a reachable bottom action bar with safe-area spacing. */
+  .gdp-custom-studio-core [data-actions] {
+    position: sticky !important;
+    z-index: 85 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    background: linear-gradient(to top, rgba(244,247,250,.99) 74%, rgba(244,247,250,.88) 88%, rgba(244,247,250,0)) !important;
+    backdrop-filter: blur(12px);
+  }
+
+  .gdp-custom-studio-core [data-actions] [data-gdp-step-nav="desktop"] {
+    display: block !important;
+    width: 100% !important;
+    border: 1px solid #dce3ea !important;
+    border-radius: 16px !important;
+    background: rgba(255,255,255,.98) !important;
+    padding: 7px !important;
+    box-shadow: 0 10px 28px rgba(23,50,77,.10) !important;
+  }
+
+  .gdp-custom-studio-core [data-actions] [data-gdp-step-nav="desktop"] > div:first-child {
+    display: grid !important;
+    grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr) !important;
+    gap: 7px !important;
+  }
+
+  .gdp-custom-studio-core [data-actions] [data-gdp-step-nav="desktop"] button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 46px !important;
+    justify-content: center !important;
+    padding-inline: 10px !important;
+    font-size: 11px !important;
+    touch-action: manipulation;
+  }
+
+  .gdp-custom-studio-core [data-actions] [data-gdp-step-nav="desktop"] > p {
+    margin-top: 6px !important;
+    padding: 7px 8px !important;
+    border-radius: 10px !important;
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* View Guide behaves as a readable mobile bottom sheet and respects notches. */
+  .gdp-custom-studio-workspace[data-guide-open="true"] [data-guide] {
+    z-index: 130 !important;
+  }
+
+  .gdp-custom-studio-workspace[data-guide-open="true"] [data-guide] > div {
+    position: fixed !important;
+    z-index: 131 !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: min(86svh, 760px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    border: 1px solid #dce3ea !important;
+    border-bottom: 0 !important;
+    border-radius: 24px 24px 0 0 !important;
+    background: #ffffff !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    box-shadow: 0 -24px 72px rgba(23, 50, 77, .22) !important;
+  }
+
+  .gdp-custom-studio-workspace[data-guide-open="true"] [data-guide] button,
+  .gdp-guide-close {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  /* Keep summary/review cards from becoming wider than the viewport. */
+  .gdp-custom-studio-core [data-order-card] {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-wrap: anywhere;
+    border-radius: 18px !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .gdp-custom-studio-core [data-studio-container] {
+    padding-inline: 8px !important;
+  }
+
+  .gdp-custom-studio-core [data-workspace] {
+    padding: 10px !important;
+  }
+
+  .gdp-custom-studio-core [data-gdp-studio-preview="live"] {
+    height: clamp(340px, 54svh, 460px) !important;
+    min-height: 340px !important;
+    max-height: 460px !important;
+  }
+
+  .gdp-custom-studio-core [data-actions] [data-gdp-step-nav="desktop"] > div:first-child {
+    grid-template-columns: minmax(0, .76fr) minmax(0, 1.24fr) !important;
+  }
+
+  .gdp-custom-studio-core [data-actions] [data-gdp-step-nav="desktop"] button {
+    min-height: 48px !important;
+    font-size: 10.5px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .gdp-protected-artwork-controls__heading {
+    flex-direction: column !important;
+  }
+
+  .gdp-protected-artwork-controls__badge {
+    max-width: 100% !important;
+  }
+
+  .gdp-protected-artwork-controls__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .gdp-protected-artwork-controls__reset,
+  .gdp-protected-artwork-controls__remove {
+    grid-column: span 2 !important;
+  }
+}

@@ -45,6 +45,7 @@ jobs:
           node --check scripts/verify-custom-studio-shell-architecture.mjs
           node --check scripts/verify-custom-studio-layout-refinement.mjs
           node --check scripts/verify-custom-studio-touch-studio.mjs
+          node --check scripts/verify-custom-studio-mobile-refinement.mjs
           node --check scripts/assert-safe-staging-target.mjs
           node --check scripts/verify-seasonal-artwork.mjs
           node --check scripts/verify-photo-bootleg-desktop.mjs
@@ -59,6 +60,9 @@ jobs:
 
       - name: Verify GDP Touch Studio refinement
         run: node scripts/verify-custom-studio-touch-studio.mjs
+
+      - name: Verify Custom Studio mobile-only refinement
+        run: node scripts/verify-custom-studio-mobile-refinement.mjs
 
       - name: Verify Custom Studio garment interactions
         run: node scripts/verify-custom-studio-garment-interactions.mjs
