@@ -71,5 +71,5 @@ export function useCustomStudioWorkflowState(fallbackGarment) {
     setGroupGarments: (value) => dispatch({ type: "set", key: "groupGarments", value }),
   }), []);
 
-  return { ...state, ...setters };
+  return /** @type {Record<string, any> & typeof setters} */ ({ ...state, ...setters });
 }
