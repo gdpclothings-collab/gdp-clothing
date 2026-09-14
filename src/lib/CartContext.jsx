@@ -6,6 +6,11 @@ import {
   scopedStorageKey,
   writeStoredJson,
 } from "@/lib/customerStorageScope";
+import {
+  captureStudioDraftForCartItem,
+  clearStudioEditIntent,
+  peekStudioEditKey,
+} from "@/lib/customStudioDraftBridge";
 
 const CartContext = createContext(null);
 const CART_KEY = "gdp_cart_v2";
@@ -82,32 +87,44 @@ export function CartProvider({ children }) {
   }, [saved, loadedStorageSignature, storageSignature, storageKeys.saved]);
 
   const addItem = useCallback((item) => {
+    const prepared = captureStudioDraftForCartItem(item);
+    const editKey = prepared?.isCustom && !prepared?.isDtf ? peekStudioEditKey() : "";
+    if (editKey) clearStudioEditIntent();
+
     setItems(prev => {
-      const key = cartItemKey(item);
+      const key = cartItemKey(prepared);
+      if (editKey && prev.some((current) => current.key === editKey)) {
+        const next = { ...prepared, key };
+        next.quantity = clampItemQuantity(next, prepared.quantity || 1);
+        return prev.map((current) => current.key === editKey ? next : current);
+      }
+
       const existing = prev.find(i => i.key === key);
       if (existing) {
         return prev.map(i => {
           if (i.key !== key) return i;
           const merged = {
             ...i,
-            ...item,
+            ...prepared,
             key,
-            maxQuantity: item.maxQuantity ?? i.maxQuantity,
+            maxQuantity: prepared.maxQuantity ?? i.maxQuantity,
           };
           return {
             ...merged,
-            quantity: clampItemQuantity(merged, i.quantity + (item.quantity || 1)),
+            quantity: clampItemQuantity(merged, i.quantity + (prepared.quantity || 1)),
           };
         });
       }
-      const next = { ...item, key };
-      return [...prev, { ...next, quantity: clampItemQuantity(next, item.quantity || 1) }];
+      const next = { ...prepared, key };
+      return [...prev, { ...next, quantity: clampItemQuantity(next, prepared.quantity || 1) }];
     });
   }, []);
 
   const replaceItem = useCallback((key, item) => {
-    const next = { ...item, key: cartItemKey(item) };
-    next.quantity = clampItemQuantity(next, item.quantity || 1);
+    const prepared = captureStudioDraftForCartItem(item);
+    if (peekStudioEditKey() === key) clearStudioEditIntent();
+    const next = { ...prepared, key: cartItemKey(prepared) };
+    next.quantity = clampItemQuantity(next, prepared.quantity || 1);
     setItems(prev => prev.map(current => current.key === key ? next : current));
   }, []);
 
