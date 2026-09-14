@@ -17,6 +17,7 @@ import {
   normalizeEditorTools,
   normalizeStickerLibrary,
 } from "@/components/storefront/CustomStudioAdvancedEditor";
+import CustomStudioProtectedArtworkControls from "@/components/storefront/CustomStudioProtectedArtworkControls";
 import { customerApi } from "@/lib/customerApi";
 import { useCart } from "@/lib/CartContext";
 import { useNotifications } from "@/lib/NotificationContext";
@@ -603,10 +604,10 @@ function moodPreviewTreatment(mood) {
 const STEPS = ["Garment","Choose Design","Customize","Timing & Approval","Review"];
 const ORDER_GUIDE_STEPS = [
   { title: "Choose garment", detail: "Pick clothing, color, size and quantity." },
-  { title: "Choose your design", detail: "Select Seasonal Designs, Photo Bootleg Designs, Memorial Tribute Designs or Upload My Own Artwork." },
-  { title: "Customize", detail: "Choose your print side, add artwork or photos, position every layer and personalize text in one workspace." },
-  { title: "Timing & approval", detail: "Set your needed-by date and confirm artwork permissions." },
-  { title: "Review & checkout", detail: "Final-check the exact result, add to cart and complete checkout." }
+  { title: "Choose design path", detail: "Start with Seasonal, Photo Bootleg, Memorial Tribute, or your own uploaded artwork." },
+  { title: "Customize safely", detail: "Edit front or back, move and resize layers inside the print guide, and adjust or remove protected GDP artwork without editing its internal graphic content." },
+  { title: "Approve timing & rights", detail: "Set your needed-by date, confirm artwork permissions, and acknowledge the exact preview before production." },
+  { title: "Review & checkout", detail: "Final-check the front/back result, add the approved design to your cart, then continue through secure checkout." }
 ];
 const AFTER_ORDER_STEPS = ["Order received", "Payment confirmed", "Approved file locked", "Printing", "Quality check", "Pickup / shipping"];
 const MAX_MB = 12;
@@ -1563,10 +1564,10 @@ export default function CustomStudio() {
     if (activeStyleTemplate) {
       const confirmed = await confirmAction({
         tone: "warning",
-        title: "Switch to a blank design?",
-        description: "Your uploaded photos and text will be preserved. The GDP template will be removed from this fabric.",
-        confirmLabel: "Switch to blank",
-        cancelLabel: "Keep design",
+        title: "Remove protected artwork?",
+        description: "This removes the GDP template from the current fabric. Your uploaded photos and editable text stay in place.",
+        confirmLabel: "Remove artwork",
+        cancelLabel: "Keep artwork",
       });
       if (!confirmed) return;
     }
@@ -2465,7 +2466,7 @@ export default function CustomStudio() {
               <span className="inline-flex items-center gap-2">
                 <Sparkles size={15} className="text-accent" />
                 <span className="text-[12px] md:text-[13px] font-extrabold uppercase tracking-[0.07em] text-[#26231f]">How Custom Orders Work</span>
-                <span className="hidden sm:inline text-[12px] leading-relaxed text-[#5f5951]">A quick guide from blank garment to finished order.</span>
+                <span className="hidden sm:inline text-[12px] leading-relaxed text-[#5f5951]">Five clear steps from garment choice to secure checkout.</span>
               </span>
               <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-accent">{showOrderGuide ? "Hide guide" : "View guide"}</span>
             </button>
@@ -2493,7 +2494,7 @@ export default function CustomStudio() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 border-t border-[#ebe5dc] bg-[#17212B] px-4 py-3 text-white sm:flex-row sm:items-center">
+              <div data-guide-after-order-core="true" className="flex flex-col gap-2 border-t border-[#ebe5dc] bg-[#17212B] px-4 py-3 text-white sm:flex-row sm:items-center">
                 <span className="shrink-0 text-[10px] md:text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">After you order</span>
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 text-[11px] md:text-[12px] font-medium text-white/85">
                   {AFTER_ORDER_STEPS.map((item, index) => <React.Fragment key={item}>
@@ -2560,7 +2561,7 @@ export default function CustomStudio() {
                 {designMood ? <><span className="font-semibold text-[#17324D]">{designMood} finish:</span> {moodPreviewTreatment(designMood).description}</> : <span>Choose a color finish for the final print.</span>}
               </div>
             </div>}
-            {(designPath === "bootleg" || designPath === "memorial") && activeStyleTemplate && <div className="hidden"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> customers cannot resize, stretch, rotate, delete or erase the selected GDP artwork. Only their photo, text and allowed personalization are editable.</div>}
+            {(designPath === "bootleg" || designPath === "memorial") && activeStyleTemplate && <div className="hidden"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Lock size={14}/> Template protected:</span> the internal GDP graphic remains protected from erasing or content edits, while the whole artwork can be repositioned, resized, rotated, reset or removed. Customer photo and text layers stay fully editable.</div>}
             {(designPath === "bootleg" || designPath === "memorial") && designStyle === NO_TEMPLATE_STYLE && <div className="hidden"><span className="inline-flex items-center gap-1.5 font-semibold text-[#17324D]"><Unlock size={14}/> Blank canvas:</span> no locked background or template will be printed. Your photos, text and stickers remain fully editable.</div>}
             {designPath === "memorial" && <div data-editor-legacy="memorial-details" className="hidden">
               <div className="flex items-start gap-3">
@@ -2748,7 +2749,19 @@ export default function CustomStudio() {
                 mood={designMood} preferEditablePhotoLayers={designPath === "bootleg" || designPath === "memorial"} />
               )}
 
-              <div className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
+              <div data-touch-studio-card={step === 3 ? "true" : undefined} className="p-4 border-t border-[#ebe5dc] bg-[#FFFFFF]">
+                {step === 3 && activeStyleTemplate && (designPath === "bootleg" || designPath === "memorial") && <CustomStudioProtectedArtworkControls
+                  templateName={activeStyleTemplate.name}
+                  scale={artworkScale}
+                  rotation={artworkRotation}
+                  offset={artworkOffset}
+                  onScaleChange={setArtworkScale}
+                  onRotationChange={setArtworkRotation}
+                  onOffsetChange={setArtworkOffset}
+                  onReset={resetPreviewPlacement}
+                  onRemove={chooseNoTemplate}
+                  onTransformStart={checkpointEditor}
+                />}
                 {step === 3 && <AdvancedEditorPanel
                   designPath={designPath}
                   designIntensity={designIntensity}
@@ -2762,7 +2775,7 @@ export default function CustomStudio() {
                   onToggleGuides={() => setShowGuides((value) => !value)}
                   showMeasurements={showMeasurements}
                   onToggleMeasurements={() => setShowMeasurements((value) => !value)}
-                  viewGuidance={activePreviewTemplate ? "GDP template is locked on this side. Drag, resize and rotate only customer-added content inside the print guide; lettering stays editable." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, lettering and stickers inside the print guide." : previewSide === "back" ? "Back print is independent. Choose a back template or add your own photos and lettering without changing the front." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio stays constrained by default."}
+                  viewGuidance={activePreviewTemplate ? "GDP artwork contents stay protected, while the whole template can be resized, rotated, repositioned, reset or removed. Customer layers remain fully editable." : designStyle === NO_TEMPLATE_STYLE ? "Blank canvas selected. Add and edit your own photos, lettering and stickers inside the print guide." : previewSide === "back" ? "Back print is independent. Choose a back template or add your own photos and lettering without changing the front." : "Move and resize your uploaded artwork inside the print guide. Aspect ratio stays constrained by default."}
                   sideStatus={activeSideHasPrint ? `${previewSide === "front" ? "Front" : "Back"} artwork is saved independently.${previewSide === "back" && placement === "front_back" ? " Additional print charge applies." : ""}` : `${previewSide === "front" ? "Front" : "Back"} is blank until you add artwork.`}
                   canCopyFrontToBack={previewSide === "back" && !(editorLayersBySide.back || []).length && (editorLayersBySide.front || []).length > 0}
                   onCopyFrontToBack={copyFrontDesignToBack}
@@ -3119,6 +3132,12 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
     transform: `translate(-50%, -50%) scale(${artworkScale / 100}) scaleX(${Number(artworkStretchX || 100) / 100}) scaleY(${Number(artworkStretchY || 100) / 100}) rotate(${artworkRotation}deg)`,
     transformOrigin: "center center"
   };
+  const templateLayerStyle = {
+    left: (50 + Number(artworkOffset?.x || 0)) + "%",
+    top: (50 + Number(artworkOffset?.y || 0)) + "%",
+    transform: `translate(-50%, -50%) scale(${Number(artworkScale || 100) / 100}) rotate(${Number(artworkRotation || 0)}deg)`,
+    transformOrigin: "center center",
+  };
   const template = styleTemplate || null;
   const moodTreatment = moodPreviewTreatment(mood);
   const photoZone = template?.photoZone || { x: 10, y: 8, width: 80, height: 64, shape: "rounded", radius: 10 };
@@ -3308,8 +3327,8 @@ export function StudioPreview({ garment, color, side, placement, photo, uploadin
                   src={template.assetUrl}
                   alt={template.name + " locked artwork"}
                   draggable="false"
-                  className="absolute inset-0 z-10 h-full w-full object-contain pointer-events-none transition-[filter,opacity] duration-200"
-                  style={{ filter: moodTreatment.templateFilter }}
+                  className="absolute z-10 h-full w-full object-contain pointer-events-none transition-[filter,opacity,transform] duration-200"
+                  style={{ ...templateLayerStyle, filter: moodTreatment.templateFilter }}
                 />
               )}
 

@@ -15,6 +15,15 @@ const FALLBACK_NAV = [
   { label: "Contact", path: "/pages/contact" },
 ];
 
+function normalizeNavigationItem(item) {
+  const path = String(item?.path || "");
+  const pathname = path.split("?")[0].split("#")[0].replace(/\/$/, "") || "/";
+  if (pathname === "/custom-studio" || pathname === "/design") {
+    return { ...item, label: "Custom Studio" };
+  }
+  return item;
+}
+
 function ManagedLogo({ src, fallbackSrc, alt, className }) {
   const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
 
@@ -70,7 +79,7 @@ export default function StoreNav() {
       .then(([menu, homepage]) => {
         const items = (menu?.navigation_items || [])
           .filter((item) => item.url)
-          .map((item) => ({ label: item.label, path: item.url }));
+          .map((item) => normalizeNavigationItem({ label: item.label, path: item.url }));
         if (!active) return;
         if (items.length) setNavItems(items);
         if (homepage) setLanding(homepage);
