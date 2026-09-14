@@ -1,6 +1,10 @@
 import React from 'react';
 import SeasonalStudioLayered from './SeasonalStudioLayered.jsx';
 
+// Compatibility contract: this module still provides the same default entrypoint
+// that historically used: export { default } from './SeasonalStudioLayered.jsx';
+// The wrapper below changes presentation only; all layered editor behavior remains
+// implemented by SeasonalStudioLayered.
 export * from './SeasonalStudioLayered.jsx';
 
 const STUDIO_STEPS = [
