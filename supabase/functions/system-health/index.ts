@@ -8,36 +8,7 @@ const allowedOrigins = new Set([
 ]);
 const localOriginPattern = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
-function requestOrigin(req: Request) {
-  return req.headers.get("origin") || "";
-}
-
-function isAllowedOrigin(origin: string) {
-  return !origin || allowedOrigins.has(origin) || localOriginPattern.test(origin);
-}
-
-function corsHeaders(req: Request) {
-  const origin = requestOrigin(req);
-  return {
-    ...(origin && isAllowedOrigin(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Content-Type": "application/json",
-    "Vary": "Origin",
-    "Cache-Control": "no-store",
-  };
-}
-
-function respond(req: Request, body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
-}
-
-function bearerToken(req: Request) {
-  const value = req.headers.get("Authorization") || "";
-  return value.match(/^Bearer\s+(.+)$/i)?.[1] || "";
-}
-
-type HealthStatus = "healthy" | "warning" | "critical" | "info" | "unknown";
+type HealthStatus = "healthy" | "warning" | "critical" | "unknown";
 type HealthCheck = {
   key: string;
   category: string;
@@ -49,12 +20,40 @@ type HealthCheck = {
   updatedAt?: string | null;
 };
 
-async function timedFetch(url: string, init: RequestInit = {}, timeoutMs = 8000) {
+function requestOrigin(req: Request) {
+  return req.headers.get("origin") || "";
+}
+
+function isAllowedOrigin(origin: string) {
+  return !origin || allowedOrigins.has(origin) || localOriginPattern.test(origin);
+}
+
+function headers(req: Request) {
+  const origin = requestOrigin(req);
+  return {
+    ...(origin && isAllowedOrigin(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+    "Vary": "Origin",
+  };
+}
+
+function respond(req: Request, body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: headers(req) });
+}
+
+function bearer(req: Request) {
+  return (req.headers.get("Authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
+}
+
+async function timedFetch(url: string, init: RequestInit = {}) {
   const started = performance.now();
   try {
     const response = await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(8000),
       headers: {
         "User-Agent": "GDP-Clothing-System-Health/1.0",
         ...(init.headers || {}),
@@ -78,24 +77,23 @@ async function timedFetch(url: string, init: RequestInit = {}, timeoutMs = 8000)
   }
 }
 
-function scoreChecks(checks: HealthCheck[]) {
-  let score = 100;
-  for (const check of checks) {
-    if (check.status === "critical") score -= 20;
-    else if (check.status === "warning") score -= check.key === "maintenance" ? 2 : 6;
-    else if (check.status === "unknown") score -= 2;
-  }
-  return Math.max(0, Math.min(100, score));
+function scoreFor(checks: HealthCheck[]) {
+  return Math.max(0, checks.reduce((score, check) => {
+    if (check.status === "critical") return score - 20;
+    if (check.status === "warning") return score - (check.key === "maintenance" ? 2 : 6);
+    if (check.status === "unknown") return score - 2;
+    return score;
+  }, 100));
 }
 
-function overallStatus(checks: HealthCheck[]): HealthStatus {
+function overallFor(checks: HealthCheck[]): HealthStatus {
   if (checks.some((check) => check.status === "critical")) return "critical";
   if (checks.some((check) => check.status === "warning")) return "warning";
   if (checks.some((check) => check.status === "unknown")) return "unknown";
   return "healthy";
 }
 
-function workflowState(run: any): HealthStatus {
+function workflowStatus(run: any): HealthStatus {
   if (!run) return "unknown";
   if (run.status !== "completed") return "warning";
   return run.conclusion === "success" ? "healthy" : "critical";
@@ -104,13 +102,13 @@ function workflowState(run: any): HealthStatus {
 Deno.serve(async (req: Request) => {
   const origin = requestOrigin(req);
   if (!isAllowedOrigin(origin)) return respond(req, { error: true, message: "Origin not allowed." }, 403);
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: headers(req) });
   if (req.method !== "POST") return respond(req, { error: true, message: "Method not allowed." }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const token = bearerToken(req);
+  const token = bearer(req);
 
   if (!supabaseUrl || !anonKey || !serviceKey) {
     return respond(req, { error: true, message: "System health service is not configured." }, 500);
@@ -138,16 +136,13 @@ Deno.serve(async (req: Request) => {
   if (profile?.role !== "admin") return respond(req, { error: true, message: "Admin access required." }, 403);
 
   let body: Record<string, unknown> = {};
-  try {
-    body = await req.json();
-  } catch {
-    body = {};
-  }
+  try { body = await req.json(); } catch { body = {}; }
   if (body.action && body.action !== "snapshot") {
     return respond(req, { error: true, message: "Unsupported health action." }, 400);
   }
 
   const checkedAt = new Date().toISOString();
+  const now = Date.now();
   const checks: HealthCheck[] = [];
   const incidents: Array<Record<string, unknown>> = [];
 
@@ -156,8 +151,8 @@ Deno.serve(async (req: Request) => {
     .select("payment_mode,test_inventory_workflow,maintenance_settings,updated_at")
     .eq("id", 1)
     .maybeSingle();
-
   const settings = settingsResult.data || null;
+
   checks.push({
     key: "database",
     category: "Supabase",
@@ -176,7 +171,7 @@ Deno.serve(async (req: Request) => {
     status: maintenanceEnabled ? "warning" : "healthy",
     summary: maintenanceEnabled ? "Storefront maintenance mode is ON." : "Storefront is open to customers.",
     details: maintenanceEnabled
-      ? "This is intentional while production verification is in progress. Admin routes remain available."
+      ? "Intentional maintenance is treated as a warning, not a production outage."
       : "Customers can browse and use the storefront normally.",
     metric: maintenanceEnabled ? "ON" : "OFF",
     updatedAt: settings?.updated_at || checkedAt,
@@ -203,7 +198,7 @@ Deno.serve(async (req: Request) => {
 
   const wwwLocation = www.response?.headers.get("location") || "";
   const wwwRedirectOk = [301, 302, 307, 308].includes(www.status)
-    && (wwwLocation.startsWith("https://gdpclothing.ca") || wwwLocation.startsWith("http://gdpclothing.ca"));
+    && /^https?:\/\/gdpclothing\.ca(?:\/|$)/i.test(wwwLocation);
   checks.push({
     key: "www-redirect",
     category: "Website",
@@ -251,123 +246,125 @@ Deno.serve(async (req: Request) => {
     const stripe = await timedFetch("https://api.stripe.com/v1/account", {
       headers: { Authorization: `Bearer ${stripeSecret}` },
     });
-    let stripeAccount: any = null;
+    let account: any = null;
     if (stripe.response) {
-      try { stripeAccount = await stripe.response.json(); } catch { stripeAccount = null; }
+      try { account = await stripe.response.json(); } catch { account = null; }
     }
-    const stripeHealthy = stripe.ok && !stripeAccount?.error;
-    const chargesEnabled = stripeAccount?.charges_enabled !== false;
+    const connected = stripe.ok && !account?.error;
+    const chargesEnabled = account?.charges_enabled !== false;
     checks.push({
       key: "stripe",
       category: "Payments",
       label: "Stripe",
-      status: stripeHealthy && (paymentMode === "test" || chargesEnabled) ? "healthy" : stripeHealthy ? "warning" : "critical",
-      summary: stripeHealthy
+      status: connected && (paymentMode === "test" || chargesEnabled) ? "healthy" : connected ? "warning" : "critical",
+      summary: connected
         ? `Stripe ${paymentMode} mode is connected${chargesEnabled ? " and charges are enabled" : ""}.`
         : `Stripe ${paymentMode} API connectivity failed.`,
-      details: stripeAccount?.error?.message || stripe.error || "Credentials remain server-side; no secret is exposed to the browser.",
+      details: account?.error?.message || stripe.error || "Credentials remain server-side and are never returned to the browser.",
       metric: paymentMode.toUpperCase(),
       updatedAt: checkedAt,
     });
   }
 
-  const [checkoutResult, inventoryResult, designResult, incidentResult] = await Promise.all([
-    service.from("checkout_sessions").select("status,expires_at,processing_started_at,last_activity_at,created_at"),
-    service.from("inventory_levels").select("available,committed,updated_at"),
+  const [checkoutResult, reservationResult, designResult, incidentResult] = await Promise.all([
+    service.from("checkout_sessions").select("status,expires_at,processing_started_at,last_activity_at"),
+    service.from("order_inventory_reservations").select("status,expires_at,quantity,created_at"),
     service.from("custom_designs").select("render_status,status,updated_at"),
-    service.from("security_incidents").select("id,title,severity,status,detected_at,affected_systems").order("detected_at", { ascending: false }).limit(20),
+    service.from("security_incidents")
+      .select("id,title,severity,status,detected_at,affected_systems")
+      .order("detected_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (checkoutResult.error) {
     checks.push({ key: "checkout", category: "Commerce", label: "Checkout sessions", status: "critical", summary: "Checkout health query failed.", details: checkoutResult.error.message, updatedAt: checkedAt });
   } else {
-    const now = Date.now();
     const rows = checkoutResult.data || [];
-    const stuckProcessing = rows.filter((row: any) => row.status === "processing" && row.processing_started_at && now - new Date(row.processing_started_at).getTime() > 15 * 60 * 1000).length;
-    const expiredActive = rows.filter((row: any) => ["active", "processing"].includes(row.status) && row.expires_at && new Date(row.expires_at).getTime() < now).length;
-    const status: HealthStatus = stuckProcessing ? "critical" : expiredActive ? "warning" : "healthy";
+    const stuck = rows.filter((row: any) => row.status === "processing" && row.processing_started_at && now - new Date(row.processing_started_at).getTime() > 15 * 60 * 1000).length;
+    const overdue = rows.filter((row: any) => ["active", "processing"].includes(row.status) && row.expires_at && new Date(row.expires_at).getTime() < now).length;
     checks.push({
       key: "checkout",
       category: "Commerce",
       label: "Checkout sessions",
-      status,
-      summary: stuckProcessing
-        ? `${stuckProcessing} checkout session(s) appear stuck in processing.`
-        : expiredActive
-          ? `${expiredActive} active checkout session(s) are past expiry.`
+      status: stuck ? "critical" : overdue ? "warning" : "healthy",
+      summary: stuck
+        ? `${stuck} checkout session(s) appear stuck in processing.`
+        : overdue
+          ? `${overdue} active checkout session(s) are past expiry.`
           : "No stuck or overdue checkout sessions detected.",
-      details: `${rows.length} tracked checkout sessions · stuck ${stuckProcessing} · overdue ${expiredActive}`,
-      metric: stuckProcessing || expiredActive || 0,
+      details: `${rows.length} tracked sessions · stuck ${stuck} · overdue ${overdue}`,
+      metric: stuck || overdue || 0,
       updatedAt: checkedAt,
     });
   }
 
-  if (inventoryResult.error) {
-    checks.push({ key: "inventory", category: "Commerce", label: "Inventory reservations", status: "critical", summary: "Inventory health query failed.", details: inventoryResult.error.message, updatedAt: checkedAt });
+  if (reservationResult.error) {
+    checks.push({ key: "inventory", category: "Commerce", label: "Inventory reservations", status: "critical", summary: "Inventory reservation health query failed.", details: reservationResult.error.message, updatedAt: checkedAt });
   } else {
-    const rows = inventoryResult.data || [];
-    const overCommitted = rows.filter((row: any) => Number(row.committed || 0) > Number(row.available || 0)).length;
-    const zeroAvailable = rows.filter((row: any) => Number(row.available || 0) === 0).length;
+    const rows = reservationResult.data || [];
+    const active = rows.filter((row: any) => row.status === "active");
+    const expiredActive = active.filter((row: any) => row.expires_at && new Date(row.expires_at).getTime() < now);
+    const reservedUnits = active.reduce((sum: number, row: any) => sum + Number(row.quantity || 0), 0);
     checks.push({
       key: "inventory",
       category: "Commerce",
       label: "Inventory reservations",
-      status: overCommitted ? "critical" : "healthy",
-      summary: overCommitted
-        ? `${overCommitted} inventory level(s) have committed quantity above available quantity.`
-        : "Inventory reservation levels are internally consistent.",
-      details: `${rows.length} inventory levels checked · ${zeroAvailable} currently at zero available stock.`,
-      metric: overCommitted,
+      status: expiredActive.length ? "warning" : "healthy",
+      summary: expiredActive.length
+        ? `${expiredActive.length} expired reservation(s) are still marked active.`
+        : "Inventory reservations are within their active windows.",
+      details: `${active.length} active reservation(s) holding ${reservedUnits} unit(s). Inventory availability is intentionally reduced when stock is committed.`,
+      metric: expiredActive.length,
       updatedAt: checkedAt,
     });
   }
 
   if (designResult.error) {
-    checks.push({ key: "custom-studio", category: "Custom Studio", label: "Render pipeline", status: "warning", summary: "Custom Studio render health query failed.", details: designResult.error.message, updatedAt: checkedAt });
+    checks.push({ key: "custom-studio", category: "Custom Studio", label: "Render pipeline", status: "warning", summary: "Custom Studio health query failed.", details: designResult.error.message, updatedAt: checkedAt });
   } else {
-    const now = Date.now();
     const rows = designResult.data || [];
     const failed = rows.filter((row: any) => row.render_status === "failed").length;
-    const staleRendering = rows.filter((row: any) => row.render_status === "rendering" && row.updated_at && now - new Date(row.updated_at).getTime() > 20 * 60 * 1000).length;
+    const stale = rows.filter((row: any) => row.render_status === "rendering" && row.updated_at && now - new Date(row.updated_at).getTime() > 20 * 60 * 1000).length;
     checks.push({
       key: "custom-studio",
       category: "Custom Studio",
       label: "Render pipeline",
-      status: failed || staleRendering ? "warning" : "healthy",
-      summary: failed || staleRendering
-        ? `${failed} failed render(s), ${staleRendering} stale rendering job(s).`
+      status: failed || stale ? "warning" : "healthy",
+      summary: failed || stale
+        ? `${failed} failed render(s), ${stale} stale rendering job(s).`
         : "No failed or stale Custom Studio renders detected.",
       details: `${rows.length} saved custom designs checked.`,
-      metric: failed + staleRendering,
+      metric: failed + stale,
       updatedAt: checkedAt,
     });
   }
 
-  const activeIncidents = (incidentResult.data || []).filter((incident: any) => !["resolved", "closed"].includes(incident.status));
-  const highIncidents = activeIncidents.filter((incident: any) => ["critical", "high"].includes(incident.severity));
-  const mediumIncidents = activeIncidents.filter((incident: any) => incident.severity === "medium");
+  const activeIncidents = (incidentResult.data || []).filter((row: any) => !["resolved", "closed"].includes(row.status));
+  const severeIncidents = activeIncidents.filter((row: any) => ["critical", "high"].includes(row.severity));
+  const mediumIncidents = activeIncidents.filter((row: any) => row.severity === "medium");
   checks.push({
     key: "security-incidents",
     category: "Security",
     label: "Open incidents",
-    status: incidentResult.error ? "unknown" : highIncidents.length ? "critical" : mediumIncidents.length ? "warning" : "healthy",
+    status: incidentResult.error ? "unknown" : severeIncidents.length ? "critical" : mediumIncidents.length ? "warning" : "healthy",
     summary: incidentResult.error
       ? "Could not read security incident status."
       : activeIncidents.length
         ? `${activeIncidents.length} open security incident(s).`
         : "No open security incidents recorded.",
-    details: incidentResult.error?.message || `${highIncidents.length} high/critical · ${mediumIncidents.length} medium`,
+    details: incidentResult.error?.message || `${severeIncidents.length} high/critical · ${mediumIncidents.length} medium`,
     metric: activeIncidents.length,
     updatedAt: activeIncidents[0]?.detected_at || checkedAt,
   });
-  for (const incident of activeIncidents.slice(0, 5)) {
+
+  for (const row of activeIncidents.slice(0, 5)) {
     incidents.push({
       type: "security",
-      title: incident.title,
-      severity: incident.severity,
-      status: incident.status,
-      detectedAt: incident.detected_at,
-      affectedSystems: incident.affected_systems || [],
+      title: row.title,
+      severity: row.severity,
+      status: row.status,
+      detectedAt: row.detected_at,
+      affectedSystems: row.affected_systems || [],
     });
   }
 
@@ -375,30 +372,27 @@ Deno.serve(async (req: Request) => {
     "https://api.github.com/repos/gdpclothings-collab/gdp-clothing/actions/runs?branch=main&per_page=30",
     { headers: { Accept: "application/vnd.github+json" } },
   );
-
   let workflowRuns: any[] = [];
   if (github.response) {
     try {
       const payload = await github.response.json();
       workflowRuns = Array.isArray(payload?.workflow_runs) ? payload.workflow_runs : [];
-    } catch {
-      workflowRuns = [];
-    }
+    } catch { workflowRuns = []; }
   }
 
-  const workflowNames = [
+  const names = [
     "GDP Clothing Build Verification",
     "GDP Clothing Security Scan",
     "GDP Clothing Quality Audit",
     "GDP Clothing Production Smoke Bot",
   ];
-  const latestByName = workflowNames.map((name) => workflowRuns.find((run: any) => run.name === name) || null);
-  const ciStates = latestByName.map(workflowState);
+  const latest = names.map((name) => workflowRuns.find((run: any) => run.name === name) || null);
+  const states = latest.map(workflowStatus);
   const ciStatus: HealthStatus = !github.ok
     ? "unknown"
-    : ciStates.includes("critical")
+    : states.includes("critical")
       ? "critical"
-      : ciStates.includes("warning") || ciStates.includes("unknown")
+      : states.includes("warning") || states.includes("unknown")
         ? "warning"
         : "healthy";
 
@@ -414,12 +408,12 @@ Deno.serve(async (req: Request) => {
         : ciStatus === "critical"
           ? "One or more production checks failed."
           : "One or more production checks are running or unavailable.",
-    details: github.error || latestByName.map((run, index) => `${workflowNames[index].replace("GDP Clothing ", "")}: ${run?.conclusion || run?.status || "unknown"}`).join(" · "),
+    details: github.error || latest.map((run, i) => `${names[i].replace("GDP Clothing ", "")}: ${run?.conclusion || run?.status || "unknown"}`).join(" · "),
     metric: ciStatus === "healthy" ? "PASS" : ciStatus.toUpperCase(),
-    updatedAt: latestByName.find(Boolean)?.updated_at || checkedAt,
+    updatedAt: latest.find(Boolean)?.updated_at || checkedAt,
   });
 
-  for (const run of latestByName) {
+  for (const run of latest) {
     if (run?.status === "completed" && run?.conclusion && run.conclusion !== "success") {
       incidents.push({
         type: "ci",
@@ -432,23 +426,18 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const score = scoreChecks(checks);
-  const overall = overallStatus(checks);
-
   return respond(req, {
     data: {
       checkedAt,
-      score,
-      status: overall,
+      score: scoreFor(checks),
+      status: overallFor(checks),
       maintenanceEnabled,
       paymentMode,
       checks,
-      incidents: incidents.sort((a: any, b: any) => new Date(b.detectedAt || 0).getTime() - new Date(a.detectedAt || 0).getTime()).slice(0, 10),
-      meta: {
-        source: "live",
-        adminOnly: true,
-        refreshRecommendedSeconds: 60,
-      },
+      incidents: incidents
+        .sort((a: any, b: any) => new Date(b.detectedAt || 0).getTime() - new Date(a.detectedAt || 0).getTime())
+        .slice(0, 10),
+      meta: { source: "live", adminOnly: true, refreshRecommendedSeconds: 60 },
     },
   });
 });
