@@ -3,6 +3,7 @@ import fs from "node:fs";
 const appSource = fs.readFileSync("src/App.jsx", "utf8");
 const studioSource = fs.readFileSync("src/pages/CustomStudio.jsx", "utf8");
 const workspaceSource = fs.readFileSync("src/pages/CustomStudioDesktopWorkspace.jsx", "utf8");
+const garmentStepSource = fs.readFileSync("src/components/storefront/custom-studio/GarmentStep.jsx", "utf8");
 
 function fail(message) {
   console.error(`FAIL Custom Studio garment interaction guard: ${message}`);
@@ -18,7 +19,7 @@ if (!appSource.includes("CustomStudioDesktopWorkspace'))")) {
 }
 
 if (/CustomStudioDesktopWorkspaceV(?:7|8|9|10|11|12|13)/.test(appSource)) {
-  fail("App.jsx must not route through the retired V8-V13 wrapper chain.");
+  fail("App.jsx must not route through the retired V7-V13 wrapper chain.");
 }
 
 if (!workspaceSource.includes('import CustomStudio from "@/pages/CustomStudio"')) {
@@ -26,19 +27,23 @@ if (!workspaceSource.includes('import CustomStudio from "@/pages/CustomStudio"')
 }
 
 if (/CustomStudioDesktopWorkspaceV(?:7|8|9|10|11|12|13)/.test(workspaceSource)) {
-  fail("The unified workspace must not nest any retired V8-V13 wrapper.");
+  fail("The unified workspace must not nest any retired V7-V13 wrapper.");
 }
 
-if (!studioSource.includes('onClick={() => chooseProduct(option)}')) {
+if (!garmentStepSource.includes('onClick={() => chooseProduct(option)}')) {
   fail("The native Step 1 garment-card chooseProduct click handler is missing.");
 }
 
-if (!studioSource.includes('key={option.id}')) {
+if (!garmentStepSource.includes('key={option.id}')) {
   fail("The Step 1 garment-card mapping no longer exposes stable product identity.");
 }
 
-if (!studioSource.includes('data-garment-grid') || !studioSource.includes('data-studio-shell')) {
-  fail("Core CustomStudio must own garment-grid and shell annotations directly.");
+if (!studioSource.includes('data-studio-shell') || !studioSource.includes('data-workspace')) {
+  fail("Core CustomStudio must retain the shell and workspace semantic annotations.");
+}
+
+if (!garmentStepSource.includes('data-garment-grid') || !garmentStepSource.includes('data-step1-size')) {
+  fail("GarmentStep must own the extracted garment-grid and Step 1 semantic annotations.");
 }
 
 if (!workspaceSource.includes('document.addEventListener("pointerup", onPointerUp, true)')) {
@@ -86,6 +91,6 @@ if (!workspaceSource.includes("clearStudioEditIntent()")) {
 }
 
 console.log("PASS Custom Studio garment interaction guard");
-console.log("- App routes through one unified workspace instead of the retired V8-V13 wrapper chain");
+console.log("- App routes through one unified workspace instead of retired versioned wrappers");
 console.log("- pointer recovery, catalog restoration, exact-color mockups, full-garment layout and sticky navigation remain protected");
-console.log("- V7 is retired; semantic hooks now come directly from core CustomStudio");
+console.log("- Step 1 native garment interactions and semantic hooks remain protected after component extraction");

@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Plus, Minus, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
+import GarmentStep from "@/components/storefront/custom-studio/GarmentStep";
+import ChooseDesignStep from "@/components/storefront/custom-studio/ChooseDesignStep";
+import TimingApprovalStep from "@/components/storefront/custom-studio/TimingApprovalStep";
+import ReviewStep from "@/components/storefront/custom-studio/ReviewStep";
+import { useCustomStudioWorkflowState } from "@/hooks/useCustomStudioWorkflowState";
 import {
   AdvancedEditorPanel,
   EditableOverlayLayers,
@@ -923,28 +928,30 @@ export default function CustomStudio() {
   const navigate = useNavigate();
   const { addItem, replaceItem } = useCart();
   const { confirmAction, notify } = useNotifications();
-  const [step, setStep] = useState(1);
-  const [seasonalMode, setSeasonalMode] = useState(false);
-  const [seasonalDraft, setSeasonalDraft] = useState(null);
-  const [seasonalPrepared, setSeasonalPrepared] = useState(null);
-  const [designPath, setDesignPath] = useState("");
-  const [catalog, setCatalog] = useState([]);
-  const [product, setProduct] = useState(null);
-  const [designMood, setDesignMood] = useState("Original");
-  const [designIntensity, setDesignIntensity] = useState(3);
-  const [garment, setGarment] = useState(FALLBACK_GARMENT);
-  const [color, setColor] = useState("");
-  const [size, setSize] = useState("");
-  const [qty, setQty] = useState(1);
-  const [placement, setPlacement] = useState("front");
-  const [previewSide, setPreviewSide] = useState("front");
-  const [designStylesBySide, setDesignStylesBySide] = useState({ front: "", back: "" });
+  const {
+    step, setStep,
+    seasonalMode, setSeasonalMode,
+    seasonalDraft, setSeasonalDraft,
+    seasonalPrepared, setSeasonalPrepared,
+    designPath, setDesignPath,
+    catalog, setCatalog,
+    product, setProduct,
+    designMood, setDesignMood,
+    designIntensity, setDesignIntensity,
+    garment, setGarment,
+    color, setColor,
+    size, setSize,
+    qty, setQty,
+    placement, setPlacement,
+    previewSide, setPreviewSide,
+    designStylesBySide, setDesignStylesBySide,
+    groupGarments, setGroupGarments,
+  } = useCustomStudioWorkflowState(FALLBACK_GARMENT);
   const designStyleForSide = (side) => String(designStylesBySide?.[side] || "");
   const frontDesignStyle = designStyleForSide("front");
   const backDesignStyle = designStyleForSide("back");
   const designStyle = designStyleForSide(previewSide);
   const orderDesignStyle = placement === "back" ? backDesignStyle : (frontDesignStyle || backDesignStyle);
-  const [groupGarments, setGroupGarments] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [editorLayersBySide, setEditorLayersBySide] = useState({ front: [], back: [] });
   const editorLayers = editorLayersBySide[previewSide] || [];
@@ -2515,53 +2522,10 @@ export default function CustomStudio() {
 
         <div data-studio-row className="grid w-full min-w-0 max-w-full items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)]">
           <section id="custom-studio-workspace" data-workspace className="scroll-mt-24 min-w-0 max-w-full overflow-x-clip rounded-[24px] border border-[#e2dcd3] bg-[#FFFFFF] p-4 shadow-[0_18px_50px_rgba(28,24,20,.055)] md:p-8 md:min-h-[560px]">
-          {step === 2 && <div>
-            <StepTitle eyebrow="Start your design" title="CHOOSE YOUR DESIGN PATH" text="Choose the kind of design you want. You will customize everything in the next workspace." />
-            <div className="grid sm:grid-cols-2 gap-4">
-              {DESIGN_PATHS.map((path) => {
-                const Icon = path.icon;
-                const unavailable = path.id === "seasonal" && (placement !== "front" || groupGarments.length > 0);
-                return <button
-                  key={path.id}
-                  type="button"
-                  disabled={unavailable}
-                  aria-pressed={designPath === path.id}
-                  onClick={() => {
-                    setDesignPath(path.id);
-                    setMemorialNameConfirmed(false);
-                    if (path.id === "seasonal") {
-                      setSeasonalMode(true);
-                      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
-                      return;
-                    }
-                    if (path.id === "upload") {
-                      setDesignStylesBySide({ front: "Own artwork", back: "Own artwork" });
-                      setPreviewSide("front");
-                      setArtworkStates(defaultArtworkStates());
-                      setDesignMood("Original");
-                      setDesignIntensity(1);
-                    } else if (path.id === "bootleg" || path.id === "memorial") {
-                      setDesignStylesBySide({ front: "", back: "" });
-                      setPreviewSide("front");
-                      setDesignMood("Original");
-                      setDesignIntensity(3);
-                    }
-                    setStep(3);
-                    window.requestAnimationFrame(() => {
-                      document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    });
-                  }}
-                  className={"rounded-[20px] border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 " + (designPath === path.id ? "border-accent bg-accent/[0.055] shadow-sm" : "border-[#ddd7ce] bg-white hover:border-accent hover:-translate-y-0.5")}
-                >
-                  <span className="grid h-11 w-11 place-items-center rounded-full bg-[#F1F5F8] text-[#17324D]"><Icon size={20}/></span>
-                  <div className="mt-4 text-lg font-extrabold">{path.label}</div>
-                  <p className="mt-1 text-sm leading-relaxed text-[#6b645c]">{path.description}</p>
-                  <div className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-accent">{designPath === path.id ? "Selected" : "Choose this path"} <ArrowRight size={13} className="inline"/></div>
-                </button>;
-              })}
-            </div>
-            {placement !== "front" || groupGarments.length > 0 ? <p className="mt-4 text-sm text-[#706960]">Seasonal designs require front-only printing with no additional garment rows.</p> : null}
-          </div>}
+          {step === 2 && <ChooseDesignStep model={{
+            StepTitle, DESIGN_PATHS, placement, groupGarments, designPath, setDesignPath, setMemorialNameConfirmed, setSeasonalMode,
+            setDesignStylesBySide, setPreviewSide, setArtworkStates, defaultArtworkStates, setDesignMood, setDesignIntensity, setStep,
+          }} />}
           {step === 3 && <div>
             {designPath !== "upload" && <>
             <div data-editor-legacy="artwork-style" className="hidden">
@@ -2661,151 +2625,11 @@ export default function CustomStudio() {
             {designPath === "upload" && <div className="hidden" aria-hidden="true">Your own artwork controls are available in GDP Touch Studio.</div>}
           </div>}
 
-          {step === 1 && <div>
-            <StepTitle eyebrow="Choose your blank" title="CLOTHING, COLOR & SIZE" text="Pick the exact garment first. Colors, sizes, pricing and availability update automatically for that clothing type." />
-
-            <div data-garment-grid className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {(catalog.length ? catalog : (product ? [product] : [])).map((option) => {
-                const optionGarment = garmentFromProduct(option);
-                const optionImage = studioCardImage(option);
-                const active = product?.id === option.id;
-                return <button
-                  type="button"
-                  key={option.id}
-                  onClick={() => chooseProduct(option)}
-                  className={"group overflow-hidden rounded-2xl border text-left transition-all duration-200 " + (active ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.08)]" : "border-[#ddd7ce] bg-white/70 hover:border-accent hover:-translate-y-0.5")}
-                >
-                  <div className="aspect-[2/1] sm:aspect-[16/10] bg-[#f1ede6] overflow-hidden grid place-items-center">
-                    {optionImage
-                      ? <img src={optionImage} alt="" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]" />
-                      : <div className="h-[88%] aspect-[360/430]" aria-hidden="true">
-                          <GarmentShape
-                            type={optionGarment.previewType || optionGarment.type}
-                            color={option?.colors?.[0] || "Black"}
-                            side="front"
-                          />
-                        </div>}
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-bold leading-tight">{option.name}</div>
-                        <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">{option.type || option.category || "Custom garment"}</div>
-                      </div>
-                      {active && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-white"><Check size={13}/></span>}
-                    </div>
-                    {showGarmentPrices && <div className="font-mono text-sm mt-3">From {"$" + Number(optionGarment.price).toFixed(2)}</div>}
-                  </div>
-                </button>;
-              })}
-            </div>
-
-            {!product && catalog.length === 0 && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No Custom Studio garments are currently published.</div>}
-            {!product && catalog.length > 0 && <div className="mt-5 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 text-sm text-[#52616F]">Choose a garment above to begin. Nothing has been selected for you.</div>}
-
-            {product && <>
-              <div data-step1-color className="mt-7">
-                <div className="flex items-center justify-between gap-3">
-                  <label className="font-mono text-xs uppercase text-muted-foreground">Color</label>
-                  <span className="text-xs font-semibold">{color}</span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {availableColors.map((optionColor) => (
-                    <button
-                      type="button"
-                      key={optionColor}
-                      onClick={() => chooseColor(optionColor)}
-                      className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
-                    >
-                      <span
-                        className="h-5 w-5 rounded-full border border-slate-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.75),0_0_0_1px_rgba(15,23,42,0.18)]"
-                        style={{ backgroundColor: swatchFor(product, optionColor) }}
-                      />
-                      {optionColor}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div data-step1-size-quantity className="grid md:grid-cols-[1fr_auto] gap-5 mt-6 items-start">
-                <div data-step1-size>
-                  <label className="font-mono text-xs uppercase text-muted-foreground">Size</label>
-                  <div className="mt-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-                    {availableSizes.map((optionSize) => {
-                      const optionVariant = variantFor(product, color, optionSize);
-                      const enabled = variantAvailable(product, optionVariant);
-                      const optionPrice = optionVariant?.price == null ? Number(product.price || 0) : Number(optionVariant.price || 0);
-                      return <button
-                        type="button"
-                        key={optionSize}
-                        disabled={!enabled}
-                        onClick={() => enabled && setSize(optionSize)}
-                        title={!enabled ? "Unavailable" : ""}
-                        className={"w-full rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:w-auto sm:min-w-14 " + (size === optionSize ? "border-accent bg-accent/[0.07] text-accent" : enabled ? "border-[#ddd7ce] bg-white hover:border-accent" : "border-[#e5e0d9] bg-[#f4f1ec] text-[#aaa39a] line-through cursor-not-allowed")}
-                      >
-                        <span>{optionSize}</span>
-                        {showGarmentPrices && optionVariant?.price != null && optionPrice !== Number(product.price || 0) && <span className="block text-[8px] font-mono mt-0.5">{"$" + optionPrice.toFixed(2)}</span>}
-                      </button>;
-                    })}
-                  </div>
-                  {product.trackInventory === false && <div className="mt-2 text-[10px] text-[#817b73]">Made to order · inventory tracking is currently off for this blank.</div>}
-                </div>
-
-                <div data-step1-quantity>
-                  <label className="font-mono text-xs uppercase text-muted-foreground">Quantity</label>
-                  <div className="mt-2 flex items-center rounded-xl border border-[#ddd7ce] bg-white overflow-hidden w-fit">
-                    <button type="button" onClick={() => setQty(v => Math.max(1,v-1))} className="p-2.5 hover:bg-[#f5f1eb]"><Minus size={15}/></button>
-                    <span className="px-5 font-mono min-w-14 text-center">{qty}</span>
-                    <button type="button" onClick={() => setQty(v => Math.min(99,v+1))} className="p-2.5 hover:bg-[#f5f1eb]"><Plus size={15}/></button>
-                  </div>
-                </div>
-              </div>
-
-              <div data-step1-group className="mt-7 border-t border-border pt-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="font-bold">Same design, different sizes or colors</div>
-                    <p className="text-sm text-muted-foreground">Build a family, team or event order without recreating the design.</p>
-                  </div>
-                  <button type="button" onClick={addGroupGarment} className="text-accent text-sm font-bold inline-flex items-center gap-1 whitespace-nowrap"><Plus size={15}/> Add garment</button>
-                </div>
-                {groupGarments.map((item,index) => (
-                  <GroupRow
-                    key={index}
-                    item={item}
-                    product={product}
-                    onChange={patch => updateGroup(index,patch)}
-                    onRemove={() => removeGroup(index)}
-                  />
-                ))}
-              </div>
-
-              {!selectedAvailable && product?.variants?.length > 0 && (
-                <div data-step1-validation-message className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose an available size before continuing.</div>
-              )}
-
-              <div data-step1-complete className="mt-7 hidden items-center justify-between gap-5 rounded-2xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 lg:flex">
-                <div>
-                  <div className="text-sm font-bold text-[#17324D]">Garment selection complete</div>
-                  <p className="mt-1 text-xs text-[#64707C]">{canContinue() ? `${product.name} · ${color} · ${size} · Qty ${qty}` : continueHint()}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!canContinue()}
-                  onClick={() => {
-                    if (!canContinue()) return;
-                    setStep(2);
-                    window.requestAnimationFrame(() => {
-                      document.getElementById("custom-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    });
-                  }}
-                  className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-[#17324D] px-5 py-3 text-xs font-bold uppercase text-white shadow-sm transition hover:bg-[#244866] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Continue to Choose Design <ArrowRight size={16}/>
-                </button>
-              </div>
-            </>}
-          </div>}
+          {step === 1 && <GarmentStep model={{
+            StepTitle, catalog, product, garmentFromProduct, studioCardImage, chooseProduct, GarmentShape, showGarmentPrices,
+            availableColors, color, chooseColor, swatchFor, availableSizes, variantFor, variantAvailable, setSize, size, qty, setQty,
+            addGroupGarment, groupGarments, GroupRow, updateGroup, removeGroup, selectedAvailable, canContinue, continueHint, setStep,
+          }} />}
 
           {step === 3 && <div data-editor-legacy="photo-upload" className="hidden">
             <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : designPath === "memorial" ? "UPLOAD THE MEMORIAL PORTRAIT" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "–" + maxPhotos + " photos. Protected photo templates automatically remove supported photo backgrounds while preserving the original so it can be restored."} />
@@ -2825,39 +2649,16 @@ export default function CustomStudio() {
 
           </div>}
 
-          {step === 4 && <div>
-            <StepTitle eyebrow="Approve the result" title="TIMING + FINAL APPROVAL" text={designPath === "seasonal" ? "Your exact 300 DPI seasonal composite is prepared below. Confirm timing, artwork rights and this exact preview before it can enter your cart." : "The preview you approve is converted into the exact 300 DPI production file before it enters your cart."} />
-            <div className="grid md:grid-cols-2 gap-4">
-              <div><label className="font-mono text-xs uppercase text-muted-foreground">Need it by</label><input type="date" value={needByDate} onChange={e => setNeedByDate(e.target.value)} className="w-full border border-border bg-background px-3 py-2 mt-1"/></div>
-              <div><label className="font-mono text-xs uppercase text-muted-foreground">Priority</label><div className="flex gap-2 mt-1"><Choice active={priority === "standard"} onClick={() => setPriority("standard")}>Standard</Choice><Choice active={priority === "rush"} onClick={() => setPriority("rush")}>Rush (+{"$" + rushFee})</Choice></div></div>
-            </div>
-            <div className="mt-6 border border-border p-4"><div className="flex items-start gap-3"><ShieldCheck size={22} className="text-accent shrink-0"/><div><div className="font-bold">Preview-to-print guarantee</div><p className="text-sm text-muted-foreground mt-1">After approval, GDP locks the preview and its matching production PNG. Production prints that locked file—there is no separate designer interpretation.</p></div></div></div>
-            <label className="flex items-start gap-3 mt-5 text-sm"><input type="checkbox" checked={rightsConfirmed} onChange={e => setRightsConfirmed(e.target.checked)} className="mt-1"/><span>I confirm I own or have permission to reproduce the photos and artwork I submitted. <Link to="/pages/custom-artwork-policy" target="_blank" className="font-semibold text-accent hover:underline">Upload policy</Link></span></label>
-            <label className="flex items-start gap-3 mt-3 text-sm"><input type="checkbox" checked={approvalAcknowledged} onChange={e => setApprovalAcknowledged(e.target.checked)} className="mt-1"/><span><strong>I approve the exact live preview shown.</strong> I understand this result will be locked when added to cart and printed after successful payment. To change it, I must create a new design before checkout. Customer uploads follow the <Link to="/pages/data-retention" target="_blank" className="font-semibold text-accent hover:underline">retention policy</Link>.</span></label>
-          </div>}
+          {step === 4 && <TimingApprovalStep model={{
+            StepTitle, designPath, needByDate, setNeedByDate, Choice, priority, setPriority, rushFee, rightsConfirmed, setRightsConfirmed,
+            approvalAcknowledged, setApprovalAcknowledged,
+          }} />}
 
-          {step === 5 && <div>
-            <StepTitle eyebrow="Final check" title="REVIEW THE EXACT RESULT" text={designPath === "seasonal" ? "This is the prepared seasonal production composite you approved. Adding it to cart locks that exact 300 DPI file to the order." : "Adding to cart generates and locks the production-ready PNG from the live preview. Payment then sends that same file to the production queue."} />
-            <div className="grid md:grid-cols-2 gap-4">
-              <ReviewCard label="Design path" value={DESIGN_PATHS.find((path) => path.id === designPath)?.label || "Not selected"} sub={(designPath === "bootleg" || designPath === "memorial") ? "GDP template locked · customer layers editable" : ""} />
-              <ReviewCard label={designPath === "seasonal" ? "Seasonal artwork" : designPath === "upload" ? "Artwork" : "Ready layout"} value={designPath === "seasonal" ? (seasonalPrepared?.seasonalSummary?.artwork || seasonalDraft?.artworkTitle || "Layered seasonal design") : (orderDesignStyle || "Not selected").replace(/^GDP\s+/, "")} sub={designPath === "seasonal" ? `${seasonalPrepared?.seasonalSummary?.layerCount || seasonalDraft?.layers?.length || 0} print layer(s)` : orderDesignStyle ? `${designMood || "Original"} finish` : ""} />
-              {designPath === "memorial" && <ReviewCard label="Memorial name" value={personalization.name || "Not entered"} sub={personalization.dates ? `Dates: ${personalization.dates}` : "No dates added"} />}
-              <ReviewCard label="Garment" value={product?.name || "Not selected"} sub={product ? `${color || "No color"} · ${size || "No size"} · Qty ${qty}` : ""} />
-              <ReviewCard
-                label="Print"
-                value={placement === "front_back" ? "Front + back" : placement === "back" ? "Back only" : "Front only"}
-                sub={placement === "front_back" ? "Two independent artwork placements saved." : "One print side selected."}
-              />
-              {designPath !== "seasonal" && placement !== "back" && <ReviewCard label="Front artwork" value={printSummaryForSide("front")} sub={"Scale " + Number(artworkStates.front?.scale ?? 92) + "% · rotation " + Number(artworkStates.front?.rotation ?? 0) + "°"} />}
-              {designPath !== "seasonal" && placement !== "front" && <ReviewCard label="Back artwork" value={printSummaryForSide("back")} sub={"Scale " + Number(artworkStates.back?.scale ?? 92) + "% · rotation " + Number(artworkStates.back?.rotation ?? 0) + "°"} />}
-              {designPath !== "seasonal" && <ReviewCard label="Photos" value={photos.length + " uploaded"} sub={photos.some(p => p.quality === "replace_recommended") ? `Print-quality warning · smallest upload ${Math.min(...photos.map((p) => Math.max(Number(p.width || 0), Number(p.height || 0)))) || 0}px on its longest edge. Replace low-resolution photos when possible.` : "Photo quality check complete."} />}
-              <ReviewCard label="Production result" value="Customer-approved preview" sub={designPath === "seasonal" ? "Prepared 300 DPI layered composite · locked to this approval when added to cart." : "Locked 300 DPI PNG is generated when added to cart."} />
-              <ReviewCard label="Timing" value={priority === "rush" ? "Rush" : "Standard"} sub={needByDate ? "Need by " + needByDate : "No event date selected"} />
-            </div>
-            {groupGarments.length > 0 && <div className="mt-4 border border-border p-4"><div className="font-bold">Additional shirts using the same design</div>{groupGarments.map((g,i) => <div key={i} className="text-sm text-muted-foreground mt-1">{g.quantity}× {g.color} · {g.size}</div>)}</div>}
-            <div className="mt-6 bg-secondary p-5 flex items-end justify-between gap-4"><div><div className="font-mono text-xs uppercase text-muted-foreground">Estimated custom subtotal</div><div className="text-xs text-muted-foreground mt-1">Garment, selected print sides and rush fee included. Cart discounts, shipping, tax and coupons are calculated later.</div></div><div className="font-display text-4xl">{"$" + estimatedSubtotal.toFixed(2)}</div></div>
-            <button onClick={createAndAdd} disabled={saving || !rightsConfirmed || !approvalAcknowledged} className="w-full mt-5 bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide disabled:opacity-50">{saving ? "Generating production artwork…" : "Approve, Lock & Add to Cart →"}</button>
-          </div>}
+          {step === 5 && <ReviewStep model={{
+            StepTitle, ReviewCard, DESIGN_PATHS, designPath, seasonalPrepared, seasonalDraft, orderDesignStyle, designMood, personalization,
+            product, color, size, qty, placement, printSummaryForSide, artworkStates, photos, priority, needByDate, groupGarments,
+            estimatedSubtotal, createAndAdd, saving, rightsConfirmed, approvalAcknowledged,
+          }} />}
         </section>
 
           <aside data-aside className="h-fit min-w-0 max-w-full space-y-4 lg:sticky lg:top-24">
