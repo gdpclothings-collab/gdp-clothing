@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import StoreNav from "./StoreNav";
 import StoreFooter from "./StoreFooter";
@@ -6,6 +6,7 @@ import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
 import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
 import CustomStudioShellEnhancer from "./CustomStudioShellEnhancer";
+import CustomStudioNavigationDock from "./CustomStudioNavigationDock";
 import "./customStudioMobile.css";
 import "./customStudioDesktop.css";
 import "./seasonalStudioMobile.css";
@@ -18,6 +19,11 @@ export default function Layout() {
   );
   const cartActive = location.pathname === "/cart" || location.pathname.startsWith("/cart/");
 
+  useEffect(() => {
+    if (!studioActive) return;
+    document.title = "Custom Studio | GDP Clothing";
+  }, [studioActive]);
+
   return (
     <div className={`gdp-storefront min-h-screen flex flex-col bg-background${studioActive ? " gdp-studio-active" : ""}`}>
       <StoreNav />
@@ -26,6 +32,7 @@ export default function Layout() {
       </main>
       {studioActive && <SeasonalMobileReviewEnhancer />}
       {studioActive && <CustomStudioShellEnhancer />}
+      {studioActive && <CustomStudioNavigationDock />}
       {!studioActive && <StoreFooter />}
       {!cartActive && <AIAssistant />}
       <CookiePreferences />
