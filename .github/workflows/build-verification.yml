@@ -42,11 +42,15 @@ jobs:
           node --check scripts/verify-custom-studio-garment-interactions.mjs
           node --check scripts/verify-custom-order-guide-visibility.mjs
           node --check scripts/verify-custom-studio-hardening.mjs
+          node --check scripts/verify-custom-studio-shell-architecture.mjs
           node --check scripts/assert-safe-staging-target.mjs
           node --check scripts/verify-seasonal-artwork.mjs
           node --check scripts/verify-photo-bootleg-desktop.mjs
           node --check scripts/verify-cart-pricing.mjs
           node --check scripts/verify-custom-studio-canonical-flow.mjs
+
+      - name: Verify Custom Studio shell architecture
+        run: node scripts/verify-custom-studio-shell-architecture.mjs
 
       - name: Verify Custom Studio garment interactions
         run: node scripts/verify-custom-studio-garment-interactions.mjs
