@@ -1,9 +1,19 @@
 import { useMemo, useReducer } from "react";
 
+/** @typedef {{ type: "set", key: string, value: any }} WorkflowAction */
+
+/**
+ * @param {any} current
+ * @param {any} value
+ */
 function resolveNext(current, value) {
   return typeof value === "function" ? value(current) : value;
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {WorkflowAction} action
+ */
 function workflowReducer(state, action) {
   if (!action || action.type !== "set") return state;
   const nextValue = resolveNext(state[action.key], action.value);
@@ -11,8 +21,9 @@ function workflowReducer(state, action) {
   return { ...state, [action.key]: nextValue };
 }
 
-export function useCustomStudioWorkflowState(fallbackGarment) {
-  const [state, dispatch] = useReducer(workflowReducer, null, () => ({
+/** @param {any} fallbackGarment */
+function createInitialWorkflowState(fallbackGarment) {
+  return {
     step: 1,
     seasonalMode: false,
     seasonalDraft: null,
@@ -30,7 +41,12 @@ export function useCustomStudioWorkflowState(fallbackGarment) {
     previewSide: "front",
     designStylesBySide: { front: "", back: "" },
     groupGarments: [],
-  }));
+  };
+}
+
+/** @param {any} fallbackGarment */
+export function useCustomStudioWorkflowState(fallbackGarment) {
+  const [state, dispatch] = useReducer(workflowReducer, createInitialWorkflowState(fallbackGarment));
 
   const setters = useMemo(() => ({
     setStep: (value) => dispatch({ type: "set", key: "step", value }),
