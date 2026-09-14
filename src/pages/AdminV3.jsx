@@ -64,10 +64,7 @@ function HealthShortcut() {
       className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8] focus:outline-none focus:ring-2 focus:ring-[#d7193f]/30"
       aria-label="Open System Health"
     >
-      <span className="relative grid place-items-center">
-        <Activity size={17} />
-        <span className="absolute -right-1 -top-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-      </span>
+      <Activity size={17} />
       System Health
     </Link>
   );
