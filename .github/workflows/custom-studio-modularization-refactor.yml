@@ -6,6 +6,7 @@ on:
       - refactor/custom-studio-modularization-20260914
     paths:
       - scripts/refactor-custom-studio-modularization.mjs
+      - .github/workflows/custom-studio-modularization-refactor.yml
 
 permissions:
   contents: write
