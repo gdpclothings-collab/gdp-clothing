@@ -1,0 +1,42 @@
+/* Priority layout overrides.
+ * CustomStudioDesktopWorkspace injects its desktop CSS at component render time,
+ * so these selectors intentionally use higher specificity than that runtime
+ * style block while keeping the same behavior scope.
+ */
+
+@media (min-width: 1280px) {
+  html body .gdp-custom-studio-workspace .gdp-custom-studio-core[data-step="3"] [data-preview-card] {
+    grid-template-columns: minmax(320px, .78fr) minmax(0, 1.22fr) !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    isolation: isolate;
+  }
+
+  html body .gdp-custom-studio-workspace .gdp-custom-studio-core[data-step="3"] [data-preview-card] > :nth-child(2),
+  html body .gdp-custom-studio-workspace .gdp-custom-studio-core[data-step="3"] [data-preview-card] > :nth-child(3) {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    box-sizing: border-box;
+  }
+
+  html body .gdp-custom-studio-workspace .gdp-custom-studio-core[data-step="3"] [data-preview-card] > :nth-child(2) {
+    overflow: hidden !important;
+  }
+
+  html body .gdp-custom-studio-workspace .gdp-custom-studio-core[data-step="3"] [data-preview-card] > :nth-child(3) {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1500px) {
+  html body .gdp-custom-studio-workspace .gdp-custom-studio-core[data-step="3"] [data-preview-card] {
+    grid-template-columns: minmax(290px, .82fr) minmax(0, 1.18fr) !important;
+  }
+}
