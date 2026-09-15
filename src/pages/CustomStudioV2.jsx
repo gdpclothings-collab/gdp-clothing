@@ -145,7 +145,7 @@ export default function CustomStudioV2() {
   const { addItem } = useCart();
   const [state, setState] = useState(() => createInitialStudioV2State());
   const [catalog, setCatalog] = useState([]);
-  const [settings, setSettings] = useState({});
+  const [settings, setSettings] = useState({ styleTemplates: {}, frontBackFee: 10 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [finalizing, setFinalizing] = useState(false);
@@ -197,7 +197,7 @@ export default function CustomStudioV2() {
         let snapshot;
         let rendered;
         if (state.designPath === 'seasonal') {
-          snapshot = await buildSeasonalStudioV2Snapshot({ productId: product.id, size: state.size, color: state.color, side, layers: editor.layers });
+          snapshot = await buildSeasonalStudioV2Snapshot({ productId: product.id, size: state.size, color: state.color, layers: editor.layers });
           rendered = await renderSeasonalStudioV2Png(snapshot, 300);
         } else if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
           const template = templates.find((item) => item.id === editor.templateId);
