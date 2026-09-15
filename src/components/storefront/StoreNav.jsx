@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, Search, ShoppingBag, User, X } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
@@ -62,6 +62,7 @@ export default function StoreNav() {
   const { itemCount } = useCart();
   const location = useLocation();
   const navigate = useNavigate();
+  const headerRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -92,6 +93,26 @@ export default function StoreNav() {
       active = false;
     };
   }, [previewDraft]);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header || typeof document === "undefined") return undefined;
+
+    const updateHeaderHeight = () => {
+      const height = Math.ceil(header.getBoundingClientRect().height || 70);
+      document.documentElement.style.setProperty("--gdp-store-header-height", `${height}px`);
+    };
+
+    updateHeaderHeight();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateHeaderHeight) : null;
+    observer?.observe(header);
+    window.addEventListener("resize", updateHeaderHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateHeaderHeight);
+    };
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -146,11 +167,10 @@ export default function StoreNav() {
   };
 
   const announcementEnabled = landing.announcement?.enabled && landing.announcement?.text;
-  const mobileMenuTop = announcementEnabled ? 104 : 70;
   const branding = landing.branding || DEFAULT_LANDING_PAGE.branding;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#080909] text-white">
+    <header ref={headerRef} className="sticky top-0 z-50 border-b border-white/10 bg-[#080909] text-white">
       {announcementEnabled && (
         <div className="flex min-h-[34px] items-center justify-center bg-white px-4 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-black sm:text-xs">
           <AnnouncementLink announcement={landing.announcement} />
@@ -233,7 +253,7 @@ export default function StoreNav() {
       {menuOpen && (
         <div
           className="fixed inset-x-0 bottom-0 overflow-y-auto bg-[#080909] lg:hidden"
-          style={{ top: mobileMenuTop }}
+          style={{ top: "var(--gdp-store-header-height, 70px)" }}
         >
           <nav className="px-5 py-5" aria-label="Mobile navigation">
             {navItems.map((item) => <NavLink key={item.label + item.path} item={item} mobile />)}

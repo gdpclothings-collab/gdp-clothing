@@ -139,7 +139,10 @@ export default function Shop() {
       </section>
 
       {!collectionMode && (
-        <div className="sticky top-[70px] z-30 border-b border-black/10 bg-[#f7f6f1]/95 backdrop-blur-xl">
+        <div
+          className="sticky z-30 border-b border-black/10 bg-[#f7f6f1]/95 backdrop-blur-xl"
+          style={{ top: "var(--gdp-store-header-height, 70px)" }}
+        >
           <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-4 py-3 sm:px-5 lg:px-8">
             <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1">
               {CATEGORIES.map((item) => (
