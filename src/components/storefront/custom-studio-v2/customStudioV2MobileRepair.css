@@ -1,0 +1,78 @@
+/* GDP Custom Studio V2 — phone-only regression containment.
+ *
+ * This file is intentionally presentation-only and is loaded through the V2
+ * presentation guard. It must never own product, pricing, upload, production,
+ * cart, checkout, Supabase, or Stripe behavior.
+ */
+
+@media (max-width: 767px) {
+  [data-gdp-studio-v2-guard="true"] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  /* Stop grid/card min-content widths from pushing adjacent Studio surfaces
+     outside the phone viewport. This is the main overlap regression guard. */
+  [data-gdp-studio-v2-guard="true"] main,
+  [data-gdp-studio-v2-guard="true"] main > div,
+  [data-gdp-studio-v2-guard="true"] main section,
+  [data-gdp-studio-v2-guard="true"] main aside,
+  [data-gdp-studio-v2-guard="true"] main [class*="grid"] {
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  [data-gdp-studio-v2-guard="true"] main [class*="grid-cols-5"] > button {
+    min-width: 0 !important;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  [data-gdp-studio-v2-guard="true"] main img,
+  [data-gdp-studio-v2-guard="true"] main input,
+  [data-gdp-studio-v2-guard="true"] main select,
+  [data-gdp-studio-v2-guard="true"] main textarea,
+  [data-gdp-studio-v2-guard="true"] main button {
+    max-width: 100%;
+  }
+
+  /* A long uploaded filename plus the four layer-action buttons previously had
+     enough intrinsic width to compete for the same row on narrow phones. Allow
+     that small action cluster to wrap instead of overlapping the card edge. */
+  [data-gdp-studio-v2-guard="true"] main [class*="justify-between"] > [class*="flex"][class*="gap-1"] {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Isolate every 4:5 garment/print canvas from surrounding card layout and
+     repaint invalidation. This keeps transformed artwork/photo layers inside the
+     fabric box and reduces iOS/WebKit blank/shifted-frame rendering artifacts. */
+  [data-gdp-studio-v2-guard="true"] main [class*="aspect-[4/5]"][class*="overflow-hidden"] {
+    isolation: isolate;
+    contain: layout paint;
+  }
+
+  [data-gdp-studio-v2-guard="true"] main [class*="aspect-[4/5]"][class*="overflow-hidden"] img {
+    display: block;
+    max-width: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  [data-gdp-studio-v2-guard="true"] main [class*="aspect-[4/5]"][class*="overflow-hidden"] [style*="transform"] {
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  /* Keep the bottom action surface inside the safe phone width and above the
+     home-indicator area without changing its desktop/tablet behavior. */
+  [data-gdp-studio-v2-guard="true"] main .sticky.bottom-3 {
+    width: auto;
+    max-width: calc(100vw - 1.5rem);
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
