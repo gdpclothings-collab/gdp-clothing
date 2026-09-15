@@ -28,6 +28,13 @@ expect(css.includes('[data-gdp-mobile-menu-open="true"] [data-gdp-step-nav="mobi
 expect(css.includes('[data-seasonal-approved-preview]'), 'Prepared Seasonal approval preview needs mobile render stabilization.');
 expect(css.includes('contain: layout paint'), 'Prepared approval preview should be isolated from mobile repaint/layout bleed.');
 
+expect(css.includes('.gdp-seasonal-shared-shell__work'), 'Seasonal mobile workspace must have an explicit viewport containment boundary.');
+expect(css.includes('overflow-x: clip !important'), 'Seasonal mobile shell must not expose desktop-width overflow to Mobile Safari.');
+expect(css.includes('grid-template-columns: minmax(0, 1fr) !important'), 'Seasonal phone editor must use one explicit shrinkable grid track.');
+expect(css.includes('grid-auto-columns: minmax(0, 1fr) !important'), 'Seasonal phone editor must not create an oversized implicit grid column after artwork loads.');
+expect(css.includes('section[aria-label="Choose seasonal artwork"]'), 'Seasonal artwork library must remain inside the mobile containment contract.');
+expect(css.includes('section[aria-label="Garment preview"] .gdp-seasonal-preview-frame'), 'Seasonal garment preview frame must remain viewport-bounded on phones.');
+
 expect(approval.includes('SEASONAL_PREVIEW_TIMEOUT_MS = 15000'), 'Final approval must have a bounded render wait instead of an infinite spinner.');
 expect(approval.includes('preview.dataset.seasonalPreviewState'), 'Final approval must consume the runtime guard readiness state.');
 expect(approval.includes('attributeFilter: ["src", "data-seasonal-preview-state"]'), 'Final approval must react when the guard marks the prepared preview ready/error.');
