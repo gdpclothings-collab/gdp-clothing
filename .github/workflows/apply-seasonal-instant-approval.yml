@@ -1,0 +1,346 @@
+name: Apply Seasonal Instant Approval Reconstruction
+
+on:
+  push:
+    branches:
+      - reconstruct/seasonal-instant-approval
+
+permissions:
+  contents: write
+
+jobs:
+  reconstruct:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: reconstruct/seasonal-instant-approval
+          fetch-depth: 0
+
+      - name: Reconstruct Seasonal approval pipeline
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          layered_path = Path('src/components/storefront/SeasonalStudioLayered.jsx')
+          custom_path = Path('src/pages/CustomStudio.jsx')
+          verify_path = Path('scripts/verify-seasonal-artwork.mjs')
+
+          layered = layered_path.read_text()
+          custom = custom_path.read_text()
+          verify = verify_path.read_text()
+
+          new_save = r'''  const save = async () => {
+            if (!visibleResolvedLayers.length || !approved || saving || saveLock.current) return;
+            if (typeof onReadyForApproval !== 'function') {
+              setError('Custom Studio approval flow is not ready. Please reload and try again.');
+              return;
+            }
+            saveLock.current = true;
+            setSaving(true);
+            setError('');
+            try {
+              const sourceConfigurations = visibleResolvedLayers.map((entry, order) => ({
+                layerId: entry.layer.id,
+                order,
+                artworkId: entry.artwork.id,
+                artworkTitle: entry.artwork.title,
+                category: entry.artwork.category,
+                previewUrl: entry.artwork.preview,
+                ...seasonalSelection(entry.artwork, entry.layout, {}, area, Number(entry.layer.rotation || 0)),
+              }));
+              const configurations = sourceConfigurations.map(({ previewUrl, ...configuration }) => configuration);
+              const requestId = saveRequestId.current || crypto.randomUUID();
+              saveRequestId.current = requestId;
+              const preparedAt = new Date().toISOString();
+              const renderSnapshot = {
+                version: 5,
+                designPath: 'seasonal',
+                layers: configurations,
+                printArea: { width: Number(area.width), height: Number(area.height), dpi: 300 },
+                garment: { id: product.id, variantId: variant?.id || null, color, size },
+              };
+              const lockedHash = await digestSnapshot(renderSnapshot);
+
+              // Final Approval only needs a lightweight, exact customer mockup.
+              // The expensive transparent 300-DPI production PNG is generated
+              // later from renderSnapshot after the customer approves the design.
+              setCapturing(true);
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              await document.fonts?.ready;
+              const { default: html2canvas } = await import('html2canvas');
+              if (!approvedPreviewRef.current) throw new Error('The seasonal approval preview is not ready. Please try again.');
+              const previewRect = approvedPreviewRef.current.getBoundingClientRect();
+              if (!previewRect.width || !previewRect.height) throw new Error('The seasonal approval preview has no visible area.');
+              const mockupCanvas = await html2canvas(approvedPreviewRef.current, {
+                backgroundColor: '#f3eee6',
+                scale: Math.max(1, 900 / previewRect.width),
+                useCORS: true,
+                logging: false,
+                imageTimeout: 15000,
+                width: previewRect.width,
+                height: previewRect.height,
+                scrollX: 0,
+                scrollY: 0,
+              });
+              const mockupUpload = await customerApi.uploadArtwork(new File(
+                [await canvasPng(mockupCanvas)],
+                `gdp-${lockedHash.slice(0, 12)}-approval-preview.png`,
+                { type: 'image/png' }
+              ));
+              setCapturing(false);
+
+              const artworkTitles = configurations.map((item) => item.artworkTitle);
+              const collectionNames = configurations.map((item) => item.category);
+              const seasonalSummary = {
+                artwork: artworkTitles.join(' + '),
+                artworks: artworkTitles,
+                layerCount: configurations.length,
+                collection: uniqueText(collectionNames),
+                printSide: 'Front',
+                layers: configurations.map((item) => ({
+                  artworkId: item.artworkId,
+                  artworkTitle: item.artworkTitle,
+                  width: Number(item.width),
+                  height: Number(item.height),
+                  rotation: Number(item.rotation || 0),
+                  position: { x: Number(item.x), y: Number(item.y) },
+                  order: item.order,
+                })),
+                garment: garment.label || product.name,
+                color,
+                size,
+              };
+              const designPayload = {
+                productId: product.id,
+                productName: product.name,
+                name: artworkTitles.length === 1 ? artworkTitles[0] : `${artworkTitles.length} Layer Seasonal Design`,
+                designStyle: `Seasonal Layers: ${artworkTitles.join(' + ')}`,
+                occasion: uniqueText(collectionNames),
+                designMood: 'Layered original artwork',
+                designIntensity: 1,
+                color,
+                size,
+                placement: 'front',
+                photoAssets: [],
+                personalization: {},
+                seasonalArtworkId: configurations[0]?.artworkId || null,
+                seasonalConfiguration: { version: 2, layers: configurations, client_request_id: requestId },
+                designPath: 'seasonal',
+                renderSnapshot,
+                productionFiles: {},
+                customerMockupPath: mockupUpload.storage_path,
+                renderStatus: 'approval_ready',
+                lockedHash,
+                preflight: {
+                  version: 3,
+                  status: 'snapshot_locked',
+                  checkedAt: preparedAt,
+                  expectedSides: ['front'],
+                  dpi: 300,
+                  layerCount: configurations.length,
+                  productionStatus: 'pending_customer_approval',
+                },
+                proofRequired: false,
+              };
+              const cartItemBase = {
+                productId: product.id,
+                name: product.name,
+                image: mockupUpload.file_url,
+                isCustom: true,
+                variantId: variant?.id || null,
+                variant: variant?.name || garment.label,
+                color,
+                size,
+                quantity,
+                price: unitPrice,
+                placement: 'front',
+                fulfillmentMode: product.fulfillmentMode || 'in_house',
+                designStyle: designPayload.designStyle,
+                designPath: 'seasonal',
+                occasion: uniqueText(collectionNames) || 'Seasonal',
+                proofRequired: false,
+                renderStatus: 'approval_ready',
+                ...(fabricDescription ? { fabric: fabricDescription } : {}),
+                seasonalSummary,
+                seasonalDraft: { version: 2, layers: cloneLayers(layers), printSide: 'front', previewZoom, reviewZoom },
+              };
+              const productionSources = sourceConfigurations.map((item) => ({
+                layerId: item.layerId,
+                artworkId: item.artworkId,
+                previewUrl: item.previewUrl,
+              }));
+              onReadyForApproval({ designPayload, cartItemBase, seasonalSummary, productionSources, editCartKey });
+            } catch (failure) {
+              setError(failure.message || 'Could not prepare this approval preview. Please try again.');
+              window.setTimeout(() => reviewErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+            } finally {
+              setCapturing(false);
+              setSaving(false);
+              saveLock.current = false;
+            }
+          };'''
+
+          layered, count = re.subn(
+              r"  const save = async \(\) => \{.*?\n  \};(?=\n\n  const previewConfig)",
+              new_save,
+              layered,
+              count=1,
+              flags=re.S,
+          )
+          assert count == 1, f'Expected one Seasonal save function, replaced {count}'
+          layered = layered.replace(
+              "{saving ? 'Preparing production files…' : (error ? 'Retry continue' : 'Continue to timing & approval')}",
+              "{saving ? 'Locking approval preview…' : (error ? 'Retry continue' : 'Continue to timing & approval')}"
+          )
+          layered_path.write_text(layered)
+
+          import_anchor = 'import { customerApi } from "@/lib/customerApi";\n'
+          assert import_anchor in custom, 'customerApi import anchor missing'
+          custom = custom.replace(
+              import_anchor,
+              import_anchor + 'import { renderSeasonalProductionPng } from "@/lib/seasonalProductionRender";\n',
+              1,
+          )
+
+          start = custom.index('    if (designPath === "seasonal") {', custom.index('async function createAndAdd()'))
+          end_marker = '      return;\n    }'
+          end = custom.index(end_marker, start) + len(end_marker)
+          new_branch = r'''    if (designPath === "seasonal") {
+              if (!seasonalPrepared?.designPayload || !seasonalPrepared?.cartItemBase) {
+                setWarn("Return to Seasonal Designs and lock the approval preview before final approval.");
+                return;
+              }
+              setSaving(true);
+              try {
+                const approvedAt = new Date().toISOString();
+                const renderSnapshot = seasonalPrepared.designPayload.renderSnapshot;
+                const production = await renderSeasonalProductionPng(
+                  renderSnapshot,
+                  seasonalPrepared.productionSources || [],
+                  300
+                );
+                const productionUpload = await uploadWithRetry(new File(
+                  [production.blob],
+                  `gdp-${String(seasonalPrepared.designPayload.lockedHash || 'seasonal').slice(0, 12)}-front-300dpi.png`,
+                  { type: 'image/png' }
+                ));
+                const productionFiles = {
+                  front: {
+                    path: productionUpload.storage_path,
+                    widthPx: production.widthPx,
+                    heightPx: production.heightPx,
+                    widthIn: production.widthIn,
+                    heightIn: production.heightIn,
+                    dpi: production.dpi,
+                    mimeType: production.mimeType,
+                  },
+                };
+                const normalizedSeasonalGroups = groupGarments.map((item) => {
+                  const groupVariant = variantFor(product, item.color, item.size);
+                  return {
+                    ...item,
+                    variantId: groupVariant?.id || null,
+                    variantName: groupVariant?.name || "",
+                    unitPrice: priceFor(item.color, item.size),
+                  };
+                });
+                const finalPreflight = {
+                  ...seasonalPrepared.designPayload.preflight,
+                  status: 'passed',
+                  checkedAt: approvedAt,
+                  productionStatus: 'ready',
+                  files: {
+                    front: {
+                      widthPx: production.widthPx,
+                      heightPx: production.heightPx,
+                      widthIn: production.widthIn,
+                      heightIn: production.heightIn,
+                      dpi: production.dpi,
+                    },
+                  },
+                };
+                const finalizedPayload = {
+                  ...seasonalPrepared.designPayload,
+                  productionFiles,
+                  renderStatus: 'locked',
+                  preflight: finalPreflight,
+                  needByDate: needByDate || undefined,
+                  priority,
+                  customerConfirmedRights: true,
+                  approvalPolicyAcknowledged: true,
+                  customerApprovedAt: approvedAt,
+                  proofRequired: false,
+                  additionalGarments: normalizedSeasonalGroups,
+                  status: "in_cart",
+                };
+                const design = await customerApi.createCustomDesign(finalizedPayload);
+                const common = {
+                  ...seasonalPrepared.cartItemBase,
+                  customDesignId: design.id,
+                  ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
+                  needByDate,
+                  priority,
+                  proofRequired: false,
+                  proofStatus: "approved",
+                  customerApprovedAt: approvedAt,
+                  renderStatus: "locked",
+                };
+                const primaryItem = {
+                  ...common,
+                  variantId: selectedVariant?.id || common.variantId || null,
+                  variant: selectedVariant?.name || garment.label,
+                  price: priceFor(color, size),
+                  color,
+                  size,
+                  quantity: qty,
+                };
+                const editCartKey = seasonalPrepared.editCartKey || location.state?.editCartKey || "";
+                if (editCartKey) replaceItem(editCartKey, primaryItem);
+                else addItem(primaryItem);
+                normalizedSeasonalGroups.forEach((item) => addItem({
+                  ...common,
+                  variantId: item.variantId,
+                  variant: item.variantName || garment.label,
+                  price: item.unitPrice,
+                  color: item.color,
+                  size: item.size,
+                  quantity: Number(item.quantity || 1),
+                }));
+                try { window.localStorage.removeItem(STUDIO_DRAFT_KEY); } catch { /* cart completion does not depend on draft cleanup */ }
+                setSeasonalPrepared(null);
+                setDraftStatus("idle");
+                navigate("/cart");
+              } catch (error) {
+                setWarn(error?.message || "Could not build the locked Seasonal production file.");
+              } finally {
+                setSaving(false);
+              }
+              return;
+            }'''
+          custom = custom[:start] + new_branch + custom[end:]
+          custom = custom.replace(
+              'Exact prepared preview · 300 DPI composite',
+              'Locked approval preview · print file builds after approval'
+          )
+          custom_path.write_text(custom)
+
+          verify = verify.replace(
+              "sourceCheck(studioSource, \"renderSnapshot = { version: 4, designPath: 'seasonal', layers: configurations\", 'Locked production snapshots must contain the layered composition.');",
+              "sourceCheck(studioSource, \"version: 5,\", 'Locked approval snapshots must use the deferred-production snapshot version.');\nsourceCheck(studioSource, \"renderStatus: 'approval_ready'\", 'Seasonal Final Approval must use a locked snapshot before production rendering.');\nsourceCheck(customStudioSource, 'renderSeasonalProductionPng(', 'Seasonal production PNG generation must be deferred until Approve & Add to Cart.');"
+          )
+          verify_path.write_text(verify)
+          PY
+
+      - name: Commit reconstructed pipeline
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-seasonal-instant-approval.yml
+          git add src/components/storefront/SeasonalStudioLayered.jsx src/pages/CustomStudio.jsx scripts/verify-seasonal-artwork.mjs
+          git commit -m "Reconstruct Seasonal final approval rendering flow"
+          git push origin HEAD:reconstruct/seasonal-instant-approval
