@@ -22,6 +22,8 @@ const seasonal = read('src/components/storefront/custom-studio-v2/SeasonalEditor
 const protectedEditor = read('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx');
 const uploadEditor = read('src/components/storefront/custom-studio-v2/UploadArtworkEditorV2.jsx');
 const gestures = read('src/components/storefront/custom-studio-v2/useTouchTransformV2.js');
+const v2Guard = read('src/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard.jsx');
+const mobileRepair = read('src/components/storefront/custom-studio-v2/customStudioV2MobileRepair.css');
 const nav = read('src/components/storefront/StoreNav.jsx');
 const combinedV2 = [page, state, production, protectedProduction, assets, preview, seasonal, protectedEditor, uploadEditor, gestures].join('\n');
 
@@ -30,6 +32,9 @@ assert(app.includes('path="/custom-studio" element={<CustomStudioV2 />}'), 'live
 assert(app.includes('path="/design" element={<CustomStudioV2 />}'), 'legacy /design alias must resolve to the rebuilt Studio');
 assert(app.includes('path="/custom-studio-legacy" element={<CustomStudio />}'), 'dedicated legacy rollback/edit route is missing');
 assert(app.includes('path="/custom-studio-v2" element={<CustomStudioV2 />}'), 'V2 compatibility route is missing');
+assert(app.includes("@/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard"), 'live V2 route must pass through the scoped presentation guard');
+assert(v2Guard.includes('data-gdp-studio-v2-guard="true"'), 'V2 presentation guard scope marker is missing');
+assert(v2Guard.includes("import './customStudioV2MobileRepair.css';"), 'V2 phone repair stylesheet must be isolated behind the presentation guard');
 assert(!combinedV2.includes('CustomStudioAdvancedEditor'), 'V2 must not import the legacy advanced editor');
 assert(!combinedV2.includes('CustomStudioShellEnhancer'), 'V2 must not import the legacy shell enhancer');
 assert(!combinedV2.includes('html2canvas'), 'V2 must not depend on DOM screenshot rendering');
@@ -40,6 +45,18 @@ assert(!fs.existsSync('.github/workflows/polish-custom-studio-cutover.yml'), 'te
 assert(page.includes('GDP Custom Studio'), 'production Studio branding is missing');
 assert(!page.includes('V2 isolated rebuild'), 'internal rebuild wording must not be customer-visible after cutover');
 assert(!page.includes('Legacy Studio remains available'), 'internal rollback wording must not be customer-visible after cutover');
+
+// Recording-driven phone repair must stay presentation-only and phone-only.
+assert(mobileRepair.includes('@media (max-width: 767px)'), 'V2 regression repair must stay phone-scoped');
+assert(!mobileRepair.includes('@media (min-width:'), 'V2 regression repair must not alter tablet/desktop breakpoints');
+assert(mobileRepair.includes('[data-gdp-studio-v2-guard="true"]'), 'V2 repair rules must be scoped to the rebuilt Studio guard');
+assert(mobileRepair.includes('overflow-x: clip'), 'V2 phone repair must contain horizontal card overlap');
+assert(mobileRepair.includes('contain: layout paint'), 'V2 phone canvases must isolate layout/paint to stabilize transformed artwork');
+assert(mobileRepair.includes('[style*="transform"]'), 'V2 transformed artwork layers need a scoped repaint guard');
+assert(mobileRepair.includes('env(safe-area-inset-bottom)'), 'V2 mobile actions must respect the phone safe area');
+for (const token of ['customerApi', 'supabase', 'stripe', 'addItem(', 'replaceItem(', 'createCustomDesign']) {
+  assert(!mobileRepair.toLowerCase().includes(token.toLowerCase()), `presentation-only V2 repair must not contain business wiring token: ${token}`);
+}
 
 // All four paths and independent Front/Back state.
 for (const path of ['seasonal', 'bootleg', 'memorial', 'upload']) {
@@ -133,4 +150,4 @@ assert(uploadEditor.includes('min-h-[60px]'), 'Upload completion control must ke
 assert(page.includes('Review stays instant'), 'V2 lightweight review contract is missing');
 assert(nav.includes('onClick={mobile ? closeMobileNavigation : undefined}'), 'mobile navigation links must explicitly close the drawer');
 
-console.log('PASS Custom Studio production cutover, rollback, interaction parity, production, edit, and regression contract');
+console.log('PASS Custom Studio production cutover, rollback, interaction parity, phone containment, production, edit, and regression contract');

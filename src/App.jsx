@@ -26,7 +26,7 @@ const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
 const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspace'));
-const CustomStudioV2 = lazy(() => import('@/pages/CustomStudioV2'));
+const CustomStudioV2 = lazy(() => import('@/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard'));
 const Cart = lazy(() => import('@/pages/CartV2'));
 const Checkout = lazy(() => import('@/pages/Checkout'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
