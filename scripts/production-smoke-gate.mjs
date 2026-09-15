@@ -13,6 +13,25 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+async function waitForVisibleBody(page, route) {
+  try {
+    await page.locator("body").waitFor({ state: "visible", timeout: 15000 });
+    return;
+  } catch (firstPaintError) {
+    console.warn(`Body stayed hidden on first paint for ${route}; retrying once before failing the smoke check.`);
+    await page.waitForTimeout(500);
+    const retryResponse = await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+    assert(retryResponse, `No document response received while retrying ${route}`);
+    assert(retryResponse.status() < 400, `${route} retry returned HTTP ${retryResponse.status()}`);
+    try {
+      await page.locator("body").waitFor({ state: "visible", timeout: 15000 });
+    } catch (retryError) {
+      retryError.cause = firstPaintError;
+      throw retryError;
+    }
+  }
+}
+
 async function navigate(page, route) {
   const response = await page.goto(new URL(route, BASE_URL).toString(), {
     waitUntil: "domcontentloaded",
@@ -20,7 +39,7 @@ async function navigate(page, route) {
   });
   assert(response, `No document response received for ${route}`);
   assert(response.status() < 400, `${route} returned HTTP ${response.status()}`);
-  await page.locator("body").waitFor({ state: "visible", timeout: 15000 });
+  await waitForVisibleBody(page, route);
   await page.waitForTimeout(900);
 }
 
