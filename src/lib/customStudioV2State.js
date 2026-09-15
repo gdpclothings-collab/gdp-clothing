@@ -28,50 +28,70 @@ export const STUDIO_V2_DESIGN_PATHS = [
   },
 ];
 
-export const initialStudioV2State = {
-  step: 'garment',
-  productId: '',
-  color: '',
-  size: '',
-  quantity: 1,
-  designPath: '',
-  side: 'front',
-  seasonal: {
-    layers: [],
-    activeLayerId: '',
-    confirmed: false,
-  },
-};
+const protectedPathState = () => ({
+  templateId: '',
+  photo: null,
+  transform: { scale: 100, rotation: 0, x: 0, y: 0 },
+  text: { headline: '', subline: '', message: '' },
+  confirmed: false,
+});
+
+const uploadPathState = () => ({
+  artwork: null,
+  transform: { scale: 100, rotation: 0, x: 0, y: 0 },
+  confirmed: false,
+});
+
+export function createInitialStudioV2State() {
+  return {
+    step: 'garment',
+    productId: '',
+    color: '',
+    size: '',
+    quantity: 1,
+    designPath: '',
+    side: 'front',
+    seasonal: {
+      layers: [],
+      activeLayerId: '',
+      confirmed: false,
+    },
+    bootleg: protectedPathState(),
+    memorial: protectedPathState(),
+    upload: uploadPathState(),
+  };
+}
+
+export const initialStudioV2State = createInitialStudioV2State();
+
+function invalidateAllEditors(state) {
+  return {
+    ...state,
+    seasonal: { ...state.seasonal, confirmed: false },
+    bootleg: { ...state.bootleg, confirmed: false },
+    memorial: { ...state.memorial, confirmed: false },
+    upload: { ...state.upload, confirmed: false },
+  };
+}
 
 export function studioV2Reducer(state, action) {
   switch (action.type) {
     case 'RESET':
-      return initialStudioV2State;
+      return createInitialStudioV2State();
     case 'SET_STEP':
       return { ...state, step: action.step };
-    case 'SELECT_PRODUCT':
+    case 'SELECT_PRODUCT': {
+      const next = createInitialStudioV2State();
       return {
-        ...state,
+        ...next,
         productId: action.productId,
         color: action.color || '',
-        size: '',
-        designPath: '',
-        side: 'front',
-        seasonal: initialStudioV2State.seasonal,
       };
+    }
     case 'SET_COLOR':
-      return {
-        ...state,
-        color: action.color,
-        size: '',
-        seasonal: { ...state.seasonal, confirmed: false },
-      };
+      return invalidateAllEditors({ ...state, color: action.color, size: '' });
     case 'SET_SIZE':
-      return {
-        ...state,
-        size: action.size,
-        seasonal: { ...state.seasonal, confirmed: false },
-      };
+      return invalidateAllEditors({ ...state, size: action.size });
     case 'SET_QUANTITY':
       return { ...state, quantity: Math.max(1, Number(action.quantity || 1)) };
     case 'SET_DESIGN_PATH':
@@ -79,10 +99,9 @@ export function studioV2Reducer(state, action) {
         ...state,
         designPath: action.designPath,
         step: 'customize',
-        seasonal: action.designPath === 'seasonal' ? state.seasonal : initialStudioV2State.seasonal,
       };
     case 'SET_SIDE':
-      return { ...state, side: action.side === 'back' ? 'back' : 'front' };
+      return invalidateAllEditors({ ...state, side: action.side === 'back' ? 'back' : 'front' });
     case 'SET_SEASONAL_LAYERS':
       return {
         ...state,
@@ -97,6 +116,26 @@ export function studioV2Reducer(state, action) {
       return { ...state, seasonal: { ...state.seasonal, activeLayerId: action.id } };
     case 'CONFIRM_SEASONAL':
       return { ...state, seasonal: { ...state.seasonal, confirmed: Boolean(action.value) } };
+    case 'PATCH_EDITOR': {
+      const path = action.path;
+      if (!['bootleg', 'memorial', 'upload'].includes(path)) return state;
+      return {
+        ...state,
+        [path]: {
+          ...state[path],
+          ...(action.patch || {}),
+          confirmed: action.keepConfirmed ? state[path].confirmed : false,
+        },
+      };
+    }
+    case 'CONFIRM_EDITOR': {
+      const path = action.path;
+      if (!['bootleg', 'memorial', 'upload'].includes(path)) return state;
+      return {
+        ...state,
+        [path]: { ...state[path], confirmed: Boolean(action.value) },
+      };
+    }
     default:
       return state;
   }
@@ -119,9 +158,17 @@ export function productSizes(product, color) {
 export function studioV2CanContinue(state) {
   if (state.step === 'garment') return Boolean(state.productId && state.color && state.size);
   if (state.step === 'design') return Boolean(state.designPath);
-  if (state.step === 'customize' && state.designPath === 'seasonal') {
+  if (state.step !== 'customize') return true;
+
+  if (state.designPath === 'seasonal') {
     return Boolean(state.seasonal.layers.length && state.seasonal.confirmed);
   }
-  if (state.step === 'customize') return false;
-  return true;
+  if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+    const editor = state[state.designPath];
+    return Boolean(editor.templateId && editor.photo?.path && editor.confirmed);
+  }
+  if (state.designPath === 'upload') {
+    return Boolean(state.upload.artwork?.path && state.upload.confirmed);
+  }
+  return false;
 }

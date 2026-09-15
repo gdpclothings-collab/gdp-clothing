@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, RotateCcw, Sparkles, Star } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
+import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
+import UploadArtworkEditorV2 from '@/components/storefront/custom-studio-v2/UploadArtworkEditorV2';
 import { customerApi } from '@/lib/customerApi';
+import { normalizeStyleTemplates } from '@/lib/customStudioStyleTemplates';
 import {
-  initialStudioV2State,
+  createInitialStudioV2State,
   productColors,
   productSizes,
   STUDIO_V2_DESIGN_PATHS,
@@ -96,25 +99,15 @@ function DesignStepV2({ dispatch }) {
     <div>
       <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 2</p>
       <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose a design path</h1>
-      <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Each design path is isolated so changes in one editor cannot break another editor.</p>
+      <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Every editor is isolated behind the same workflow shell, so a fix in one path cannot rewrite another path’s state.</p>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         {STUDIO_V2_DESIGN_PATHS.map((path) => {
           const Icon = pathIcons[path.id];
-          const ready = path.id === 'seasonal';
           return (
-            <button
-              key={path.id}
-              type="button"
-              disabled={!ready}
-              onClick={() => dispatch({ type: 'SET_DESIGN_PATH', designPath: path.id })}
-              className={`rounded-3xl border-2 p-5 text-left transition ${ready ? 'border-slate-200 bg-white hover:border-slate-900 hover:shadow-lg' : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'}`}
-            >
+            <button key={path.id} type="button" onClick={() => dispatch({ type: 'SET_DESIGN_PATH', designPath: path.id })} className="rounded-3xl border-2 border-slate-200 bg-white p-5 text-left transition hover:border-slate-900 hover:shadow-lg">
               <div className="flex items-start gap-4">
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-900 text-white"><Icon size={20} /></span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black text-slate-900">{path.label}</h2>{!ready && <span className="rounded-full bg-slate-200 px-2 py-1 text-[9px] font-black uppercase tracking-[.1em] text-slate-600">V2 rebuild next</span>}</div>
-                  <p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p>
-                </div>
+                <div><h2 className="text-lg font-black text-slate-900">{path.label}</h2><p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p></div>
               </div>
             </button>
           );
@@ -124,37 +117,75 @@ function DesignStepV2({ dispatch }) {
   );
 }
 
-function ReviewStepV2({ product, state, onEdit }) {
+function PrintSideControl({ side, onChange }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Print side</p><p className="text-xs font-bold text-slate-600">Front and back are explicit editor state, never inferred from the preview.</p></div>
+      <div className="flex rounded-xl bg-slate-100 p-1">
+        {['front', 'back'].map((value) => <button key={value} type="button" onClick={() => onChange(value)} className={`min-h-11 rounded-lg px-5 text-xs font-black uppercase ${side === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}>{value}</button>)}
+      </div>
+    </div>
+  );
+}
+
+function ReviewStepV2({ product, state, settings, onEdit }) {
+  const pathInfo = STUDIO_V2_DESIGN_PATHS.find((item) => item.id === state.designPath);
+  const templates = normalizeStyleTemplates(settings?.styleTemplates || {});
+  const editor = state[state.designPath];
+  const template = (state.designPath === 'bootleg' || state.designPath === 'memorial')
+    ? templates.find((item) => item.id === editor?.templateId)
+    : null;
+
+  let detailLabel = 'Artwork';
+  let detailValue = 'Ready';
+  if (state.designPath === 'seasonal') {
+    detailLabel = 'Artwork layers';
+    detailValue = `${state.seasonal.layers.length}`;
+  } else if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+    detailLabel = 'Locked template';
+    detailValue = template?.name || 'Selected template';
+  } else if (state.designPath === 'upload') {
+    detailLabel = 'Uploaded artwork';
+    detailValue = state.upload.artwork?.name || 'Customer artwork';
+  }
+
   return (
     <div>
       <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p>
       <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Review locked design state</h1>
-      <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">This V2 review does not wait for a 300-DPI render. It reads the already-confirmed editor state immediately.</p>
+      <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Review is intentionally lightweight. It reads the confirmed V2 state directly and does not launch production rendering or rebuild the editor DOM.</p>
+
       <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_.7fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Garment</div><div className="mt-1 text-sm font-black text-slate-900">{product?.name}</div></div>
             <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Color / size</div><div className="mt-1 text-sm font-black text-slate-900">{state.color} · {state.size}</div></div>
-            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Design path</div><div className="mt-1 text-sm font-black text-slate-900">Seasonal Designs</div></div>
-            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Artwork layers</div><div className="mt-1 text-sm font-black text-slate-900">{state.seasonal.layers.length}</div></div>
+            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Design path</div><div className="mt-1 text-sm font-black text-slate-900">{pathInfo?.label || state.designPath}</div></div>
+            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Print side</div><div className="mt-1 text-sm font-black capitalize text-slate-900">{state.side}</div></div>
+            <div className="rounded-2xl bg-slate-50 p-4 sm:col-span-2"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">{detailLabel}</div><div className="mt-1 text-sm font-black text-slate-900">{detailValue}</div></div>
           </div>
-          <button type="button" onClick={onEdit} className="mt-5 min-h-12 rounded-xl border border-slate-300 px-4 text-sm font-black text-slate-800">Edit arrangement</button>
+          <button type="button" onClick={onEdit} className="mt-5 min-h-12 rounded-xl border border-slate-300 px-4 text-sm font-black text-slate-800">Edit design</button>
         </div>
 
         <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
           <div className="grid h-11 w-11 place-items-center rounded-full bg-emerald-600 text-white"><Check size={21} strokeWidth={3} /></div>
-          <h2 className="mt-4 text-lg font-black text-emerald-950">V2 state is review-ready</h2>
-          <p className="mt-2 text-sm font-medium leading-6 text-emerald-900/75">The Seasonal layout is confirmed without generating or uploading production artwork on this screen. Production-file generation stays a separate finalization concern.</p>
-          <div className="mt-4 rounded-2xl bg-white/70 p-3 text-xs font-bold text-emerald-900">Cart finalization is intentionally disabled in this first isolated V2 slice until production rendering and checkout regression tests are wired to the new state model.</div>
+          <h2 className="mt-4 text-lg font-black text-emerald-950">Design state is review-ready</h2>
+          <p className="mt-2 text-sm font-medium leading-6 text-emerald-900/75">The customer-confirmed layout is already available here. The next V2 phase will generate the deterministic production PNG only after final approval.</p>
+          <div className="mt-4 rounded-2xl bg-white/70 p-3 text-xs font-bold text-emerald-900">Cart finalization remains intentionally disabled until the new renderer and cart regression suite are connected. This prevents an incomplete V2 design from reaching checkout.</div>
         </div>
       </div>
     </div>
   );
 }
 
+function EditorHeading({ title, description }) {
+  return <div className="mb-5"><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 3</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1><p className="mt-2 text-sm font-medium text-slate-500">{description}</p></div>;
+}
+
 export default function CustomStudioV2() {
-  const [state, setState] = useState(initialStudioV2State);
+  const [state, setState] = useState(() => createInitialStudioV2State());
   const [catalog, setCatalog] = useState([]);
+  const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -163,9 +194,16 @@ export default function CustomStudioV2() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    customerApi.getStudioCatalog()
-      .then((items) => { if (active) setCatalog(items || []); })
-      .catch(() => { if (active) setError('Custom Studio garments could not load.'); })
+    Promise.all([
+      customerApi.getStudioCatalog(),
+      customerApi.getCustomStudioSettings().catch(() => ({})),
+    ])
+      .then(([items, studioSettings]) => {
+        if (!active) return;
+        setCatalog(items || []);
+        setSettings(studioSettings || {});
+      })
+      .catch(() => { if (active) setError('Custom Studio data could not load.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -202,9 +240,10 @@ export default function CustomStudioV2() {
           <section className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm sm:p-5">
             {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} />}
             {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
+
             {state.step === 'customize' && state.designPath === 'seasonal' && product && (
               <div>
-                <div className="mb-5"><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 3</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Seasonal Design Lab V2</h1><p className="mt-2 text-sm font-medium text-slate-500">A clean editor with one source of truth for layers. No legacy approval spinner or DOM reconstruction.</p></div>
+                <EditorHeading title="Seasonal Design Lab V2" description="A clean layer editor with one source of truth. No legacy approval spinner or DOM reconstruction." />
                 <SeasonalEditorV2
                   product={product}
                   size={state.size}
@@ -217,7 +256,37 @@ export default function CustomStudioV2() {
                 />
               </div>
             )}
-            {state.step === 'review' && <ReviewStepV2 product={product} state={state} onEdit={() => dispatch({ type: 'SET_STEP', step: 'customize' })} />}
+
+            {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && (
+              <div>
+                <EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio V2' : 'Photo Bootleg Studio V2'} description="Locked GDP artwork is separated from customer photo and text state so template protection cannot collide with editing controls." />
+                <PrintSideControl side={state.side} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />
+                <ProtectedTemplateEditorV2
+                  path={state.designPath}
+                  product={product}
+                  settings={settings}
+                  editor={state[state.designPath]}
+                  onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, patch })}
+                  onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, value })}
+                />
+              </div>
+            )}
+
+            {state.step === 'customize' && state.designPath === 'upload' && product && (
+              <div>
+                <EditorHeading title="Upload My Own Artwork V2" description="A dedicated artwork editor with explicit print-side, placement, size and rotation state." />
+                <UploadArtworkEditorV2
+                  product={product}
+                  side={state.side}
+                  editor={state.upload}
+                  onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: 'upload', patch })}
+                  onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', value })}
+                  onSideChange={(side) => dispatch({ type: 'SET_SIDE', side })}
+                />
+              </div>
+            )}
+
+            {state.step === 'review' && <ReviewStepV2 product={product} state={state} settings={settings} onEdit={() => dispatch({ type: 'SET_STEP', step: 'customize' })} />}
           </section>
         </div>
 

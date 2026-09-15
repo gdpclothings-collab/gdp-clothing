@@ -47,6 +47,7 @@ jobs:
           node --check scripts/verify-custom-studio-touch-studio.mjs
           node --check scripts/verify-custom-studio-mobile-refinement.mjs
           node --check scripts/verify-custom-studio-mobile-regression-repair.mjs
+          node --check scripts/verify-custom-studio-v2.mjs
           node --check scripts/assert-safe-staging-target.mjs
           node --check scripts/verify-seasonal-artwork.mjs
           node --check scripts/verify-photo-bootleg-desktop.mjs
@@ -79,6 +80,9 @@ jobs:
 
       - name: Verify Custom Studio canonical approval flow
         run: node scripts/verify-custom-studio-canonical-flow.mjs
+
+      - name: Verify Custom Studio V2 isolation
+        run: node scripts/verify-custom-studio-v2.mjs
 
       - name: Verify cart quantity pricing policy
         run: node scripts/verify-cart-pricing.mjs
