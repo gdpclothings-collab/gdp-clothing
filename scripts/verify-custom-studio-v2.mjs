@@ -34,6 +34,7 @@ assert(!combinedV2.includes('CustomStudioShellEnhancer'), 'V2 must not import th
 assert(!combinedV2.includes('html2canvas'), 'V2 must not depend on DOM screenshot rendering');
 assert(!fs.existsSync('.github/workflows/patch-v2-preview-gestures.yml'), 'temporary V2 preview patch workflow must self-delete');
 assert(!fs.existsSync('.github/patch-v2-preview-gestures.py'), 'temporary V2 preview patch script must self-delete');
+assert(!fs.existsSync('.github/workflows/fix-v2-upload-typecheck.yml'), 'temporary V2 typecheck workflow must self-delete');
 
 // All four paths and independent Front/Back state.
 for (const path of ['seasonal', 'bootleg', 'memorial', 'upload']) {
