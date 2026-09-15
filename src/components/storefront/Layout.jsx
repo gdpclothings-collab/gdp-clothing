@@ -13,6 +13,7 @@ import "./customStudioDesktop.css";
 import "./seasonalStudioMobile.css";
 import "./seasonalStudioDesktopRefinement.css";
 import "./customStudioShell.css";
+import "./seasonalStudioWorkspaceFix.css";
 
 export default function Layout() {
   const location = useLocation();
