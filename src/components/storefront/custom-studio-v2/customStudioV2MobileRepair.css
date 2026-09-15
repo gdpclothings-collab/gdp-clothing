@@ -1,8 +1,7 @@
 /* GDP Custom Studio V2 — phone-only regression containment.
  *
  * This file is intentionally presentation-only and is loaded through the V2
- * presentation guard. It must never own product, pricing, upload, production,
- * cart, checkout, Supabase, or Stripe behavior.
+ * presentation guard. It must never own application data or commerce behavior.
  */
 
 @media (max-width: 767px) {
