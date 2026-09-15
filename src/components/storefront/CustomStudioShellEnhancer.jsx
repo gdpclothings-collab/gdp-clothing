@@ -19,6 +19,14 @@ function detectStudioStep(root) {
   else delete root.dataset.gdpStudioStep;
 }
 
+function detectMobileMenu(root) {
+  const header = root.querySelector(":scope > header");
+  const menuButton = header?.querySelector('button[aria-expanded]');
+  const open = menuButton?.getAttribute("aria-expanded") === "true";
+  if (open) root.dataset.gdpMobileMenuOpen = "true";
+  else delete root.dataset.gdpMobileMenuOpen;
+}
+
 function customOrderGuideButton(root) {
   return Array.from(root.querySelectorAll("button")).find((button) =>
     /how\s+custom\s+orders\s+work/i.test(String(button.textContent || ""))
@@ -37,6 +45,7 @@ export default function CustomStudioShellEnhancer() {
 
     const sync = () => {
       detectStudioStep(root);
+      detectMobileMenu(root);
 
       // Step 1 on mobile must begin collapsed. Custom Studio settings load
       // asynchronously and can re-open this guide after first paint, so keep
@@ -77,6 +86,7 @@ export default function CustomStudioShellEnhancer() {
       observer.disconnect();
       root.removeEventListener("click", onTrustedGuideClick, true);
       delete root.dataset.gdpStudioStep;
+      delete root.dataset.gdpMobileMenuOpen;
     };
   }, []);
 
