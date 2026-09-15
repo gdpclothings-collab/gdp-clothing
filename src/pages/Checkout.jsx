@@ -327,6 +327,7 @@ export default function Checkout() {
         setPaymentSession({
           orderNumber: data.orderNumber,
           confirmationToken: data.confirmationToken,
+          paymentMode: data.paymentMode === "test" ? "test" : "live",
         });
 
         window.setTimeout(() => {
@@ -463,7 +464,7 @@ export default function Checkout() {
             <div className="flex gap-2">
               <input value={form.discountCode} onChange={(e) => set("discountCode", e.target.value)}
                 placeholder="Enter code" className="flex-1 bg-background border border-border px-3 py-2 outline-none focus:border-accent" />
-              <button onClick={applyCoupon} className="bg-primary text-primary-foreground px-4 font-bold uppercase text-sm hover:opacity-90">Apply</button>
+              <button type="button" onClick={applyCoupon} className="bg-primary text-primary-foreground px-4 font-bold uppercase text-sm hover:opacity-90">Apply</button>
             </div>
             {appliedDiscount && <p className="mt-2 text-sm text-accent flex items-center gap-1"><Check size={14} /> Code applied: {form.discountCode}</p>}
           </Section>
@@ -527,7 +528,10 @@ export default function Checkout() {
           </Section>
         </div>
 
-        <aside className="bg-card border border-border rounded-2xl p-6 h-fit sticky top-24 shadow-sm">
+        <aside
+          className="bg-card border border-border rounded-2xl p-6 h-fit shadow-sm lg:sticky"
+          style={{ top: "calc(var(--gdp-store-header-height, 70px) + 1rem)" }}
+        >
           <h2 className="font-display text-3xl mb-4">YOUR ORDER</h2>
           <div className="space-y-3 max-h-72 overflow-y-auto mb-4">
             {items.map(i => (
@@ -604,7 +608,7 @@ function SelectInput({ label, value, onChange, options }) {
     </select></div>;
 }
 function Option({ selected, onClick, icon: Icon, title, desc }) {
-  return <button onClick={onClick}
+  return <button type="button" onClick={onClick}
     className={`border p-4 text-left flex items-center gap-3 transition-colors ${selected ? "border-accent bg-accent/5" : "border-border hover:border-accent"}`}>
     <Icon size={20} /><div><div className="font-bold text-sm">{title}</div><div className="text-xs text-muted-foreground">{desc}</div></div>
   </button>;
