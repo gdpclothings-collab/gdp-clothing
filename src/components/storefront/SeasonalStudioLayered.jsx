@@ -583,120 +583,155 @@ export default function SeasonalStudio({
   }, [onDraftChange, layers, category, previewZoom, reviewZoom, reviewMode]);
 
   const save = async () => {
-    if (!visibleResolvedLayers.length || !approved || saving || saveLock.current) return;
-    if (typeof onReadyForApproval !== 'function') {
-      setError('Custom Studio approval flow is not ready. Please reload and try again.');
-      return;
-    }
-    saveLock.current = true;
-    setSaving(true);
-    setError('');
-    try {
-      const configurations = visibleResolvedLayers.map((entry, order) => ({
-        layerId: entry.layer.id,
-        order,
-        artworkId: entry.artwork.id,
-        artworkTitle: entry.artwork.title,
-        category: entry.artwork.category,
-        ...seasonalSelection(entry.artwork, entry.layout, {}, area, Number(entry.layer.rotation || 0)),
-      }));
-      const requestId = saveRequestId.current || crypto.randomUUID();
-      saveRequestId.current = requestId;
-      setCapturing(true);
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      await document.fonts?.ready;
-      const { default: html2canvas } = await import('html2canvas');
-      const printElement = document.getElementById('gdp-seasonal-production');
-      if (!printElement || !approvedPreviewRef.current) throw new Error('The seasonal preview is not ready. Please try again.');
-      const printRect = printElement.getBoundingClientRect();
-      const previewRect = approvedPreviewRef.current.getBoundingClientRect();
-      const printCanvas = await html2canvas(printElement, { backgroundColor: null, scale: Math.max(1, Number(area.width) * 300 / printRect.width), useCORS: true, logging: false, imageTimeout: 15000 });
-      const mockupCanvas = await html2canvas(approvedPreviewRef.current, { backgroundColor: '#f3eee6', scale: Math.max(1, 900 / previewRect.width), useCORS: true, logging: false, imageTimeout: 15000, width: previewRect.width, height: previewRect.height, scrollX: 0, scrollY: 0 });
-      const preparedAt = new Date().toISOString();
-      const renderSnapshot = { version: 4, designPath: 'seasonal', layers: configurations, garment: { id: product.id, variantId: variant?.id || null, color, size } };
-      const lockedHash = await digestSnapshot(renderSnapshot);
-      const [productionUpload, mockupUpload] = await Promise.all([
-        customerApi.uploadArtwork(new File([await canvasPng(printCanvas)], `gdp-${lockedHash.slice(0, 12)}-front-300dpi.png`, { type: 'image/png' })),
-        customerApi.uploadArtwork(new File([await canvasPng(mockupCanvas)], `gdp-${lockedHash.slice(0, 12)}-approval-preview.png`, { type: 'image/png' })),
-      ]);
-      setCapturing(false);
-      const artworkTitles = configurations.map((item) => item.artworkTitle);
-      const collectionNames = configurations.map((item) => item.category);
-      const seasonalSummary = {
-        artwork: artworkTitles.join(' + '),
-        artworks: artworkTitles,
+  if (!visibleResolvedLayers.length || !approved || saving || saveLock.current) return;
+  if (typeof onReadyForApproval !== 'function') {
+    setError('Custom Studio approval flow is not ready. Please reload and try again.');
+    return;
+  }
+  saveLock.current = true;
+  setSaving(true);
+  setError('');
+  try {
+    const sourceConfigurations = visibleResolvedLayers.map((entry, order) => ({
+      layerId: entry.layer.id,
+      order,
+      artworkId: entry.artwork.id,
+      artworkTitle: entry.artwork.title,
+      category: entry.artwork.category,
+      previewUrl: entry.artwork.preview,
+      ...seasonalSelection(entry.artwork, entry.layout, {}, area, Number(entry.layer.rotation || 0)),
+    }));
+    const configurations = sourceConfigurations.map(({ previewUrl, ...configuration }) => configuration);
+    const requestId = saveRequestId.current || crypto.randomUUID();
+    saveRequestId.current = requestId;
+    const preparedAt = new Date().toISOString();
+    const renderSnapshot = {
+      version: 5,
+      designPath: 'seasonal',
+      layers: configurations,
+      printArea: { width: Number(area.width), height: Number(area.height), dpi: 300 },
+      garment: { id: product.id, variantId: variant?.id || null, color, size },
+    };
+    const lockedHash = await digestSnapshot(renderSnapshot);
+
+    // Final Approval only needs a lightweight, exact customer mockup.
+    // The expensive transparent 300-DPI production PNG is generated
+    // later from renderSnapshot after the customer approves the design.
+    setCapturing(true);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await document.fonts?.ready;
+    const { default: html2canvas } = await import('html2canvas');
+    if (!approvedPreviewRef.current) throw new Error('The seasonal approval preview is not ready. Please try again.');
+    const previewRect = approvedPreviewRef.current.getBoundingClientRect();
+    if (!previewRect.width || !previewRect.height) throw new Error('The seasonal approval preview has no visible area.');
+    const mockupCanvas = await html2canvas(approvedPreviewRef.current, {
+      backgroundColor: '#f3eee6',
+      scale: Math.max(1, 900 / previewRect.width),
+      useCORS: true,
+      logging: false,
+      imageTimeout: 15000,
+      width: previewRect.width,
+      height: previewRect.height,
+      scrollX: 0,
+      scrollY: 0,
+    });
+    const mockupUpload = await customerApi.uploadArtwork(new File(
+      [await canvasPng(mockupCanvas)],
+      `gdp-${lockedHash.slice(0, 12)}-approval-preview.png`,
+      { type: 'image/png' }
+    ));
+    setCapturing(false);
+
+    const artworkTitles = configurations.map((item) => item.artworkTitle);
+    const collectionNames = configurations.map((item) => item.category);
+    const seasonalSummary = {
+      artwork: artworkTitles.join(' + '),
+      artworks: artworkTitles,
+      layerCount: configurations.length,
+      collection: uniqueText(collectionNames),
+      printSide: 'Front',
+      layers: configurations.map((item) => ({
+        artworkId: item.artworkId,
+        artworkTitle: item.artworkTitle,
+        width: Number(item.width),
+        height: Number(item.height),
+        rotation: Number(item.rotation || 0),
+        position: { x: Number(item.x), y: Number(item.y) },
+        order: item.order,
+      })),
+      garment: garment.label || product.name,
+      color,
+      size,
+    };
+    const designPayload = {
+      productId: product.id,
+      productName: product.name,
+      name: artworkTitles.length === 1 ? artworkTitles[0] : `${artworkTitles.length} Layer Seasonal Design`,
+      designStyle: `Seasonal Layers: ${artworkTitles.join(' + ')}`,
+      occasion: uniqueText(collectionNames),
+      designMood: 'Layered original artwork',
+      designIntensity: 1,
+      color,
+      size,
+      placement: 'front',
+      photoAssets: [],
+      personalization: {},
+      seasonalArtworkId: configurations[0]?.artworkId || null,
+      seasonalConfiguration: { version: 2, layers: configurations, client_request_id: requestId },
+      designPath: 'seasonal',
+      renderSnapshot,
+      productionFiles: {},
+      customerMockupPath: mockupUpload.storage_path,
+      renderStatus: 'approval_ready',
+      lockedHash,
+      preflight: {
+        version: 3,
+        status: 'snapshot_locked',
+        checkedAt: preparedAt,
+        expectedSides: ['front'],
+        dpi: 300,
         layerCount: configurations.length,
-        collection: uniqueText(collectionNames),
-        printSide: 'Front',
-        layers: configurations.map((item) => ({
-          artworkId: item.artworkId,
-          artworkTitle: item.artworkTitle,
-          width: Number(item.width),
-          height: Number(item.height),
-          rotation: Number(item.rotation || 0),
-          position: { x: Number(item.x), y: Number(item.y) },
-          order: item.order,
-        })),
-        garment: garment.label || product.name,
-        color,
-        size,
-      };
-      const designPayload = {
-        productId: product.id,
-        productName: product.name,
-        name: artworkTitles.length === 1 ? artworkTitles[0] : `${artworkTitles.length} Layer Seasonal Design`,
-        designStyle: `Seasonal Layers: ${artworkTitles.join(' + ')}`,
-        occasion: uniqueText(collectionNames),
-        designMood: 'Layered original artwork',
-        designIntensity: 1,
-        color,
-        size,
-        placement: 'front',
-        photoAssets: [],
-        personalization: {},
-        seasonalArtworkId: configurations[0]?.artworkId || null,
-        seasonalConfiguration: { version: 2, layers: configurations, client_request_id: requestId },
-        designPath: 'seasonal',
-        renderSnapshot,
-        productionFiles: { front: { path: productionUpload.storage_path, widthPx: printCanvas.width, heightPx: printCanvas.height, widthIn: Number(area.width), heightIn: Number(area.height), dpi: 300, mimeType: 'image/png' } },
-        customerMockupPath: mockupUpload.storage_path,
-        renderStatus: 'locked',
-        lockedHash,
-        preflight: { version: 2, status: 'passed', checkedAt: preparedAt, expectedSides: ['front'], dpi: 300, layerCount: configurations.length },
-        proofRequired: false,
-      };
-      const cartItemBase = {
-        productId: product.id,
-        name: product.name,
-        image: mockupUpload.file_url,
-        isCustom: true,
-        variantId: variant?.id || null,
-        variant: variant?.name || garment.label,
-        color,
-        size,
-        quantity,
-        price: unitPrice,
-        placement: 'front',
-        fulfillmentMode: product.fulfillmentMode || 'in_house',
-        designStyle: designPayload.designStyle,
-        designPath: 'seasonal',
-        occasion: uniqueText(collectionNames) || 'Seasonal',
-        proofRequired: false,
-        renderStatus: 'locked',
-        ...(fabricDescription ? { fabric: fabricDescription } : {}),
-        seasonalSummary,
-        seasonalDraft: { version: 2, layers: cloneLayers(layers), printSide: 'front', previewZoom, reviewZoom },
-      };
-      onReadyForApproval({ designPayload, cartItemBase, seasonalSummary, editCartKey });
-    } catch (failure) {
-      setError(failure.message || 'Could not prepare this design. Please try again.');
-      window.setTimeout(() => reviewErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
-    } finally {
-      setCapturing(false);
-      setSaving(false);
-      saveLock.current = false;
-    }
-  };
+        productionStatus: 'pending_customer_approval',
+      },
+      proofRequired: false,
+    };
+    const cartItemBase = {
+      productId: product.id,
+      name: product.name,
+      image: mockupUpload.file_url,
+      isCustom: true,
+      variantId: variant?.id || null,
+      variant: variant?.name || garment.label,
+      color,
+      size,
+      quantity,
+      price: unitPrice,
+      placement: 'front',
+      fulfillmentMode: product.fulfillmentMode || 'in_house',
+      designStyle: designPayload.designStyle,
+      designPath: 'seasonal',
+      occasion: uniqueText(collectionNames) || 'Seasonal',
+      proofRequired: false,
+      renderStatus: 'approval_ready',
+      ...(fabricDescription ? { fabric: fabricDescription } : {}),
+      seasonalSummary,
+      seasonalDraft: { version: 2, layers: cloneLayers(layers), printSide: 'front', previewZoom, reviewZoom },
+    };
+    const productionSources = sourceConfigurations.map((item) => ({
+      layerId: item.layerId,
+      artworkId: item.artworkId,
+      previewUrl: item.previewUrl,
+    }));
+    onReadyForApproval({ designPayload, cartItemBase, seasonalSummary, productionSources, editCartKey });
+  } catch (failure) {
+    setError(failure.message || 'Could not prepare this approval preview. Please try again.');
+    window.setTimeout(() => reviewErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  } finally {
+    setCapturing(false);
+    setSaving(false);
+    saveLock.current = false;
+  }
+};
 
   const previewConfig = area ? {
     ...product.customization?.preview,
@@ -748,7 +783,7 @@ export default function SeasonalStudio({
                 <div className="rounded-2xl border border-[#DCE3EA] bg-[#F7F9FB] p-3"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#71808D]">Layer order · top to bottom</p><div className="mt-2 space-y-1.5">{[...visibleResolvedLayers].reverse().map((entry, index) => <div key={entry.layer.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-xs"><span className="font-semibold text-[#17324D]">{index + 1}. {entry.artwork.title}</span><span className="text-[#71808D]">{entry.layout.width.toFixed(2)} × {entry.layout.height.toFixed(2)} in · {Math.round(entry.layer.rotation || 0)}°</span></div>)}</div></div>
                 <div className="rounded-2xl border border-[#DCE3EA] bg-[#17324D] p-4 text-white"><div className="flex items-center justify-between gap-4 text-sm"><span className="text-white/75">Quantity</span><strong>{quantity}</strong></div><div className="mt-2 flex items-center justify-between gap-4 text-sm"><span className="text-white/75">Price each</span><strong>${Number(unitPrice || 0).toFixed(2)} CAD</strong></div><div className="mt-3 flex items-end justify-between gap-4 border-t border-white/20 pt-3"><span className="font-bold">Design total</span><strong className="font-mono text-xl">${designSubtotal.toFixed(2)} CAD</strong></div><p className="mt-2 text-[11px] leading-relaxed text-white/75">Shipping and taxes are calculated at checkout.</p></div>
                 <button type="button" onClick={() => setReviewMode(false)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#DCE3EA] px-4 text-sm font-bold text-[#52616F] hover:bg-[#F7F9FB]"><Edit3 size={15} /> Edit design</button>
-                <button disabled={saving} onClick={save} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40">{saving ? 'Preparing production files…' : (error ? 'Retry continue' : 'Continue to timing & approval')} <ArrowRight size={17} /></button>
+                <button disabled={saving} onClick={save} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-[#17324D] px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#234766] disabled:opacity-40">{saving ? 'Locking approval preview…' : (error ? 'Retry continue' : 'Continue to timing & approval')} <ArrowRight size={17} /></button>
               </div>
             </div>
           </section>

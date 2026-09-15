@@ -19,6 +19,7 @@ import {
 } from "@/components/storefront/CustomStudioAdvancedEditor";
 import CustomStudioProtectedArtworkControls from "@/components/storefront/CustomStudioProtectedArtworkControls";
 import { customerApi } from "@/lib/customerApi";
+import { renderSeasonalProductionPng } from "@/lib/seasonalProductionRender";
 import { useCart } from "@/lib/CartContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { ToastAction } from "@/components/ui/toast";
@@ -2087,76 +2088,117 @@ export default function CustomStudio() {
     }
 
     if (designPath === "seasonal") {
-      if (!seasonalPrepared?.designPayload || !seasonalPrepared?.cartItemBase) {
-        setWarn("Return to Seasonal Designs and prepare the layered preview before final approval.");
-        return;
-      }
-      setSaving(true);
-      try {
-        const approvedAt = new Date().toISOString();
-        const normalizedSeasonalGroups = groupGarments.map((item) => {
-          const groupVariant = variantFor(product, item.color, item.size);
-          return {
-            ...item,
-            variantId: groupVariant?.id || null,
-            variantName: groupVariant?.name || "",
-            unitPrice: priceFor(item.color, item.size),
-          };
-        });
-        const design = await customerApi.createCustomDesign({
-          ...seasonalPrepared.designPayload,
-          needByDate: needByDate || undefined,
-          priority,
-          customerConfirmedRights: true,
-          approvalPolicyAcknowledged: true,
-          customerApprovedAt: approvedAt,
-          proofRequired: false,
-          additionalGarments: normalizedSeasonalGroups,
-          status: "in_cart",
-        });
-        const common = {
-          ...seasonalPrepared.cartItemBase,
-          customDesignId: design.id,
-          ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
-          needByDate,
-          priority,
-          proofRequired: false,
-          proofStatus: "approved",
-          customerApprovedAt: approvedAt,
-          renderStatus: "locked",
-        };
-        const primaryItem = {
-          ...common,
-          variantId: selectedVariant?.id || common.variantId || null,
-          variant: selectedVariant?.name || garment.label,
-          price: priceFor(color, size),
-          color,
-          size,
-          quantity: qty,
-        };
-        const editCartKey = seasonalPrepared.editCartKey || location.state?.editCartKey || "";
-        if (editCartKey) replaceItem(editCartKey, primaryItem);
-        else addItem(primaryItem);
-        normalizedSeasonalGroups.forEach((item) => addItem({
-          ...common,
-          variantId: item.variantId,
-          variant: item.variantName || garment.label,
-          price: item.unitPrice,
-          color: item.color,
-          size: item.size,
-          quantity: Number(item.quantity || 1),
-        }));
-        try { window.localStorage.removeItem(STUDIO_DRAFT_KEY); } catch { /* cart completion does not depend on draft cleanup */ }
-        setSeasonalPrepared(null);
-        setDraftStatus("idle");
-        navigate("/cart");
-      } catch (error) {
-        setWarn(error?.message || "Could not save your seasonal custom design.");
-      } finally {
-        setSaving(false);
-      }
+    if (!seasonalPrepared?.designPayload || !seasonalPrepared?.cartItemBase) {
+      setWarn("Return to Seasonal Designs and lock the approval preview before final approval.");
       return;
     }
+    setSaving(true);
+    try {
+      const approvedAt = new Date().toISOString();
+      const renderSnapshot = seasonalPrepared.designPayload.renderSnapshot;
+      const production = await renderSeasonalProductionPng(
+        renderSnapshot,
+        seasonalPrepared.productionSources || [],
+        300
+      );
+      const productionUpload = await uploadWithRetry(new File(
+        [production.blob],
+        `gdp-${String(seasonalPrepared.designPayload.lockedHash || 'seasonal').slice(0, 12)}-front-300dpi.png`,
+        { type: 'image/png' }
+      ));
+      const productionFiles = {
+        front: {
+          path: productionUpload.storage_path,
+          widthPx: production.widthPx,
+          heightPx: production.heightPx,
+          widthIn: production.widthIn,
+          heightIn: production.heightIn,
+          dpi: production.dpi,
+          mimeType: production.mimeType,
+        },
+      };
+      const normalizedSeasonalGroups = groupGarments.map((item) => {
+        const groupVariant = variantFor(product, item.color, item.size);
+        return {
+          ...item,
+          variantId: groupVariant?.id || null,
+          variantName: groupVariant?.name || "",
+          unitPrice: priceFor(item.color, item.size),
+        };
+      });
+      const finalPreflight = {
+        ...seasonalPrepared.designPayload.preflight,
+        status: 'passed',
+        checkedAt: approvedAt,
+        productionStatus: 'ready',
+        files: {
+          front: {
+            widthPx: production.widthPx,
+            heightPx: production.heightPx,
+            widthIn: production.widthIn,
+            heightIn: production.heightIn,
+            dpi: production.dpi,
+          },
+        },
+      };
+      const finalizedPayload = {
+        ...seasonalPrepared.designPayload,
+        productionFiles,
+        renderStatus: 'locked',
+        preflight: finalPreflight,
+        needByDate: needByDate || undefined,
+        priority,
+        customerConfirmedRights: true,
+        approvalPolicyAcknowledged: true,
+        customerApprovedAt: approvedAt,
+        proofRequired: false,
+        additionalGarments: normalizedSeasonalGroups,
+        status: "in_cart",
+      };
+      const design = await customerApi.createCustomDesign(finalizedPayload);
+      const common = {
+        ...seasonalPrepared.cartItemBase,
+        customDesignId: design.id,
+        ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
+        needByDate,
+        priority,
+        proofRequired: false,
+        proofStatus: "approved",
+        customerApprovedAt: approvedAt,
+        renderStatus: "locked",
+      };
+      const primaryItem = {
+        ...common,
+        variantId: selectedVariant?.id || common.variantId || null,
+        variant: selectedVariant?.name || garment.label,
+        price: priceFor(color, size),
+        color,
+        size,
+        quantity: qty,
+      };
+      const editCartKey = seasonalPrepared.editCartKey || location.state?.editCartKey || "";
+      if (editCartKey) replaceItem(editCartKey, primaryItem);
+      else addItem(primaryItem);
+      normalizedSeasonalGroups.forEach((item) => addItem({
+        ...common,
+        variantId: item.variantId,
+        variant: item.variantName || garment.label,
+        price: item.unitPrice,
+        color: item.color,
+        size: item.size,
+        quantity: Number(item.quantity || 1),
+      }));
+      try { window.localStorage.removeItem(STUDIO_DRAFT_KEY); } catch { /* cart completion does not depend on draft cleanup */ }
+      setSeasonalPrepared(null);
+      setDraftStatus("idle");
+      navigate("/cart");
+    } catch (error) {
+      setWarn(error?.message || "Could not build the locked Seasonal production file.");
+    } finally {
+      setSaving(false);
+    }
+    return;
+  }
 
     if (photos.length < minPhotos) return;
     if (!designPath || !orderDesignStyle) {
@@ -2711,7 +2753,7 @@ export default function CustomStudio() {
               {designPath === "seasonal" && step >= 4 && seasonalPrepared?.cartItemBase?.image ? (
                 <div className="relative grid aspect-[4/5] place-items-center overflow-hidden bg-[#F3EEE6] p-4 sm:p-6" data-seasonal-approved-preview>
                   <img src={seasonalPrepared.cartItemBase.image} alt="Exact prepared Seasonal Design garment preview" className="h-full w-full object-contain" />
-                  <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-emerald-200 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 shadow-sm">Exact prepared preview · 300 DPI composite</div>
+                  <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-emerald-200 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 shadow-sm">Locked approval preview · print file builds after approval</div>
                 </div>
               ) : (
               <StudioPreview
