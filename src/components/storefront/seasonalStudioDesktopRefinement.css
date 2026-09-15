@@ -1,0 +1,180 @@
+/* Seasonal Design Lab desktop refinements.
+   Keep the editor inside one visual workspace while preserving mobile/tablet flow. */
+
+section[aria-label="Review seasonal design"] {
+  position: relative;
+}
+
+section[aria-label="Review seasonal design"][data-seasonal-render-state="rendering"]::after,
+section[aria-label="Review seasonal design"][data-seasonal-render-state="error"]::after {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 0.92);
+  color: #17324d;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+section[aria-label="Review seasonal design"][data-seasonal-render-state="rendering"]::after {
+  content: "Rendering your exact seasonal design…";
+}
+
+section[aria-label="Review seasonal design"][data-seasonal-render-state="error"]::after {
+  content: "The seasonal artwork did not finish rendering. Your design is preserved — retry when the preview is visible.";
+  color: #8a2b35;
+  background: rgb(255 247 247 / 0.96);
+}
+
+[data-seasonal-approved-preview] {
+  isolation: isolate;
+}
+
+[data-seasonal-approved-preview][data-seasonal-preview-state="loading"]::before,
+[data-seasonal-approved-preview][data-seasonal-preview-state="missing"]::before,
+[data-seasonal-approved-preview][data-seasonal-preview-state="error"]::before {
+  content: "Rendering your final design…";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(243 238 230 / 0.94);
+  color: #17324d;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+[data-seasonal-approved-preview][data-seasonal-preview-state="error"]::before,
+[data-seasonal-approved-preview][data-seasonal-preview-state="missing"]::before {
+  content: "Final preview unavailable. Return to Seasonal Design Lab and prepare the design again.";
+  color: #8a2b35;
+  background: rgb(255 247 247 / 0.97);
+}
+
+@media (min-width: 1280px) {
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) {
+    min-height: 0 !important;
+    padding: 10px 18px 16px !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div {
+    max-width: 1680px !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header {
+    margin-bottom: 8px !important;
+    padding: 12px 18px !important;
+    border-radius: 18px !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header h1 {
+    margin-top: 2px !important;
+    font-size: clamp(1.85rem, 2.25vw, 2.6rem) !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header h1 + p {
+    display: none !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header button {
+    margin-bottom: 2px !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header + div {
+    margin-bottom: 10px !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > div:has(> section[aria-label="Choose seasonal artwork"]) {
+    grid-template-columns: minmax(230px, 0.54fr) minmax(560px, 1.65fr) minmax(285px, 0.68fr) !important;
+    gap: 14px !important;
+    align-items: stretch !important;
+  }
+
+  .gdp-studio-active section[aria-label="Choose seasonal artwork"] {
+    top: 10px !important;
+    max-height: calc(100dvh - 118px) !important;
+    padding: 14px !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] {
+    top: 10px !important;
+    align-self: start;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] > div:last-child {
+    padding: 10px !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+    max-height: calc(100dvh - 245px);
+  }
+
+  .gdp-studio-active section[aria-label="Garment and artwork controls"] {
+    top: 10px !important;
+    max-height: calc(100dvh - 118px) !important;
+    padding-right: 3px !important;
+  }
+
+  .gdp-studio-active section[aria-label="Review seasonal design"] {
+    max-width: 1500px !important;
+    padding: 18px !important;
+  }
+
+  .gdp-studio-active section[aria-label="Review seasonal design"] > div:has(.gdp-seasonal-preview-frame) {
+    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.62fr) !important;
+    gap: 18px !important;
+  }
+
+  .gdp-custom-studio-core[data-step="4"] [data-studio-row],
+  .gdp-custom-studio-core[data-step="5"] [data-studio-row] {
+    grid-template-columns: minmax(330px, 0.46fr) minmax(600px, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .gdp-custom-studio-core[data-step="4"] [data-workspace],
+  .gdp-custom-studio-core[data-step="5"] [data-workspace] {
+    min-height: 0 !important;
+    padding: 22px !important;
+  }
+
+  .gdp-custom-studio-core[data-step="4"] [data-preview-card],
+  .gdp-custom-studio-core[data-step="5"] [data-preview-card] {
+    min-height: 0 !important;
+  }
+
+  .gdp-studio-navigation-dock {
+    min-height: 58px !important;
+    gap: 10px !important;
+    padding: 7px 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .gdp-studio-navigation-dock__button {
+    min-height: 40px !important;
+    padding-block: 8px !important;
+  }
+
+  .gdp-studio-navigation-dock__eyebrow {
+    display: none !important;
+  }
+
+  .gdp-studio-navigation-dock__message {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+  }
+}
