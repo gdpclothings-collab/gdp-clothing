@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 
 const REVIEW_SELECTOR = 'section[aria-label="Review seasonal design"]';
-const REVIEW_FRAME_SELECTOR = `${REVIEW_SELECTOR} .gdp-seasonal-preview-frame`;
 const APPROVED_PREVIEW_SELECTOR = '[data-seasonal-approved-preview]';
 
 function imageReady(image) {
@@ -51,6 +50,15 @@ function waitForImage(image, timeoutMs = 15000) {
 
 function nextPaint() {
   return new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
+}
+
+function artworkRendered(image) {
+  if (!imageReady(image)) return false;
+  const artwork = image.closest('[data-seasonal-artwork="true"]');
+  if (!(artwork instanceof HTMLElement)) return false;
+  const rect = artwork.getBoundingClientRect();
+  const style = window.getComputedStyle(artwork);
+  return rect.width > 1 && rect.height > 1 && style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) > 0;
 }
 
 function markPreparedPreviewState() {
@@ -120,7 +128,8 @@ export default function SeasonalStudioRuntimeGuard() {
 
       const frame = review.querySelector(".gdp-seasonal-preview-frame");
       const images = frame ? Array.from(frame.querySelectorAll("img")) : [];
-      if (!frame || !images.length) {
+      const artworkImages = frame ? Array.from(frame.querySelectorAll('[data-seasonal-artwork="true"] img')) : [];
+      if (!frame || !images.length || !artworkImages.length) {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
@@ -141,6 +150,7 @@ export default function SeasonalStudioRuntimeGuard() {
         if (document.fonts?.ready) await document.fonts.ready;
         await nextPaint();
         if (!images.every(imageReady)) throw new Error("Seasonal preview did not finish rendering.");
+        if (!artworkImages.every(artworkRendered)) throw new Error("Seasonal artwork is not visible in the approval preview.");
         review.dataset.seasonalRenderState = "ready";
         replaying.add(button);
         button.disabled = originalDisabled;
