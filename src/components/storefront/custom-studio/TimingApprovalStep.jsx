@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Check, LoaderCircle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, LoaderCircle, RotateCcw, ShieldCheck } from "lucide-react";
+
+const SEASONAL_PREVIEW_TIMEOUT_MS = 15000;
 
 function readSeasonalPreviewState() {
   if (typeof document === "undefined") return "loading";
   const preview = document.querySelector("[data-seasonal-approved-preview]");
-  const image = preview?.querySelector("img");
+  if (!(preview instanceof HTMLElement)) return "loading";
+
+  const guardedState = preview.dataset.seasonalPreviewState;
+  if (guardedState === "ready") return "ready";
+  if (guardedState === "error" || guardedState === "missing") return "error";
+
+  const image = preview.querySelector("img");
   if (!(image instanceof HTMLImageElement)) return "loading";
   if (!image.complete) return "loading";
   return image.naturalWidth > 0 && image.naturalHeight > 0 ? "ready" : "error";
@@ -28,24 +36,61 @@ export default function TimingApprovalStep({ model }) {
   } = model;
   const seasonal = designPath === "seasonal";
   const [seasonalPreviewState, setSeasonalPreviewState] = useState(() => seasonal ? readSeasonalPreviewState() : "ready");
+  const [previewRetryKey, setPreviewRetryKey] = useState(0);
 
   useEffect(() => {
-    if (!seasonal || typeof document === "undefined") {
+    if (!seasonal || typeof document === "undefined" || typeof window === "undefined") {
       setSeasonalPreviewState("ready");
       return undefined;
     }
 
     let currentImage = null;
+    let timeoutId = 0;
     let removeImageListeners = () => {};
+    let settled = false;
+
+    const clearPreviewTimeout = () => {
+      if (!timeoutId) return;
+      window.clearTimeout(timeoutId);
+      timeoutId = 0;
+    };
+
+    const ensurePreviewTimeout = () => {
+      if (timeoutId || settled) return;
+      timeoutId = window.setTimeout(() => {
+        timeoutId = 0;
+        if (readSeasonalPreviewState() === "ready") {
+          settled = true;
+          setSeasonalPreviewState("ready");
+          return;
+        }
+        settled = true;
+        setSeasonalPreviewState("error");
+      }, SEASONAL_PREVIEW_TIMEOUT_MS);
+    };
+
+    const applyState = () => {
+      const next = readSeasonalPreviewState();
+      if (next === "ready" || next === "error") {
+        settled = true;
+        clearPreviewTimeout();
+      } else {
+        settled = false;
+        ensurePreviewTimeout();
+      }
+      setSeasonalPreviewState(next);
+    };
 
     const inspect = () => {
       const preview = document.querySelector("[data-seasonal-approved-preview]");
       const image = preview?.querySelector("img");
-      if (image !== currentImage) {
+      const nextImage = image instanceof HTMLImageElement ? image : null;
+
+      if (nextImage !== currentImage) {
         removeImageListeners();
-        currentImage = image instanceof HTMLImageElement ? image : null;
+        currentImage = nextImage;
         if (currentImage) {
-          const update = () => setSeasonalPreviewState(readSeasonalPreviewState());
+          const update = () => applyState();
           currentImage.addEventListener("load", update);
           currentImage.addEventListener("error", update);
           removeImageListeners = () => {
@@ -56,18 +101,25 @@ export default function TimingApprovalStep({ model }) {
           removeImageListeners = () => {};
         }
       }
-      setSeasonalPreviewState(readSeasonalPreviewState());
+
+      applyState();
     };
 
     const observer = new MutationObserver(inspect);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["src", "data-seasonal-preview-state"],
+    });
     inspect();
 
     return () => {
       observer.disconnect();
       removeImageListeners();
+      clearPreviewTimeout();
     };
-  }, [seasonal]);
+  }, [seasonal, previewRetryKey]);
 
   useEffect(() => {
     if (seasonal && seasonalPreviewState !== "ready" && approvalAcknowledged) {
@@ -88,9 +140,21 @@ export default function TimingApprovalStep({ model }) {
 
       {seasonal && <div role="status" aria-live="polite" className={`mb-5 flex items-start gap-3 rounded-xl border p-3 text-sm ${stateStyles}`}>
         {seasonalPreviewState === "ready" ? <Check size={18} className="mt-0.5 shrink-0" /> : seasonalPreviewState === "error" ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin" />}
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="font-bold">{seasonalPreviewState === "ready" ? "Exact seasonal preview verified" : seasonalPreviewState === "error" ? "Final preview could not load" : "Rendering your final design…"}</div>
-          <p className="mt-1 text-xs leading-relaxed opacity-80">{seasonalPreviewState === "ready" ? "The prepared customer mockup is loaded and ready for your final visual check." : seasonalPreviewState === "error" ? "Do not approve a blank result. Return to Seasonal Design Lab, confirm every layer, and prepare the preview again." : "Approval stays locked until the prepared seasonal mockup finishes loading."}</p>
+          <p className="mt-1 text-xs leading-relaxed opacity-80">{seasonalPreviewState === "ready" ? "The prepared customer mockup is loaded and ready for your final visual check." : seasonalPreviewState === "error" ? "Approval stays locked so a blank or stale image can never be approved. Retry the preview check, or return to Seasonal Design Lab if the image is still unavailable." : "Approval stays locked until the exact prepared seasonal mockup finishes loading. This check will stop and show a recoverable error instead of spinning forever."}</p>
+          {seasonalPreviewState === "error" && (
+            <button
+              type="button"
+              onClick={() => {
+                setSeasonalPreviewState("loading");
+                setPreviewRetryKey((value) => value + 1);
+              }}
+              className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 text-xs font-bold"
+            >
+              <RotateCcw size={14} /> Retry preview check
+            </button>
+          )}
         </div>
       </div>}
 

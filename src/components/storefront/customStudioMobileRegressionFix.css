@@ -1,0 +1,85 @@
+/* GDP Custom Studio — recording-driven mobile regression repair (2026-09-14).
+ * This layer loads last and only affects phone layouts. Desktop/tablet workspace
+ * behavior remains owned by the existing Custom Studio/Seasonal stylesheets.
+ */
+
+@media (max-width: 767px) {
+  /* The storefront header and its full-screen navigation must always sit above
+     editor controls. Several Studio controls intentionally use elevated z-index
+     values for canvas editing, so the global header needs a stronger boundary. */
+  .gdp-studio-active > header {
+    z-index: 200 !important;
+    isolation: isolate;
+  }
+
+  /* When the hamburger navigation is open, suspend Studio navigation/control
+     surfaces rather than letting them remain clickable through the menu. */
+  .gdp-studio-active[data-gdp-mobile-menu-open="true"] [data-gdp-step-nav="mobile"],
+  .gdp-studio-active[data-gdp-mobile-menu-open="true"] section[aria-label="Garment preview"] > div:first-child:has(> button) {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  /* Keep the canonical mobile step navigation compact and inside its own flow.
+     It must not float over cards while the user scrolls the editor. */
+  .gdp-studio-active [data-gdp-step-nav="mobile"] {
+    position: relative !important;
+    z-index: 20 !important;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .gdp-studio-active [data-gdp-step-nav="mobile"] > div:first-child {
+    gap: 0.5rem !important;
+  }
+
+  .gdp-studio-active [data-gdp-step-nav="mobile"] button {
+    min-width: 0;
+    min-height: 44px;
+    flex: 1 1 0;
+    justify-content: center;
+    padding-inline: 0.75rem !important;
+  }
+
+  /* Preserve usable touch targets throughout the phone editor without changing
+     component geometry at tablet/desktop breakpoints. */
+  .gdp-studio-active section[aria-label="Garment preview"] button,
+  .gdp-studio-active section[aria-label="Garment and artwork controls"] button,
+  .gdp-studio-active section[aria-label="Review seasonal design"] button {
+    min-height: 44px;
+  }
+
+  /* Stabilize the prepared approval asset. The image is the exact uploaded
+     mockup paired with the locked production PNG; avoid flex/grid shrink or an
+     iOS compositing repaint making it appear blank or shifted. */
+  .gdp-studio-active [data-seasonal-approved-preview] {
+    isolation: isolate;
+    min-height: 320px;
+    contain: layout paint;
+  }
+
+  .gdp-studio-active [data-seasonal-approved-preview] > img {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    object-fit: contain;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  /* Long artwork/control labels may wrap, but must never push cards outside the
+     viewport and create horizontal overlap. */
+  .gdp-studio-active section[aria-label="Garment and artwork controls"],
+  .gdp-studio-active section[aria-label="Garment preview"],
+  .gdp-studio-active section[aria-label="Review seasonal design"] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment and artwork controls"] * {
+    min-width: 0;
+  }
+}

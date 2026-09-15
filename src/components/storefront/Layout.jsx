@@ -14,6 +14,7 @@ import "./seasonalStudioMobile.css";
 import "./seasonalStudioDesktopRefinement.css";
 import "./customStudioShell.css";
 import "./seasonalStudioWorkspaceFix.css";
+import "./customStudioMobileRegressionFix.css";
 
 export default function Layout() {
   const location = useLocation();
