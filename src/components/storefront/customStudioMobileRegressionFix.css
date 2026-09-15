@@ -82,4 +82,58 @@
   .gdp-studio-active section[aria-label="Garment and artwork controls"] * {
     min-width: 0;
   }
+
+  /* 2026-09-15 recording regression: entering Seasonal Design Lab on iPhone
+     could let the inner editor advertise a desktop-sized intrinsic width. Mobile
+     Safari then zoomed the entire page out to fit that width. Contain the shell
+     at every grid boundary without changing print-area coordinates or editor
+     state. Desktop/tablet remain owned by their existing breakpoint layers. */
+  .gdp-studio-active .gdp-seasonal-shared-shell,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work > main,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work > main > div,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start:has(> section[aria-label="Choose seasonal artwork"]) {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .gdp-studio-active .gdp-seasonal-shared-shell,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work > main,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work > main > div {
+    overflow-x: clip !important;
+  }
+
+  /* A single explicit mobile track prevents any stale desktop/tablet column
+     placement from creating an implicit off-screen column after artwork loads. */
+  .gdp-studio-active .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start:has(> section[aria-label="Choose seasonal artwork"]) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-columns: minmax(0, 1fr) !important;
+    grid-auto-flow: row !important;
+  }
+
+  .gdp-studio-active .gdp-seasonal-shared-shell__work section[aria-label="Choose seasonal artwork"],
+  .gdp-studio-active .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"],
+  .gdp-studio-active .gdp-seasonal-shared-shell__work section[aria-label="Garment and artwork controls"] {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Keep the artwork rail as its own intentional horizontal scroller, while
+     preventing that scroller or the garment canvas from widening the page. */
+  .gdp-studio-active .gdp-seasonal-shared-shell__work section[aria-label="Choose seasonal artwork"] > div.flex.max-w-full,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] > div:last-child,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] .gdp-seasonal-preview-frame,
+  .gdp-studio-active .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] .gdp-seasonal-preview-frame > div.relative {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
 }
