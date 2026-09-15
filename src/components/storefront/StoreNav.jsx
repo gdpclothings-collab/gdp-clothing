@@ -128,6 +128,10 @@ export default function StoreNav() {
     setSearchOpen(false);
   }, [location.pathname, location.search, location.hash]);
 
+  const closeMobileNavigation = () => {
+    setMenuOpen(false);
+  };
+
   const submitSearch = (event) => {
     event.preventDefault();
     const value = query.trim();
@@ -155,11 +159,11 @@ export default function StoreNav() {
       : "relative py-2 text-[12px] font-medium transition " + (active(item.path) ? "text-white" : "text-white/70 hover:text-white");
 
     if (external) {
-      return <a href={item.path} className={className}>{item.label}</a>;
+      return <a href={item.path} className={className} onClick={mobile ? closeMobileNavigation : undefined}>{item.label}</a>;
     }
 
     return (
-      <Link to={item.path || "/"} className={className}>
+      <Link to={item.path || "/"} className={className} onClick={mobile ? closeMobileNavigation : undefined}>
         {item.label}
         {!mobile && active(item.path) && <span className="absolute inset-x-0 -bottom-1 h-px bg-white" />}
       </Link>
@@ -189,7 +193,7 @@ export default function StoreNav() {
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
 
-          <Link to="/" className="flex shrink-0 items-center" aria-label="GDP Clothing home">
+          <Link to="/" className="flex shrink-0 items-center" aria-label="GDP Clothing home" onClick={closeMobileNavigation}>
             <ManagedLogo
               src={branding.mobileLogoUrl || branding.logoUrl}
               fallbackSrc="/images/gdp-logo.webp"
@@ -257,7 +261,7 @@ export default function StoreNav() {
         >
           <nav className="px-5 py-5" aria-label="Mobile navigation">
             {navItems.map((item) => <NavLink key={item.label + item.path} item={item} mobile />)}
-            <Link to="/account" className="flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">
+            <Link to="/account" onClick={closeMobileNavigation} className="flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">
               Account <User size={20} className="text-white/50" />
             </Link>
           </nav>
