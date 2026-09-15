@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
-// Keep this contract on every V2 production/cutover change so isolation,
-// interaction parity, legacy fallback, and cart safety cannot silently regress.
+// Keep this contract on every V2 production/cutover change so interaction
+// parity, legacy rollback, production rendering, and cart safety cannot regress.
 function read(path) {
   return fs.readFileSync(path, 'utf8');
 }
@@ -25,16 +25,21 @@ const gestures = read('src/components/storefront/custom-studio-v2/useTouchTransf
 const nav = read('src/components/storefront/StoreNav.jsx');
 const combinedV2 = [page, state, production, protectedProduction, assets, preview, seasonal, protectedEditor, uploadEditor, gestures].join('\n');
 
-// Isolation and rollback safety before final cutover.
-assert(app.includes('path="/custom-studio" element={<CustomStudio />}'), 'legacy /custom-studio route must remain until the final cutover PR');
+// Production cutover plus explicit rollback safety.
+assert(app.includes('path="/custom-studio" element={<CustomStudioV2 />}'), 'live /custom-studio route must resolve to the rebuilt Studio');
+assert(app.includes('path="/design" element={<CustomStudioV2 />}'), 'legacy /design alias must resolve to the rebuilt Studio');
 assert(app.includes('path="/custom-studio-legacy" element={<CustomStudio />}'), 'dedicated legacy rollback/edit route is missing');
-assert(app.includes('path="/custom-studio-v2" element={<CustomStudioV2 />}'), 'isolated /custom-studio-v2 route is missing');
+assert(app.includes('path="/custom-studio-v2" element={<CustomStudioV2 />}'), 'V2 compatibility route is missing');
 assert(!combinedV2.includes('CustomStudioAdvancedEditor'), 'V2 must not import the legacy advanced editor');
 assert(!combinedV2.includes('CustomStudioShellEnhancer'), 'V2 must not import the legacy shell enhancer');
 assert(!combinedV2.includes('html2canvas'), 'V2 must not depend on DOM screenshot rendering');
 assert(!fs.existsSync('.github/workflows/patch-v2-preview-gestures.yml'), 'temporary V2 preview patch workflow must self-delete');
 assert(!fs.existsSync('.github/patch-v2-preview-gestures.py'), 'temporary V2 preview patch script must self-delete');
 assert(!fs.existsSync('.github/workflows/fix-v2-upload-typecheck.yml'), 'temporary V2 typecheck workflow must self-delete');
+assert(!fs.existsSync('.github/workflows/polish-custom-studio-cutover.yml'), 'temporary cutover polish workflow must self-delete');
+assert(page.includes('GDP Custom Studio'), 'production Studio branding is missing');
+assert(!page.includes('V2 isolated rebuild'), 'internal rebuild wording must not be customer-visible after cutover');
+assert(!page.includes('Legacy Studio remains available'), 'internal rollback wording must not be customer-visible after cutover');
 
 // All four paths and independent Front/Back state.
 for (const path of ['seasonal', 'bootleg', 'memorial', 'upload']) {
@@ -128,4 +133,4 @@ assert(uploadEditor.includes('min-h-[60px]'), 'Upload completion control must ke
 assert(page.includes('Review stays instant'), 'V2 lightweight review contract is missing');
 assert(nav.includes('onClick={mobile ? closeMobileNavigation : undefined}'), 'mobile navigation links must explicitly close the drawer');
 
-console.log('PASS Custom Studio V2 isolation, interaction parity, production, edit, and regression contract');
+console.log('PASS Custom Studio production cutover, rollback, interaction parity, production, edit, and regression contract');
