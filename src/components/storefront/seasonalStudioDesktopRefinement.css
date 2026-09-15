@@ -22,6 +22,7 @@ section[aria-label="Review seasonal design"][data-seasonal-render-state="error"]
   text-align: center;
   text-transform: uppercase;
   backdrop-filter: blur(6px);
+  pointer-events: none;
 }
 
 section[aria-label="Review seasonal design"][data-seasonal-render-state="rendering"]::after {
@@ -55,6 +56,7 @@ section[aria-label="Review seasonal design"][data-seasonal-render-state="error"]
   letter-spacing: 0.08em;
   text-align: center;
   text-transform: uppercase;
+  pointer-events: none;
 }
 
 [data-seasonal-approved-preview][data-seasonal-preview-state="error"]::before,
@@ -133,7 +135,7 @@ section[aria-label="Review seasonal design"][data-seasonal-render-state="error"]
     padding: 18px !important;
   }
 
-  .gdp-studio-active section[aria-label="Review seasonal design"] > div:nth-of-type(2) {
+  .gdp-studio-active section[aria-label="Review seasonal design"] > div:has(.gdp-seasonal-preview-frame) {
     grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.62fr) !important;
     gap: 18px !important;
   }
