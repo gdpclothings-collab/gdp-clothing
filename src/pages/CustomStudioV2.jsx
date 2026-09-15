@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, RotateCcw, Sparkles, Star } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import { customerApi } from '@/lib/customerApi';
@@ -91,7 +91,7 @@ function GarmentStepV2({ catalog, state, dispatch }) {
   );
 }
 
-function DesignStepV2({ state, dispatch }) {
+function DesignStepV2({ dispatch }) {
   return (
     <div>
       <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 2</p>
@@ -109,7 +109,13 @@ function DesignStepV2({ state, dispatch }) {
               onClick={() => dispatch({ type: 'SET_DESIGN_PATH', designPath: path.id })}
               className={`rounded-3xl border-2 p-5 text-left transition ${ready ? 'border-slate-200 bg-white hover:border-slate-900 hover:shadow-lg' : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'}`}
             >
-              <div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-900 text-white"><Icon size={20} /></span><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black text-slate-900">{path.label}</h2>{!ready && <span className="rounded-full bg-slate-200 px-2 py-1 text-[9px] font-black uppercase tracking-[.1em] text-slate-600">V2 rebuild next</span>}</div><p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p></div></div>
+              <div className="flex items-start gap-4">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-900 text-white"><Icon size={20} /></span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black text-slate-900">{path.label}</h2>{!ready && <span className="rounded-full bg-slate-200 px-2 py-1 text-[9px] font-black uppercase tracking-[.1em] text-slate-600">V2 rebuild next</span>}</div>
+                  <p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p>
+                </div>
+              </div>
             </button>
           );
         })}
@@ -124,7 +130,6 @@ function ReviewStepV2({ product, state, onEdit }) {
       <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p>
       <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Review locked design state</h1>
       <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">This V2 review does not wait for a 300-DPI render. It reads the already-confirmed editor state immediately.</p>
-
       <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_.7fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -148,10 +153,12 @@ function ReviewStepV2({ product, state, onEdit }) {
 }
 
 export default function CustomStudioV2() {
-  const [state, dispatch] = useReducer(studioV2Reducer, initialStudioV2State);
+  const [state, setState] = useState(initialStudioV2State);
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const dispatch = (action) => setState((current) => studioV2Reducer(current, action));
 
   useEffect(() => {
     let active = true;
@@ -184,7 +191,7 @@ export default function CustomStudioV2() {
     <main className="min-h-screen bg-slate-50 text-slate-950">
       <div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <div><div className="flex items-center gap-2"><span className="rounded-full bg-slate-900 px-2.5 py-1 text-[9px] font-black uppercase tracking-[.14em] text-white">V2 isolated rebuild</span><span className="text-xs font-bold text-slate-400">Legacy Studio remains available</span></div></div>
+          <div className="flex items-center gap-2"><span className="rounded-full bg-slate-900 px-2.5 py-1 text-[9px] font-black uppercase tracking-[.14em] text-white">V2 isolated rebuild</span><span className="text-xs font-bold text-slate-400">Legacy Studio remains available</span></div>
           <button type="button" onClick={() => dispatch({ type: 'RESET' })} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700"><RotateCcw size={15} /> Start over</button>
         </div>
 
@@ -194,7 +201,7 @@ export default function CustomStudioV2() {
           <StudioStepRail currentStep={state.step} onStep={(step) => dispatch({ type: 'SET_STEP', step })} />
           <section className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm sm:p-5">
             {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} />}
-            {state.step === 'design' && <DesignStepV2 state={state} dispatch={dispatch} />}
+            {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
             {state.step === 'customize' && state.designPath === 'seasonal' && product && (
               <div>
                 <div className="mb-5"><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 3</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Seasonal Design Lab V2</h1><p className="mt-2 text-sm font-medium text-slate-500">A clean editor with one source of truth for layers. No legacy approval spinner or DOM reconstruction.</p></div>
