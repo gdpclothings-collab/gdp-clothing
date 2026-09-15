@@ -5,11 +5,13 @@ import StoreFooter from "./StoreFooter";
 import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
 import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
+import SeasonalStudioRuntimeGuard from "./SeasonalStudioRuntimeGuard";
 import CustomStudioShellEnhancer from "./CustomStudioShellEnhancer";
 import CustomStudioNavigationDock from "./CustomStudioNavigationDock";
 import "./customStudioMobile.css";
 import "./customStudioDesktop.css";
 import "./seasonalStudioMobile.css";
+import "./seasonalStudioDesktopRefinement.css";
 import "./customStudioShell.css";
 
 export default function Layout() {
@@ -31,6 +33,7 @@ export default function Layout() {
         <Outlet />
       </main>
       {studioActive && <SeasonalMobileReviewEnhancer />}
+      {studioActive && <SeasonalStudioRuntimeGuard />}
       {studioActive && <CustomStudioShellEnhancer />}
       {studioActive && <CustomStudioNavigationDock />}
       {!studioActive && <StoreFooter />}
