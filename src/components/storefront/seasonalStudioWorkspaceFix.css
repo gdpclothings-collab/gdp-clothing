@@ -1,0 +1,164 @@
+/* Seasonal Design Lab desktop workspace stabilization.
+ * This layer intentionally loads last in the storefront layout. It corrects
+ * the shared-shell grid contract without changing the Seasonal editor engine.
+ */
+
+@media (min-width: 1280px) {
+  /* Keep the active Seasonal editor inside a single visual workspace. */
+  .gdp-seasonal-shared-shell__work > main > div:has(section[aria-label="Choose seasonal artwork"]) {
+    overflow: hidden !important;
+    scrollbar-gutter: auto !important;
+  }
+
+  /* The runtime children are three SECTION elements (library, preview,
+   * controls). Explicitly place all three so Tailwind's old col-start classes
+   * can never create an implicit column and collapse the garment preview. */
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start:has(> section[aria-label="Choose seasonal artwork"]) {
+    display: grid !important;
+    grid-template-columns: minmax(230px, .56fr) minmax(0, 1.62fr) minmax(285px, .72fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    gap: 14px !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Choose seasonal artwork"] {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    position: relative !important;
+    top: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 14px !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    position: relative !important;
+    top: auto !important;
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] > div:last-child {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    padding: 10px !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] .gdp-seasonal-preview-frame > div.relative {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment and artwork controls"] {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    position: relative !important;
+    top: auto !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-right: 4px !important;
+    margin: 0 !important;
+  }
+
+  /* Give artwork cards enough visual room while keeping scrolling isolated to
+   * the library. Loading more cards now appends inside this fixed-height pane
+   * instead of reflowing the whole editor. */
+  .gdp-seasonal-shared-shell__work section[aria-label="Choose seasonal artwork"] > div.flex.max-w-full {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-content: start !important;
+    gap: 10px !important;
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    overflow-anchor: none;
+    padding-right: 4px !important;
+    scrollbar-gutter: stable;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Choose seasonal artwork"] > div.flex.max-w-full > button {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Choose seasonal artwork"] > div.flex.max-w-full img {
+    height: 132px !important;
+  }
+
+  /* Keep the approval action reachable while the properties panel scrolls. */
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment and artwork controls"] #seasonal-tablet-controls {
+    min-height: 100% !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment and artwork controls"] #seasonal-tablet-controls > div:last-child {
+    position: sticky;
+    bottom: 0;
+    z-index: 12;
+    background: rgba(255, 255, 255, .97) !important;
+    box-shadow: 0 -10px 28px rgba(23, 50, 77, .10), 0 14px 40px rgba(23, 50, 77, .07) !important;
+    backdrop-filter: blur(12px);
+  }
+
+  /* The compact privacy choice card must remain visible, but it should not sit
+   * over the editor's artwork rail or bottom navigation. */
+  .gdp-studio-active [data-privacy-panel="compact"] {
+    left: auto !important;
+    right: 14px !important;
+    bottom: max(74px, env(safe-area-inset-bottom)) !important;
+    width: min(330px, calc(100vw - 28px)) !important;
+    padding: 12px !important;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1500px) {
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start:has(> section[aria-label="Choose seasonal artwork"]) {
+    grid-template-columns: minmax(210px, .54fr) minmax(0, 1.50fr) minmax(255px, .70fr) !important;
+    gap: 12px !important;
+  }
+
+  .gdp-seasonal-shared-shell__work section[aria-label="Choose seasonal artwork"] > div.flex.max-w-full img {
+    height: 116px !important;
+  }
+}
