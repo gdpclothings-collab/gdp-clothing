@@ -1,0 +1,51 @@
+name: Polish Custom Studio cutover labels
+
+on:
+  push:
+    branches:
+      - release/custom-studio-v2-cutover
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release/custom-studio-v2-cutover
+      - name: Remove internal V2 wording from customer UI
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/pages/CustomStudioV2.jsx')
+          text = path.read_text()
+          replacements = {
+            'Custom Studio V2</div>': 'Custom Studio</div>',
+            'Loading Custom Studio V2…': 'Loading Custom Studio…',
+            '>V2 isolated rebuild</span>': '>GDP Custom Studio</span>',
+            '>Legacy Studio remains available</span>': '>Create · Preview · Approve</span>',
+            'Seasonal Design Lab V2': 'Seasonal Design Lab',
+            'Memorial Tribute Studio V2': 'Memorial Tribute Studio',
+            'Photo Bootleg Studio V2': 'Photo Bootleg Studio',
+            'Upload My Own Artwork V2': 'Upload My Own Artwork',
+            'The confirmed V2 state will be used to generate the production PNGs.': 'The confirmed design state will be used to generate the production PNGs.',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Missing expected customer-facing label: {old}')
+              text = text.replace(old, new)
+          path.write_text(text)
+          Path('.github/workflows/polish-custom-studio-cutover.yml').unlink()
+          PY
+          git diff --check
+      - name: Commit production label cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Polish Custom Studio production labels"
+          git push origin HEAD:release/custom-studio-v2-cutover
