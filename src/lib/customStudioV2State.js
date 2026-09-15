@@ -2,30 +2,15 @@ export const STUDIO_V2_STEPS = [
   { id: 'garment', label: 'Garment' },
   { id: 'design', label: 'Choose Design' },
   { id: 'customize', label: 'Customize' },
+  { id: 'approval', label: 'Approval' },
   { id: 'review', label: 'Review' },
 ];
 
 export const STUDIO_V2_DESIGN_PATHS = [
-  {
-    id: 'seasonal',
-    label: 'Seasonal Designs',
-    description: 'Layer seasonal artwork and arrange it directly on the print area.',
-  },
-  {
-    id: 'bootleg',
-    label: 'Photo Bootleg Designs',
-    description: 'Protected GDP layouts with editable customer photos and text.',
-  },
-  {
-    id: 'memorial',
-    label: 'Memorial Tribute Designs',
-    description: 'Protected tribute layouts with portrait, name, dates and message editing.',
-  },
-  {
-    id: 'upload',
-    label: 'Upload My Own Artwork',
-    description: 'Upload original artwork and control placement, size and print side.',
-  },
+  { id: 'seasonal', label: 'Seasonal Designs', description: 'Layer seasonal artwork and arrange it directly on the print area.' },
+  { id: 'bootleg', label: 'Photo Bootleg Designs', description: 'Protected GDP layouts with editable customer photos and text.' },
+  { id: 'memorial', label: 'Memorial Tribute Designs', description: 'Protected tribute layouts with portrait, name, dates and message editing.' },
+  { id: 'upload', label: 'Upload My Own Artwork', description: 'Upload original artwork and control placement, size and print side.' },
 ];
 
 const seasonalSideState = () => ({ layers: [], activeLayerId: '', confirmed: false });
@@ -41,7 +26,6 @@ const uploadSideState = () => ({
   transform: { scale: 100, rotation: 0, x: 0, y: 0 },
   confirmed: false,
 });
-
 const pathSides = (factory) => ({ front: factory(), back: factory() });
 
 export function createInitialStudioV2State() {
@@ -57,6 +41,11 @@ export function createInitialStudioV2State() {
     bootleg: { sides: pathSides(protectedSideState) },
     memorial: { sides: pathSides(protectedSideState) },
     upload: { sides: pathSides(uploadSideState) },
+    approval: {
+      needByDate: '',
+      rightsConfirmed: false,
+      finalDesignApproved: false,
+    },
   };
 }
 
@@ -69,14 +58,18 @@ function invalidatePath(path) {
   };
 }
 
+function invalidateApproval(state) {
+  return { ...state, approval: { ...state.approval, finalDesignApproved: false } };
+}
+
 function invalidateAllEditors(state) {
-  return {
+  return invalidateApproval({
     ...state,
     seasonal: invalidatePath(state.seasonal),
     bootleg: invalidatePath(state.bootleg),
     memorial: invalidatePath(state.memorial),
     upload: invalidatePath(state.upload),
-  };
+  });
 }
 
 function validSide(side) {
@@ -100,13 +93,15 @@ export function studioV2Reducer(state, action) {
     case 'SET_QUANTITY':
       return { ...state, quantity: Math.max(1, Number(action.quantity || 1)) };
     case 'SET_DESIGN_PATH':
-      return { ...state, designPath: action.designPath, step: 'customize', side: 'front' };
+      return invalidateApproval({ ...state, designPath: action.designPath, step: 'customize', side: 'front' });
     case 'SET_SIDE':
       return { ...state, side: validSide(action.side) };
+    case 'SET_APPROVAL':
+      return { ...state, approval: { ...state.approval, ...(action.patch || {}) } };
     case 'SET_SEASONAL_LAYERS': {
       const side = validSide(action.side ?? state.side);
       const current = state.seasonal.sides[side];
-      return {
+      return invalidateApproval({
         ...state,
         seasonal: {
           ...state.seasonal,
@@ -120,7 +115,7 @@ export function studioV2Reducer(state, action) {
             },
           },
         },
-      };
+      });
     }
     case 'SET_SEASONAL_ACTIVE': {
       const side = validSide(action.side ?? state.side);
@@ -137,7 +132,7 @@ export function studioV2Reducer(state, action) {
     }
     case 'CONFIRM_SEASONAL': {
       const side = validSide(action.side ?? state.side);
-      return {
+      return invalidateApproval({
         ...state,
         seasonal: {
           ...state.seasonal,
@@ -146,14 +141,14 @@ export function studioV2Reducer(state, action) {
             [side]: { ...state.seasonal.sides[side], confirmed: Boolean(action.value) },
           },
         },
-      };
+      });
     }
     case 'PATCH_EDITOR': {
       const path = action.path;
       const side = validSide(action.side ?? state.side);
       if (!['bootleg', 'memorial', 'upload'].includes(path)) return state;
       const current = state[path].sides[side];
-      return {
+      return invalidateApproval({
         ...state,
         [path]: {
           ...state[path],
@@ -166,13 +161,13 @@ export function studioV2Reducer(state, action) {
             },
           },
         },
-      };
+      });
     }
     case 'CONFIRM_EDITOR': {
       const path = action.path;
       const side = validSide(action.side ?? state.side);
       if (!['bootleg', 'memorial', 'upload'].includes(path)) return state;
-      return {
+      return invalidateApproval({
         ...state,
         [path]: {
           ...state[path],
@@ -181,7 +176,7 @@ export function studioV2Reducer(state, action) {
             [side]: { ...state[path].sides[side], confirmed: Boolean(action.value) },
           },
         },
-      };
+      });
     }
     default:
       return state;
@@ -218,9 +213,14 @@ export function studioV2PrintableSides(state) {
 export function studioV2CanContinue(state) {
   if (state.step === 'garment') return Boolean(state.productId && state.color && state.size);
   if (state.step === 'design') return Boolean(state.designPath);
-  if (state.step !== 'customize') return true;
-
-  const sides = studioV2PrintableSides(state);
-  if (!sides.length) return false;
-  return sides.every((side) => Boolean(state[state.designPath]?.sides?.[side]?.confirmed));
+  if (state.step === 'customize') {
+    const sides = studioV2PrintableSides(state);
+    if (!sides.length) return false;
+    return sides.every((side) => Boolean(state[state.designPath]?.sides?.[side]?.confirmed));
+  }
+  if (state.step === 'approval') {
+    const rightsRequired = state.designPath !== 'seasonal';
+    return Boolean(state.approval.finalDesignApproved && (!rightsRequired || state.approval.rightsConfirmed));
+  }
+  return true;
 }
