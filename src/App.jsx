@@ -90,8 +90,8 @@ const AuthenticatedApp = () => {
             <Route path="/dtf-gang-sheet" element={<DTFGangSheet />} />
             <Route path="/products/:slug" element={<ProductDetail />} />
             <Route path="/product/:id" element={<ProductDetail />} />
-            <Route path="/custom-studio" element={<CustomStudio />} />
-            <Route path="/design" element={<CustomStudio />} />
+            <Route path="/custom-studio" element={<CustomStudioV2 />} />
+            <Route path="/design" element={<CustomStudioV2 />} />
             <Route path="/custom-studio-legacy" element={<CustomStudio />} />
             <Route path="/custom-studio-v2" element={<CustomStudioV2 />} />
             <Route path="/cart" element={<Cart />} />
