@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// Keep this contract on every V2 production/cutover change so isolation and cart safety cannot silently regress.
 function read(path) {
   return fs.readFileSync(path, 'utf8');
 }
