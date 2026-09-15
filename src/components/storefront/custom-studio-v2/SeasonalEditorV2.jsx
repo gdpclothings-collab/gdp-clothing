@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Eye, EyeOff, Lock, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork } from '@/lib/seasonalArtwork';
+import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 
 const MAX_LAYERS = 10;
 const newLayerId = () => (crypto?.randomUUID ? crypto.randomUUID() : `seasonal_v2_${Date.now()}_${Math.random().toString(36).slice(2)}`);
@@ -10,45 +11,95 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function ArtworkLayer({ entry, area, active, onSelect, onMove }) {
-  const pointer = useRef(null);
+function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
+  const pointers = useRef(new Map());
+  const gesture = useRef(null);
   if (!entry?.artwork || !entry?.layout || !area) return null;
 
-  const begin = (event) => {
-    if (entry.layer.locked) {
-      onSelect(entry.layer.id);
-      return;
+  const restart = () => {
+    const points = [...pointers.current.values()];
+    const currentWidth = Number(entry.layout.width || 1);
+    const currentHeight = Number(entry.layout.height || 1);
+    const center = { x: Number(entry.layout.x || 0) + currentWidth / 2, y: Number(entry.layout.y || 0) + currentHeight / 2 };
+    if (points.length >= 2) {
+      const [a, b] = points;
+      gesture.current = {
+        mode: 'pinch',
+        distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+        angle: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI,
+        pointerCenter: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        center,
+        width: currentWidth,
+        height: currentHeight,
+        rotation: Number(entry.layer.rotation || 0),
+      };
+    } else if (points.length == 1) {
+      gesture.current = { mode: 'drag', point: points[0], center, width: currentWidth, height: currentHeight };
+    } else {
+      gesture.current = null;
     }
+  };
+
+  const begin = (event) => {
+    onSelect(entry.layer.id);
+    if (entry.layer.locked) return;
     event.preventDefault();
     event.stopPropagation();
-    onSelect(entry.layer.id);
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    const rect = event.currentTarget.parentElement?.getBoundingClientRect();
-    if (!rect) return;
-    pointer.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      x: Number(entry.layer.position?.x || 0),
-      y: Number(entry.layer.position?.y || 0),
-      rect,
-    };
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    restart();
   };
 
   const move = (event) => {
-    const start = pointer.current;
-    if (!start || start.pointerId !== event.pointerId || entry.layer.locked) return;
+    if (entry.layer.locked || !pointers.current.has(event.pointerId)) return;
     event.preventDefault();
-    const nextX = start.x + ((event.clientX - start.startX) / Math.max(1, start.rect.width)) * area.width;
-    const nextY = start.y + ((event.clientY - start.startY) / Math.max(1, start.rect.height)) * area.height;
-    onMove(entry.layer.id, {
-      x: clamp(nextX, 0, Math.max(0, area.width - entry.layout.width)),
-      y: clamp(nextY, 0, Math.max(0, area.height - entry.layout.height)),
-    });
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const state = gesture.current;
+    const rect = event.currentTarget.parentElement?.getBoundingClientRect();
+    if (!state || !rect?.width || !rect?.height) return;
+    const points = [...pointers.current.values()];
+
+    if (state.mode === 'drag' && points.length === 1) {
+      const point = points[0];
+      const cx = state.center.x + ((point.x - state.point.x) / rect.width) * area.width;
+      const cy = state.center.y + ((point.y - state.point.y) / rect.height) * area.height;
+      onTransform(entry.layer.id, {
+        position: {
+          x: clamp(cx - state.width / 2, 0, Math.max(0, area.width - state.width)),
+          y: clamp(cy - state.height / 2, 0, Math.max(0, area.height - state.height)),
+        },
+      });
+      return;
+    }
+
+    if (state.mode === 'pinch' && points.length >= 2) {
+      const [a, b] = points;
+      const distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+      const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      const pointerCenter = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const maxWidth = Math.max(0.5, Number(entry.layout.maxWidth || area.width));
+      const width = clamp(state.width * (distance / state.distance), 0.5, maxWidth);
+      const height = state.height * (width / Math.max(0.01, state.width));
+      const cx = state.center.x + ((pointerCenter.x - state.pointerCenter.x) / rect.width) * area.width;
+      const cy = state.center.y + ((pointerCenter.y - state.pointerCenter.y) / rect.height) * area.height;
+      let rotation = state.rotation + (angle - state.angle);
+      while (rotation > 180) rotation -= 360;
+      while (rotation < -180) rotation += 360;
+      onTransform(entry.layer.id, {
+        requested: width,
+        rotation,
+        position: {
+          x: clamp(cx - width / 2, 0, Math.max(0, area.width - width)),
+          y: clamp(cy - height / 2, 0, Math.max(0, area.height - height)),
+        },
+      });
+    }
   };
 
   const end = (event) => {
-    if (pointer.current?.pointerId === event.pointerId) pointer.current = null;
+    try { event.currentTarget.releasePointerCapture?.(event.pointerId); } catch { /* already released */ }
+    pointers.current.delete(event.pointerId);
+    restart();
   };
 
   return (
@@ -90,11 +141,12 @@ function ToolbarButton({ label, onClick, children, disabled = false }) {
   );
 }
 
-export default function SeasonalEditorV2({ product, size, layers, activeLayerId, confirmed, onLayersChange, onActiveLayerChange, onConfirmedChange }) {
+export default function SeasonalEditorV2({ product, color, side = 'front', size, layers, activeLayerId, confirmed, onLayersChange, onActiveLayerChange, onConfirmedChange }) {
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
+  const garmentPreview = studioV2GarmentPreview(product, color, side);
 
   useEffect(() => {
     let active = true;
@@ -244,17 +296,17 @@ export default function SeasonalEditorV2({ product, size, layers, activeLayerId,
         <div className="mb-3 flex items-center justify-between gap-3 px-1">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Fabric workspace</p>
-            <p className="text-sm font-bold text-slate-700">Drag artwork directly in the print area</p>
+            <p className="text-sm font-bold text-slate-700">Drag with one finger · pinch/rotate with two fingers</p>
           </div>
-          <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 sm:inline">Front</span>
+          <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-600 sm:inline">{side}</span>
         </div>
 
         <div className="mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
-            {product?.images?.[0] ? <img src={product.images[0]} alt={product.name} className="absolute inset-0 h-full w-full object-contain opacity-95" /> : null}
+            {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain opacity-95" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
             <div className="absolute left-1/2 top-[24%] aspect-[4/5] w-[42%] -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-white/80 bg-black/5 shadow-[0_0_0_1px_rgba(15,23,42,.15)]">
               {area ? resolved.filter((entry) => entry.layer.visible !== false).map((entry) => (
-                <ArtworkLayer key={entry.layer.id} entry={entry} area={area} active={entry.layer.id === activeLayerId} onSelect={onActiveLayerChange} onMove={(id, position) => patchLayer(id, { position })} />
+                <ArtworkLayer key={entry.layer.id} entry={entry} area={area} active={entry.layer.id === activeLayerId} onSelect={onActiveLayerChange} onTransform={(id, patch) => patchLayer(id, patch)} />
               )) : null}
               {!layers.length && <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Add artwork from the library</div>}
             </div>

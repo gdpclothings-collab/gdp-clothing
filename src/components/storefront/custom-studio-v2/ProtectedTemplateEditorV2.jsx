@@ -24,6 +24,7 @@ import {
   v2LayerId,
 } from '@/lib/customStudioV2EditorOptions';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
+import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -144,7 +145,7 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
   );
 }
 
-function ProtectedPreview({ product, template, editor, path, stickers, side, onPatch }) {
+function ProtectedPreview({ product, color, template, editor, path, stickers, side, onPatch }) {
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const zone = template?.photoZone || { x: 15, y: 12, width: 70, height: 68, radius: 12, shape: 'rounded' };
@@ -156,6 +157,19 @@ function ProtectedPreview({ product, template, editor, path, stickers, side, onP
   const style = { ...defaultV2TextStyle(path), ...(editor.textStyle || {}) };
   const radius = zone.shape === 'circle' || zone.shape === 'oval' ? '50%' : `${Number(zone.radius || 0)}%`;
   const stickerById = Object.fromEntries(stickers.map((item) => [item.id, item]));
+  const garmentPreview = studioV2GarmentPreview(product, color, side);
+  const textGesture = useTouchTransformV2({
+    transform: { scale: style.fontScale || 100, rotation: style.rotation || 0, x: style.x || 0, y: style.y || 0 },
+    onChange: (next) => onPatch({ textStyle: { ...style, fontScale: next.scale, rotation: next.rotation, x: next.x, y: next.y } }),
+    containerRef: canvasRef,
+    enabled: Boolean(editor.text?.headline || editor.text?.subline || editor.text?.message),
+    minScale: 55,
+    maxScale: 180,
+    minX: -42,
+    maxX: 42,
+    minY: -42,
+    maxY: 42,
+  });
 
   const patchPhotoTransform = (id, transform) => {
     const next = photos.map((layer) => layer.id === id ? { ...layer, transform } : layer);
@@ -172,7 +186,7 @@ function ProtectedPreview({ product, template, editor, path, stickers, side, onP
   return (
     <div className="mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
       <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
-        {product?.images?.[0] ? <img src={product.images[0]} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : null}
+        {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
         <div ref={canvasRef} className="absolute left-1/2 top-[23%] aspect-[4/5] w-[43%] -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10">
           <div ref={zoneRef} className="absolute overflow-hidden" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>
             {photos.map((layer) => <PhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && !activeStickerId} zoneRef={zoneRef} onSelect={() => onPatch({ activePhotoId: layer.id, activeStickerId: '' }, true)} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
@@ -182,7 +196,7 @@ function ProtectedPreview({ product, template, editor, path, stickers, side, onP
           {template?.assetUrl ? <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" /> : null}
 
           {(headline || editor.text?.subline || editor.text?.message) ? (
-            <div className="pointer-events-none absolute z-30 flex flex-col justify-center px-1 text-center font-black drop-shadow-[0_2px_3px_rgba(0,0,0,.8)]" style={{ left: `${textZone.x}%`, top: `${textZone.y}%`, width: `${textZone.width}%`, height: `${textZone.height}%`, color: style.color, fontFamily: style.fontFamily, transform: textTransform, ...textEffectStyle(style) }}>
+            <div {...textGesture} className="absolute z-30 flex cursor-grab flex-col justify-center px-1 text-center font-black drop-shadow-[0_2px_3px_rgba(0,0,0,.8)] ring-1 ring-transparent active:ring-cyan-400/80" style={{ ...textGesture.style, left: `${textZone.x}%`, top: `${textZone.y}%`, width: `${textZone.width}%`, height: `${textZone.height}%`, color: style.color, fontFamily: style.fontFamily, transform: textTransform, ...textEffectStyle(style) }}>
               {headline ? <div className={`${style.curve === 'straight' ? 'truncate' : 'h-[70%]'} leading-none uppercase`} style={{ fontSize: `${clamp(style.fontScale, 55, 180) * 0.105}px` }}><CurvedHeadline text={headline.toUpperCase()} style={style} /></div> : null}
               {editor.text?.subline ? <div className="truncate text-[clamp(6px,1vw,11px)] font-bold leading-tight">{editor.text.subline}</div> : null}
               {editor.text?.message ? <div className="mt-0.5 line-clamp-2 text-[clamp(5px,.8vw,9px)] font-semibold leading-tight">{editor.text.message}</div> : null}
@@ -198,7 +212,7 @@ function ProtectedPreview({ product, template, editor, path, stickers, side, onP
   );
 }
 
-export default function ProtectedTemplateEditorV2({ path, product, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
+export default function ProtectedTemplateEditorV2({ path, product, color, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
@@ -337,7 +351,7 @@ export default function ProtectedTemplateEditorV2({ path, product, settings, edi
 
       <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">Tap a layer in the list, then drag or pinch directly on the fabric.</p></div>
-        <ProtectedPreview product={product} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} />
+        <ProtectedPreview product={product} color={color} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} />
       </section>
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -357,7 +371,11 @@ export default function ProtectedTemplateEditorV2({ path, product, settings, edi
           <label className="block text-xs font-black text-slate-600">{path === 'memorial' ? 'Dates' : 'Subline'}<input value={editor.text?.subline || ''} onChange={(event) => patchText({ subline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
           {path === 'memorial' ? <label className="block text-xs font-black text-slate-600">Message<textarea value={editor.text?.message || ''} onChange={(event) => patchText({ message: event.target.value })} maxLength={180} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-slate-500" /></label> : null}
           <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
-          <RangeControl label="Text size" value={textStyle.fontScale} min={55} max={180} suffix="%" onChange={(value) => patchTextStyle({ fontScale: value })} />{textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} /> : null}
+          <RangeControl label="Text size" value={textStyle.fontScale} min={55} max={180} suffix="%" onChange={(value) => patchTextStyle({ fontScale: value })} />
+          <RangeControl label="Move text left / right" value={textStyle.x || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ x: value })} />
+          <RangeControl label="Move text up / down" value={textStyle.y || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ y: value })} />
+          <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-25} max={25} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} />
+          {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} /> : null}
         </div>
 
         {settings?.editorTools?.stickers !== false ? <div className="rounded-2xl border border-slate-100 p-3"><div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Stickers</div><div className="mt-2 flex flex-wrap gap-2">{stickerLibrary.filter((item) => path === 'memorial' || item.category !== 'memorial').map((sticker) => <button key={sticker.id} type="button" onClick={() => addSticker(sticker)} className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-slate-200 bg-white px-2 text-xl" title={sticker.label}>{sticker.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} className="h-7 w-7 object-contain" /> : sticker.glyph}</button>)}</div>{activeSticker ? <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-2"><RangeControl label="Sticker size" value={activeSticker.transform?.scale || 42} min={12} max={85} suffix="%" onChange={(value) => patchActiveSticker({ scale: value })} /><RangeControl label="Sticker rotation" value={activeSticker.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActiveSticker({ rotation: value })} /><button type="button" onClick={deleteActiveSticker} className="min-h-10 w-full rounded-lg bg-white text-xs font-black text-red-600">Delete selected sticker</button></div> : null}</div> : null}
