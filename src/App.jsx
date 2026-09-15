@@ -26,6 +26,7 @@ const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
 const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspace'));
+const CustomStudioV2 = lazy(() => import('@/pages/CustomStudioV2'));
 const Cart = lazy(() => import('@/pages/CartV2'));
 const Checkout = lazy(() => import('@/pages/Checkout'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
@@ -91,6 +92,7 @@ const AuthenticatedApp = () => {
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/custom-studio" element={<CustomStudio />} />
             <Route path="/design" element={<CustomStudio />} />
+            <Route path="/custom-studio-v2" element={<CustomStudioV2 />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order/:orderNumber" element={<OrderConfirmation />} />
