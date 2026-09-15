@@ -1,0 +1,40 @@
+name: Fix V2 upload typecheck
+
+on:
+  push:
+    branches:
+      - rebuild/custom-studio-v2-interaction-parity
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: rebuild/custom-studio-v2-interaction-parity
+      - name: Remove stale upload side callback
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/pages/CustomStudioV2.jsx')
+          text = path.read_text()
+          old = " onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })} onSideChange={(side) => dispatch({ type: 'SET_SIDE', side })}"
+          new = " onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })}"
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one stale Upload onSideChange prop, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          Path('.github/workflows/fix-v2-upload-typecheck.yml').unlink()
+          PY
+          git diff --check
+      - name: Commit typecheck correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix Custom Studio V2 upload typecheck"
+          git push origin HEAD:rebuild/custom-studio-v2-interaction-parity
