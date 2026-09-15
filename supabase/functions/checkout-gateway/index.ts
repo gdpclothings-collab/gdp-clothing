@@ -57,6 +57,49 @@ function safeMoney(value: unknown) {
   return Math.round(Math.min(number, 1_000_000) * 100) / 100;
 }
 
+function normalizePaymentMode(value: unknown) {
+  return value === "test" ? "test" : "live";
+}
+
+function stripeSecretMatchesMode(secret: string, paymentMode: "test" | "live") {
+  if (!secret) return false;
+  return paymentMode === "test"
+    ? secret.startsWith("sk_test_") || secret.startsWith("rk_test_")
+    : secret.startsWith("sk_live_") || secret.startsWith("rk_live_");
+}
+
+function stripePublishableKeyMatchesMode(key: string, paymentMode: "test" | "live") {
+  if (!key) return false;
+  return paymentMode === "test" ? key.startsWith("pk_test_") : key.startsWith("pk_live_");
+}
+
+function stripeSessionMatchesMode(sessionId: string, paymentMode: "test" | "live") {
+  if (!sessionId) return true;
+  return paymentMode === "test" ? sessionId.startsWith("cs_test_") : sessionId.startsWith("cs_live_");
+}
+
+function stripeEnvironment(paymentMode: "test" | "live") {
+  const stripeSecret = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY") || "";
+  const stripePublishableKey = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_PUBLISHABLE_KEY" : "STRIPE_PUBLISHABLE_KEY") || "";
+  return {
+    stripeSecret,
+    stripePublishableKey,
+    valid:
+      stripeSecretMatchesMode(stripeSecret, paymentMode) &&
+      stripePublishableKeyMatchesMode(stripePublishableKey, paymentMode),
+  };
+}
+
+async function currentPaymentMode(service: any) {
+  const { data, error } = await service
+    .from("store_settings")
+    .select("payment_mode")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) throw error;
+  return normalizePaymentMode(data?.payment_mode);
+}
+
 async function consumeRateLimit(
   service: any,
   key: string,
@@ -219,15 +262,18 @@ async function resumeConvertedCheckout(
     });
   }
 
-  const paymentMode = order.payment_mode === "test" ? "test" : "live";
-  const stripePublishableKey = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_PUBLISHABLE_KEY" : "STRIPE_PUBLISHABLE_KEY");
-  const stripeSecret = Deno.env.get(paymentMode === "test" ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY");
-  if (!stripePublishableKey || !stripeSecret) {
-    return respond(req, { error: true, retryable: true, message: "The secure payment session is not configured." }, 503);
+  const paymentMode = normalizePaymentMode(order.payment_mode);
+  const { stripePublishableKey, stripeSecret, valid: stripeEnvironmentValid } = stripeEnvironment(paymentMode);
+  if (!stripeEnvironmentValid) {
+    return respond(req, { error: true, retryable: true, message: "The secure payment environment is misconfigured. Checkout has been stopped safely." }, 503);
   }
 
   let clientSecret = tracked?.stripe_client_secret || "";
   const stripeSessionId = tracked?.stripe_checkout_session_id || order.stripe_checkout_session_id || "";
+  if (!stripeSessionMatchesMode(stripeSessionId, paymentMode)) {
+    return respond(req, { error: true, retryable: true, message: "The saved payment session does not match the configured payment mode. Checkout has been stopped safely." }, 409);
+  }
+
   if (!clientSecret && stripeSessionId) {
     const stripeResponse = await fetch(
       `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(stripeSessionId)}`,
@@ -245,6 +291,9 @@ async function resumeConvertedCheckout(
         { error: true, retryable: true, message: stripeSession?.error?.message || "The secure payment session could not be resumed." },
         502,
       );
+    }
+    if (Boolean(stripeSession?.livemode) !== (paymentMode === "live")) {
+      return respond(req, { error: true, retryable: true, message: "The payment provider returned the wrong payment environment. Checkout has been stopped safely." }, 502);
     }
     if (stripeSession.status === "expired") {
       return respond(req, { error: true, retryable: true, message: "This secure payment session expired. Please try checkout again." }, 409);
@@ -301,6 +350,21 @@ async function forwardCreateOrder(
     return respond(req, { error: true, message: "Enter a valid email address." }, 400);
   }
 
+  const paymentMode = await currentPaymentMode(service);
+  const { valid: stripeEnvironmentValid } = stripeEnvironment(paymentMode);
+  if (!stripeEnvironmentValid) {
+    console.error(`checkout gateway blocked ${paymentMode} checkout because Stripe key prefixes do not match the configured mode`);
+    return respond(
+      req,
+      {
+        error: true,
+        retryable: false,
+        message: "Secure payment is temporarily unavailable because the payment environment is misconfigured. No charge was attempted.",
+      },
+      503,
+    );
+  }
+
   const [ipRate, emailRate] = await Promise.all([
     consumeRateLimit(service, await sha256Hex(`checkout:create:ip:${clientIp(req)}`), 20, 600),
     consumeRateLimit(service, await sha256Hex(`checkout:create:email:${customerEmail}`), 8, 600),
@@ -354,6 +418,7 @@ async function forwardCreateOrder(
     });
   } catch (error) {
     console.error("checkout gateway upstream network error", error);
+    await releaseClaim(service, sessionToken);
     return respond(
       req,
       { error: true, retryable: true, message: "Checkout is still being prepared. Please retry shortly." },
@@ -374,13 +439,42 @@ async function forwardCreateOrder(
     return respond(req, data || { error: true, message: "Checkout failed." }, upstream.status || 502);
   }
 
+  if (data?.paymentMode && normalizePaymentMode(data.paymentMode) !== paymentMode) {
+    await releaseClaim(service, sessionToken);
+    console.error(`checkout gateway blocked payment mode mismatch: expected ${paymentMode}, received ${data.paymentMode}`);
+    return respond(
+      req,
+      {
+        error: true,
+        retryable: false,
+        message: "The payment environment changed while checkout was being prepared. Refresh checkout before trying again.",
+      },
+      409,
+    );
+  }
+
   if (data?.orderNumber) {
     const { data: order } = await service
       .from("orders")
-      .select("id,stripe_checkout_session_id")
+      .select("id,payment_mode,stripe_checkout_session_id")
       .eq("order_number", data.orderNumber)
       .maybeSingle();
     if (order?.id) {
+      const orderPaymentMode = normalizePaymentMode(order.payment_mode);
+      if (orderPaymentMode !== paymentMode || !stripeSessionMatchesMode(String(order.stripe_checkout_session_id || ""), paymentMode)) {
+        await releaseClaim(service, sessionToken);
+        console.error(`checkout gateway blocked Stripe session mismatch for order ${data.orderNumber}`);
+        return respond(
+          req,
+          {
+            error: true,
+            retryable: false,
+            message: "Stripe returned a payment session for the wrong environment. Checkout has been stopped safely and no payment should be submitted.",
+          },
+          502,
+        );
+      }
+
       await service
         .from("checkout_sessions")
         .update({
