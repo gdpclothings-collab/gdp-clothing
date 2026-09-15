@@ -70,7 +70,9 @@ sourceCheck(studioSource, 'visible: activeLayer.visible === false', 'Selected ar
 sourceCheck(studioSource, 'historyRef', 'Layer edits must support undo history.');
 sourceCheck(studioSource, 'redoRef', 'Layer edits must support redo history.');
 sourceCheck(studioSource, "seasonalConfiguration: { version: 2, layers: configurations", 'Saved seasonal designs must carry the complete ordered layer stack.');
-sourceCheck(studioSource, "renderSnapshot = { version: 4, designPath: 'seasonal', layers: configurations", 'Locked production snapshots must contain the layered composition.');
+sourceCheck(studioSource, "version: 5,", 'Locked approval snapshots must use the deferred-production snapshot version.');
+sourceCheck(studioSource, "renderStatus: 'approval_ready'", 'Seasonal Final Approval must use a locked snapshot before production rendering.');
+sourceCheck(customStudioSource, 'renderSeasonalProductionPng(', 'Seasonal production PNG generation must be deferred until Approve & Add to Cart.');
 sourceCheck(studioSource, 'Artwork can overlap. Layer order determines what prints in front.', 'Seasonal controls must explain intentional artwork overlap.');
 sourceCheck(studioSource, 'I’m done arranging the seasonal artwork layers', 'Seasonal review must distinguish layout completion from final customer approval.');
 sourceCheck(timingApprovalSource, '<strong>I approve the exact live preview shown.</strong>', 'Final approval must occur in the shared Timing & Approval step.');
