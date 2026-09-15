@@ -18,7 +18,23 @@ const protectedSideState = () => ({
   templateId: '',
   photo: null,
   transform: { scale: 100, rotation: 0, x: 0, y: 0 },
+  photos: [],
+  activePhotoId: '',
+  stickers: [],
+  activeStickerId: '',
   text: { headline: '', subline: '', message: '' },
+  textStyle: {
+    fontFamily: "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif",
+    fontScale: 100,
+    color: '#ffffff',
+    curve: 'straight',
+    curveAmount: 45,
+    effect: 'shadow',
+    effectStrength: 45,
+    rotation: 0,
+    x: 0,
+    y: 0,
+  },
   confirmed: false,
 });
 const uploadSideState = () => ({
@@ -201,7 +217,10 @@ export function studioV2SideHasContent(state, side) {
   const editor = state?.[state.designPath]?.sides?.[validSide(side)];
   if (!editor) return false;
   if (state.designPath === 'seasonal') return Boolean(editor.layers?.some((layer) => layer.visible !== false));
-  if (state.designPath === 'bootleg' || state.designPath === 'memorial') return Boolean(editor.templateId && editor.photo?.path);
+  if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+    const hasPhoto = editor.photos?.some((layer) => layer?.asset?.path && layer.visible !== false) || editor.photo?.path;
+    return Boolean(editor.templateId && hasPhoto);
+  }
   if (state.designPath === 'upload') return Boolean(editor.artwork?.path);
   return false;
 }

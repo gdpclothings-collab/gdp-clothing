@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, Loader2, RotateCcw, ShieldCheck, Sparkles, Star } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
@@ -10,11 +10,12 @@ import { normalizeStyleTemplates } from '@/lib/customStudioStyleTemplates';
 import {
   buildSeasonalStudioV2Snapshot,
   digestStudioV2Snapshot,
-  renderProtectedStudioV2Png,
   renderSeasonalStudioV2Png,
   renderUploadStudioV2Png,
   resolveStudioV2PrintProfile,
 } from '@/lib/customStudioV2Production';
+import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
+import { refreshStudioV2DraftAssets } from '@/lib/customStudioV2Assets';
 import {
   createInitialStudioV2State,
   productColors,
@@ -73,9 +74,10 @@ function GarmentStepV2({ catalog, state, dispatch }) {
           </button>;
         })}
       </div>
-      {product && <div className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2">
+      {product && <div className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3">
         <div><div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Color</div><div className="flex flex-wrap gap-2">{colors.map((color) => <button key={color} type="button" onClick={() => dispatch({ type: 'SET_COLOR', color })} className={`min-h-11 rounded-xl border-2 px-4 text-sm font-bold ${state.color === color ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{color}</button>)}</div></div>
         <div><div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Size</div><div className="flex flex-wrap gap-2">{sizes.map((size) => <button key={size} type="button" onClick={() => dispatch({ type: 'SET_SIZE', size })} className={`min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold ${state.size === size ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{size}</button>)}</div></div>
+        <div><div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Quantity</div><div className="inline-flex min-h-11 items-center rounded-xl border-2 border-slate-200 bg-white"><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.max(1, Number(state.quantity || 1) - 1) })} disabled={Number(state.quantity || 1) <= 1} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">−</button><input type="number" min="1" max="99" value={state.quantity} onChange={(event) => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Math.max(1, Number(event.target.value || 1))) })} className="h-11 w-14 border-x border-slate-200 text-center text-sm font-black outline-none" /><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Number(state.quantity || 1) + 1) })} disabled={Number(state.quantity || 1) >= 99} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">+</button></div></div>
       </div>}
     </div>
   );
@@ -142,8 +144,18 @@ function EditorHeading({ title, description }) {
 
 export default function CustomStudioV2() {
   const navigate = useNavigate();
-  const { addItem } = useCart();
-  const [state, setState] = useState(() => createInitialStudioV2State());
+  const location = useLocation();
+  const { addItem, replaceItem } = useCart();
+  const editCartKey = String(location.state?.editCartKey || '');
+  const [state, setState] = useState(() => {
+    const draftState = location.state?.studioV2Draft?.state;
+    if (!draftState || location.state?.studioV2Draft?.version !== 1) return createInitialStudioV2State();
+    return {
+      ...draftState,
+      step: 'customize',
+      approval: { ...(draftState.approval || {}), finalDesignApproved: false },
+    };
+  });
   const [catalog, setCatalog] = useState([]);
   const [settings, setSettings] = useState({ styleTemplates: {}, frontBackFee: 10 });
   const [loading, setLoading] = useState(true);
@@ -151,6 +163,19 @@ export default function CustomStudioV2() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState('');
   const dispatch = (action) => setState((current) => studioV2Reducer(current, action));
+
+  useEffect(() => {
+    const draft = location.state?.studioV2Draft;
+    if (!draft?.state || draft.version !== 1) return undefined;
+    let active = true;
+    refreshStudioV2DraftAssets(draft.state)
+      .then((refreshed) => {
+        if (!active || !refreshed) return;
+        setState({ ...refreshed, step: 'customize', approval: { ...(refreshed.approval || {}), finalDesignApproved: false } });
+      })
+      .catch(() => { /* Stable paths remain available; final rendering will surface an actionable error if refresh fails. */ });
+    return () => { active = false; };
+  }, [location.state]);
 
   useEffect(() => {
     let active = true;
@@ -202,9 +227,23 @@ export default function CustomStudioV2() {
         } else if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
           const template = templates.find((item) => item.id === editor.templateId);
           if (!template) throw new Error(`The locked ${side} template is unavailable.`);
-          snapshot = { version: 2, designPath: state.designPath, side, templateId: template.id, photoPath: editor.photo?.path || '', transform: editor.transform, text: editor.text, printArea: resolveStudioV2PrintProfile(product, state.size, side) };
-          rendered = await renderProtectedStudioV2Png({ product, size: state.size, side, editor, template, dpi: 300 });
-          if (editor.photo?.path && !sourceAssets.some((asset) => asset.path === editor.photo.path)) sourceAssets.push({ path: editor.photo.path, name: editor.photo.name || `${side}-photo`, width: editor.photo.width || null, height: editor.photo.height || null, isPrimary: sourceAssets.length === 0 });
+          const protectedPhotos = (editor.photos?.length ? editor.photos : (editor.photo?.path ? [{ id: 'primary-photo', asset: editor.photo, transform: editor.transform || {}, order: 0 }] : []));
+          snapshot = {
+            version: 3,
+            designPath: state.designPath,
+            side,
+            templateId: template.id,
+            photos: protectedPhotos.map((layer) => ({ id: layer.id, path: layer.asset?.path || '', transform: layer.transform || {}, order: Number(layer.order || 0), backgroundMode: layer.asset?.backgroundMode || 'original' })),
+            stickers: (editor.stickers || []).map((layer) => ({ id: layer.id, stickerId: layer.stickerId, glyph: layer.glyph || '', assetUrl: layer.assetUrl || '', transform: layer.transform || {}, order: Number(layer.order || 0) })),
+            text: editor.text || {},
+            textStyle: editor.textStyle || {},
+            printArea: resolveStudioV2PrintProfile(product, state.size, side),
+          };
+          rendered = await renderProtectedStudioV2PngAdvanced({ product, size: state.size, side, editor, template, profile: resolveStudioV2PrintProfile, dpi: 300 });
+          protectedPhotos.forEach((layer) => {
+            const asset = layer.asset || {};
+            if (asset.path && !sourceAssets.some((item) => item.path === asset.path)) sourceAssets.push({ path: asset.path, name: asset.name || `${side}-photo`, width: asset.width || null, height: asset.height || null, isPrimary: sourceAssets.length === 0 });
+          });
         } else {
           snapshot = { version: 2, designPath: 'upload', side, artworkPath: editor.artwork?.path || '', transform: editor.transform, printArea: resolveStudioV2PrintProfile(product, state.size, side) };
           rendered = await renderUploadStudioV2Png({ product, size: state.size, side, editor, dpi: 300 });
@@ -283,8 +322,17 @@ export default function CustomStudioV2() {
         productionFiles,
         customerApprovedAt: approvedAt,
         needByDate: state.approval.needByDate || null,
+        studioV2Draft: {
+          version: 1,
+          state: {
+            ...state,
+            step: 'customize',
+            approval: { ...state.approval, finalDesignApproved: false },
+          },
+        },
       };
-      addItem(cartItem);
+      if (editCartKey) replaceItem(editCartKey, cartItem);
+      else addItem(cartItem);
       navigate('/cart');
     } catch (err) {
       setFinalizeError(err?.message || 'The print files could not be prepared. Your cart was not changed.');
@@ -302,9 +350,9 @@ export default function CustomStudioV2() {
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} />}
       {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
-      {state.step === 'customize' && state.designPath === 'seasonal' && product && <div><EditorHeading title="Seasonal Design Lab V2" description="Front and Back keep separate layer stacks. No legacy approval spinner or DOM reconstruction." /><SeasonalEditorV2 product={product} size={state.size} layers={currentEditor?.layers || []} activeLayerId={currentEditor?.activeLayerId || ''} confirmed={Boolean(currentEditor?.confirmed)} onLayersChange={(layers, activeLayerId) => dispatch({ type: 'SET_SEASONAL_LAYERS', side: state.side, layers, activeLayerId })} onActiveLayerChange={(id) => dispatch({ type: 'SET_SEASONAL_ACTIVE', side: state.side, id })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_SEASONAL', side: state.side, value })} /></div>}
-      {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && <div><EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio V2' : 'Photo Bootleg Studio V2'} description="Locked GDP artwork is separated from customer photo and text state." /><ProtectedTemplateEditorV2 path={state.designPath} product={product} settings={settings} editor={currentEditor} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value })} /></div>}
-      {state.step === 'customize' && state.designPath === 'upload' && product && <div><EditorHeading title="Upload My Own Artwork V2" description="Each print side keeps its own uploaded artwork, position, size and rotation." /><UploadArtworkEditorV2 product={product} side={state.side} editor={currentEditor} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: 'upload', side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })} onSideChange={(side) => dispatch({ type: 'SET_SIDE', side })} /></div>}
+      {state.step === 'customize' && state.designPath === 'seasonal' && product && <div><EditorHeading title="Seasonal Design Lab V2" description="Front and Back keep separate layer stacks. No legacy approval spinner or DOM reconstruction." /><SeasonalEditorV2 product={product} color={state.color} side={state.side} size={state.size} layers={currentEditor?.layers || []} activeLayerId={currentEditor?.activeLayerId || ''} confirmed={Boolean(currentEditor?.confirmed)} onLayersChange={(layers, activeLayerId) => dispatch({ type: 'SET_SEASONAL_LAYERS', side: state.side, layers, activeLayerId })} onActiveLayerChange={(id) => dispatch({ type: 'SET_SEASONAL_ACTIVE', side: state.side, id })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_SEASONAL', side: state.side, value })} /></div>}
+      {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && <div><EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio V2' : 'Photo Bootleg Studio V2'} description="Locked GDP artwork is separated from customer photo and text state." /><ProtectedTemplateEditorV2 path={state.designPath} product={product} color={state.color} settings={settings} editor={currentEditor} side={state.side} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value })} /></div>}
+      {state.step === 'customize' && state.designPath === 'upload' && product && <div><EditorHeading title="Upload My Own Artwork V2" description="Each print side keeps its own uploaded artwork, position, size and rotation." /><UploadArtworkEditorV2 product={product} color={state.color} side={state.side} editor={currentEditor} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: 'upload', side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })} /></div>}
       {state.step === 'approval' && <ApprovalStepV2 state={state} dispatch={dispatch} />}
       {state.step === 'review' && <ReviewStepV2 product={product} state={state} settings={settings} finalizing={finalizing} finalizeError={finalizeError} onEdit={() => dispatch({ type: 'SET_STEP', step: 'customize' })} onFinalize={finalizeToCart} />}
     </section></div>

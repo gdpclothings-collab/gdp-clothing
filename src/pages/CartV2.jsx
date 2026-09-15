@@ -54,10 +54,14 @@ export default function CartV2() {
   const itemCount = items.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
 
   const editCustomDesign = (item) => {
+    if (item.studioV2Draft?.version === 1 && item.studioV2Draft?.state) {
+      navigate('/custom-studio-v2', { state: { studioV2Draft: item.studioV2Draft, editCartKey: item.key } });
+      return;
+    }
     const canRestore = beginStudioCartEdit(item);
     const seasonalDraft = item.seasonalDraft || item.studioDraft?.seasonalDraft || null;
     if (!canRestore && !seasonalDraft) return;
-    navigate(`/custom-studio?product=${encodeURIComponent(item.productId)}&color=${encodeURIComponent(item.color || "")}&size=${encodeURIComponent(item.size || "")}`, {
+    navigate(`/custom-studio-legacy?product=${encodeURIComponent(item.productId)}&color=${encodeURIComponent(item.color || "")}&size=${encodeURIComponent(item.size || "")}`, {
       state: { seasonalDraft, editCartKey: item.key },
     });
   };
@@ -91,7 +95,7 @@ export default function CartV2() {
           <section aria-label="Cart items" className="space-y-4">
             {items.map((item) => {
               const isSeasonal = Boolean(item.isCustom && !item.isDtf && item.seasonalDraft);
-              const canEditCustom = Boolean(item.isCustom && !item.isDtf && (item.studioDraft || item.seasonalDraft));
+              const canEditCustom = Boolean(item.isCustom && !item.isDtf && (item.studioV2Draft || item.studioDraft || item.seasonalDraft));
               const dimensions = item.seasonalSummary?.dimensions || (item.seasonalDraft?.width ? `${Number(item.seasonalDraft.width).toFixed(2)} in wide` : "Saved with design");
               const rotation = item.seasonalSummary?.rotation ?? item.seasonalDraft?.rotation;
               return (
