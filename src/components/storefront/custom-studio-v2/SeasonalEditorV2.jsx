@@ -33,7 +33,7 @@ function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
         height: currentHeight,
         rotation: Number(entry.layer.rotation || 0),
       };
-    } else if (points.length == 1) {
+    } else if (points.length === 1) {
       gesture.current = { mode: 'drag', point: points[0], center, width: currentWidth, height: currentHeight };
     } else {
       gesture.current = null;
@@ -254,11 +254,18 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   };
 
   if (!catalog && !error) {
-    return <div className="grid min-h-[420px] place-items-center rounded-3xl border border-slate-200 bg-white"><div className="text-sm font-semibold text-slate-500">Loading seasonal artwork…</div></div>;
+    return (
+      <div className="grid min-h-[180px] place-items-center rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" aria-hidden="true" />
+          <div className="mt-3 text-sm font-semibold text-slate-500">Loading seasonal designs…</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(280px,.75fr)_minmax(420px,1.4fr)_minmax(280px,.75fr)]">
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(280px,.75fr)_minmax(420px,1.4fr)_minmax(280px,.75fr)]">
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
@@ -282,13 +289,14 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
         {error && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
 
-        <div className="grid max-h-[520px] grid-cols-2 gap-3 overflow-y-auto pr-1">
+        <div className="grid min-h-[220px] max-h-[min(520px,calc(100vh-420px))] grid-cols-2 content-start gap-3 overflow-y-auto overscroll-contain pb-3 pr-1">
           {filtered.map((artwork) => (
             <button key={artwork.id} type="button" onClick={() => addArtwork(artwork)} disabled={layers.length >= MAX_LAYERS} className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-left transition hover:border-slate-400 disabled:opacity-40">
               <div className="aspect-square bg-white p-2"><img src={artwork.preview} alt={artwork.title} className="h-full w-full object-contain" /></div>
               <div className="p-2.5"><div className="line-clamp-2 text-xs font-black text-slate-800">{artwork.title}</div></div>
             </button>
           ))}
+          {!filtered.length && !error && <div className="col-span-2 rounded-2xl bg-slate-50 p-4 text-center text-sm font-semibold text-slate-500">No seasonal designs match this filter.</div>}
         </div>
       </section>
 
@@ -296,12 +304,12 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         <div className="mb-3 flex items-center justify-between gap-3 px-1">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Fabric workspace</p>
-            <p className="text-sm font-bold text-slate-700">Drag with one finger · pinch/rotate with two fingers</p>
+            <p className="text-sm font-bold text-slate-700">Drag to move · pinch or use the controls to resize and rotate</p>
           </div>
           <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-600 sm:inline">{side}</span>
         </div>
 
-        <div className="mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
+        <div className="mx-auto w-full rounded-[28px] bg-slate-100 p-3 sm:p-5" style={{ maxWidth: 'min(620px, max(300px, calc((100vh - 320px) * 0.8)))' }}>
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
             {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain opacity-95" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
             <div className="absolute left-1/2 top-[24%] aspect-[4/5] w-[42%] -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-white/80 bg-black/5 shadow-[0_0_0_1px_rgba(15,23,42,.15)]">

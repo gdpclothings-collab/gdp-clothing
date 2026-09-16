@@ -19,6 +19,7 @@ const production = read('src/lib/customStudioV2Production.js');
 const protectedProduction = read('src/lib/customStudioV2ProtectedProduction.js');
 const assets = read('src/lib/customStudioV2Assets.js');
 const preview = read('src/lib/customStudioV2Preview.js');
+const mockup = read('src/lib/customStudioV2Mockup.js');
 const seasonal = read('src/components/storefront/custom-studio-v2/SeasonalEditorV2.jsx');
 const protectedEditor = read('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx');
 const uploadEditor = read('src/components/storefront/custom-studio-v2/UploadArtworkEditorV2.jsx');
@@ -27,7 +28,7 @@ const v2Guard = read('src/components/storefront/custom-studio-v2/CustomStudioV2P
 const mobileRepair = read('src/components/storefront/custom-studio-v2/customStudioV2MobileRepair.css');
 const maintenanceRepair = read('src/components/storefront/maintenanceMobileRepair.css');
 const nav = read('src/components/storefront/StoreNav.jsx');
-const combinedV2 = [page, state, production, protectedProduction, assets, preview, seasonal, protectedEditor, uploadEditor, gestures].join('\n');
+const combinedV2 = [page, state, production, protectedProduction, assets, preview, mockup, seasonal, protectedEditor, uploadEditor, gestures].join('\n');
 
 // Production cutover plus explicit rollback safety.
 assert(app.includes('path="/custom-studio" element={<CustomStudioV2 />}'), 'live /custom-studio route must resolve to the rebuilt Studio');
@@ -47,6 +48,8 @@ assert(!fs.existsSync('.github/workflows/polish-custom-studio-cutover.yml'), 'te
 assert(page.includes('GDP Custom Studio'), 'production Studio branding is missing');
 assert(!page.includes('V2 isolated rebuild'), 'internal rebuild wording must not be customer-visible after cutover');
 assert(!page.includes('Legacy Studio remains available'), 'internal rollback wording must not be customer-visible after cutover');
+assert(!page.includes('No legacy approval spinner or DOM reconstruction.'), 'developer implementation wording must not be customer-visible');
+assert(!page.includes("'Custom Studio V2'"), 'internal V2 label must not be persisted as customer-facing design style');
 
 // Recording-driven maintenance and phone repair.
 assert(main.includes("maintenanceMobileRepair.css"), 'maintenance mobile repair stylesheet must load globally');
@@ -88,6 +91,7 @@ assert(page.includes('aria-pressed={selected}'), 'garment selection state must b
 assert(page.includes('data-gdp-garment-continue="true"'), 'Step 1 Continue must live under the selected garment options');
 assert(page.includes('onContinue={next} canContinue={canContinue}'), 'inline garment Continue must reuse the canonical next/canContinue flow');
 assert(page.includes("state.step !== 'review' && state.step !== 'garment'"), 'detached bottom action bar must be hidden on the garment step');
+assert(page.includes('gdp-custom-studio-v2-actions relative'), 'V2 navigation actions must remain in normal flow instead of covering the editor');
 
 // Mobile/direct manipulation parity.
 assert(gestures.includes("mode: 'drag'"), 'shared one-finger drag gesture is missing');
@@ -96,7 +100,7 @@ assert(gestures.includes('rotation: normalizeAngle'), 'pinch rotation normalizat
 assert(gestures.includes("touchAction: enabled ? 'none' : 'auto'"), 'touch-action protection is missing');
 assert(seasonal.includes("mode: 'pinch'"), 'Seasonal two-finger pinch/rotate is missing');
 assert(seasonal.includes('onPointerMove={move}'), 'Seasonal direct manipulation is missing');
-assert(seasonal.includes('pinch/rotate with two fingers'), 'Seasonal touch guidance is missing');
+assert(seasonal.includes('Drag to move · pinch or use the controls to resize and rotate'), 'Seasonal cross-device gesture guidance is missing');
 assert(protectedEditor.includes('useTouchTransformV2'), 'Bootleg/Memorial touch manipulation is missing');
 assert(protectedEditor.includes('One finger moves · two fingers pinch/rotate'), 'Bootleg/Memorial gesture guidance is missing');
 assert(uploadEditor.includes('useTouchTransformV2'), 'Upload editor touch manipulation is missing');
@@ -124,7 +128,7 @@ assert(uploadEditor.includes('studioV2GarmentPreview'), 'Upload side-aware garme
 
 // Approval and finalization safety.
 assert(page.includes('I have permission to use this artwork/photo'), 'artwork rights confirmation is missing');
-assert(page.includes('I approve the exact Front/Back layouts'), 'final layout approval is missing');
+assert(page.includes('I approve the final print layout'), 'final layout approval is missing');
 assert(page.includes('Generate, Verify & Add to Cart'), 'final production/cart action is missing');
 assert(page.includes('Approved layout ready to build'), 'review must describe pre-production state truthfully');
 assert(!page.includes('Locked state ready for production'), 'review must not claim production lock before files exist');
@@ -141,6 +145,14 @@ assert(page.includes('frontBackFee'), 'two-sided pricing must preserve the confi
 assert(page.includes('studioV2Draft:'), 'V2 cart items must carry a reopenable editor draft');
 assert(page.includes('refreshStudioV2DraftAssets'), 'reopened V2 drafts must refresh expiring asset URLs');
 assert(page.includes('The cart changes only after rendering, upload, verification and secure design saving all succeed.'), 'cart failure-safety copy/contract is missing');
+
+// Customer-facing mockup must be distinct from production PNGs.
+assert(mockup.includes('renderStudioV2CustomerMockup'), 'customer garment mockup renderer is missing');
+assert(mockup.includes('productionBlob'), 'customer mockup must be derived from approved production artwork');
+assert(page.includes('renderStudioV2CustomerMockup'), 'customer mockup renderer is not wired into finalization');
+assert(page.includes('customerMockupPath: customerMockupUpload.storage_path'), 'custom design must persist the customer mockup path separately');
+assert(page.includes('image: customerMockupUpload.file_url'), 'cart must show the customer garment mockup instead of the print PNG');
+assert(page.includes("designStyle: templateNames.join(' / ') || designPathLabel"), 'customer design style must use a meaningful path label');
 
 // Stable-path reopening for authenticated and guest uploads.
 assert(assets.includes("createSignedUrl(storagePath, 3600)"), 'authenticated V2 draft URL refresh is missing');
@@ -170,7 +182,7 @@ assert(protectedProduction.includes('canvas.toBlob'), 'advanced protected render
 assert(seasonal.includes('min-h-[60px]'), 'Seasonal completion control must keep a large touch target');
 assert(protectedEditor.includes('min-h-[60px]'), 'Bootleg/Memorial completion control must keep a large touch target');
 assert(uploadEditor.includes('min-h-[60px]'), 'Upload completion control must keep a large touch target');
-assert(page.includes('Review stays instant'), 'V2 lightweight review contract is missing');
+assert(page.includes('Review your choices before the approved 300-DPI production files and customer mockup are generated.'), 'V2 lightweight review contract is missing');
 assert(nav.includes('onClick={mobile ? closeMobileNavigation : undefined}'), 'mobile navigation links must explicitly close the drawer');
 
-console.log('PASS Custom Studio production cutover, rollback, interaction parity, maintenance zoom, selected variants, Seasonal persistence, phone containment, production, edit, and regression contract');
+console.log('PASS Custom Studio production cutover, rollback, interaction parity, maintenance zoom, selected variants, Seasonal persistence, phone containment, production, mockup separation, edit, and regression contract');
