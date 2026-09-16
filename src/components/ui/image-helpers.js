@@ -2,6 +2,10 @@ const WIX_MEDIA_HOSTS = {
   "static.wixstatic.com": "/media/",
 }
 
+const SUPABASE_PUBLIC_IMAGE_PREFIX = "/storage/v1/object/public/"
+const SUPABASE_RENDER_IMAGE_PREFIX = "/storage/v1/render/image/public/"
+const SUPABASE_TRANSFORM_BUCKETS = new Set(["product-images"])
+
 export const DEFAULT_TRANSFORM_WIDTH = 1024
 export const IMAGE_LOAD_MODE = {
   OPTIMIZED: "optimized",
@@ -10,7 +14,9 @@ export const IMAGE_LOAD_MODE = {
 }
 
 const DEVICE_PIXEL_RATIOS = [1, 2, 3]
+const SUPABASE_DEVICE_PIXEL_RATIOS = [1, 2]
 const MAX_DIMENSION = 6000
+const MAX_SUPABASE_DIMENSION = 2500
 
 /** Returns transform metadata only for canonical public Wix image URLs. */
 export function parseWixMediaUrl(src) {
@@ -46,8 +52,50 @@ export function parseWixMediaUrl(src) {
   }
 }
 
+/**
+ * Returns transform metadata only for GDP's public Supabase storefront image
+ * bucket. Private customer/production buckets deliberately stay out of this
+ * path so responsive storefront rendering cannot weaken their access model or
+ * unexpectedly increase the number of transformed origin images.
+ */
+export function parseSupabasePublicImageUrl(src) {
+  try {
+    const url = new URL(src)
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      (url.port && url.port !== "443") ||
+      !url.hostname.endsWith(".supabase.co") ||
+      !url.pathname.startsWith(SUPABASE_PUBLIC_IMAGE_PREFIX)
+    ) {
+      return null
+    }
+
+    const storagePath = url.pathname.slice(SUPABASE_PUBLIC_IMAGE_PREFIX.length)
+    const slashIndex = storagePath.indexOf("/")
+    if (slashIndex <= 0) return null
+
+    const bucket = storagePath.slice(0, slashIndex)
+    const objectPath = storagePath.slice(slashIndex + 1)
+    if (
+      !SUPABASE_TRANSFORM_BUCKETS.has(bucket) ||
+      !objectPath ||
+      /\.svg$/i.test(objectPath)
+    ) {
+      return null
+    }
+
+    return { origin: url.origin, bucket, objectPath }
+  } catch {
+    return null
+  }
+}
+
 const clampDim = (n) => Math.min(Math.max(Math.round(n), 1), MAX_DIMENSION)
+const clampSupabaseDim = (n) => Math.min(Math.max(Math.round(n), 1), MAX_SUPABASE_DIMENSION)
 const clamp01 = (n) => Math.min(1, Math.max(0, n))
+const clampQuality = (n) => Math.min(100, Math.max(20, Math.round(Number(n) || 80)))
 
 export function buildTransformUrl(
   { baseUrl, filename },
@@ -77,6 +125,37 @@ export function buildSrcSet(parsed, options) {
         height: options.height ? options.height * dpr : undefined,
       })} ${dpr}x`
   ).join(", ")
+}
+
+export function buildSupabaseTransformUrl(
+  { origin, bucket, objectPath },
+  { width, height, crop, quality }
+) {
+  const params = new URLSearchParams()
+  params.set("width", String(clampSupabaseDim(width)))
+  if (height) params.set("height", String(clampSupabaseDim(height)))
+  params.set("resize", crop ? "cover" : "contain")
+  params.set("quality", String(clampQuality(quality)))
+
+  return `${origin}${SUPABASE_RENDER_IMAGE_PREFIX}${bucket}/${objectPath}?${params.toString()}`
+}
+
+export function buildSupabaseSrcSet(parsed, options) {
+  const seen = new Set()
+  return SUPABASE_DEVICE_PIXEL_RATIOS.flatMap((dpr) => {
+    const width = clampSupabaseDim(options.width * dpr)
+    const height = options.height ? clampSupabaseDim(options.height * dpr) : undefined
+    const key = `${width}x${height || "auto"}`
+    if (seen.has(key)) return []
+    seen.add(key)
+    return [
+      `${buildSupabaseTransformUrl(parsed, {
+        ...options,
+        width,
+        height,
+      })} ${dpr}x`,
+    ]
+  }).join(", ")
 }
 
 export function getOriginalImageUrl(src, parsed) {
