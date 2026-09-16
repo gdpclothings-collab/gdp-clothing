@@ -6,6 +6,7 @@ import '@/components/storefront/customStudioLayoutRefinement.css'
 import '@/components/storefront/customStudioLayoutPriority.css'
 import '@/components/storefront/customStudioTouchRefinement.css'
 import '@/components/storefront/customStudioMobileRefinement.css'
+import '@/components/storefront/customStudioReviewedFixes.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <App />

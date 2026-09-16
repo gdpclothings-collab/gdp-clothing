@@ -1,0 +1,62 @@
+/* Reviewed Custom Studio recording fixes — 2026-09-15.
+ * Loaded after the existing refinement layers so these rules stay narrowly
+ * scoped to the observed mobile/Seasonal regressions.
+ */
+
+/* iOS/Safari: editing a Seasonal artwork must never invoke the browser's
+ * native Save Image / Copy Image / Open Image sheet. The editor owns these
+ * gestures for move, pinch-scale and rotate. */
+[data-seasonal-artwork],
+[data-seasonal-artwork] img,
+.gdp-seasonal-preview-frame img,
+[data-seasonal-approved-preview] img {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-user-drag: none !important;
+}
+
+[data-seasonal-artwork] {
+  touch-action: none !important;
+}
+
+/* Keep selected artwork unmistakable without adding labels over the print. */
+[data-seasonal-artwork][aria-label*="selected"] {
+  outline: 2px solid rgba(23, 50, 77, .78);
+  outline-offset: 2px;
+}
+
+/* Prevent the mobile Previous/Continue dock from masking artwork/editor
+ * controls. On phone widths the actions stay in normal document flow; tablet
+ * and desktop retain their existing sticky/docked behavior. */
+@media (max-width: 767px) {
+  .gdp-custom-studio-core [data-actions] {
+    position: relative !important;
+    inset: auto !important;
+    bottom: auto !important;
+    margin-top: 12px !important;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+  }
+
+  .gdp-custom-studio-core [data-workspace],
+  .gdp-custom-studio-core [data-aside],
+  .gdp-seasonal-shared-shell__work {
+    scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .gdp-seasonal-shared-shell,
+  .gdp-seasonal-shared-shell__work {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  /* Horizontal artwork rails should communicate that more choices exist while
+   * never clipping the final card against the viewport edge. */
+  .gdp-seasonal-shared-shell__work [class*="overflow-x-auto"] {
+    padding-right: 18px !important;
+    scroll-padding-inline: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+}

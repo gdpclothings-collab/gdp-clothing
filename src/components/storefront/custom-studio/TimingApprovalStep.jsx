@@ -136,13 +136,19 @@ export default function TimingApprovalStep({ model }) {
 
   return (
     <div>
-      <StepTitle eyebrow="Approve the result" title="TIMING + FINAL APPROVAL" text={seasonal ? "Your exact Seasonal layout is already locked. Confirm timing, artwork rights and the approval preview below. The 300 DPI print file is generated only after you approve and add the design to cart." : "The preview you approve is converted into the exact 300 DPI production file before it enters your cart."} />
+      <StepTitle
+        eyebrow="Approve the result"
+        title="TIMING + FINAL APPROVAL"
+        text={seasonal
+          ? "Your exact Seasonal layer snapshot is saved and ready for approval. The 300 DPI production file does not exist yet; it is generated, uploaded and verified only after you approve and add the design to cart."
+          : "The preview you approve is converted into the exact 300 DPI production file before it enters your cart."}
+      />
 
       {seasonal && <div role="status" aria-live="polite" className={`mb-5 flex items-start gap-3 rounded-xl border p-3 text-sm ${stateStyles}`}>
         {seasonalPreviewState === "ready" ? <Check size={18} className="mt-0.5 shrink-0" /> : seasonalPreviewState === "error" ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin" />}
         <div className="min-w-0 flex-1">
-          <div className="font-bold">{seasonalPreviewState === "ready" ? "Design ready for final review" : seasonalPreviewState === "error" ? "Approval preview could not load" : "Loading approval preview…"}</div>
-          <p className="mt-1 text-xs leading-relaxed opacity-80">{seasonalPreviewState === "ready" ? "This lightweight mockup represents the locked layer positions, sizes, rotations and order. No 300 DPI production rendering is happening on this screen." : seasonalPreviewState === "error" ? "Approval stays locked so a blank or stale image can never be approved. Retry the preview check, or return to Seasonal Design Lab if the image is still unavailable." : "The locked design snapshot is already saved. This step is only loading its customer preview, not rebuilding the production artwork."}</p>
+          <div className="font-bold">{seasonalPreviewState === "ready" ? "Approval snapshot ready · production pending" : seasonalPreviewState === "error" ? "Approval preview could not load" : "Loading approval preview…"}</div>
+          <p className="mt-1 text-xs leading-relaxed opacity-80">{seasonalPreviewState === "ready" ? "This mockup represents the saved layer positions, sizes, rotations and order. A production-ready success state is only shown after the 300 DPI file has been generated and verified." : seasonalPreviewState === "error" ? "Approval stays blocked so a blank or stale image can never be approved. Retry the preview check, or return to Seasonal Design Lab if the image is still unavailable." : "The exact design snapshot is already saved. This step only validates the customer preview; it is not rebuilding the 300 DPI production artwork."}</p>
           {seasonalPreviewState === "error" && (
             <button
               type="button"
@@ -162,9 +168,9 @@ export default function TimingApprovalStep({ model }) {
         <div><label className="font-mono text-xs uppercase text-muted-foreground">Need it by</label><input type="date" value={needByDate} onChange={e => setNeedByDate(e.target.value)} className="w-full border border-border bg-background px-3 py-2 mt-1"/></div>
         <div><label className="font-mono text-xs uppercase text-muted-foreground">Priority</label><div className="flex gap-2 mt-1"><Choice active={priority === "standard"} onClick={() => setPriority("standard")}>Standard</Choice><Choice active={priority === "rush"} onClick={() => setPriority("rush")}>Rush (+{"$" + rushFee})</Choice></div></div>
       </div>
-      <div className="mt-6 border border-border p-4"><div className="flex items-start gap-3"><ShieldCheck size={22} className="text-accent shrink-0"/><div><div className="font-bold">Preview-to-print guarantee</div><p className="text-sm text-muted-foreground mt-1">GDP locks the Seasonal layer snapshot you approve. When you add it to cart, the 300 DPI production PNG is generated from that locked snapshot, so production cannot reinterpret or reposition the design.</p></div></div></div>
+      <div className="mt-6 border border-border p-4"><div className="flex items-start gap-3"><ShieldCheck size={22} className="text-accent shrink-0"/><div><div className="font-bold">Preview-to-print guarantee</div><p className="text-sm text-muted-foreground mt-1">GDP preserves the Seasonal layer snapshot you approve. When you add it to cart, the 300 DPI PNG is generated from that exact snapshot and must upload successfully before the design is marked production-ready.</p></div></div></div>
       <label className="flex items-start gap-3 mt-5 text-sm"><input type="checkbox" checked={rightsConfirmed} onChange={e => setRightsConfirmed(e.target.checked)} className="mt-1"/><span>I confirm I own or have permission to reproduce the photos and artwork I submitted. <Link to="/pages/custom-artwork-policy" target="_blank" className="font-semibold text-accent hover:underline">Upload policy</Link></span></label>
-      <label className={`flex items-start gap-3 mt-3 text-sm ${seasonalReady ? "" : "opacity-60"}`}><input type="checkbox" checked={approvalAcknowledged} disabled={!seasonalReady} onChange={e => setApprovalAcknowledged(e.target.checked)} className="mt-1"/><span><strong>I approve the exact live preview shown.</strong> I understand this locked layout will be used to generate the production file when I add it to cart. To change it, I must return to the editor before checkout. Customer uploads follow the <Link to="/pages/data-retention" target="_blank" className="font-semibold text-accent hover:underline">retention policy</Link>.</span></label>
+      <label className={`flex items-start gap-3 mt-3 text-sm ${seasonalReady ? "" : "opacity-60"}`}><input type="checkbox" checked={approvalAcknowledged} disabled={!seasonalReady} onChange={e => setApprovalAcknowledged(e.target.checked)} className="mt-1"/><span><strong>I approve the exact live preview shown.</strong> I understand this saved layout will be used to generate the production file when I add it to cart, and the order will not be marked production-ready unless that file is created and verified successfully. To change the layout, I must return to the editor before checkout. Customer uploads follow the <Link to="/pages/data-retention" target="_blank" className="font-semibold text-accent hover:underline">retention policy</Link>.</span></label>
     </div>
   );
 }
