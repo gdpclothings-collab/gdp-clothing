@@ -232,7 +232,7 @@ const Image = React.forwardRef(
       const isErrorMode = mode === IMAGE_LOAD_MODE.FALLBACK
       const imageSrc = isErrorMode
         ? FALLBACK_IMAGE_URL
-        : getOriginalImageUrl(src, wixSource)
+        : getOriginalImageUrl(src, parsedSource)
       return (
         <img
           ref={ref}
