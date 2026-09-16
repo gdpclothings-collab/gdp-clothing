@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import SeasonalStudioLayered from './SeasonalStudioLayered.jsx';
 
 // Compatibility contract: this module still provides the same default entrypoint
@@ -15,8 +15,42 @@ const STUDIO_STEPS = [
   { id: 5, label: 'Review' },
 ];
 
+const MOBILE_PANELS = [
+  { id: 'artwork', label: 'Artwork' },
+  { id: 'preview', label: 'Preview' },
+  { id: 'layers', label: 'Layers' },
+];
+
 export default function SeasonalStudio(props) {
-  const { onBack } = props;
+  const { onBack, initialDraft } = props;
+  const workspaceRef = useRef(null);
+  const hasRestoredArtwork = Boolean(initialDraft?.layers?.length || initialDraft?.artworkId);
+  const [mobilePanel, setMobilePanel] = useState(() => hasRestoredArtwork ? 'preview' : 'artwork');
+
+  const selectMobilePanel = (panel, { scroll = true } = {}) => {
+    setMobilePanel(panel);
+    if (!scroll || typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      workspaceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  };
+
+  const handleWorkspaceClickCapture = (event) => {
+    if (!(event.target instanceof Element)) return;
+
+    // Preserve the editor's existing behavior of showing the garment immediately
+    // after an artwork is added, but do it without forcing the customer through a
+    // long mobile scroll. Desktop/tablet ignore this state through CSS.
+    const artworkCard = event.target.closest('section[aria-label="Choose seasonal artwork"] button.group');
+    if (artworkCard instanceof HTMLButtonElement && !artworkCard.disabled) {
+      selectMobilePanel('preview');
+      return;
+    }
+
+    const button = event.target.closest('button');
+    const label = button?.textContent?.trim().toLowerCase() || '';
+    if (label.includes('layers & controls')) selectMobilePanel('layers');
+  };
 
   return (
     <div className="gdp-seasonal-shared-shell" data-seasonal-shared-shell>
@@ -72,8 +106,27 @@ export default function SeasonalStudio(props) {
         </div>
       </aside>
 
-      <section className="gdp-seasonal-shared-shell__work" aria-label="Seasonal Design Lab workspace">
-        <SeasonalStudioLayered {...props} />
+      <section ref={workspaceRef} className="gdp-seasonal-shared-shell__work" aria-label="Seasonal Design Lab workspace">
+        <nav className="gdp-seasonal-mobile-tabs" aria-label="Seasonal editor panels">
+          {MOBILE_PANELS.map((panel) => (
+            <button
+              key={panel.id}
+              type="button"
+              aria-pressed={mobilePanel === panel.id}
+              onClick={() => selectMobilePanel(panel.id)}
+              className="gdp-seasonal-mobile-tabs__button"
+            >
+              {panel.label}
+            </button>
+          ))}
+        </nav>
+
+        <div
+          data-seasonal-mobile-panel={mobilePanel}
+          onClickCapture={handleWorkspaceClickCapture}
+        >
+          <SeasonalStudioLayered {...props} />
+        </div>
       </section>
     </div>
   );
