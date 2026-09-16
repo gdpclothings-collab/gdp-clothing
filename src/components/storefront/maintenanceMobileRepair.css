@@ -1,0 +1,20 @@
+/* Maintenance page phone repair — scoped to the private access form only.
+ * iOS Safari auto-zooms focused inputs whose rendered font is below 16px.
+ * Keep the field comfortably tappable without disabling browser zoom globally.
+ */
+@media (max-width: 639px) {
+  input[type="password"][placeholder="Access password"] {
+    min-height: 48px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding-inline: 16px !important;
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+  }
+
+  form:has(input[type="password"][placeholder="Access password"]) button[type="submit"] {
+    min-height: 48px !important;
+    width: 100% !important;
+    font-size: 15px !important;
+  }
+}

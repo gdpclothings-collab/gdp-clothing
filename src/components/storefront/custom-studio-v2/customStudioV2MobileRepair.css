@@ -67,11 +67,17 @@
     backface-visibility: hidden;
   }
 
-  /* Keep the bottom action surface inside the safe phone width and above the
-     home-indicator area without changing its desktop/tablet behavior. */
-  [data-gdp-studio-v2-guard="true"] main .sticky.bottom-3 {
-    width: auto;
-    max-width: calc(100vw - 1.5rem);
-    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  /* The recording showed the V2 Previous/Continue surface competing with editor
+     controls. Keep it in normal document flow on phones so no canvas, layer or
+     approval control can be hidden underneath it. Tablet/desktop remain sticky. */
+  [data-gdp-studio-v2-guard="true"] .gdp-custom-studio-v2-actions {
+    position: static !important;
+    inset: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 8px;
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
