@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { normalizeProduct } from "@/lib/supabaseMappers";
+import { normalizeProduct, storefrontProductImageUrl } from "@/lib/supabaseMappers";
 
 export const storefrontDiscoveryApi = {
   async getCollections() {
@@ -33,6 +33,7 @@ export const storefrontDiscoveryApi = {
 
     return collections.map((collection) => ({
       ...collection,
+      image: storefrontProductImageUrl(collection.image),
       products: (collection.collection_products || [])
         .sort((a, b) => Number(a.position || 0) - Number(b.position || 0))
         .map((item) => productsById[item.product_id])
