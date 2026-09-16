@@ -85,6 +85,9 @@ assert(page.includes('function GarmentVariantControls'), 'selected-garment optio
 assert(page.includes('data-gdp-selected-garment-options="true"'), 'selected-garment option panel needs a stable regression marker');
 assert(page.includes('{selected && <GarmentVariantControls'), 'color/size/quantity options must render only below the selected garment');
 assert(page.includes('aria-pressed={selected}'), 'garment selection state must be exposed accessibly');
+assert(page.includes('data-gdp-garment-continue="true"'), 'Step 1 Continue must live under the selected garment options');
+assert(page.includes('onContinue={next} canContinue={canContinue}'), 'inline garment Continue must reuse the canonical next/canContinue flow');
+assert(page.includes("state.step !== 'review' && state.step !== 'garment'"), 'detached bottom action bar must be hidden on the garment step');
 
 // Mobile/direct manipulation parity.
 assert(gestures.includes("mode: 'drag'"), 'shared one-finger drag gesture is missing');
