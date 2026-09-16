@@ -73,7 +73,7 @@ sourceCheck(studioSource, "seasonalConfiguration: { version: 2, layers: configur
 sourceCheck(studioSource, "version: 5,", 'Locked approval snapshots must use the deferred-production snapshot version.');
 sourceCheck(studioSource, "renderStatus: 'approval_ready'", 'Seasonal Final Approval must use a locked snapshot before production rendering.');
 sourceCheck(customStudioSource, 'renderSeasonalProductionPng(', 'Seasonal production PNG generation must be deferred until Approve & Add to Cart.');
-sourceCheck(studioSource, 'Artwork can overlap. Layer order determines what prints in front.', 'Seasonal controls must explain intentional artwork overlap.');
+sourceCheck(studioSource, 'Artwork can overlap intentionally. The layer at the top of the Layers list prints in front.', 'Seasonal controls must explain intentional artwork overlap and front-to-back order.');
 sourceCheck(studioSource, 'I’m done arranging the seasonal artwork layers', 'Seasonal review must distinguish layout completion from final customer approval.');
 sourceCheck(timingApprovalSource, '<strong>I approve the exact live preview shown.</strong>', 'Final approval must occur in the shared Timing & Approval step.');
 sourceCheck(customStudioSource, 'data-seasonal-approved-preview', 'Shared approval must display the exact prepared Seasonal mockup.');
