@@ -13,7 +13,7 @@ const STOREFRONT_DEFAULT_IMAGE_QUALITY = 85;
  * multi-megabyte legacy PNG. The shared Image component recognizes this render
  * URL and can still refine it to the actual card/detail dimensions.
  */
-function storefrontProductImageUrl(source) {
+export function storefrontProductImageUrl(source) {
   const src = String(source || "").trim();
   if (!src) return src;
 
