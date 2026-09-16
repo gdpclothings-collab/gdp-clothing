@@ -11,6 +11,7 @@ function assert(condition, message) {
 }
 
 const app = read('src/App.jsx');
+const main = read('src/main.jsx');
 const page = read('src/pages/CustomStudioV2.jsx');
 const cart = read('src/pages/CartV2.jsx');
 const state = read('src/lib/customStudioV2State.js');
@@ -24,6 +25,7 @@ const uploadEditor = read('src/components/storefront/custom-studio-v2/UploadArtw
 const gestures = read('src/components/storefront/custom-studio-v2/useTouchTransformV2.js');
 const v2Guard = read('src/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard.jsx');
 const mobileRepair = read('src/components/storefront/custom-studio-v2/customStudioV2MobileRepair.css');
+const maintenanceRepair = read('src/components/storefront/maintenanceMobileRepair.css');
 const nav = read('src/components/storefront/StoreNav.jsx');
 const combinedV2 = [page, state, production, protectedProduction, assets, preview, seasonal, protectedEditor, uploadEditor, gestures].join('\n');
 
@@ -46,7 +48,11 @@ assert(page.includes('GDP Custom Studio'), 'production Studio branding is missin
 assert(!page.includes('V2 isolated rebuild'), 'internal rebuild wording must not be customer-visible after cutover');
 assert(!page.includes('Legacy Studio remains available'), 'internal rollback wording must not be customer-visible after cutover');
 
-// Recording-driven phone repair must stay presentation-only and phone-only.
+// Recording-driven maintenance and phone repair.
+assert(main.includes("maintenanceMobileRepair.css"), 'maintenance mobile repair stylesheet must load globally');
+assert(maintenanceRepair.includes('input[type="password"][placeholder="Access password"]'), 'maintenance repair must remain scoped to the private password field');
+assert(maintenanceRepair.includes('font-size: 16px !important'), 'maintenance password field must stay at least 16px on phones to prevent iOS focus zoom');
+assert(maintenanceRepair.includes('min-height: 48px !important'), 'maintenance password field must preserve a comfortable phone touch target');
 assert(mobileRepair.includes('@media (max-width: 767px)'), 'V2 regression repair must stay phone-scoped');
 assert(!mobileRepair.includes('@media (min-width:'), 'V2 regression repair must not alter tablet/desktop breakpoints');
 assert(mobileRepair.includes('[data-gdp-studio-v2-guard="true"]'), 'V2 repair rules must be scoped to the rebuilt Studio guard');
@@ -54,6 +60,9 @@ assert(mobileRepair.includes('overflow-x: clip'), 'V2 phone repair must contain 
 assert(mobileRepair.includes('contain: layout paint'), 'V2 phone canvases must isolate layout/paint to stabilize transformed artwork');
 assert(mobileRepair.includes('[style*="transform"]'), 'V2 transformed artwork layers need a scoped repaint guard');
 assert(mobileRepair.includes('env(safe-area-inset-bottom)'), 'V2 mobile actions must respect the phone safe area');
+assert(page.includes('gdp-custom-studio-v2-actions'), 'V2 bottom actions need a stable scoped class');
+assert(mobileRepair.includes('.gdp-custom-studio-v2-actions'), 'V2 phone repair must keep bottom actions in normal flow');
+assert(mobileRepair.includes('position: static !important'), 'V2 phone actions must not cover editor controls');
 for (const token of ['customerApi', 'supabase', 'stripe', 'addItem(', 'replaceItem(', 'createCustomDesign']) {
   assert(!mobileRepair.toLowerCase().includes(token.toLowerCase()), `presentation-only V2 repair must not contain business wiring token: ${token}`);
 }
@@ -70,6 +79,12 @@ assert(state.includes('photos: []'), 'protected editor multi-photo state is miss
 assert(state.includes('stickers: []'), 'protected editor sticker state is missing');
 assert(state.includes('textStyle:'), 'protected editor text-style state is missing');
 assert(state.includes("case 'SET_QUANTITY'"), 'V2 quantity state is missing');
+
+// Selected garment options must live directly under the selected garment only.
+assert(page.includes('function GarmentVariantControls'), 'selected-garment option panel is missing');
+assert(page.includes('data-gdp-selected-garment-options="true"'), 'selected-garment option panel needs a stable regression marker');
+assert(page.includes('{selected && <GarmentVariantControls'), 'color/size/quantity options must render only below the selected garment');
+assert(page.includes('aria-pressed={selected}'), 'garment selection state must be exposed accessibly');
 
 // Mobile/direct manipulation parity.
 assert(gestures.includes("mode: 'drag'"), 'shared one-finger drag gesture is missing');
@@ -107,7 +122,12 @@ assert(uploadEditor.includes('studioV2GarmentPreview'), 'Upload side-aware garme
 // Approval and finalization safety.
 assert(page.includes('I have permission to use this artwork/photo'), 'artwork rights confirmation is missing');
 assert(page.includes('I approve the exact Front/Back layouts'), 'final layout approval is missing');
-assert(page.includes('Approve, Lock & Add to Cart'), 'final production/cart action is missing');
+assert(page.includes('Generate, Verify & Add to Cart'), 'final production/cart action is missing');
+assert(page.includes('Approved layout ready to build'), 'review must describe pre-production state truthfully');
+assert(!page.includes('Locked state ready for production'), 'review must not claim production lock before files exist');
+assert(page.includes("state.designPath === 'seasonal' && sourceAssets.length === 0"), 'Seasonal persistence fallback must be narrowly scoped');
+assert(page.includes('persistedArtworkAssets'), 'Seasonal generated production assets must be persisted as owned artwork assets');
+assert(page.includes('photoAssets: persistedArtworkAssets'), 'secure custom-design save must receive persisted Seasonal artwork assets');
 assert(page.includes('customerApi.createCustomDesign'), 'V2 must persist the custom design before cart mutation');
 assert(page.includes('replaceItem(editCartKey, cartItem)'), 'V2 cart edit must replace the existing line');
 assert(page.includes('else addItem(cartItem)'), 'new V2 designs must add a cart line');
@@ -117,7 +137,7 @@ assert(page.includes("navigate('/cart')"), 'successful V2 finalization must cont
 assert(page.includes('frontBackFee'), 'two-sided pricing must preserve the configured front/back fee');
 assert(page.includes('studioV2Draft:'), 'V2 cart items must carry a reopenable editor draft');
 assert(page.includes('refreshStudioV2DraftAssets'), 'reopened V2 drafts must refresh expiring asset URLs');
-assert(page.includes('If rendering, upload, or design saving fails, the cart is not changed.'), 'cart failure-safety copy/contract is missing');
+assert(page.includes('The cart changes only after rendering, upload, verification and secure design saving all succeed.'), 'cart failure-safety copy/contract is missing');
 
 // Stable-path reopening for authenticated and guest uploads.
 assert(assets.includes("createSignedUrl(storagePath, 3600)"), 'authenticated V2 draft URL refresh is missing');
@@ -150,4 +170,4 @@ assert(uploadEditor.includes('min-h-[60px]'), 'Upload completion control must ke
 assert(page.includes('Review stays instant'), 'V2 lightweight review contract is missing');
 assert(nav.includes('onClick={mobile ? closeMobileNavigation : undefined}'), 'mobile navigation links must explicitly close the drawer');
 
-console.log('PASS Custom Studio production cutover, rollback, interaction parity, phone containment, production, edit, and regression contract');
+console.log('PASS Custom Studio production cutover, rollback, interaction parity, maintenance zoom, selected variants, Seasonal persistence, phone containment, production, edit, and regression contract');
