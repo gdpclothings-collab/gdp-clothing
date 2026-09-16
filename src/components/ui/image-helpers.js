@@ -171,7 +171,11 @@ export function buildSupabaseSrcSet(parsed, options) {
 }
 
 export function getOriginalImageUrl(src, parsed) {
-  return parsed?.baseUrl || src
+  if (parsed?.baseUrl) return parsed.baseUrl
+  if (parsed?.origin && parsed?.bucket && parsed?.objectPath) {
+    return `${parsed.origin}${SUPABASE_PUBLIC_IMAGE_PREFIX}${parsed.bucket}/${parsed.objectPath}`
+  }
+  return src
 }
 
 export function nextImageLoadMode(mode) {
