@@ -30,11 +30,23 @@ const ImageWrapper = React.forwardRef(({ aspectRatio, className, style, children
 ))
 ImageWrapper.displayName = "ImageWrapper"
 
+/** @typedef {React.ImgHTMLAttributes<HTMLImageElement> & {
+ * parsed: any,
+ * fittingType?: string,
+ * focalPoint?: { x: number, y: number },
+ * quality?: number,
+ * aspectRatio?: string | number,
+ * buildUrl: Function,
+ * buildSet: Function,
+ * sourceKey?: string
+ * }} ResponsiveTransformedImageProps */
+
 /**
  * Shared responsive renderer for image providers that can resize at the edge.
  * The network request is withheld until the rendered container is measured, so
  * cards do not download a large guess and immediately replace it with another
  * image after layout.
+ * @type {React.ForwardRefExoticComponent<ResponsiveTransformedImageProps & React.RefAttributes<HTMLImageElement>>}
  */
 const ResponsiveTransformedImage = React.forwardRef(
   (
@@ -142,6 +154,7 @@ const ResponsiveImage = React.forwardRef(
 )
 ResponsiveImage.displayName = "ResponsiveImage"
 
+/** @type {React.ForwardRefExoticComponent<ResponsiveImageProps & React.RefAttributes<HTMLImageElement>>} */
 const ResponsiveSupabaseImage = React.forwardRef(
   ({ parsed, ...props }, ref) => (
     <ResponsiveTransformedImage
@@ -238,20 +251,31 @@ const Image = React.forwardRef(
     const aspectRatio =
       originWidth && originHeight ? `${originWidth} / ${originHeight}` : undefined
 
-    const responsiveProps = {
-      ref,
-      fittingType,
-      focalPoint,
-      quality,
-      aspectRatio,
-      ...imageProps,
-    }
-
     if (supabaseSource) {
-      return <ResponsiveSupabaseImage parsed={supabaseSource} {...responsiveProps} />
+      return (
+        <ResponsiveSupabaseImage
+          ref={ref}
+          parsed={supabaseSource}
+          fittingType={fittingType}
+          focalPoint={focalPoint}
+          quality={quality}
+          aspectRatio={aspectRatio}
+          {...imageProps}
+        />
+      )
     }
 
-    return <ResponsiveImage parsed={wixSource} {...responsiveProps} />
+    return (
+      <ResponsiveImage
+        ref={ref}
+        parsed={wixSource}
+        fittingType={fittingType}
+        focalPoint={focalPoint}
+        quality={quality}
+        aspectRatio={aspectRatio}
+        {...imageProps}
+      />
+    )
   }
 )
 Image.displayName = "Image"
