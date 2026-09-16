@@ -3,11 +3,14 @@ import { useSize } from "@/hooks/use-size"
 import { cn } from "@/lib/utils"
 import {
   buildSrcSet,
+  buildSupabaseSrcSet,
+  buildSupabaseTransformUrl,
   buildTransformUrl,
   DEFAULT_TRANSFORM_WIDTH,
   getOriginalImageUrl,
   IMAGE_LOAD_MODE,
   nextImageLoadMode,
+  parseSupabasePublicImageUrl,
   parseWixMediaUrl,
 } from "./image-helpers"
 
@@ -27,16 +30,30 @@ const ImageWrapper = React.forwardRef(({ aspectRatio, className, style, children
 ))
 ImageWrapper.displayName = "ImageWrapper"
 
-/** @typedef {React.ImgHTMLAttributes<HTMLImageElement> & {
- * parsed: any,
- * fittingType?: string,
- * focalPoint?: { x: number, y: number },
- * quality?: number,
- * aspectRatio?: string | number
- * }} ResponsiveImageProps */
-/** @type {React.ForwardRefExoticComponent<ResponsiveImageProps & React.RefAttributes<HTMLImageElement>>} */
-const ResponsiveImage = React.forwardRef(
-  ({ parsed, fittingType, focalPoint, quality, className, style, aspectRatio, onLoad, ...props }, parentRef) => {
+/**
+ * Shared responsive renderer for image providers that can resize at the edge.
+ * The network request is withheld until the rendered container is measured, so
+ * cards do not download a large guess and immediately replace it with another
+ * image after layout.
+ */
+const ResponsiveTransformedImage = React.forwardRef(
+  (
+    {
+      parsed,
+      fittingType,
+      focalPoint,
+      quality,
+      className,
+      style,
+      aspectRatio,
+      onLoad,
+      buildUrl,
+      buildSet,
+      sourceKey,
+      ...props
+    },
+    parentRef
+  ) => {
     const wrapperRef = React.useRef(null)
     const imgRef = React.useRef(null)
     const size = useSize(wrapperRef)
@@ -44,16 +61,11 @@ const ResponsiveImage = React.forwardRef(
 
     React.useImperativeHandle(parentRef, () => imgRef.current)
 
-    // Reset the blur-up when the underlying image changes.
     React.useEffect(() => {
       setLoaded(false)
-    }, [parsed.baseUrl])
+    }, [sourceKey])
 
     const crop = fittingType !== "fit"
-    // `size` is null exactly once: the pre-measurement first render, which we
-    // never let reach the network (see below — useSize measures before paint).
-    // A *measured* zero (content-sized wrapper with no CSS dimensions) falls
-    // back to a fixed transform width so the image itself can size the box.
     const options = size && {
       width: size.width || DEFAULT_TRANSFORM_WIDTH,
       height: size.height ? size.height : undefined,
@@ -62,21 +74,11 @@ const ResponsiveImage = React.forwardRef(
       quality,
     }
 
-    // Both layers render only once the container is measured, so the first
-    // URL the browser ever fetches is already the right size — never a
-    // DEFAULT_TRANSFORM_WIDTH guess that gets replaced a frame later (a
-    // wasted full-size download per image). useSize measures in
-    // useLayoutEffect, so nothing is lost: measurement lands before the
-    // first paint.
     return (
       <ImageWrapper ref={wrapperRef} aspectRatio={aspectRatio} className={className} style={style}>
-        {/* Tiny blurred placeholder (a few hundred bytes) covering the main
-            image's load time. Same crop shape and focal anchor as the main
-            image — fp_ is relative to the crop box, so a square or centered
-            placeholder would blur-preview a different region. */}
         {options && !loaded && (
           <img
-            src={buildTransformUrl(parsed, {
+            src={buildUrl(parsed, {
               ...options,
               width: 20,
               height: options.height
@@ -97,16 +99,17 @@ const ResponsiveImage = React.forwardRef(
         {options && (
           <img
             ref={imgRef}
-            src={buildTransformUrl(parsed, options)}
-            srcSet={buildSrcSet(parsed, options)}
+            src={buildUrl(parsed, options)}
+            srcSet={buildSet(parsed, options)}
             loading="lazy"
+            decoding="async"
             className={cn(
               "w-full h-full inset-0 absolute",
               fittingType === "fit" ? "object-contain" : "object-cover"
             )}
-            onLoad={(e) => {
+            onLoad={(event) => {
               setLoaded(true)
-              onLoad?.(e)
+              onLoad?.(event)
             }}
             {...props}
           />
@@ -115,15 +118,51 @@ const ResponsiveImage = React.forwardRef(
     )
   }
 )
+ResponsiveTransformedImage.displayName = "ResponsiveTransformedImage"
+
+/** @typedef {React.ImgHTMLAttributes<HTMLImageElement> & {
+ * parsed: any,
+ * fittingType?: string,
+ * focalPoint?: { x: number, y: number },
+ * quality?: number,
+ * aspectRatio?: string | number
+ * }} ResponsiveImageProps */
+/** @type {React.ForwardRefExoticComponent<ResponsiveImageProps & React.RefAttributes<HTMLImageElement>>} */
+const ResponsiveImage = React.forwardRef(
+  ({ parsed, ...props }, ref) => (
+    <ResponsiveTransformedImage
+      ref={ref}
+      parsed={parsed}
+      buildUrl={buildTransformUrl}
+      buildSet={buildSrcSet}
+      sourceKey={parsed.baseUrl}
+      {...props}
+    />
+  )
+)
 ResponsiveImage.displayName = "ResponsiveImage"
 
+const ResponsiveSupabaseImage = React.forwardRef(
+  ({ parsed, ...props }, ref) => (
+    <ResponsiveTransformedImage
+      ref={ref}
+      parsed={parsed}
+      buildUrl={buildSupabaseTransformUrl}
+      buildSet={buildSupabaseSrcSet}
+      sourceKey={`${parsed.origin}/${parsed.bucket}/${parsed.objectPath}`}
+      {...props}
+    />
+  )
+)
+ResponsiveSupabaseImage.displayName = "ResponsiveSupabaseImage"
+
 /**
- * Image with built-in Wix Media Platform support: canonical public images on
- * Supported remote media sources are resized to the rendered
- * container per device pixel ratio and re-encoded to WebP; `fittingType="fill"`
- * crops server-side, optionally anchored at a focal point. Other URLs render
- * as a plain <img>. Failed transforms retry the original URL; only a broken
- * original swaps to the generic fallback image.
+ * Image with responsive optimization for GDP's supported storefront media.
+ * Wix media keeps its existing transform path. Public Supabase `product-images`
+ * are now delivered through Supabase Image Transformations, which resizes to
+ * the rendered container and automatically negotiates WebP. Private customer
+ * and production assets intentionally remain untouched. Any failed transform
+ * retries the original URL before falling back to the generic placeholder.
  */
 /** @typedef {React.ImgHTMLAttributes<HTMLImageElement> & {
  * fittingType?: string,
@@ -149,7 +188,9 @@ const Image = React.forwardRef(
     },
     ref
   ) => {
-    const parsedSource = src && src !== FALLBACK_IMAGE_URL ? parseWixMediaUrl(src) : null
+    const wixSource = src && src !== FALLBACK_IMAGE_URL ? parseWixMediaUrl(src) : null
+    const supabaseSource = src && src !== FALLBACK_IMAGE_URL ? parseSupabasePublicImageUrl(src) : null
+    const parsedSource = wixSource || supabaseSource
     const initialMode = parsedSource ? IMAGE_LOAD_MODE.OPTIMIZED : IMAGE_LOAD_MODE.ORIGINAL
     const [loadState, setLoadState] = React.useState({ src, mode: initialMode })
     const mode = loadState.src === src ? loadState.mode : initialMode
@@ -171,22 +212,22 @@ const Image = React.forwardRef(
     }
 
     if (!src) {
-      // Renders as a real <img> (not a <div>) — the visual editor's
-      // click-to-edit toolbar keys its "Replace Image" action off the DOM
-      // tag being `img`, so a placeholder div would be unrecoverable in the
-      // editor. FALLBACK_IMAGE_URL doubles as the "no image chosen" graphic.
       return <img ref={ref} src={FALLBACK_IMAGE_URL} {...imageProps} data-empty-image />
     }
 
-    // A failed transform retries the underlying original as a plain image.
-    // Only a failure of that original advances to the generic fallback.
-    const parsed = mode === IMAGE_LOAD_MODE.OPTIMIZED ? parsedSource : null
-
-    if (!parsed) {
+    if (mode !== IMAGE_LOAD_MODE.OPTIMIZED || !parsedSource) {
       const isErrorMode = mode === IMAGE_LOAD_MODE.FALLBACK
-      const imageSrc = isErrorMode ? FALLBACK_IMAGE_URL : getOriginalImageUrl(src, parsedSource)
+      const imageSrc = isErrorMode
+        ? FALLBACK_IMAGE_URL
+        : getOriginalImageUrl(src, wixSource)
       return (
-        <img ref={ref} src={imageSrc} {...imageProps} data-error-image={isErrorMode || undefined} />
+        <img
+          ref={ref}
+          src={imageSrc}
+          decoding="async"
+          {...imageProps}
+          data-error-image={isErrorMode || undefined}
+        />
       )
     }
 
@@ -194,22 +235,23 @@ const Image = React.forwardRef(
       typeof focalPointX === "number" && typeof focalPointY === "number"
         ? { x: focalPointX, y: focalPointY }
         : undefined
-    // Origin dimensions are optional — when known they stabilize layout via
-    // the wrapper's aspect-ratio before the image loads.
     const aspectRatio =
       originWidth && originHeight ? `${originWidth} / ${originHeight}` : undefined
 
-    return (
-      <ResponsiveImage
-        ref={ref}
-        parsed={parsed}
-        fittingType={fittingType}
-        focalPoint={focalPoint}
-        quality={quality}
-        aspectRatio={aspectRatio}
-        {...imageProps}
-      />
-    )
+    const responsiveProps = {
+      ref,
+      fittingType,
+      focalPoint,
+      quality,
+      aspectRatio,
+      ...imageProps,
+    }
+
+    if (supabaseSource) {
+      return <ResponsiveSupabaseImage parsed={supabaseSource} {...responsiveProps} />
+    }
+
+    return <ResponsiveImage parsed={wixSource} {...responsiveProps} />
   }
 )
 Image.displayName = "Image"
