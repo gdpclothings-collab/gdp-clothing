@@ -2,6 +2,10 @@ import { supabase } from "@/lib/supabaseClient";
 import { DEFAULT_LANDING_PAGE, mergeLandingPageConfig } from "@/lib/landingPageDefaults";
 
 const SOCIAL_COLUMNS = "instagram, facebook, tiktok, youtube";
+const SUPABASE_PRODUCT_IMAGE_PREFIX = "/storage/v1/object/public/product-images/";
+const SUPABASE_PRODUCT_RENDER_PREFIX = "/storage/v1/render/image/public/product-images/";
+const HOMEPAGE_DEFAULT_IMAGE_WIDTH = 1600;
+const HOMEPAGE_DEFAULT_IMAGE_QUALITY = 85;
 
 function safeSocialUrl(value) {
   const candidate = String(value || "").trim();
@@ -14,8 +18,56 @@ function safeSocialUrl(value) {
   }
 }
 
+function boundedHomepageImageUrl(value) {
+  if (typeof value !== "string") return value;
+  const candidate = value.trim();
+  if (!candidate) return value;
+
+  try {
+    const url = new URL(candidate);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      (url.port && url.port !== "443") ||
+      !url.hostname.endsWith(".supabase.co") ||
+      !url.pathname.startsWith(SUPABASE_PRODUCT_IMAGE_PREFIX)
+    ) {
+      return value;
+    }
+
+    const objectPath = url.pathname.slice(SUPABASE_PRODUCT_IMAGE_PREFIX.length);
+    if (!objectPath || /\.svg$/i.test(objectPath)) return value;
+
+    const params = new URLSearchParams({
+      width: String(HOMEPAGE_DEFAULT_IMAGE_WIDTH),
+      resize: "contain",
+      quality: String(HOMEPAGE_DEFAULT_IMAGE_QUALITY),
+    });
+    return `${url.origin}${SUPABASE_PRODUCT_RENDER_PREFIX}${objectPath}?${params.toString()}`;
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Landing-page media is CMS content rather than a normalized Product row, so
+ * it does not pass through supabaseMappers. Recursively bound only GDP's public
+ * product-image URLs at read time. Stored CMS content is left untouched and
+ * private/customer/production buckets are never rewritten.
+ */
+function boundHomepageMedia(value) {
+  if (Array.isArray(value)) return value.map(boundHomepageMedia);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, boundHomepageMedia(item)])
+    );
+  }
+  return boundedHomepageImageUrl(value);
+}
+
 function withStorewideSocial(homepage, settings) {
-  const content = mergeLandingPageConfig(homepage);
+  const content = boundHomepageMedia(mergeLandingPageConfig(homepage));
   if (!settings) return content;
 
   return {
@@ -41,7 +93,7 @@ async function getPublishedHomepage() {
 
   if (error) {
     if (error.code === "42703" || /homepage.*column|column.*homepage/i.test(error.message || "")) {
-      return DEFAULT_LANDING_PAGE;
+      return boundHomepageMedia(DEFAULT_LANDING_PAGE);
     }
     throw error;
   }

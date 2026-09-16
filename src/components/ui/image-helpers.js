@@ -54,9 +54,14 @@ export function parseWixMediaUrl(src) {
 
 /**
  * Returns transform metadata only for GDP's public Supabase storefront image
- * bucket. Private customer/production buckets deliberately stay out of this
- * path so responsive storefront rendering cannot weaken their access model or
- * unexpectedly increase the number of transformed origin images.
+ * bucket. It accepts both canonical Storage object URLs and an already resized
+ * render URL so generic storefront mappers can provide a safe display-sized
+ * default while the shared Image component still refines that default to the
+ * actual rendered card/detail dimensions.
+ *
+ * Private customer/production buckets deliberately stay out of this path so
+ * responsive storefront rendering cannot weaken their access model or
+ * unexpectedly increase transformed origin usage.
  */
 export function parseSupabasePublicImageUrl(src) {
   try {
@@ -66,13 +71,20 @@ export function parseSupabasePublicImageUrl(src) {
       url.username ||
       url.password ||
       (url.port && url.port !== "443") ||
-      !url.hostname.endsWith(".supabase.co") ||
-      !url.pathname.startsWith(SUPABASE_PUBLIC_IMAGE_PREFIX)
+      !url.hostname.endsWith(".supabase.co")
     ) {
       return null
     }
 
-    const storagePath = url.pathname.slice(SUPABASE_PUBLIC_IMAGE_PREFIX.length)
+    let storagePath = ""
+    if (url.pathname.startsWith(SUPABASE_PUBLIC_IMAGE_PREFIX)) {
+      storagePath = url.pathname.slice(SUPABASE_PUBLIC_IMAGE_PREFIX.length)
+    } else if (url.pathname.startsWith(SUPABASE_RENDER_IMAGE_PREFIX)) {
+      storagePath = url.pathname.slice(SUPABASE_RENDER_IMAGE_PREFIX.length)
+    } else {
+      return null
+    }
+
     const slashIndex = storagePath.indexOf("/")
     if (slashIndex <= 0) return null
 
