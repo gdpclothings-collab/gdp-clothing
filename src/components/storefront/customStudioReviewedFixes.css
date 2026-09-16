@@ -26,6 +26,10 @@
   outline-offset: 2px;
 }
 
+.gdp-seasonal-mobile-tabs {
+  display: none;
+}
+
 /* Prevent the mobile Previous/Continue dock from masking artwork/editor
  * controls. On phone widths the actions stay in normal document flow; tablet
  * and desktop retain their existing sticky/docked behavior. */
@@ -50,6 +54,60 @@
   .gdp-seasonal-shared-shell__work {
     max-width: 100%;
     overflow-x: clip;
+  }
+
+  /* Phone editor navigation: show one meaningful Seasonal workspace panel at a
+   * time. This removes the Artwork -> Preview -> Layers scroll marathon while
+   * keeping the existing editor DOM/state intact. Tablet and desktop layouts do
+   * not participate in this presentation layer. */
+  .gdp-seasonal-mobile-tabs {
+    position: sticky;
+    top: max(8px, env(safe-area-inset-top, 0px));
+    z-index: 85;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0 0 10px;
+    padding: 4px;
+    border: 1px solid #dce3ea;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .94);
+    box-shadow: 0 10px 28px rgba(23, 50, 77, .12);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+
+  .gdp-seasonal-mobile-tabs__button {
+    min-height: 42px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: #667788;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .gdp-seasonal-mobile-tabs__button[aria-pressed="true"] {
+    background: #17324d;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(23, 50, 77, .2);
+  }
+
+  [data-seasonal-mobile-panel="artwork"] section[aria-label="Garment preview"],
+  [data-seasonal-mobile-panel="artwork"] section[aria-label="Garment and artwork controls"],
+  [data-seasonal-mobile-panel="preview"] section[aria-label="Choose seasonal artwork"],
+  [data-seasonal-mobile-panel="preview"] section[aria-label="Garment and artwork controls"],
+  [data-seasonal-mobile-panel="layers"] section[aria-label="Choose seasonal artwork"],
+  [data-seasonal-mobile-panel="layers"] section[aria-label="Garment preview"] {
+    display: none !important;
+  }
+
+  /* Review is already a focused full-screen step; hide the editor panel switcher
+   * while that exact-design review is visible. */
+  .gdp-seasonal-shared-shell__work:has(section[aria-label="Review seasonal design"]) > .gdp-seasonal-mobile-tabs {
+    display: none !important;
   }
 
   /* Horizontal artwork rails should communicate that more choices exist while
