@@ -51,10 +51,10 @@ function boundedHomepageImageUrl(value) {
 }
 
 /**
- * Landing-page media is CMS content rather than a normalized Product row, so
- * it does not pass through supabaseMappers. Recursively bound only GDP's public
- * product-image URLs at read time. Stored CMS content is left untouched and
- * private/customer/production buckets are never rewritten.
+ * Storefront CMS media does not necessarily pass through product normalization.
+ * Recursively bound only GDP's public product-image URLs at read time. Stored
+ * CMS content is left untouched and private/customer/production buckets are
+ * never rewritten.
  */
 function boundHomepageMedia(value) {
   if (Array.isArray(value)) return value.map(boundHomepageMedia);
@@ -126,7 +126,7 @@ export const storefrontContentApi = {
       .maybeSingle();
 
     if (error) throw error;
-    return data || null;
+    return data ? boundHomepageMedia(data) : null;
   },
 
   async getMenu(handle = "main-menu") {
