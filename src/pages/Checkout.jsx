@@ -42,11 +42,16 @@ const FALLBACK_TAX_RATES = {
 };
 
 const CANADIAN_POSTAL_CODE_RE = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i;
+const PAYMENT_ENVIRONMENT_RE = /(payment environment|stripe payment setup|embedded payment is not fully configured|secure payment is temporarily unavailable)/i;
 
 function normalizeCanadianPostalCode(value) {
   const compact = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!CANADIAN_POSTAL_CODE_RE.test(compact)) return "";
   return `${compact.slice(0, 3)} ${compact.slice(3)}`;
+}
+
+function isPaymentEnvironmentError(message) {
+  return PAYMENT_ENVIRONMENT_RE.test(String(message || ""));
 }
 
 export default function Checkout() {
@@ -62,6 +67,7 @@ export default function Checkout() {
   });
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
+  const [paymentUnavailable, setPaymentUnavailable] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [checkoutConfig, setCheckoutConfig] = useState(null);
   const [checkoutActions, setCheckoutActions] = useState(null);
@@ -202,8 +208,19 @@ export default function Checkout() {
     } catch { setError("Could not validate code."); }
   };
 
+  const lockPaymentEnvironment = (message) => {
+    const safeMessage = message || "Secure payment is temporarily unavailable. No charge was attempted.";
+    setPaymentUnavailable(safeMessage);
+    setError(safeMessage);
+  };
+
   const placeOrder = async () => {
     setError("");
+
+    if (!checkoutActions && paymentUnavailable) {
+      setError(paymentUnavailable);
+      return;
+    }
 
     if (!checkoutActions) {
       if (!form.email || !form.firstName || !form.lastName || !form.address || !form.city || !form.postalCode) {
@@ -280,7 +297,9 @@ export default function Checkout() {
         }
 
         if (data?.error) {
-          setError(data.message || "Order could not be prepared. Please try again.");
+          const message = data.message || "Order could not be prepared. Please try again.";
+          if (isPaymentEnvironmentError(message)) lockPaymentEnvironment(message);
+          else setError(message);
           return;
         }
 
@@ -294,11 +313,10 @@ export default function Checkout() {
         }
 
         if (!data?.configured || !data?.clientSecret || !data?.publishableKey) {
-          setError(
-            data?.missing
-              ? `Stripe payment setup is missing ${data.missing}.`
-              : "Stripe embedded payment is not fully configured yet."
-          );
+          const message = data?.missing
+            ? `Stripe payment setup is missing ${data.missing}.`
+            : "Stripe embedded payment is not fully configured yet.";
+          lockPaymentEnvironment(message);
           return;
         }
 
@@ -335,7 +353,9 @@ export default function Checkout() {
         }, 100);
       } catch (e) {
         console.error("Stripe embedded checkout initialization failed:", e);
-        setError(e?.message || "Could not load secure payment fields. Please try again.");
+        const message = e?.message || "Could not load secure payment fields. Please try again.";
+        if (isPaymentEnvironmentError(message)) lockPaymentEnvironment(message);
+        else setError(message);
       } finally {
         setPlacing(false);
       }
@@ -396,10 +416,10 @@ export default function Checkout() {
   );
 
   useEffect(() => {
-    if (!checkoutDetailsComplete || checkoutActions || placing || autoPreparingRef.current || isIframe) return;
+    if (!checkoutDetailsComplete || checkoutActions || paymentUnavailable || placing || autoPreparingRef.current || isIframe) return;
     autoPreparingRef.current = true;
     void placeOrder();
-  }, [checkoutDetailsComplete]); // Stripe is prepared once, as soon as checkout details are complete.
+  }, [checkoutDetailsComplete, paymentUnavailable]); // Stripe is prepared once, as soon as checkout details are complete.
 
   if (items.length === 0) {
     return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center"><h1 className="font-display text-4xl">Cart is empty</h1><Link to="/shop" className="text-accent mt-4 inline-block">Browse products</Link></div>;
@@ -458,6 +478,9 @@ export default function Checkout() {
               <Option selected={form.shippingMethod === "pickup"} onClick={() => set("shippingMethod", "pickup")}
                 icon={Store} title="Local Pickup" desc="Free · Saskatoon studio" />
             </div>
+            {form.shippingMethod === "pickup" && (
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">Your address is still used for customer identification and tax calculation; the order itself will be held for pickup and no shipping fee is charged.</p>
+            )}
           </Section>
 
           <Section n="04" title="Discount Code">
@@ -504,13 +527,17 @@ export default function Checkout() {
             </label>
 
             {!checkoutActions && (
-              <div className="min-h-[150px] rounded-xl border border-border bg-secondary/25 p-5 text-sm text-muted-foreground flex items-center justify-center text-center">
+              <div className={`min-h-[150px] rounded-xl border p-5 text-sm flex items-center justify-center text-center ${paymentUnavailable ? "border-amber-300 bg-amber-50 text-amber-950" : "border-border bg-secondary/25 text-muted-foreground"}`}>
                 <div className="max-w-md">
-                  <Lock size={20} className="mx-auto mb-2 text-foreground" />
-                  <p className="font-semibold text-foreground">
-                    {placing ? "Loading secure payment…" : "Secure payment fields will open automatically"}
+                  {paymentUnavailable ? <AlertTriangle size={20} className="mx-auto mb-2" /> : <Lock size={20} className="mx-auto mb-2 text-foreground" />}
+                  <p className={`font-semibold ${paymentUnavailable ? "text-amber-950" : "text-foreground"}`}>
+                    {paymentUnavailable ? "Payment temporarily unavailable" : placing ? "Loading secure payment…" : "Secure payment will appear here when your checkout details are complete"}
                   </p>
-                  <p className="mt-1">Complete the required details above and accept the terms. You will stay on this page.</p>
+                  <p className="mt-1">
+                    {paymentUnavailable
+                      ? "Checkout is safely paused. No charge was attempted. Please try again after payment service is restored."
+                      : "Complete the required details above and accept the terms. You will stay on this page."}
+                  </p>
                 </div>
               </div>
             )}
@@ -563,20 +590,24 @@ export default function Checkout() {
             <span>Total CAD</span><span className="font-mono">${total.toFixed(2)}</span>
           </div>
 
-          {error && <div className="mt-3 flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2"><AlertTriangle size={16} />{error}</div>}
+          {error && <div className="mt-3 flex items-start gap-2 text-sm text-destructive bg-destructive/10 px-3 py-2"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>{error}</span></div>}
 
           <button
             onClick={placeOrder}
-            disabled={placing || !checkoutDetailsComplete || (Boolean(checkoutActions) && !paymentCanConfirm)}
-            className="w-full mt-5 rounded-lg bg-accent text-accent-foreground py-4 font-bold uppercase tracking-wide hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={Boolean(paymentUnavailable) || placing || !checkoutDetailsComplete || (Boolean(checkoutActions) && !paymentCanConfirm)}
+            className={`w-full mt-5 rounded-lg py-4 font-bold uppercase tracking-wide disabled:cursor-not-allowed ${paymentUnavailable ? "bg-muted text-muted-foreground" : "bg-accent text-accent-foreground hover:opacity-90 disabled:opacity-50"}`}
           >
-            {placing
-              ? (checkoutActions ? "Processing order…" : "Preparing secure payment…")
-              : `Place order · $${total.toFixed(2)}`}
+            {paymentUnavailable
+              ? "Payment temporarily unavailable"
+              : placing
+                ? (checkoutActions ? "Processing order…" : "Preparing secure payment…")
+                : `Place order · $${total.toFixed(2)}`}
           </button>
-          {!checkoutDetailsComplete && (
+          {paymentUnavailable ? (
+            <p className="mt-2 text-center text-xs text-muted-foreground">No charge was attempted. Refresh and try again after payment service is restored.</p>
+          ) : !checkoutDetailsComplete ? (
             <p className="mt-2 text-center text-xs text-muted-foreground">Complete the required fields and accept the terms to place your order.</p>
-          )}
+          ) : null}
           <p className="text-[11px] text-muted-foreground mt-2 text-center">
             Secure payment fields are provided by Stripe. GDP Clothing does not intentionally store full card numbers or card security codes.{" "}
             <Link to="/pages/payment-security" className="underline hover:text-foreground">Payment security</Link>
