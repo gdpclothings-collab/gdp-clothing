@@ -7,6 +7,7 @@ const SUPABASE_RENDER_IMAGE_PREFIX = "/storage/v1/render/image/public/"
 const SUPABASE_TRANSFORM_BUCKETS = new Set(["product-images"])
 
 export const DEFAULT_TRANSFORM_WIDTH = 1024
+export const SUPABASE_STOREFRONT_QUALITY = 82
 export const IMAGE_LOAD_MODE = {
   OPTIMIZED: "optimized",
   ORIGINAL: "original",
@@ -17,6 +18,7 @@ const DEVICE_PIXEL_RATIOS = [1, 2, 3]
 const SUPABASE_DEVICE_PIXEL_RATIOS = [1, 2]
 const MAX_DIMENSION = 6000
 const MAX_SUPABASE_DIMENSION = 2500
+const SUPABASE_WIDTH_BUCKETS = [320, 480, 640, 768, 960, 1200, 1400, 1600, 1920, 2500]
 
 /** Returns transform metadata only for canonical public Wix image URLs. */
 export function parseWixMediaUrl(src) {
@@ -109,6 +111,24 @@ const clampSupabaseDim = (n) => Math.min(Math.max(Math.round(n), 1), MAX_SUPABAS
 const clamp01 = (n) => Math.min(1, Math.max(0, n))
 const clampQuality = (n) => Math.min(100, Math.max(20, Math.round(Number(n) || 80)))
 
+/**
+ * Keep Supabase transform URLs on a small, stable set of widths. ResizeObserver
+ * measurements often vary by a few pixels as layout settles; using those raw
+ * values would create many effectively equivalent CDN cache keys. Bucketed
+ * dimensions improve Smart CDN reuse while always rounding up to avoid blur.
+ */
+export function normalizeSupabaseTransformDimensions(width, height) {
+  const requestedWidth = clampSupabaseDim(width)
+  const bucketedWidth =
+    SUPABASE_WIDTH_BUCKETS.find((candidate) => candidate >= requestedWidth) || MAX_SUPABASE_DIMENSION
+  const ratio = bucketedWidth / requestedWidth
+  const bucketedHeight = height
+    ? clampSupabaseDim(Math.max(1, Math.round(Number(height) * ratio)))
+    : undefined
+
+  return { width: bucketedWidth, height: bucketedHeight }
+}
+
 export function buildTransformUrl(
   { baseUrl, filename },
   { width, height, crop, focalPoint, quality }
@@ -143,11 +163,12 @@ export function buildSupabaseTransformUrl(
   { origin, bucket, objectPath },
   { width, height, crop, quality }
 ) {
+  const dimensions = normalizeSupabaseTransformDimensions(width, height)
   const params = new URLSearchParams()
-  params.set("width", String(clampSupabaseDim(width)))
-  if (height) params.set("height", String(clampSupabaseDim(height)))
+  params.set("width", String(dimensions.width))
+  if (dimensions.height) params.set("height", String(dimensions.height))
   params.set("resize", crop ? "cover" : "contain")
-  params.set("quality", String(clampQuality(quality)))
+  params.set("quality", String(Math.min(SUPABASE_STOREFRONT_QUALITY, clampQuality(quality))))
 
   return `${origin}${SUPABASE_RENDER_IMAGE_PREFIX}${bucket}/${objectPath}?${params.toString()}`
 }
@@ -155,16 +176,18 @@ export function buildSupabaseTransformUrl(
 export function buildSupabaseSrcSet(parsed, options) {
   const seen = new Set()
   return SUPABASE_DEVICE_PIXEL_RATIOS.flatMap((dpr) => {
-    const width = clampSupabaseDim(options.width * dpr)
-    const height = options.height ? clampSupabaseDim(options.height * dpr) : undefined
-    const key = `${width}x${height || "auto"}`
+    const dimensions = normalizeSupabaseTransformDimensions(
+      options.width * dpr,
+      options.height ? options.height * dpr : undefined
+    )
+    const key = `${dimensions.width}x${dimensions.height || "auto"}`
     if (seen.has(key)) return []
     seen.add(key)
     return [
       `${buildSupabaseTransformUrl(parsed, {
         ...options,
-        width,
-        height,
+        width: dimensions.width,
+        height: dimensions.height,
       })} ${dpr}x`,
     ]
   }).join(", ")
