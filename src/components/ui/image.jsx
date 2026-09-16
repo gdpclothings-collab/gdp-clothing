@@ -12,6 +12,7 @@ import {
   nextImageLoadMode,
   parseSupabasePublicImageUrl,
   parseWixMediaUrl,
+  SUPABASE_STOREFRONT_QUALITY,
 } from "./image-helpers"
 
 const FALLBACK_IMAGE_URL =
@@ -38,7 +39,8 @@ ImageWrapper.displayName = "ImageWrapper"
  * aspectRatio?: string | number,
  * buildUrl: Function,
  * buildSet: Function,
- * sourceKey?: string
+ * sourceKey?: string,
+ * showPlaceholder?: boolean
  * }} ResponsiveTransformedImageProps */
 
 /**
@@ -62,6 +64,7 @@ const ResponsiveTransformedImage = React.forwardRef(
       buildUrl,
       buildSet,
       sourceKey,
+      showPlaceholder = true,
       ...props
     },
     parentRef
@@ -88,7 +91,7 @@ const ResponsiveTransformedImage = React.forwardRef(
 
     return (
       <ImageWrapper ref={wrapperRef} aspectRatio={aspectRatio} className={className} style={style}>
-        {options && !loaded && (
+        {showPlaceholder && options && !loaded && (
           <img
             src={buildUrl(parsed, {
               ...options,
@@ -156,13 +159,15 @@ ResponsiveImage.displayName = "ResponsiveImage"
 
 /** @type {React.ForwardRefExoticComponent<ResponsiveImageProps & React.RefAttributes<HTMLImageElement>>} */
 const ResponsiveSupabaseImage = React.forwardRef(
-  ({ parsed, ...props }, ref) => (
+  ({ parsed, quality, ...props }, ref) => (
     <ResponsiveTransformedImage
       ref={ref}
       parsed={parsed}
       buildUrl={buildSupabaseTransformUrl}
       buildSet={buildSupabaseSrcSet}
       sourceKey={`${parsed.origin}/${parsed.bucket}/${parsed.objectPath}`}
+      quality={Math.min(Number(quality) || SUPABASE_STOREFRONT_QUALITY, SUPABASE_STOREFRONT_QUALITY)}
+      showPlaceholder={false}
       {...props}
     />
   )
@@ -172,10 +177,10 @@ ResponsiveSupabaseImage.displayName = "ResponsiveSupabaseImage"
 /**
  * Image with responsive optimization for GDP's supported storefront media.
  * Wix media keeps its existing transform path. Public Supabase `product-images`
- * are now delivered through Supabase Image Transformations, which resizes to
- * the rendered container and automatically negotiates WebP. Private customer
- * and production assets intentionally remain untouched. Any failed transform
- * retries the original URL before falling back to the generic placeholder.
+ * are delivered through a small stable set of Supabase Image Transformation
+ * widths so Smart CDN entries are reused across nearby viewport sizes. Private
+ * customer and production assets intentionally remain untouched. Any failed
+ * transform retries the canonical original URL before the generic placeholder.
  */
 /** @typedef {React.ImgHTMLAttributes<HTMLImageElement> & {
  * fittingType?: string,
