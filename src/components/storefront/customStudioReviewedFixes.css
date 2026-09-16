@@ -118,3 +118,155 @@
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Desktop hardening — 2026-09-15.
+ * This is intentionally the final desktop-only cascade layer. It resolves old
+ * height constraints without changing editor state, rendering, pricing, cart,
+ * Supabase, or mobile behavior. */
+@media (min-width: 1024px) {
+  /* Standard Photo Bootleg / Upload / Memorial editor: replace competing
+   * min-height/max-height rules with one viewport-aware canvas contract. */
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) > div:nth-child(2) {
+    height: clamp(480px, calc(100dvh - 220px), 720px) !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) > aside > div:nth-child(2) > div:last-child,
+  .gdp-studio-active > main > div > .mx-auto > div:has(> #custom-studio-workspace > [data-editor-legacy="photo-upload"]) #gdp-touch-studio-panel {
+    max-height: clamp(480px, calc(100dvh - 220px), 720px) !important;
+  }
+
+  /* Seasonal preview: old 560/640px minimums could exceed the available height
+   * on short laptop screens. The preview now follows the actual editor area. */
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame,
+  .gdp-seasonal-shared-shell__work section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  /* Keep completed workflow steps visible but visually secondary to Customize. */
+  .gdp-seasonal-shared-shell__step[data-complete="true"] {
+    opacity: .74;
+  }
+
+  .gdp-seasonal-shared-shell__step[data-active="true"] {
+    opacity: 1;
+  }
+}
+
+/* Compact laptops: keep the existing two-column Seasonal behavior, but compress
+ * the artwork rail so Preview + Controls stay inside one useful visual area. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) {
+    padding: 10px 14px 14px !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header {
+    margin-bottom: 8px !important;
+    padding: 12px 16px !important;
+    border-radius: 18px !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header h1 {
+    margin-top: 2px !important;
+    font-size: clamp(1.7rem, 3vw, 2.2rem) !important;
+  }
+
+  .gdp-studio-active main:has(section[aria-label="Choose seasonal artwork"]) > div > header h1 + p {
+    display: none !important;
+  }
+
+  .gdp-studio-active section[aria-label="Choose seasonal artwork"] {
+    max-height: 230px !important;
+    padding: 12px !important;
+    overflow: hidden !important;
+  }
+
+  .gdp-studio-active section[aria-label="Choose seasonal artwork"] h2 {
+    font-size: 1rem !important;
+  }
+
+  .gdp-studio-active section[aria-label="Choose seasonal artwork"] h2 + p {
+    display: none !important;
+  }
+
+  .gdp-studio-active section[aria-label="Choose seasonal artwork"] [class*="overflow-x-auto"] {
+    min-height: 0 !important;
+    max-height: 132px !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+    height: clamp(430px, calc(100dvh - 315px), 560px) !important;
+  }
+
+  .gdp-studio-active section[aria-label="Garment and artwork controls"] {
+    max-height: clamp(430px, calc(100dvh - 315px), 560px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Full desktop Seasonal shell: one bounded workspace with no outer/inner scroll
+ * competition. Review remains allowed to scroll independently when needed. */
+@media (min-width: 1280px) {
+  .gdp-seasonal-shared-shell__rail,
+  .gdp-seasonal-shared-shell__work {
+    height: clamp(500px, calc(100dvh - 118px), 820px) !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .gdp-seasonal-shared-shell__work > main > div:has(> div.grid.min-w-0.w-full.items-start) {
+    overflow: hidden !important;
+  }
+
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start {
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start > section:nth-child(2),
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start > section:nth-child(2) > div:last-child,
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start > section:nth-child(2) .gdp-seasonal-preview-frame {
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: none !important;
+  }
+
+  /* The artwork library and inspector own their own bounded scrolling; the
+   * workspace itself no longer creates a second scrollbar around them. */
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start > section:first-child,
+  .gdp-seasonal-shared-shell__work main > div > div.grid.min-w-0.w-full.items-start > aside {
+    overscroll-behavior: contain;
+  }
+
+  .gdp-seasonal-shared-shell__rail-note {
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+  }
+}
+
+/* Short desktop windows: preserve controls and canvas instead of forcing the
+ * old 640px preview minimum below the fold. */
+@media (min-width: 1024px) and (max-height: 760px) {
+  .gdp-studio-active section[aria-label="Garment preview"] .gdp-seasonal-preview-frame {
+    min-height: 0 !important;
+  }
+
+  .gdp-seasonal-shared-shell__rail,
+  .gdp-seasonal-shared-shell__work {
+    height: calc(100dvh - 104px) !important;
+    min-height: 440px !important;
+  }
+
+  .gdp-seasonal-shared-shell__hero {
+    min-height: 40px !important;
+    padding-block: 6px !important;
+  }
+
+  .gdp-seasonal-shared-shell__rail-note {
+    display: none !important;
+  }
+}
