@@ -25,7 +25,7 @@ function SourceBadge({ source }) {
   );
 }
 
-function NumberField({ label, value, placeholder, min, max, step = 0.25, onChange, helper }) {
+function NumberField({ label, value, placeholder, min, max, step = 0.25, onChange, helper = "" }) {
   return (
     <label className="block">
       <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.08em] text-[#6d7680]">{label}</span>
