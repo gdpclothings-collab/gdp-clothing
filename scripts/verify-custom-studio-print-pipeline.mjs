@@ -72,8 +72,12 @@ for (const token of [
   'isOutsideRecommendedArea',
 ]) expect(upload.includes(token), `Upload safe-area behavior missing: ${token}`);
 
-expect(/front[\s\S]{0,1200}back|back[\s\S]{0,1200}front/.test(page), 'Custom Studio page no longer contains independent Front/Back state.');
-expect(page.includes("side === 'back'") || page.includes('side === "back"'), 'Custom Studio page is missing side-specific behavior.');
+for (const token of [
+  "['front', 'back'].map",
+  'state.side === value',
+  'Front and Back keep independent artwork and positions.',
+  'studioV2SideHasContent(state, value)',
+]) expect(page.includes(token), `Custom Studio Front/Back isolation evidence missing: ${token}`);
 
 for (const token of [
   'Print Configuration',
