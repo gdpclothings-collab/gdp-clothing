@@ -25,6 +25,7 @@ import {
 } from '@/lib/customStudioV2EditorOptions';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
+import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -145,7 +146,7 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
   );
 }
 
-function ProtectedPreview({ product, color, template, editor, path, stickers, side, onPatch }) {
+function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch }) {
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const zone = template?.photoZone || { x: 15, y: 12, width: 70, height: 68, radius: 12, shape: 'rounded' };
@@ -158,6 +159,7 @@ function ProtectedPreview({ product, color, template, editor, path, stickers, si
   const radius = zone.shape === 'circle' || zone.shape === 'oval' ? '50%' : `${Number(zone.radius || 0)}%`;
   const stickerById = Object.fromEntries(stickers.map((item) => [item.id, item]));
   const garmentPreview = studioV2GarmentPreview(product, color, side);
+  const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
   const textGesture = useTouchTransformV2({
     transform: { scale: style.fontScale || 100, rotation: style.rotation || 0, x: style.x || 0, y: style.y || 0 },
     onChange: (next) => onPatch({ textStyle: { ...style, fontScale: next.scale, rotation: next.rotation, x: next.x, y: next.y } }),
@@ -187,7 +189,8 @@ function ProtectedPreview({ product, color, template, editor, path, stickers, si
     <div className="mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
       <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
         {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
-        <div ref={canvasRef} className="absolute left-1/2 top-[23%] aspect-[4/5] w-[43%] -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10">
+        <div ref={canvasRef} data-gdp-print-guide="true" aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
+          <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
           <div ref={zoneRef} className="absolute overflow-hidden" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>
             {photos.map((layer) => <PhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && !activeStickerId} zoneRef={zoneRef} onSelect={() => onPatch({ activePhotoId: layer.id, activeStickerId: '' }, true)} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
             {!photos.length && <div className="absolute inset-0 grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90">Photo zone</div>}
@@ -212,7 +215,7 @@ function ProtectedPreview({ product, color, template, editor, path, stickers, si
   );
 }
 
-export default function ProtectedTemplateEditorV2({ path, product, color, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
+export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
@@ -351,7 +354,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, settin
 
       <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">Tap a layer in the list, then drag or pinch directly on the fabric.</p></div>
-        <ProtectedPreview product={product} color={color} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} />
+        <ProtectedPreview product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} />
       </section>
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">

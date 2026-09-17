@@ -3,6 +3,7 @@ import { Check, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
+import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -12,13 +13,14 @@ function RangeControl({ label, value, min, max, suffix = '', onChange }) {
   return <label className="block"><div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>{label}</span><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
 }
 
-export default function UploadArtworkEditorV2({ product, color, side, editor, onPatch, onConfirmedChange }) {
+export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const referenceBoxRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const transform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
+  const printGuide = resolveStudioV2PrintGuide(product, size, side);
   const patchTransform = (patch) => onPatch({ transform: { ...transform, ...patch } });
   const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: next }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 30, maxScale: 180, minX: -42, maxX: 42, minY: -42, maxY: 42 });
 
@@ -40,7 +42,8 @@ export default function UploadArtworkEditorV2({ product, color, side, editor, on
         <div className="mx-auto w-full max-w-[680px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
             {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
-            <div className="absolute left-1/2 top-[23%] aspect-[4/5] w-[43%] -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-slate-500/50 bg-white/5">
+            <div data-gdp-print-guide="true" aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-slate-500/50 bg-white/5" style={printGuide.style}>
+              <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
               <div ref={referenceBoxRef} className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2" />
               {editor.artwork?.url ? (
                 <div
