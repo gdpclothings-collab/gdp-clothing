@@ -154,7 +154,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     let active = true;
     setCatalog(null);
     setError('');
-    Promise.resolve(supabase.rpc('list_seasonal_artworks', { p_product: product.id, p_size: size }))
+    Promise.resolve(supabase.rpc('list_seasonal_artworks', { p_product: product.id, p_size: size, p_side: side }))
       .then(({ data, error: failure }) => {
         if (!active) return;
         if (failure) setError('Seasonal designs could not load.');
@@ -164,7 +164,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         if (active) setError('Could not connect to the seasonal design library.');
       });
     return () => { active = false; };
-  }, [product.id, size]);
+  }, [product.id, size, side]);
 
   const artworks = (catalog?.artworks || []).filter((artwork) => !artwork.requires_name);
   const area = catalog?.area || null;
