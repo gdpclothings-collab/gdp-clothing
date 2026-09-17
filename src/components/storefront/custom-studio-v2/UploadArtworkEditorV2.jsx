@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Check, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Check, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
@@ -13,6 +13,16 @@ function RangeControl({ label, value, min, max, suffix = '', onChange }) {
   return <label className="block"><div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>{label}</span><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
 }
 
+function isOutsideRecommendedArea(transform) {
+  const scale = clamp(transform?.scale ?? 100, 30, 180) / 100;
+  const radians = Math.abs(clamp(transform?.rotation ?? 0, -180, 180)) * Math.PI / 180;
+  const rotatedSquareFactor = Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians));
+  const halfExtent = 36 * scale * rotatedSquareFactor;
+  const centerX = Math.abs(clamp(transform?.x ?? 0, -42, 42) * 0.72);
+  const centerY = Math.abs(clamp(transform?.y ?? 0, -42, 42) * 0.72);
+  return centerX + halfExtent > 50 || centerY + halfExtent > 50;
+}
+
 export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const referenceBoxRef = useRef(null);
@@ -21,6 +31,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const transform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = resolveStudioV2PrintGuide(product, size, side);
+  const outsideRecommendedArea = Boolean(editor.artwork) && isOutsideRecommendedArea(transform);
   const patchTransform = (patch) => onPatch({ transform: { ...transform, ...patch } });
   const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: next }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 30, maxScale: 180, minX: -42, maxX: 42, minY: -42, maxY: 42 });
 
@@ -72,6 +83,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => uploadArtwork(event.target.files?.[0])} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-50">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />}{editor.artwork ? 'Replace artwork' : 'Upload artwork'}</button>
         {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
+        {outsideRecommendedArea ? <div role="status" className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>Part of your design is outside the recommended print area. Reposition or resize it before approval for the safest production result.</span></div> : null}
         {editor.artwork ? <><div className="space-y-3 rounded-2xl bg-slate-50 p-3"><RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} /><RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} /><RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} /><RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} /><button type="button" onClick={() => onPatch({ transform: { scale: 100, rotation: 0, x: 0, y: 0 } })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset position</button></div>
           <button type="button" onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done positioning my {side} artwork</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm the current size, rotation and placement before review.</span></span></button></> : null}
       </section>
