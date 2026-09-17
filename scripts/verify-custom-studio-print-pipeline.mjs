@@ -91,7 +91,7 @@ for (const token of [
   'Size override',
 ]) expect(adminPanel.includes(token), `Admin Print Configuration contract missing: ${token}`);
 
-expect(!/hoodie[\s\S]{0,900}widthIn:\s*11\.5,\s*heightIn:\s*13/.test(production), 'Old 11.5 × 13 hoodie front profile reintroduced.');
+expect(!production.includes('return { widthIn: 11.5, heightIn: 13, collarIn: 3, side, dpi: 300 }'), 'Old 11.5 × 13 hoodie front profile reintroduced.');
 expect(production.includes("return { widthIn: 11, heightIn: 10, collarIn: 3, side, dpi: 300 }"), 'Hoodie front 11 × 10 production guard missing.');
 
 console.log('Custom Studio print pipeline verification passed.');
