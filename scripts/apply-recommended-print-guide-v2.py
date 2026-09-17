@@ -75,7 +75,7 @@ export function resolveStudioV2PrintProfile(product, size, side = 'front') {
 
 async function loadImage'''
 pattern = re.compile(r"function pick\(map, key, fallback\) \{.*?\n\}\n\nexport function resolveStudioV2PrintProfile\(product, size, side = 'front'\) \{.*?\n\}\n\nasync function loadImage", re.S)
-production, count = pattern.subn(replacement, production, count=1)
+production, count = pattern.subn(lambda _match: replacement, production, count=1)
 if count != 1:
     raise SystemExit(f'Production profile patch count was {count}, expected 1')
 production_path.write_text(production)
