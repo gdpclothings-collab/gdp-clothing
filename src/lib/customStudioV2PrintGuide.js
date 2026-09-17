@@ -19,37 +19,38 @@ function garmentKind(product) {
 }
 
 const DISPLAY_GEOMETRY = {
-  baby: { maxWidthIn: 6, maxVisualWidth: 34, frontTop: 29, backTop: 26 },
-  toddler: { maxWidthIn: 7.5, maxVisualWidth: 38, frontTop: 25, backTop: 23 },
-  youth: { maxWidthIn: 10, maxVisualWidth: 41, frontTop: 24, backTop: 22 },
-  hoodie: { maxWidthIn: 12, maxVisualWidth: 42, frontTop: 25, backTop: 21 },
-  crewneck: { maxWidthIn: 12, maxVisualWidth: 43, frontTop: 23, backTop: 21 },
-  adult: { maxWidthIn: 12, maxVisualWidth: 44, frontTop: 22, backTop: 20 },
+  baby: { maxWidthIn: 4, maxVisualWidth: 30, frontTop: 31, backTop: 29 },
+  toddler: { maxWidthIn: 5.5, maxVisualWidth: 34, frontTop: 28, backTop: 26 },
+  youth: { maxWidthIn: 10.5, maxVisualWidth: 40, frontTop: 25, backTop: 24 },
+  hoodie: { maxWidthIn: 12, maxVisualWidth: 41, frontTop: 25, backTop: 28 },
+  crewneck: { maxWidthIn: 12, maxVisualWidth: 43, frontTop: 23, backTop: 22 },
+  adult: { maxWidthIn: 12, maxVisualWidth: 44, frontTop: 22, backTop: 21 },
 };
 
 function formatInches(value) {
   const number = Number(value || 0);
-  return Number.isInteger(number) ? String(number) : String(Math.round(number * 10) / 10);
+  if (Number.isInteger(number)) return String(number);
+  return String(Math.round(number * 100) / 100).replace(/0$/, '');
 }
 
 /**
- * Presentation geometry for the dashed Custom Studio print guide.
- *
- * Physical dimensions always come from the same production profile used by
- * final 300-DPI rendering. The percentages below only map that real print area
- * onto each garment mockup; they never alter artwork coordinates or output.
+ * Visual mapping of the exact recommended production area onto the garment mockup.
+ * Physical width/height always come from resolveStudioV2PrintProfile, so preview,
+ * Seasonal workspace and final 300-DPI output share the same source of truth.
  */
 export function resolveStudioV2PrintGuide(product, size, side = 'front') {
   const normalizedSide = side === 'back' ? 'back' : 'front';
   const profile = resolveStudioV2PrintProfile(product, size, normalizedSide);
   const geometry = DISPLAY_GEOMETRY[garmentKind(product)] || DISPLAY_GEOMETRY.adult;
-  const ratio = clamp(Number(profile.widthIn) / geometry.maxWidthIn, 0.55, 1);
+  const ratio = clamp(Number(profile.widthIn) / geometry.maxWidthIn, 0.5, 1);
   const widthPercent = Math.round(geometry.maxVisualWidth * ratio * 10) / 10;
   const topPercent = normalizedSide === 'back' ? geometry.backTop : geometry.frontTop;
+  const dimensions = `${formatInches(profile.widthIn)} × ${formatInches(profile.heightIn)} in`;
 
   return {
     ...profile,
-    label: `${formatInches(profile.widthIn)} × ${formatInches(profile.heightIn)} in`,
+    label: dimensions,
+    recommendationLabel: `Recommended print area: ${dimensions}`,
     style: {
       top: `${topPercent}%`,
       width: `${widthPercent}%`,

@@ -10,127 +10,74 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
 }
 
-function pick(map, key, fallback) {
-  return map[key] || fallback;
+function configuredPrintProfile(product, size, side) {
+  const guide = product?.customization?.preview?.printGuide?.[side];
+  if (!guide || typeof guide !== 'object') return null;
+
+  const overrides = guide.sizeOverrides && typeof guide.sizeOverrides === 'object' ? guide.sizeOverrides : {};
+  const wantedSize = normalizeToken(size);
+  const overrideKey = Object.keys(overrides).find((key) => normalizeToken(key) === wantedSize);
+  const sized = guide.sizeScalingEnabled === false ? {} : (overrideKey ? overrides[overrideKey] : {});
+  const widthIn = Number(sized?.widthIn ?? guide.widthIn);
+  const heightIn = Number(sized?.heightIn ?? guide.heightIn);
+  if (!Number.isFinite(widthIn) || !Number.isFinite(heightIn) || widthIn <= 0 || heightIn <= 0) return null;
+
+  const maxWidthIn = Number(guide.maxWidthIn);
+  const maxHeightIn = Number(guide.maxHeightIn);
+  const collarIn = Number(sized?.collarIn ?? guide.collarIn);
+  return {
+    widthIn: Number.isFinite(maxWidthIn) && maxWidthIn > 0 ? Math.min(widthIn, maxWidthIn) : widthIn,
+    heightIn: Number.isFinite(maxHeightIn) && maxHeightIn > 0 ? Math.min(heightIn, maxHeightIn) : heightIn,
+    ...(Number.isFinite(collarIn) && collarIn > 0 ? { collarIn } : {}),
+    side,
+    dpi: 300,
+  };
+}
+
+function fallbackPrintProfile(product, size, side) {
+  const key = normalizeToken([product?.name, product?.type, product?.category].filter(Boolean).join(' '));
+  const normalizedSize = String(size || '').toUpperCase().replace(/\s+/g, '');
+  const back = side === 'back';
+  const toddlerSize = /^(2T|3T|4T|5T)$/.test(normalizedSize);
+
+  if (key.includes('baby') || key.includes('bodysuit') || key.includes('onesie') || key.includes('infant')) {
+    return { widthIn: 4, heightIn: 4, collarIn: back ? 1.75 : 1.5, side, dpi: 300 };
+  }
+  if (key.includes('toddler') || ((key.includes('youth') || key.includes('kids')) && toddlerSize)) {
+    return { widthIn: 5.5, heightIn: 5.5, collarIn: back ? 2.5 : 2, side, dpi: 300 };
+  }
+  if (key.includes('youth') || key.includes('kids')) {
+    const small = ['XS', 'S', 'YS'].includes(normalizedSize);
+    if (back) return small
+      ? { widthIn: 8.5, heightIn: 10, collarIn: 3, side, dpi: 300 }
+      : { widthIn: 10, heightIn: 12, collarIn: 3, side, dpi: 300 };
+    return small
+      ? { widthIn: 8.5, heightIn: 8.5, collarIn: 2.5, side, dpi: 300 }
+      : { widthIn: 10.5, heightIn: 10.5, collarIn: 2.5, side, dpi: 300 };
+  }
+  if (key.includes('hoodie') || key.includes('hooded')) {
+    if (back) return normalizedSize === 'S'
+      ? { widthIn: 11, heightIn: 13, collarIn: 5.5, side, dpi: 300 }
+      : { widthIn: 12, heightIn: 14, collarIn: 5.5, side, dpi: 300 };
+    return { widthIn: 11, heightIn: 10, collarIn: 3, side, dpi: 300 };
+  }
+
+  if (back) {
+    if (normalizedSize === 'XS') return { widthIn: 10.5, heightIn: 12.5, collarIn: 4, side, dpi: 300 };
+    if (normalizedSize === 'S') return { widthIn: 11, heightIn: 13, collarIn: 4, side, dpi: 300 };
+    if (normalizedSize === 'M') return { widthIn: 11.5, heightIn: 13.5, collarIn: 4, side, dpi: 300 };
+    return { widthIn: 12, heightIn: 14, collarIn: 4, side, dpi: 300 };
+  }
+  if (normalizedSize === 'XS') return { widthIn: 10, heightIn: 12.5, collarIn: 2.75, side, dpi: 300 };
+  if (normalizedSize === 'S') return { widthIn: 10.5, heightIn: 13, collarIn: 2.75, side, dpi: 300 };
+  if (normalizedSize === 'M') return { widthIn: 11, heightIn: 13.5, collarIn: 2.75, side, dpi: 300 };
+  return { widthIn: 11.25, heightIn: 14, collarIn: 2.75, side, dpi: 300 };
 }
 
 export function resolveStudioV2PrintProfile(product, size, side = 'front') {
-  const key = normalizeToken([product?.name, product?.type].filter(Boolean).join(' '));
-  const normalizedSize = String(size || '').toUpperCase().replace(/\s+/g, '');
-  let front;
-
-  if (key.includes('baby') || key.includes('bodysuit') || key.includes('onesie')) {
-    front = pick({
-      '0-3M': { widthIn: 4.5, heightIn: 5.5 },
-      '3-6M': { widthIn: 5, heightIn: 6 },
-      '6-12M': { widthIn: 5.5, heightIn: 6.5 },
-      '12-18M': { widthIn: 6, heightIn: 7 },
-    }, normalizedSize, { widthIn: 5.5, heightIn: 6.5 });
-  } else if (key.includes('toddler')) {
-    front = pick({
-      '2T': { widthIn: 6, heightIn: 7 },
-      '3T': { widthIn: 6.5, heightIn: 7.5 },
-      '4T': { widthIn: 7, heightIn: 8 },
-      '5T': { widthIn: 7.5, heightIn: 8.5 },
-    }, normalizedSize, { widthIn: 7, heightIn: 8 });
-  } else if (key.includes('youth') || key.includes('kids')) {
-    front = pick({
-      XS: { widthIn: 7.5, heightIn: 9.5 },
-      S: { widthIn: 8.5, heightIn: 10.5 },
-      M: { widthIn: 9, heightIn: 11 },
-      L: { widthIn: 9.5, heightIn: 11.5 },
-      XL: { widthIn: 10, heightIn: 12 },
-    }, normalizedSize, { widthIn: 9, heightIn: 11 });
-  } else if (key.includes('hoodie')) {
-    front = pick({
-      S: { widthIn: 10, heightIn: 11.5 },
-      M: { widthIn: 10.5, heightIn: 12 },
-      L: { widthIn: 11, heightIn: 12.5 },
-      XL: { widthIn: 11.5, heightIn: 13 },
-      '2XL': { widthIn: 11.5, heightIn: 13 },
-      '3XL': { widthIn: 11.5, heightIn: 13 },
-      '4XL': { widthIn: 11.5, heightIn: 13 },
-      '5XL': { widthIn: 11.5, heightIn: 13 },
-    }, normalizedSize, { widthIn: 11, heightIn: 12.5 });
-  } else if (key.includes('sweatshirt') || key.includes('sweater') || key.includes('crewneck') || (key.includes('crew neck') && !key.includes('t shirt'))) {
-    front = pick({
-      S: { widthIn: 10.5, heightIn: 13 },
-      M: { widthIn: 11, heightIn: 13.5 },
-      L: { widthIn: 11.5, heightIn: 14 },
-      XL: { widthIn: 12, heightIn: 15 },
-    }, normalizedSize, { widthIn: 11.5, heightIn: 14 });
-  } else {
-    front = pick({
-      S: { widthIn: 10.5, heightIn: 13.5 },
-      M: { widthIn: 11, heightIn: 14 },
-      L: { widthIn: 11.5, heightIn: 14.5 },
-      XL: { widthIn: 12, heightIn: 15 },
-      '2XL': { widthIn: 12, heightIn: 15 },
-      '3XL': { widthIn: 12, heightIn: 15 },
-      '4XL': { widthIn: 12, heightIn: 15 },
-      '5XL': { widthIn: 12, heightIn: 15 },
-    }, normalizedSize, { widthIn: 11, heightIn: 14 });
-  }
-
-  if (side !== 'back') return { ...front, side: 'front', dpi: 300 };
-
-  let back;
-  if (key.includes('baby') || key.includes('bodysuit') || key.includes('onesie')) {
-    back = pick({
-      '0-3M': { widthIn: 3.5, heightIn: 4.5 },
-      '3-6M': { widthIn: 4, heightIn: 5 },
-      '6-12M': { widthIn: 4.5, heightIn: 5.5 },
-      '12-18M': { widthIn: 5, heightIn: 6 },
-    }, normalizedSize, { widthIn: 4, heightIn: 5 });
-  } else if (key.includes('toddler')) {
-    back = pick({
-      '2T': { widthIn: 5.5, heightIn: 7 },
-      '3T': { widthIn: 6, heightIn: 7.5 },
-      '4T': { widthIn: 6, heightIn: 8 },
-      '5T': { widthIn: 6.5, heightIn: 8.5 },
-    }, normalizedSize, { widthIn: 6, heightIn: 8 });
-  } else if (key.includes('youth') || key.includes('kids')) {
-    back = pick({
-      XS: { widthIn: 7.5, heightIn: 9 },
-      S: { widthIn: 8, heightIn: 10 },
-      M: { widthIn: 8.5, heightIn: 10.5 },
-      L: { widthIn: 9, heightIn: 11 },
-      XL: { widthIn: 9.5, heightIn: 11.5 },
-    }, normalizedSize, { widthIn: 8.5, heightIn: 10.5 });
-  } else if (key.includes('hoodie')) {
-    back = pick({
-      S: { widthIn: 10, heightIn: 11 },
-      M: { widthIn: 10.5, heightIn: 11.5 },
-      L: { widthIn: 11, heightIn: 12 },
-      XL: { widthIn: 11.5, heightIn: 12.5 },
-      '2XL': { widthIn: 11.5, heightIn: 12.5 },
-      '3XL': { widthIn: 12, heightIn: 13 },
-      '4XL': { widthIn: 12, heightIn: 13 },
-      '5XL': { widthIn: 12, heightIn: 13 },
-    }, normalizedSize, { widthIn: 11, heightIn: 12 });
-  } else if (key.includes('sweatshirt') || key.includes('sweater') || key.includes('crewneck') || (key.includes('crew neck') && !key.includes('t shirt'))) {
-    back = pick({
-      S: { widthIn: 10, heightIn: 12 },
-      M: { widthIn: 10.5, heightIn: 12.5 },
-      L: { widthIn: 11, heightIn: 13 },
-      XL: { widthIn: 11.5, heightIn: 14 },
-      '2XL': { widthIn: 12, heightIn: 14.5 },
-      '3XL': { widthIn: 12, heightIn: 14.5 },
-    }, normalizedSize, { widthIn: 11, heightIn: 13 });
-  } else {
-    back = pick({
-      XS: { widthIn: 10, heightIn: 12.5 },
-      S: { widthIn: 10.5, heightIn: 13 },
-      M: { widthIn: 11, heightIn: 14 },
-      L: { widthIn: 11.5, heightIn: 14.5 },
-      XL: { widthIn: 12, heightIn: 15 },
-      '2XL': { widthIn: 12, heightIn: 15 },
-      '3XL': { widthIn: 12, heightIn: 15 },
-      '4XL': { widthIn: 12, heightIn: 15 },
-      '5XL': { widthIn: 12, heightIn: 15 },
-    }, normalizedSize, { widthIn: 11, heightIn: 14 });
-  }
-  return { ...back, side: 'back', dpi: 300 };
+  const normalizedSide = side === 'back' ? 'back' : 'front';
+  return configuredPrintProfile(product, size, normalizedSide)
+    || fallbackPrintProfile(product, size, normalizedSide);
 }
 
 async function loadImage(source, message = 'A production asset could not be reopened.') {
