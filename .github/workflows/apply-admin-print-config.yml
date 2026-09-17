@@ -134,4 +134,6 @@ jobs:
           git config user.email "gdpclothings@gmail.com"
           git add src/components/admin/ProductsModule.jsx
           git commit -m "Wire Print Configuration into product editor"
+          git fetch origin feat/admin-print-configuration
+          git rebase origin/feat/admin-print-configuration
           git push origin HEAD:feat/admin-print-configuration
