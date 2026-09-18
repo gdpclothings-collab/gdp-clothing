@@ -345,3 +345,5 @@ assert(seasonal.includes('Your current design was kept. Try again.'), 'Seasonal 
           git add src/components/storefront/custom-studio-v2/SeasonalEditorV2.jsx scripts/verify-custom-studio-v2.mjs
           git commit -m "fix: stabilize Seasonal Studio artwork loading"
           git push origin HEAD:main
+
+# Registered trigger for the scoped repair.
