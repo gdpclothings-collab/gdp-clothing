@@ -61,7 +61,8 @@ for (const [name, source] of [
 
 for (const token of [
   "p_product: product.id, p_size: size, p_side: side",
-  '[product.id, size, side]',
+  'seasonalCatalogKey(product?.id, size, side)',
+  '[product?.id, size, side]',
 ]) expect(seasonal.includes(token), `Seasonal RPC wiring is not size/side aware: ${token}`);
 
 for (const token of [
