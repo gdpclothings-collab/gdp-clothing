@@ -47,13 +47,26 @@ for (const token of [
 for (const token of [
   'resolveStudioV2PrintProfile(product, size, normalizedSide)',
   'aspectRatio: `${Number(profile.widthIn)} / ${Number(profile.heightIn)}`',
-  'Maximum print area:',
-  'label: `MAX ${dimensions}`',
+  'DTF maximum print area:',
+  'label: `DTF MAX ${dimensions}`',
+  "printMethod: 'DTF'",
+  "printfulTechnique: 'DTFlex'",
   "acceptedFormats: ['PNG', 'JPG']",
+  "preferredFormat: 'PNG with transparent background when no background is intended'",
   'minimumDpi: 150',
   'preferredDpi: 300',
+  'maximumRecommendedDpi: 300',
   "colorProfile: 'sRGB IEC61966-2.1'",
-]) expect(guide.includes(token), `Visual guide / file guideline contract missing: ${token}`);
+  'minimumLinePt: 1',
+  'minimumLinePxAt300Dpi: 4',
+  'minimumTextStrokePt: 1',
+  "generalTextSizePt: '10–12+'",
+  'avoidSemiTransparency: true',
+  'avoidSoftEdges: true',
+  'useHalftoneInsteadOfOpacityFades: true',
+  'avoidUnnecessaryLargeSolidAreas: true',
+  'keepImportantContentInSafeArea: true',
+]) expect(guide.includes(token), `DTF visual / file guideline contract missing: ${token}`);
 
 for (const [name, source] of [
   ['Seasonal', seasonal],
@@ -100,4 +113,4 @@ for (const token of [
 expect(!production.includes('return { widthIn: 11.5, heightIn: 13, collarIn: 3, side, dpi: 300 }'), 'Old 11.5 × 13 hoodie front profile reintroduced.');
 expect(production.includes("return { widthIn: 11, heightIn: 10, collarIn: 3, side, dpi: 300 }"), 'Hoodie front 11 × 10 production guard missing.');
 
-console.log('Custom Studio print pipeline verification passed.');
+console.log('Custom Studio DTF-first print pipeline verification passed.');
