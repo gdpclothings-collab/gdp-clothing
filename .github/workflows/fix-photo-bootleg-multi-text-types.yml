@@ -1,0 +1,33 @@
+name: Apply Photo Bootleg multi-text typing fix
+
+on:
+  push:
+    paths:
+      - ".github/workflows/fix-photo-bootleg-multi-text-types.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Apply typing fix
+        run: node scripts/fix-photo-bootleg-multi-text-types.mjs
+
+      - name: Commit typing fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx
+          git commit -m "Fix Photo Bootleg multi-text preview typing"
+          git push
