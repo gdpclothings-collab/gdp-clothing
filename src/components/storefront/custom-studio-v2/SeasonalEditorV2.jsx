@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Copy, Eye, EyeOff, Lock, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
+import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork } from '@/lib/seasonalArtwork';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
@@ -180,6 +180,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   const [libraryLoading, setLibraryLoading] = useState(!initialCachedCatalog);
   const [retryVersion, setRetryVersion] = useState(0);
   const [pendingArtworkId, setPendingArtworkId] = useState('');
+  const [addingArtwork, setAddingArtwork] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
@@ -196,6 +197,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
   useEffect(() => {
     requestKeyRef.current = requestKey;
+    setAddingArtwork(false);
   }, [requestKey]);
 
   useEffect(() => {
@@ -262,8 +264,21 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     onConfirmedChange(false);
   };
 
-  const addArtwork = async (artwork) => {
-    if (!catalog || !area || layersRef.current.length >= MAX_LAYERS || pendingArtworkId) return;
+  const centeredPosition = (layout, offsetIndex = 0) => {
+    const baseX = Math.max(0, (area.width - layout.width) / 2);
+    const baseY = Math.max(0, (area.height - layout.height) / 2);
+    if (!offsetIndex) return { x: baseX, y: baseY };
+    const step = Math.min(0.6, Math.max(0.2, Number(area.width || 1) * 0.035));
+    const horizontal = offsetIndex % 2 === 0 ? -step : step;
+    const vertical = offsetIndex % 3 === 0 ? step : -step;
+    return {
+      x: clamp(baseX + horizontal, 0, Math.max(0, area.width - layout.width)),
+      y: clamp(baseY + vertical, 0, Math.max(0, area.height - layout.height)),
+    };
+  };
+
+  const chooseArtwork = async (artwork) => {
+    if (!catalog || !area || pendingArtworkId) return;
     const artworkId = String(artwork?.id || '');
     const selectionKey = requestKey;
     setPendingArtworkId(artworkId);
@@ -273,28 +288,54 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
       await preloadArtworkPreview(artwork.preview);
       if (requestKeyRef.current !== selectionKey) return;
       const currentLayers = layersRef.current;
-      if (currentLayers.length >= MAX_LAYERS) return;
       const initial = fitSeasonalArtwork(artwork, area, 0);
       if (!initial) throw new Error('Artwork does not fit the active print area.');
-      const id = newLayerId();
-      const next = [
-        ...currentLayers,
-        {
-          id,
-          artworkId: artwork.id,
-          artworkTitle: artwork.title,
-          category: artwork.category || '',
-          requested: 0,
-          position: {
-            x: Math.max(0, (area.width - initial.width) / 2),
-            y: Math.max(0, (area.height - initial.height) / 2),
+
+      if (!currentLayers.length || addingArtwork) {
+        if (currentLayers.length >= MAX_LAYERS) return;
+        const id = newLayerId();
+        const position = centeredPosition(initial, currentLayers.length);
+        commit([
+          ...currentLayers,
+          {
+            id,
+            artworkId: artwork.id,
+            artworkTitle: artwork.title,
+            category: artwork.category || '',
+            requested: 0,
+            position,
+            rotation: 0,
+            visible: true,
+            locked: false,
           },
-          rotation: 0,
-          visible: true,
-          locked: false,
-        },
-      ];
-      commit(next, id);
+        ], id);
+        setAddingArtwork(false);
+        return;
+      }
+
+      const targetId = currentLayers.some((layer) => layer.id === activeLayerId)
+        ? activeLayerId
+        : currentLayers[currentLayers.length - 1]?.id;
+      const target = currentLayers.find((layer) => layer.id === targetId);
+      if (!target) return;
+      if (String(target.artworkId) === artworkId) {
+        onActiveLayerChange(targetId);
+        return;
+      }
+
+      const position = centeredPosition(initial, 0);
+      const next = currentLayers.map((layer) => layer.id === targetId ? {
+        ...layer,
+        artworkId: artwork.id,
+        artworkTitle: artwork.title,
+        category: artwork.category || '',
+        requested: 0,
+        position,
+        rotation: 0,
+        visible: true,
+        locked: false,
+      } : layer);
+      commit(next, targetId);
     } catch {
       setError('That artwork could not load. Your current design was kept. Try again.');
     } finally {
@@ -308,24 +349,8 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
   const removeLayer = (id) => {
     const next = layers.filter((layer) => layer.id !== id);
+    if (!next.length) setAddingArtwork(false);
     commit(next, next[next.length - 1]?.id || '');
-  };
-
-  const duplicateLayer = (id) => {
-    if (layers.length >= MAX_LAYERS) return;
-    const source = layers.find((layer) => layer.id === id);
-    if (!source) return;
-    const copyId = newLayerId();
-    const copy = {
-      ...source,
-      id: copyId,
-      position: {
-        x: Number(source.position?.x || 0) + 0.2,
-        y: Number(source.position?.y || 0) + 0.2,
-      },
-      locked: false,
-    };
-    commit([...layers, copy], copyId);
   };
 
   const resetLayer = (id) => {
@@ -342,19 +367,34 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     });
   };
 
+  const nextArtworkNumber = Math.min(MAX_LAYERS, layers.length + 1);
+  const choiceLabel = !layers.length ? 'Use artwork' : addingArtwork ? `Add as Artwork ${nextArtworkNumber}` : 'Use this instead';
+
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(280px,.75fr)_minmax(420px,1.4fr)_minmax(280px,.75fr)]">
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Seasonal Library</p>
-            <h2 className="mt-1 text-xl font-black text-slate-900">Choose artwork</h2>
+            <h2 className="mt-1 text-xl font-black text-slate-900">{!layers.length ? 'Choose artwork' : addingArtwork ? `Add Artwork ${nextArtworkNumber}` : 'Choose replacement'}</h2>
           </div>
           <div className="flex items-center gap-2">
             {libraryBusy && <span role="status" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500"><span className="h-2.5 w-2.5 animate-spin rounded-full border border-slate-300 border-t-slate-600" aria-hidden="true" />Loading</span>}
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{layers.length}/{MAX_LAYERS}</span>
           </div>
         </div>
+
+        {layers.length > 0 && (
+          <div data-seasonal-v2-add-mode={addingArtwork ? 'adding' : 'replace'} className={`mb-4 rounded-2xl border p-3 ${addingArtwork ? 'border-slate-900 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black">{addingArtwork ? `Adding Artwork ${nextArtworkNumber}` : 'Replace mode'}</p>
+                <p className={`mt-1 text-xs font-medium leading-5 ${addingArtwork ? 'text-slate-300' : 'text-slate-500'}`}>{addingArtwork ? 'Choose one design below. It will be added as a separate artwork and placed slightly away from the current design.' : 'Choosing a design below replaces the selected artwork. It will not create another layer.'}</p>
+              </div>
+              {addingArtwork && <button data-seasonal-v2-cancel-add type="button" onClick={() => setAddingArtwork(false)} className="shrink-0 rounded-lg border border-white/30 px-2.5 py-1.5 text-xs font-black text-white">Cancel</button>}
+            </div>
+          </div>
+        )}
 
         <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
@@ -373,9 +413,9 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         <div className="grid min-h-[220px] max-h-[min(520px,calc(100vh-420px))] grid-cols-2 content-start gap-3 overflow-y-auto overscroll-contain pb-3 pr-1">
           {libraryBusy && !catalog && <div className="col-span-2 grid min-h-[180px] place-items-center rounded-2xl bg-slate-50 p-4 text-center text-sm font-semibold text-slate-500"><span><span className="mx-auto mb-3 block h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" aria-hidden="true" />Loading seasonal designs…</span></div>}
           {filtered.map((artwork) => (
-            <button key={artwork.id} type="button" onClick={() => addArtwork(artwork)} disabled={layers.length >= MAX_LAYERS || Boolean(pendingArtworkId) || libraryBusy || !catalog} aria-busy={String(pendingArtworkId) === String(artwork.id)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-left transition hover:border-slate-400 disabled:opacity-40">
+            <button key={artwork.id} type="button" onClick={() => chooseArtwork(artwork)} disabled={(addingArtwork && layers.length >= MAX_LAYERS) || Boolean(pendingArtworkId) || libraryBusy || !catalog} aria-busy={String(pendingArtworkId) === String(artwork.id)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-left transition hover:border-slate-400 disabled:opacity-40">
               <div className="relative aspect-square bg-white p-2"><img src={artwork.preview} alt={artwork.title} loading="lazy" decoding="async" className="h-full w-full object-contain" />{String(pendingArtworkId) === String(artwork.id) && <div className="absolute inset-0 grid place-items-center bg-white/80 text-[10px] font-black uppercase tracking-[.12em] text-slate-700">Preparing…</div>}</div>
-              <div className="p-2.5"><div className="line-clamp-2 text-xs font-black text-slate-800">{artwork.title}</div></div>
+              <div className="p-2.5"><div className="line-clamp-2 text-xs font-black text-slate-800">{artwork.title}</div><div className="mt-1 text-[10px] font-black uppercase tracking-[.08em] text-slate-400">{choiceLabel}</div></div>
             </button>
           ))}
           {!libraryBusy && !filtered.length && !error && <div className="col-span-2 rounded-2xl bg-slate-50 p-4 text-center text-sm font-semibold text-slate-500">No seasonal designs match this filter.</div>}
@@ -399,7 +439,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
               {area ? resolved.filter((entry) => entry.layer.visible !== false).map((entry) => (
                 <ArtworkLayer key={entry.layer.id} entry={entry} area={area} active={entry.layer.id === activeLayerId} onSelect={onActiveLayerChange} onTransform={(id, patch) => patchLayer(id, patch)} />
               )) : null}
-              {libraryBusy && !catalog ? <div className="absolute inset-0 grid place-items-center bg-white/20 p-4 text-center text-[10px] font-black uppercase tracking-[.08em] text-slate-500">Refreshing artwork library…</div> : !layers.length ? <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Add artwork from the library</div> : null}
+              {libraryBusy && !catalog ? <div className="absolute inset-0 grid place-items-center bg-white/20 p-4 text-center text-[10px] font-black uppercase tracking-[.08em] text-slate-500">Refreshing artwork library…</div> : !layers.length ? <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Choose your first artwork from the library</div> : null}
             </div>
           </div>
         </div>
@@ -407,9 +447,37 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Layers</p>
-          <h2 className="mt-1 text-xl font-black text-slate-900">Arrange design</h2>
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Your artwork</p>
+          <h2 className="mt-1 text-xl font-black text-slate-900">{layers.length ? `${layers.length} artwork${layers.length === 1 ? '' : 's'}` : 'No artwork yet'}</h2>
+          <p className="mt-1 text-xs font-medium leading-5 text-slate-500">Select a layer here to edit it. New layers can only be created with Add another artwork.</p>
         </div>
+
+        {resolved.filter((entry) => entry.artwork).length > 0 && (
+          <div data-seasonal-v2-artwork-list="true" className="space-y-2">
+            {resolved.filter((entry) => entry.artwork).map((entry, index) => {
+              const selected = entry.layer.id === activeLayerId || (!activeLayerId && entry.layer.id === activeEntry?.layer.id);
+              return <div key={entry.layer.id} className={`flex items-center gap-2 rounded-2xl border p-2 ${selected ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white'}`}>
+                <button type="button" onClick={() => onActiveLayerChange(entry.layer.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                  <img src={entry.artwork.preview} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1" />
+                  <span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-[.1em] text-slate-400">Artwork {index + 1}</span><span className="block truncate text-xs font-black text-slate-800">{entry.artwork.title}</span>{selected && <span className="mt-0.5 block text-[10px] font-bold text-emerald-700">Selected</span>}</span>
+                </button>
+                <button type="button" onClick={() => removeLayer(entry.layer.id)} aria-label={`Delete Artwork ${index + 1}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button>
+              </div>;
+            })}
+          </div>
+        )}
+
+        {layers.length > 0 && (
+          <button
+            data-seasonal-v2-add-artwork="true"
+            type="button"
+            onClick={() => setAddingArtwork(true)}
+            disabled={layers.length >= MAX_LAYERS || Boolean(pendingArtworkId) || addingArtwork}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-4 text-sm font-black text-slate-800 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus size={17} /> {layers.length >= MAX_LAYERS ? 'Artwork limit reached' : addingArtwork ? `Choose Artwork ${nextArtworkNumber} from the library` : 'Add another artwork'}
+          </button>
+        )}
 
         {libraryBusy && !catalog && layers.length ? (
           <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">Loading the controls for this print side. Your saved layers are being kept.</div>
@@ -418,7 +486,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
             <div className="rounded-2xl bg-slate-50 p-3">
               <div className="flex items-center gap-3">
                 <img src={activeEntry.artwork.preview} alt="" className="h-14 w-14 rounded-xl bg-white object-contain p-1" />
-                <div className="min-w-0"><p className="truncate text-sm font-black text-slate-800">{activeEntry.artwork.title}</p><p className="text-xs text-slate-500">Selected layer</p></div>
+                <div className="min-w-0"><p className="truncate text-sm font-black text-slate-800">{activeEntry.artwork.title}</p><p className="text-xs text-slate-500">Selected artwork controls</p></div>
               </div>
             </div>
 
@@ -434,14 +502,13 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
             <div className="grid grid-cols-2 gap-2">
               <ToolbarButton label={activeEntry.layer.locked ? 'Unlock' : 'Lock'} onClick={() => patchLayer(activeEntry.layer.id, { locked: !activeEntry.layer.locked })}>{activeEntry.layer.locked ? <Unlock size={15} /> : <Lock size={15} />}</ToolbarButton>
-              <ToolbarButton label="Duplicate" onClick={() => duplicateLayer(activeEntry.layer.id)} disabled={layers.length >= MAX_LAYERS}><Copy size={15} /></ToolbarButton>
               <ToolbarButton label={activeEntry.layer.visible === false ? 'Show' : 'Hide'} onClick={() => patchLayer(activeEntry.layer.id, { visible: activeEntry.layer.visible === false })}>{activeEntry.layer.visible === false ? <Eye size={15} /> : <EyeOff size={15} />}</ToolbarButton>
               <ToolbarButton label="Reset" onClick={() => resetLayer(activeEntry.layer.id)}><RotateCcw size={15} /></ToolbarButton>
+              <ToolbarButton label="Delete" onClick={() => removeLayer(activeEntry.layer.id)}><Trash2 size={15} /></ToolbarButton>
             </div>
-            <ToolbarButton label="Delete layer" onClick={() => removeLayer(activeEntry.layer.id)}><Trash2 size={15} /></ToolbarButton>
           </>
         ) : (
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">Select or add artwork to edit it.</div>
+          <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">Choose your first artwork from the library.</div>
         )}
 
         <button
