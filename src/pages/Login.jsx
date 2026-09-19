@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogIn, Mail, Lock, Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
-import GoogleIcon from "@/components/GoogleIcon";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
 export default function Login() {
@@ -66,18 +66,7 @@ export default function Login() {
         </div>
       </div>
 
-      <Button
-        variant="outline"
-        className="mb-2 h-12 w-full cursor-not-allowed text-sm font-medium opacity-60"
-        disabled
-        type="button"
-      >
-        <GoogleIcon className="mr-2 h-5 w-5" />
-        Google sign-in unavailable
-      </Button>
-      <p className="mb-5 text-center text-xs leading-5 text-muted-foreground">
-        Use email and password for now. Google sign-in will return after OAuth setup is completed.
-      </p>
+      <GoogleSignInButton returnTo={returnTo} onError={setError} />
 
       <div className="relative mb-5">
         <div className="absolute inset-0 flex items-center">
