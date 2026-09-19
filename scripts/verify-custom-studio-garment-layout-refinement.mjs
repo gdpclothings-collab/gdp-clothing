@@ -18,7 +18,8 @@ expect(studio.includes('variant?.price ?? product?.price'), 'variant pricing fal
 expect(studio.includes('frontBackFee'), 'front/back fee calculation remains intact');
 expect(studio.includes('data-gdp-selected-garment-configurator="true"'), 'full-width selected garment configurator is present');
 expect(studio.includes('data-gdp-garment-choices="top"'), 'garment choices expose the top-first layout marker');
-expect(studio.indexOf('data-gdp-garment-choices="top"') < studio.indexOf('{selectedProduct && <GarmentVariantControls'), 'garment choices must render before selected garment configuration');
+expect(studio.includes('selectedProduct && !browseGarments && <GarmentVariantControls'), 'focused garment mode gates the configurator without removing it');
+expect(studio.indexOf('data-gdp-garment-choices="top"') < studio.indexOf('selectedProduct && !browseGarments && <GarmentVariantControls'), 'garment choice controls must remain before selected garment configuration');
 expect(studio.includes('data-gdp-garment-swatch="true"'), 'color swatches are present');
 expect(studio.includes('Select a size to continue'), 'required-size guidance is present');
 expect(studio.includes('Selected garment'), 'selected garment summary is present');
