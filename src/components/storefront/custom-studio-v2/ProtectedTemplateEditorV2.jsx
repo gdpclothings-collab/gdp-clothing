@@ -137,7 +137,6 @@ function svgTextEffect(style, fontSize) {
       stroke: '#111111',
       strokeWidth: Math.max(1.5, fontSize * (0.045 + strength * 0.025)),
       paintOrder: 'stroke fill',
-      strokeLinejoin: 'round',
     };
   }
   if (effect === 'glow') return { filter: `drop-shadow(0 0 ${Math.max(2, 3 + strength * 8)}px ${style.color || '#ffffff'})` };
@@ -575,6 +574,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   // Historical regression-verifier token for the Memorial protected-template contract only:
   // GDP template artwork never becomes an editable layer.
 
+  const bootlegLayerButtons = [
+    { value: 'template', label: 'Template', enabled: Boolean(template) },
+    { value: 'photo', label: 'Photo', enabled: Boolean(photos.length) },
+    { value: 'text', label: 'Text', enabled: true },
+  ];
+
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.4fr)_minmax(300px,.86fr)]">
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -588,11 +593,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
       <section data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:sticky xl:top-24 xl:self-start' : ''}`}>
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">{isBootleg ? 'Choose Template, Photo or Text first. Only the selected layer moves when you drag, pinch or rotate on the print area.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p></div>
-        {isBootleg ? <div data-gdp-bootleg-active-layer="true" className="mb-3 grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1.5">{[
-          ['template', 'Template', Boolean(template)],
-          ['photo', 'Photo', Boolean(photos.length)],
-          ['text', 'Text', true],
-        ].map(([value, label, enabled]) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => setActiveBootlegLayer(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
+        {isBootleg ? <div data-gdp-bootleg-active-layer="true" className="mb-3 grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1.5">{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => setActiveBootlegLayer(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
         <ProtectedPreview product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} activeLayer={isBootleg ? activeBootlegLayer : 'photo'} onActiveLayerChange={isBootleg ? setActiveBootlegLayer : undefined} />
       </section>
 
