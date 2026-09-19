@@ -105,6 +105,11 @@ assert(protectedV2.includes('data-gdp-bootleg-active-status="true"'), 'active la
 assert(protectedV2.includes('data-gdp-bootleg-upload-status="true"'), 'background processing gets a visible canvas-adjacent progress status');
 assert(protectedV2.includes('Finish Template Editing'), 'template completion wording is explicit instead of ambiguous Done editing');
 assert(protectedV2.includes("photos.length ? 'Add another photo' : 'Add first photo'"), 'photo add action clearly distinguishes first and additional photos');
+assert(protectedV2.includes("path === 'memorial' ? 'Name' : 'Your Text'"), 'Photo Bootleg renames Headline to Your Text while Memorial keeps Name');
+assert(!protectedV2.includes("'Dates' : 'Subline'"), 'Photo Bootleg no longer exposes a Subline input');
+assert(protectedV2.includes('data-gdp-bootleg-confirm-action="persistent"'), 'Photo Bootleg completion action is persistent in the live garment preview column');
+assert(protectedV2.indexOf('data-gdp-bootleg-confirm-action="persistent"') < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Photo Bootleg completion action is outside the scrollable Layer Controls inspector');
+assert(protectedV2.includes('{!isBootleg ? <button type="button" disabled={!template || !photos.length}'), 'Memorial retains its existing confirmation action in Customer Controls');
 
 assert(bootlegTextLayout.includes('curveGlyphs'), 'shared Bootleg layout owns dynamic per-glyph curve geometry');
 assert(bootlegTextLayout.includes('relativeBounds'), 'shared Bootleg layout exposes visible bounds for boundary-aware movement');
