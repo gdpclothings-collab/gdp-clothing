@@ -1,0 +1,79 @@
+[data-gdp-garment-focus-mode="focused"] {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+[data-gdp-garment-focus-mode="focused"] > [data-gdp-garment-choice-hidden="true"] {
+  display: none !important;
+}
+
+[data-gdp-garment-focus-mode="focused"] > [data-gdp-focused-garment-card="true"] {
+  width: 100%;
+  max-width: 760px;
+}
+
+[data-gdp-garment-focus-mode="focused"] > [data-gdp-focused-garment-card="true"] > button {
+  display: grid;
+  grid-template-columns: minmax(112px, 150px) minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 128px;
+}
+
+[data-gdp-garment-focus-mode="focused"] > [data-gdp-focused-garment-card="true"] > button > div:first-child {
+  aspect-ratio: auto !important;
+  min-height: 128px;
+  padding: 0.5rem;
+}
+
+[data-gdp-garment-focus-mode="focused"] > [data-gdp-focused-garment-card="true"] > button > div:last-child {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+[data-gdp-garment-focus-state="browse"] [data-gdp-selected-garment-configurator="true"] {
+  display: none !important;
+}
+
+.gdp-v2-change-garment {
+  min-height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid rgb(203 213 225);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.625rem 0.875rem;
+  color: rgb(15 23 42);
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.gdp-v2-change-garment:hover {
+  border-color: rgb(71 85 105);
+  background: rgb(248 250 252);
+}
+
+.gdp-v2-change-garment:active {
+  transform: translateY(1px);
+}
+
+.gdp-v2-change-garment:focus-visible {
+  outline: 2px solid rgb(15 23 42);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  [data-gdp-garment-focus-mode="focused"] > [data-gdp-focused-garment-card="true"] > button {
+    grid-template-columns: 96px minmax(0, 1fr);
+    min-height: 108px;
+  }
+
+  [data-gdp-garment-focus-mode="focused"] > [data-gdp-focused-garment-card="true"] > button > div:first-child {
+    min-height: 108px;
+  }
+
+  .gdp-v2-change-garment {
+    width: 100%;
+    justify-content: center;
+  }
+}
