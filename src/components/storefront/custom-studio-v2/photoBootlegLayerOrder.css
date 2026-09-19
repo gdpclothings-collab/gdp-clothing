@@ -10,3 +10,19 @@
 [data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-template-layer="true"].pointer-events-none {
   z-index: 15 !important;
 }
+
+/* Sticker recovery safety fix — PR #182 visual review.
+ * A placed sticker that is no longer the active sticker still needs to accept a
+ * pointer-down so the existing onSelect handler can make it active again.
+ * Without this override, Tailwind's pointer-events-none makes older stickers
+ * impossible to re-select, which also makes them impossible to delete.
+ * Keep the selector limited to direct z-40 grid layers inside the Photo Bootleg
+ * print guide so photos, protected template artwork, text layers and other
+ * Custom Studio paths retain their existing interaction rules.
+ */
+[data-gdp-studio-v2-guard="true"]
+[data-gdp-bootleg-preview-canvas="viewport-fit"]
+[data-gdp-print-guide="true"] > .z-40.grid.pointer-events-none {
+  pointer-events: auto !important;
+  cursor: pointer;
+}
