@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Mail, Lock, Loader2, CheckCircle2, RefreshCw, UserRound } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
-import GoogleIcon from "@/components/GoogleIcon";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { PASSWORD_POLICY_HINT, validatePassword } from "@/lib/passwordPolicy";
 import { privacyApi } from "@/lib/privacyApi";
@@ -205,18 +205,7 @@ export default function Register() {
         <div className="rounded-xl bg-background px-2 py-2.5">Manage proofs</div>
       </div>
 
-      <Button
-        variant="outline"
-        className="mb-2 h-12 w-full cursor-not-allowed text-sm font-medium opacity-60"
-        disabled
-        type="button"
-      >
-        <GoogleIcon className="mr-2 h-5 w-5" />
-        Google sign-in unavailable
-      </Button>
-      <p className="mb-5 text-center text-xs leading-5 text-muted-foreground">
-        Use email and password for now. Google sign-in will return after OAuth setup is completed.
-      </p>
+      <GoogleSignInButton returnTo={returnTo} onError={setError} />
 
       <div className="relative mb-5">
         <div className="absolute inset-0 flex items-center">
