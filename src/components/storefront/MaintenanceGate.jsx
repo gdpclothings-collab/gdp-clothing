@@ -17,7 +17,7 @@ import {
   maintenanceSettingsApi,
 } from "@/lib/maintenanceSettingsApi";
 
-const ADMIN_SAFE_PATHS = ["/login", "/forgot-password", "/reset-password"];
+const ADMIN_SAFE_PATHS = ["/login", "/forgot-password", "/reset-password", "/auth/complete"];
 const ACCESS_SESSION_KEY = "gdp_maintenance_access";
 
 function readAccessSession() {
