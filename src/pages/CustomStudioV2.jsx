@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, Loader2, RotateCcw, Shiel
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
 import UploadArtworkEditorV2 from '@/components/storefront/custom-studio-v2/UploadArtworkEditorV2';
+import GarmentInfoPanel, { garmentColorSwatch } from '@/components/storefront/custom-studio-v2/GarmentInfoPanel';
 import { customerApi } from '@/lib/customerApi';
 import { useCart } from '@/lib/CartContext';
 import { normalizeStyleTemplates } from '@/lib/customStudioStyleTemplates';
@@ -67,12 +68,16 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
     <div className="mt-3 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-inner sm:p-4" data-gdp-selected-garment-options="true">
       <div>
         <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Color</div>
-        <div className="flex flex-wrap gap-2">{colors.map((color) => <button key={color} type="button" onClick={() => dispatch({ type: 'SET_COLOR', color })} className={`min-h-11 rounded-xl border-2 px-4 text-sm font-bold ${state.color === color ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{color}</button>)}</div>
+        <div className="flex flex-wrap gap-2">{colors.map((color) => {
+          const selected = state.color === color;
+          return <button key={color} type="button" onClick={() => dispatch({ type: 'SET_COLOR', color })} aria-label={`Select ${color}`} aria-pressed={selected} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 text-sm font-bold ${selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="h-5 w-5 shrink-0 rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: garmentColorSwatch(product, color) }} aria-hidden="true" /><span>{color}</span></button>;
+        })}</div>
       </div>
       <div>
         <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Size</div>
         <div className="flex flex-wrap gap-2">{sizes.map((size) => <button key={size} type="button" onClick={() => dispatch({ type: 'SET_SIZE', size })} className={`min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold ${state.size === size ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{size}</button>)}</div>
       </div>
+      <GarmentInfoPanel product={product} sizes={sizes} />
       <div>
         <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Quantity</div>
         <div className="inline-flex min-h-11 items-center rounded-xl border-2 border-slate-200 bg-white"><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.max(1, Number(state.quantity || 1) - 1) })} disabled={Number(state.quantity || 1) <= 1} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">−</button><input type="number" min="1" max="99" value={state.quantity} onChange={(event) => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Math.max(1, Number(event.target.value || 1))) })} className="h-11 w-14 border-x border-slate-200 text-center text-base font-black outline-none sm:text-sm" /><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Number(state.quantity || 1) + 1) })} disabled={Number(state.quantity || 1) >= 99} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">+</button></div>
@@ -85,7 +90,7 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
 function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
   return (
     <div className="space-y-5">
-      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Select a garment to reveal its available color, size and quantity options directly below it.</p></div>
+      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Select a garment to reveal its DTF printing details, available colours, sizes, size guide and order information directly below it.</p></div>
       <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {catalog.map((item) => {
           const selected = String(item.id) === String(state.productId);
