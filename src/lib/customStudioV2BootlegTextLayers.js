@@ -9,7 +9,8 @@ function cleanText(text = {}) {
 }
 
 export function normalizeBootlegTextStyle(style = {}, fallbackStyle = {}) {
-  const { templateTransform: _templateTransform, ...layerStyle } = style || {};
+  const layerStyle = { ...(style || {}) };
+  delete layerStyle.templateTransform;
   return {
     ...(fallbackStyle || {}),
     ...layerStyle,
