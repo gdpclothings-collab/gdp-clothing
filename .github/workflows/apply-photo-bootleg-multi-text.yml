@@ -1,4 +1,4 @@
-name: Apply Photo Bootleg multi-text implementation
+name: Harden Photo Bootleg multi-text implementation
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  harden:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,58 +20,81 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Correct local migration boundaries
+      - name: Harden template selection and layer UI
         shell: bash
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const path = 'scripts/apply-photo-bootleg-multi-text.mjs';
-          let source = fs.readFileSync(path, 'utf8');
-          source = source.replace("interactiveTextLayer + 'function ProtectedPreview('", 'interactiveTextLayer');
-          source = source.replace("protectedPreview + 'export default function ProtectedTemplateEditorV2'", 'protectedPreview');
-          source = source.replace("newTextActions + '  const addSticker = (sticker) => {'", 'newTextActions');
-          source = source.replace("multiTextPanel + '  const stickerPanel ='", 'multiTextPanel');
-          fs.writeFileSync(path, source);
-          NODE
+          const componentPath = 'src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx';
+          const verifierPath = 'scripts/verify-photo-bootleg-desktop.mjs';
+          let component = fs.readFileSync(componentPath, 'utf8');
+          let verifier = fs.readFileSync(verifierPath, 'utf8');
 
-      - name: Validate migration syntax
-        run: node --check scripts/apply-photo-bootleg-multi-text.mjs
+          const startToken = '  const selectTemplate = (item) => {';
+          const endToken = '  const prepareAsset = async (file) => {';
+          const start = component.indexOf(startToken);
+          const end = component.indexOf(endToken, start);
+          if (start < 0 || end < 0) throw new Error('Could not find selectTemplate boundaries.');
+          const replacement = `  const selectTemplate = (item) => {
+            const defaults = {
+              scale: Number(item.defaultTransform?.scale || 100),
+              rotation: Number(item.defaultTransform?.rotation || 0),
+              x: Number(item.defaultTransform?.offset?.x || 0),
+              y: Number(item.defaultTransform?.offset?.y || 0),
+            };
+            const nextPhotos = photos.length ? photos : [];
+            if (isBootleg) {
+              const nextTextPosition = resolveBootlegTextPosition(textStyle, item.textZone || { x: 12, y: 78, width: 76, height: 16 });
+              const nextLayers = bootlegTextLayers.map((layer) => layer.id === activeTextLayer?.id
+                ? { ...layer, style: normalizeBootlegTextStyle({ ...layer.style, canvasX: nextTextPosition.x, canvasY: nextTextPosition.y }, fallbackBootlegTextStyle) }
+                : layer);
+              const latestEditor = editorRef.current || editor;
+              const textPatch = buildBootlegTextStatePatch(latestEditor, nextLayers, activeTextLayer?.id || '', fallbackBootlegTextStyle);
+              const patch = {
+                templateId: item.id,
+                ...(nextPhotos.length ? {} : { transform: defaults }),
+                ...textPatch,
+                textStyle: { ...textPatch.textStyle, templateTransform: { scale: 100, rotation: 0, x: 0, y: 0 } },
+              };
+              editorRef.current = { ...latestEditor, ...patch };
+              onPatch(patch);
+              setActiveBootlegLayer('template');
+              return;
+            }
+            onPatch({ templateId: item.id, ...(nextPhotos.length ? {} : { transform: defaults }) });
+          };
 
-      - name: Apply guarded multi-text implementation
-        run: node scripts/apply-photo-bootleg-multi-text.mjs
+`;
+          component = component.slice(0, start) + replacement + component.slice(end);
 
-      - name: Modernize superseded single-text assertion
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'scripts/verify-photo-bootleg-desktop.mjs';
-          let source = fs.readFileSync(path, 'utf8');
-          source = source.replace(
-            `assert(protectedV2.includes("path === 'memorial' ? 'Name' : 'Your Text'"), 'Photo Bootleg renames Headline to Your Text while Memorial keeps Name');`,
-            `assert(protectedV2.includes('>Your Text<input') && protectedV2.includes('>Name<input'), 'Photo Bootleg keeps Your Text while Memorial keeps Name');`,
-          );
-          fs.writeFileSync(path, source);
+          const hiddenSelector = `<button type="button" onClick={() => { selectTextLayer(layer); setTimeout(() => {}, 0); }} className="hidden" aria-hidden="true" tabIndex={-1}>Select</button>`;
+          if (!component.includes(hiddenSelector)) throw new Error('Expected temporary hidden text selector was not found.');
+          component = component.replace(hiddenSelector, '');
+
+          const anchor = `assert(protectedV2.includes('buildBootlegTextStatePatch'), 'Photo Bootleg mirrors active text into legacy fields for backward compatibility');`;
+          if (!verifier.includes(anchor)) throw new Error('Missing verifier anchor.');
+          const additions = `
+assert(protectedV2.includes('const nextLayers = bootlegTextLayers.map'), 'template changes preserve independent text layers');
+assert(protectedV2.includes("layer.id === activeTextLayer?.id"), 'template text-zone repositioning is scoped to the active text layer');
+assert(!protectedV2.includes('setTimeout(() => {}, 0)'), 'multi-text layer list contains no generated hidden selector shim');`;
+          if (!verifier.includes('template changes preserve independent text layers')) verifier = verifier.replace(anchor, anchor + additions);
+
+          fs.writeFileSync(componentPath, component);
+          fs.writeFileSync(verifierPath, verifier);
           NODE
 
       - name: Verify Photo Bootleg contracts
         run: node scripts/verify-photo-bootleg-desktop.mjs
 
-      - name: Validate changed source syntax
-        run: |
-          node --check src/lib/customStudioV2BootlegTextLayers.js
-          node --check src/lib/customStudioV2ProtectedProduction.js
-          node --check scripts/verify-photo-bootleg-desktop.mjs
-
-      - name: Commit generated implementation
+      - name: Commit hardening
         shell: bash
         run: |
           if git diff --quiet; then
-            echo "No generated implementation changes were needed."
+            echo "No hardening changes were needed."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx src/lib/customStudioV2ProtectedProduction.js scripts/verify-photo-bootleg-desktop.mjs
-          git commit -m "Add Photo Bootleg multi-text layers"
+          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx scripts/verify-photo-bootleg-desktop.mjs
+          git commit -m "Harden Photo Bootleg multi-text template switching"
           git push
