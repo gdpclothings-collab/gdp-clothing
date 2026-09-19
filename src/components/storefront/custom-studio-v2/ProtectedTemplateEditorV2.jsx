@@ -31,6 +31,12 @@ import {
   resolveBootlegAnchorRanges,
   resolveBootlegTextLayout,
 } from '@/lib/customStudioV2BootlegTextLayout';
+import {
+  BOOTLEG_MAX_TEXT_LAYERS,
+  buildBootlegTextStatePatch,
+  normalizeBootlegTextStyle,
+  resolveBootlegTextLayers,
+} from '@/lib/customStudioV2BootlegTextLayers';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
@@ -228,9 +234,32 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
   );
 }
 
-function BootlegTextLayer({ layout, style, gesture, selected }) {
+function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle }) {
+  const style = layer?.style || {};
+  const bounds = layout?.bounds || null;
+  const rawLimits = layout ? bootlegGestureLimits(layout) : { minX: -50, maxX: 50, minY: -50, maxY: 50 };
+  const canvasX = Number.isFinite(Number(style.canvasX)) ? clamp(Number(style.canvasX), 0, 100) : 50;
+  const canvasY = Number.isFinite(Number(style.canvasY)) ? clamp(Number(style.canvasY), 0, 100) : 50;
+  const gesture = useTouchTransformV2({
+    transform: { scale: positiveScale(style.fontScale), rotation: style.rotation || 0, x: canvasX - 50, y: canvasY - 50 },
+    onChange: (next) => onPatchStyle({
+      ...style,
+      freeTextLayout: true,
+      fontScale: positiveScale(next.scale),
+      rotation: next.rotation,
+      canvasX: clamp(next.x + 50, 0, 100),
+      canvasY: clamp(next.y + 50, 0, 100),
+    }),
+    containerRef: canvasRef,
+    enabled: selected && Boolean(layout) && Boolean(layer?.text?.headline),
+    minScale: 1,
+    maxScale: Number.POSITIVE_INFINITY,
+    minX: clamp(rawLimits.minX, -50, 50),
+    maxX: clamp(rawLimits.maxX, -50, 50),
+    minY: clamp(rawLimits.minY, -50, 50),
+    maxY: clamp(rawLimits.maxY, -50, 50),
+  });
   if (!layout || (!layout.headline && !layout.subline && !layout.message)) return null;
-  const bounds = layout.bounds;
   const common = /** @type {const} */ ({
     fill: style.color || '#ffffff',
     fontFamily: style.fontFamily || 'Arial, sans-serif',
@@ -241,10 +270,11 @@ function BootlegTextLayer({ layout, style, gesture, selected }) {
     <div
       {...gesture}
       data-gdp-bootleg-text-layer="true"
+      data-gdp-bootleg-text-layer-id={layer.id}
       className={`absolute inset-0 z-30 ${selected ? 'cursor-grab' : 'pointer-events-none'}`}
       style={gesture.style}
     >
-      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label="Editable Photo Bootleg text layer">
+      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label={`Editable Photo Bootleg ${layer.name || 'text'} layer`}>
         {selected && bounds ? <rect data-gdp-bootleg-text-bounds="true" x={bounds.minX} y={bounds.minY} width={Math.max(0, bounds.maxX - bounds.minX)} height={Math.max(0, bounds.maxY - bounds.minY)} fill="none" stroke="rgb(34 211 238)" strokeWidth={Math.max(2, layout.width * 0.004)} strokeDasharray={`${Math.max(5, layout.width * 0.009)} ${Math.max(4, layout.width * 0.006)}`} /> : null}
         {layout.headline?.kind === 'straight' ? (
           <text {...common} x={layout.headline.x} y={layout.headline.y} fontSize={layout.headline.fontSize} fontWeight="900" transform={`rotate(${layout.headline.rotation || 0} ${layout.headline.x} ${layout.headline.y})`} style={svgTextEffect(style, layout.headline.fontSize)}>{layout.headline.text}</text>
@@ -269,55 +299,52 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
   const stickerLayers = (editor.stickers || []).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   const activeStickerId = editor.activeStickerId || '';
-  const style = { ...defaultV2TextStyle(path), ...(editor.textStyle || {}) };
+  const fallbackTextStyle = defaultV2TextStyle(path);
+  const legacyStyle = { ...fallbackTextStyle, ...(editor.textStyle || {}) };
+  const bootlegTextLayers = isBootleg
+    ? resolveBootlegTextLayers(editor, fallbackTextStyle).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+    : [];
+  const activeTextLayerId = editor.activeTextLayerId || bootlegTextLayers.at(-1)?.id || '';
   const radius = zone.shape === 'circle' || zone.shape === 'oval' ? '50%' : `${Number(zone.radius || 0)}%`;
   const stickerById = Object.fromEntries(stickers.map((item) => [item.id, item]));
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
-  const bootlegTextPosition = resolveBootlegTextPosition(style, textZone);
-  const templateTransform = resolveBootlegTemplateTransform(style);
+  const templateTransform = resolveBootlegTemplateTransform(legacyStyle);
   const templateEditing = isBootleg && activeLayer === 'template';
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
-  const bootlegLayout = isBootleg ? resolveBootlegTextLayout({
-    text: editor.text || {},
-    zone: textZone,
-    style: { ...style, canvasX: bootlegTextPosition.x, canvasY: bootlegTextPosition.y },
-    width: layoutWidth,
-    height: layoutHeight,
-  }) : null;
-  const rawGestureLimits = isBootleg ? bootlegGestureLimits(bootlegLayout) : null;
-  const gestureLimits = isBootleg ? {
-    minX: clamp(rawGestureLimits.minX, -50, 50),
-    maxX: clamp(rawGestureLimits.maxX, -50, 50),
-    minY: clamp(rawGestureLimits.minY, -50, 50),
-    maxY: clamp(rawGestureLimits.maxY, -50, 50),
-  } : null;
+  const bootlegTextLayouts = bootlegTextLayers.map((layer) => {
+    const style = normalizeBootlegTextStyle(layer.style || {}, fallbackTextStyle);
+    const position = resolveBootlegTextPosition(style, textZone);
+    const layout = resolveBootlegTextLayout({
+      text: layer.text || {},
+      zone: textZone,
+      style: { ...style, canvasX: position.x, canvasY: position.y },
+      width: layoutWidth,
+      height: layoutHeight,
+    });
+    const previewLayer = /** @type {Record<string, any>} */ ({ ...layer, style });
+    return { layer: previewLayer, layout };
+  });
 
-  const textGesture = useTouchTransformV2({
-    transform: isBootleg
-      ? { scale: positiveScale(style.fontScale), rotation: style.rotation || 0, x: bootlegTextPosition.x - 50, y: bootlegTextPosition.y - 50 }
-      : { scale: style.fontScale || 100, rotation: style.rotation || 0, x: style.x || 0, y: style.y || 0 },
-    onChange: (next) => onPatch({
-      textStyle: isBootleg
-        ? { ...style, freeTextLayout: true, fontScale: positiveScale(next.scale), rotation: next.rotation, canvasX: clamp(next.x + 50, 0, 100), canvasY: clamp(next.y + 50, 0, 100) }
-        : { ...style, fontScale: next.scale, rotation: next.rotation, x: next.x, y: next.y },
-    }),
+  const legacyTextGesture = useTouchTransformV2({
+    transform: { scale: legacyStyle.fontScale || 100, rotation: legacyStyle.rotation || 0, x: legacyStyle.x || 0, y: legacyStyle.y || 0 },
+    onChange: (next) => onPatch({ textStyle: { ...legacyStyle, fontScale: next.scale, rotation: next.rotation, x: next.x, y: next.y } }),
     containerRef: canvasRef,
-    enabled: Boolean(editor.text?.headline || editor.text?.subline || editor.text?.message) && (isBootleg ? activeLayer === 'text' : true),
-    minScale: isBootleg ? 1 : 55,
-    maxScale: isBootleg ? Number.POSITIVE_INFINITY : 180,
-    minX: isBootleg ? gestureLimits.minX : -42,
-    maxX: isBootleg ? gestureLimits.maxX : 42,
-    minY: isBootleg ? gestureLimits.minY : -42,
-    maxY: isBootleg ? gestureLimits.maxY : 42,
+    enabled: !isBootleg && Boolean(editor.text?.headline || editor.text?.subline || editor.text?.message),
+    minScale: 55,
+    maxScale: 180,
+    minX: -42,
+    maxX: 42,
+    minY: -42,
+    maxY: 42,
   });
 
   const templateGesture = useTouchTransformV2({
     transform: templateTransform,
     onChange: (next) => {
       if (!isBootleg) return;
-      onPatch({ textStyle: { ...style, freeTextLayout: true, templateTransform: { scale: clamp(next.scale, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE), rotation: next.rotation, x: next.x, y: next.y } } });
+      onPatch({ textStyle: { ...legacyStyle, freeTextLayout: true, templateTransform: { scale: clamp(next.scale, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE), rotation: next.rotation, x: next.x, y: next.y } } });
     },
     containerRef: canvasRef,
     enabled: isBootleg && templateEditing && Boolean(template),
@@ -337,10 +364,15 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const patchStickerTransform = (id, transform) => {
     onPatch({ stickers: (editor.stickers || []).map((layer) => layer.id === id ? { ...layer, transform } : layer), activeStickerId: id });
   };
+  const patchBootlegTextStyle = (id, style) => {
+    const current = resolveBootlegTextLayers(editor, fallbackTextStyle);
+    const next = current.map((layer) => layer.id === id ? { ...layer, style: normalizeBootlegTextStyle(style, fallbackTextStyle) } : layer);
+    onPatch(buildBootlegTextStatePatch(editor, next, id, fallbackTextStyle));
+  };
 
-  const textTransform = `translate(${clamp(style.x, -42, 42)}%, ${clamp(style.y, -42, 42)}%) rotate(${clamp(style.rotation, -25, 25)}deg)`;
+  const textTransform = `translate(${clamp(legacyStyle.x, -42, 42)}%, ${clamp(legacyStyle.y, -42, 42)}%) rotate(${clamp(legacyStyle.rotation, -25, 25)}deg)`;
   const textBlockStyle = { left: `${textZone.x}%`, top: `${textZone.y}%`, width: `${textZone.width}%`, height: `${textZone.height}%` };
-  const fontScale = clamp(style.fontScale, 55, 180);
+  const fontScale = clamp(legacyStyle.fontScale, 55, 180);
   const headline = String(editor.text?.headline || '').trim();
 
   const photoZone = (
@@ -382,11 +414,11 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             ) : <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" />
           ) : null}
 
-          {isBootleg ? <BootlegTextLayer layout={bootlegLayout} style={style} gesture={textGesture} selected={activeLayer === 'text'} /> : null}
+          {isBootleg ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
 
           {!isBootleg && (headline || editor.text?.subline || editor.text?.message) ? (
-            <div {...textGesture} className="absolute z-30 flex cursor-grab flex-col justify-center px-1 text-center font-black drop-shadow-[0_2px_3px_rgba(0,0,0,.8)] ring-1 ring-transparent active:ring-cyan-400/80" style={{ ...textGesture.style, ...textBlockStyle, color: style.color, fontFamily: style.fontFamily, transform: textTransform, ...textEffectStyle(style) }}>
-              {headline ? <div className={`${style.curve === 'straight' ? 'truncate' : 'h-[70%]'} leading-none uppercase`} style={{ fontSize: `${fontScale * 0.105}px` }}><CurvedHeadline text={headline.toUpperCase()} style={style} /></div> : null}
+            <div {...legacyTextGesture} className="absolute z-30 flex cursor-grab flex-col justify-center px-1 text-center font-black drop-shadow-[0_2px_3px_rgba(0,0,0,.8)] ring-1 ring-transparent active:ring-cyan-400/80" style={{ ...legacyTextGesture.style, ...textBlockStyle, color: legacyStyle.color, fontFamily: legacyStyle.fontFamily, transform: textTransform, ...textEffectStyle(legacyStyle) }}>
+              {headline ? <div className={`${legacyStyle.curve === 'straight' ? 'truncate' : 'h-[70%]'} leading-none uppercase`} style={{ fontSize: `${fontScale * 0.105}px` }}><CurvedHeadline text={headline.toUpperCase()} style={legacyStyle} /></div> : null}
               {editor.text?.subline ? <div className="truncate font-bold leading-tight">{editor.text.subline}</div> : null}
               {editor.text?.message ? <div className="mt-0.5 line-clamp-2 font-semibold leading-tight">{editor.text.message}</div> : null}
             </div>
@@ -396,7 +428,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         </div>
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
-      {isBootleg && bootlegLayout?.overflow?.any ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-amber-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>Part of this text is outside the print area. The size is not limited, but anything outside the dashed print boundary will not be printed.</span></div> : null}
+      {isBootleg && bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-amber-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>Part of a text layer is outside the print area. Text size is not limited, but anything outside the dashed print boundary will not be printed.</span></div> : null}
       <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{isBootleg ? `${activeLayer === 'template' ? 'Template' : activeLayer === 'photo' ? 'Photo' : activeLayer === 'text' ? 'Text' : 'Sticker'} layer selected · ` : ''}One finger moves · two fingers pinch/rotate · {String(side || 'front').toUpperCase()} side</p>
     </div>
   );
@@ -418,18 +450,31 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const photos = [...currentPhotoLayers(editor)].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
   const activePhoto = photos.find((layer) => layer.id === activePhotoId) || photos.at(-1) || null;
-  const textStyle = { ...defaultV2TextStyle(path), ...(editor.textStyle || {}) };
+  const fallbackBootlegTextStyle = defaultV2TextStyle(path);
+  const legacyTextStyle = { ...fallbackBootlegTextStyle, ...(editor.textStyle || {}) };
+  const bootlegTextLayers = isBootleg ? resolveBootlegTextLayers(editor, fallbackBootlegTextStyle) : [];
+  const activeTextLayerId = editor.activeTextLayerId || bootlegTextLayers.at(-1)?.id || '';
+  const activeTextLayer = bootlegTextLayers.find((layer) => layer.id === activeTextLayerId) || bootlegTextLayers.at(-1) || null;
+  const textStyle = isBootleg ? normalizeBootlegTextStyle(activeTextLayer?.style || {}, fallbackBootlegTextStyle) : legacyTextStyle;
+  const textContent = isBootleg ? (activeTextLayer?.text || { headline: '', subline: '', message: '' }) : (editor.text || {});
   const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16 };
   const textPosition = resolveBootlegTextPosition(textStyle, textZone);
-  const templateTransform = resolveBootlegTemplateTransform(textStyle);
+  const templateTransform = resolveBootlegTemplateTransform(legacyTextStyle);
   const activeSticker = (editor.stickers || []).find((layer) => layer.id === editor.activeStickerId) || null;
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
-  const textLayout = isBootleg ? resolveBootlegTextLayout({ text: editor.text || {}, zone: textZone, style: { ...textStyle, canvasX: textPosition.x, canvasY: textPosition.y }, width: layoutWidth, height: layoutHeight }) : null;
-  const textAnchorRanges = isBootleg ? resolveBootlegAnchorRanges(textLayout) : null;
-  const textXSlider = isBootleg ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
-  const textYSlider = isBootleg ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
+  const textLayout = isBootleg && activeTextLayer ? resolveBootlegTextLayout({ text: textContent, zone: textZone, style: { ...textStyle, canvasX: textPosition.x, canvasY: textPosition.y }, width: layoutWidth, height: layoutHeight }) : null;
+  const textAnchorRanges = isBootleg && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
+  const textXSlider = isBootleg && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
+  const textYSlider = isBootleg && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
+
+  const syncTextLayers = (next, activeId = '') => {
+    const latestEditor = editorRef.current || editor;
+    const patch = buildBootlegTextStatePatch(latestEditor, next, activeId, fallbackBootlegTextStyle);
+    editorRef.current = { ...latestEditor, ...patch };
+    onPatch(patch);
+  };
 
   const syncPhotos = (next, activeId = '') => {
     const byId = new Map();
@@ -453,21 +498,25 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       y: Number(item.defaultTransform?.offset?.y || 0),
     };
     const nextPhotos = photos.length ? photos : [];
-    const nextTextPosition = resolveBootlegTextPosition(textStyle, item.textZone || { x: 12, y: 78, width: 76, height: 16 });
-    onPatch({
-      templateId: item.id,
-      ...(nextPhotos.length ? {} : { transform: defaults }),
-      ...(isBootleg ? {
-        textStyle: {
-          ...textStyle,
-          freeTextLayout: true,
-          canvasX: nextTextPosition.x,
-          canvasY: nextTextPosition.y,
-          templateTransform: { scale: 100, rotation: 0, x: 0, y: 0 },
-        },
-      } : {}),
-    });
-    if (isBootleg) setActiveBootlegLayer('template');
+    if (isBootleg) {
+      const nextTextPosition = resolveBootlegTextPosition(textStyle, item.textZone || { x: 12, y: 78, width: 76, height: 16 });
+      const nextLayers = bootlegTextLayers.map((layer) => layer.id === activeTextLayer?.id
+        ? { ...layer, style: normalizeBootlegTextStyle({ ...layer.style, canvasX: nextTextPosition.x, canvasY: nextTextPosition.y }, fallbackBootlegTextStyle) }
+        : layer);
+      const latestEditor = editorRef.current || editor;
+      const textPatch = buildBootlegTextStatePatch(latestEditor, nextLayers, activeTextLayer?.id || '', fallbackBootlegTextStyle);
+      const patch = {
+        templateId: item.id,
+        ...(nextPhotos.length ? {} : { transform: defaults }),
+        ...textPatch,
+        textStyle: { ...textPatch.textStyle, templateTransform: { scale: 100, rotation: 0, x: 0, y: 0 } },
+      };
+      editorRef.current = { ...latestEditor, ...patch };
+      onPatch(patch);
+      setActiveBootlegLayer('template');
+      return;
+    }
+    onPatch({ templateId: item.id, ...(nextPhotos.length ? {} : { transform: defaults }) });
   };
 
   const prepareAsset = async (file) => {
@@ -579,23 +628,83 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   };
 
   const patchText = (patch) => {
-    if (isBootleg) setActiveBootlegLayer('text');
-    onPatch({ text: { ...editor.text, ...patch } });
+    if (!isBootleg) {
+      onPatch({ text: { ...editor.text, ...patch } });
+      return;
+    }
+    if (!activeTextLayer) return;
+    setActiveBootlegLayer('text');
+    syncTextLayers(bootlegTextLayers.map((layer) => layer.id === activeTextLayer.id ? { ...layer, text: { ...layer.text, ...patch, subline: '', message: '' } } : layer), activeTextLayer.id);
   };
   const patchTextStyle = (patch, activateText = true) => {
-    if (isBootleg && activateText) setActiveBootlegLayer('text');
-    onPatch({ textStyle: { ...textStyle, ...(isBootleg ? { freeTextLayout: true } : {}), ...patch } });
+    if (!isBootleg) {
+      onPatch({ textStyle: { ...legacyTextStyle, ...patch } });
+      return;
+    }
+    if (!activeTextLayer) return;
+    if (activateText) setActiveBootlegLayer('text');
+    syncTextLayers(bootlegTextLayers.map((layer) => layer.id === activeTextLayer.id ? { ...layer, style: normalizeBootlegTextStyle({ ...layer.style, ...patch }, fallbackBootlegTextStyle) } : layer), activeTextLayer.id);
   };
   const patchTemplateTransform = (patch) => {
     if (isBootleg) setActiveBootlegLayer('template');
-    patchTextStyle({ templateTransform: { ...templateTransform, ...patch } }, false);
+    const latestEditor = editorRef.current || editor;
+    const nextTextStyle = { ...(latestEditor.textStyle || legacyTextStyle), freeTextLayout: true, templateTransform: { ...templateTransform, ...patch } };
+    editorRef.current = { ...latestEditor, textStyle: nextTextStyle };
+    onPatch({ textStyle: nextTextStyle });
   };
   const patchTextVisualPosition = (axis, value) => {
-    if (!isBootleg || !textLayout || !textAnchorRanges) return;
+    if (!isBootleg || !activeTextLayer || !textLayout || !textAnchorRanges) return;
     const anchor = bootlegSliderToAnchor(value, textAnchorRanges[axis]);
     const canvasX = axis === 'x' ? clamp(anchor / layoutWidth * 100, 0, 100) : textPosition.x;
     const canvasY = axis === 'y' ? clamp(anchor / layoutHeight * 100, 0, 100) : textPosition.y;
     patchTextStyle({ canvasX, canvasY });
+  };
+
+  const nextTextName = () => {
+    const used = new Set(bootlegTextLayers.map((layer) => layer.name));
+    let index = 1;
+    while (used.has(`Text ${index}`)) index += 1;
+    return `Text ${index}`;
+  };
+  const selectTextLayer = (layer) => {
+    if (!layer) return;
+    setActiveBootlegLayer('text');
+    syncTextLayers(bootlegTextLayers, layer.id);
+  };
+  const addTextLayer = () => {
+    if (!isBootleg || bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS) return;
+    const layer = {
+      id: v2LayerId('text'),
+      name: nextTextName(),
+      text: { headline: '', subline: '', message: '' },
+      style: normalizeBootlegTextStyle({ ...fallbackBootlegTextStyle, canvasX: 50, canvasY: clamp(50 + bootlegTextLayers.length * 5, 15, 85), fontScale: 100, rotation: 0 }, fallbackBootlegTextStyle),
+      order: bootlegTextLayers.length,
+      visible: true,
+    };
+    setActiveBootlegLayer('text');
+    syncTextLayers([...bootlegTextLayers, layer], layer.id);
+  };
+  const duplicateActiveTextLayer = () => {
+    if (!activeTextLayer || bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS) return;
+    const style = normalizeBootlegTextStyle(activeTextLayer.style || {}, fallbackBootlegTextStyle);
+    const duplicate = {
+      ...activeTextLayer,
+      id: v2LayerId('text'),
+      name: nextTextName(),
+      text: { ...activeTextLayer.text },
+      style: { ...style, canvasX: clamp(Number(style.canvasX ?? 50) + 4, 0, 100), canvasY: clamp(Number(style.canvasY ?? 50) + 4, 0, 100) },
+      order: bootlegTextLayers.length,
+    };
+    setActiveBootlegLayer('text');
+    syncTextLayers([...bootlegTextLayers, duplicate], duplicate.id);
+  };
+  const deleteActiveTextLayer = () => {
+    if (!activeTextLayer) return;
+    const index = bootlegTextLayers.findIndex((layer) => layer.id === activeTextLayer.id);
+    const remaining = bootlegTextLayers.filter((layer) => layer.id !== activeTextLayer.id);
+    const nextActive = remaining[Math.max(0, index - 1)] || remaining[0] || null;
+    syncTextLayers(remaining, nextActive?.id || '');
+    setActiveBootlegLayer('text');
   };
 
   const addSticker = (sticker) => {
@@ -625,7 +734,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     : activeBootlegLayer === 'photo'
       ? `Editing Photo — ${activePhoto?.asset?.name || 'add a photo'}`
       : activeBootlegLayer === 'text'
-        ? `Editing Text — ${String(editor.text?.headline || 'your text').slice(0, 28)}`
+        ? `Editing Text — ${activeTextLayer?.name || 'add text'}${activeTextLayer?.text?.headline ? ` · ${String(activeTextLayer.text.headline).slice(0, 22)}` : ''}`
         : `Editing Sticker — ${activeSticker?.label || 'choose a sticker'}`;
 
   const templatePanel = isBootleg && template ? (
@@ -661,16 +770,41 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     </div>
   );
 
-  const textPanel = (
-    <div data-gdp-bootleg-panel={isBootleg ? 'text' : undefined} className="space-y-2 rounded-2xl border border-slate-100 p-3">
-      <div className="flex items-center justify-between gap-2"><div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Text</div>{isBootleg ? <span className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white">Text layer active</span> : null}</div>
-      <label className="block text-xs font-black text-slate-600">{path === 'memorial' ? 'Name' : 'Your Text'}<input value={editor.text?.headline || ''} onFocus={() => isBootleg && setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
-      {path === 'memorial' ? <label className="block text-xs font-black text-slate-600">Dates<input value={editor.text?.subline || ''} onChange={(event) => patchText({ subline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label> : null}
-      {path === 'memorial' ? <label className="block text-xs font-black text-slate-600">Message<textarea value={editor.text?.message || ''} onChange={(event) => patchText({ message: event.target.value })} maxLength={180} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-slate-500" /></label> : null}
+  const textPanel = isBootleg ? (
+    <div data-gdp-bootleg-panel="text" data-gdp-bootleg-multi-text="true" className="space-y-3 rounded-2xl border border-slate-100 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Text</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{bootlegTextLayers.length} / {BOOTLEG_MAX_TEXT_LAYERS} text layers</p></div>
+        <button type="button" onClick={addTextLayer} disabled={bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS} className="min-h-10 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">+ Add Text</button>
+      </div>
+      <p className="text-[10px] font-semibold leading-4 text-slate-400">Only the active text layer can move, resize or rotate on the print area.</p>
+      {bootlegTextLayers.length ? <div data-gdp-bootleg-text-layer-list="true" className="space-y-2">{bootlegTextLayers.map((layer, index) => {
+        const selected = layer.id === activeTextLayer?.id;
+        return <div key={layer.id} className={`flex items-center gap-1 rounded-xl border p-1 ${selected ? 'border-slate-900 bg-slate-900' : 'border-slate-200 bg-white'}`}><button type="button" onClick={() => selectTextLayer(layer)} className={`min-h-10 min-w-0 flex-1 rounded-lg px-2 text-left text-xs font-black ${selected ? 'text-white' : 'text-slate-700'}`}><span className="block truncate">{layer.name || `Text ${index + 1}`}</span><span className={`block truncate text-[10px] font-semibold ${selected ? 'text-white/60' : 'text-slate-400'}`}>{layer.text?.headline || 'Empty text'}</span></button>{selected ? <><button type="button" onClick={duplicateActiveTextLayer} disabled={bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS} className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white disabled:opacity-30" aria-label="Duplicate selected text layer"><Copy size={14} /></button><button type="button" onClick={deleteActiveTextLayer} className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-red-200" aria-label="Delete selected text layer"><Trash2 size={14} /></button></> : null}</div>;
+      })}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500"><p>No text added yet.</p><button type="button" onClick={addTextLayer} className="mt-2 min-h-10 rounded-xl bg-slate-900 px-3 text-xs font-black text-white">+ Add Text</button></div>}
+      {bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS ? <p className="text-[10px] font-bold text-amber-700">Maximum {BOOTLEG_MAX_TEXT_LAYERS} text layers.</p> : null}
+      {activeTextLayer ? <div className="space-y-2 rounded-2xl bg-slate-50 p-3" data-gdp-bootleg-active-text-editor="true">
+        <div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected text</p><p className="text-xs font-black text-slate-700">{activeTextLayer.name}</p></div><span className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white">Text layer active</span></div>
+        <label className="block text-xs font-black text-slate-600">Your Text<input value={activeTextLayer.text?.headline || ''} onFocus={() => setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
+        <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
+        <UnboundedTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} />
+        <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} />
+        <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} />
+        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold leading-4 text-amber-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> Text size remains unlimited. Reposition it or reduce its size if you want every visible letter inside the printable boundary.</div> : null}
+        <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} />
+        {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} /> : null}
+      </div> : null}
+    </div>
+  ) : (
+    <div className="space-y-2 rounded-2xl border border-slate-100 p-3">
+      <div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Text</div>
+      <label className="block text-xs font-black text-slate-600">Name<input value={editor.text?.headline || ''} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
+      <label className="block text-xs font-black text-slate-600">Dates<input value={editor.text?.subline || ''} onChange={(event) => patchText({ subline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
+      <label className="block text-xs font-black text-slate-600">Message<textarea value={editor.text?.message || ''} onChange={(event) => patchText({ message: event.target.value })} maxLength={180} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-slate-500" /></label>
       <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
-      {isBootleg ? <UnboundedTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} /> : <RangeControl label="Text size" value={textStyle.fontScale} min={55} max={180} suffix="%" onChange={(value) => patchTextStyle({ fontScale: value })} />}
-      {isBootleg ? <><RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} /><RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} />{textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold leading-4 text-amber-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> Text size remains unlimited. Reposition it or reduce its size if you want every visible letter inside the printable boundary.</div> : null}</> : <><RangeControl label="Move text left / right" value={textStyle.x || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ x: value })} /><RangeControl label="Move text up / down" value={textStyle.y || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ y: value })} /></>}
-      <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={isBootleg ? -180 : -25} max={isBootleg ? 180 : 25} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} />
+      <RangeControl label="Text size" value={textStyle.fontScale} min={55} max={180} suffix="%" onChange={(value) => patchTextStyle({ fontScale: value })} />
+      <RangeControl label="Move text left / right" value={textStyle.x || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ x: value })} />
+      <RangeControl label="Move text up / down" value={textStyle.y || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ y: value })} />
+      <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-25} max={25} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} />
       {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} /> : null}
     </div>
   );
