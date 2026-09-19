@@ -436,6 +436,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 
 export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
+  const sourcePhotoFilesRef = useRef(new Map());
   const editorRef = useRef(editor);
   editorRef.current = editor;
   const [uploading, setUploading] = useState(false);
@@ -521,6 +522,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
   const prepareAsset = async (file) => {
     const autoRemove = settings?.editorTools?.autoBackgroundRemoval !== false;
+    let backgroundFailure = null;
     if (autoRemove) {
       try {
         setUploadMessage(`Removing background from ${file.name}…`);
@@ -534,17 +536,41 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
             originalUrl: processed.originalUrl || '',
             originalPath: processed.originalPath || '',
             backgroundMode: 'cleaned',
+            backgroundRemovalStatus: 'cleaned',
+            backgroundRemovalMessage: '',
             name: file.name || 'customer-photo',
             type: file.type || 'image/png',
           };
         }
       } catch (backgroundError) {
-        console.warn('V2 background removal unavailable; using original image.', backgroundError);
+        backgroundFailure = backgroundError;
+        console.warn('V2 background removal unavailable; preserving original image with retry state.', backgroundError);
       }
     }
-    setUploadMessage(`Uploading ${file.name}…`);
-    const uploaded = await customerApi.uploadArtwork(file);
-    return { url: uploaded.file_url, path: uploaded.storage_path, originalUrl: uploaded.file_url, originalPath: uploaded.storage_path, backgroundMode: 'original', name: file.name || 'customer-photo', type: file.type || 'image/png' };
+    setUploadMessage(backgroundFailure
+      ? `Background removal unavailable for ${file.name}; uploading original…`
+      : `Uploading ${file.name}…`);
+    // PR #184 intentionally fail-closes the original File object after a removal failure.
+    // A fresh browser File copy lets this editor explicitly preserve the original without
+    // weakening that global safety guard or changing any other upload path.
+    const uploadFile = backgroundFailure
+      ? new File([file], file.name || 'photo', { type: file.type || 'image/png', lastModified: file.lastModified || Date.now() })
+      : file;
+    const uploaded = await customerApi.uploadArtwork(uploadFile);
+    if (backgroundFailure && uploaded?.storage_path) {
+      sourcePhotoFilesRef.current.set(uploaded.storage_path, file);
+    }
+    return {
+      url: uploaded.file_url,
+      path: uploaded.storage_path,
+      originalUrl: uploaded.file_url,
+      originalPath: uploaded.storage_path,
+      backgroundMode: 'original',
+      backgroundRemovalStatus: backgroundFailure ? 'failed' : (autoRemove ? 'original' : 'disabled'),
+      backgroundRemovalMessage: backgroundFailure?.message || '',
+      name: file.name || 'customer-photo',
+      type: file.type || 'image/png',
+    };
   };
 
   const uploadPhotos = async (files) => {
@@ -625,6 +651,56 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       ? { ...asset, url: asset.originalUrl, path: asset.originalPath, backgroundMode: 'original' }
       : { ...asset, url: asset.cleanedUrl, path: asset.cleanedPath, backgroundMode: 'cleaned' };
     syncPhotos(photos.map((layer) => layer.id === activePhoto.id ? { ...layer, asset: nextAsset } : layer), activePhoto.id);
+  };
+
+  const retryActiveBackgroundRemoval = async () => {
+    if (!activePhoto || activePhoto.asset?.backgroundRemovalStatus !== 'failed') return;
+    const asset = activePhoto.asset || {};
+    const sourceKey = asset.originalPath || asset.path || '';
+    const sourceFile = sourcePhotoFilesRef.current.get(sourceKey);
+    if (!sourceFile) {
+      const nextAsset = {
+        ...asset,
+        backgroundRemovalMessage: 'To retry background removal after reopening the editor, please re-add this photo.',
+      };
+      syncPhotos(photos.map((layer) => layer.id === activePhoto.id ? { ...layer, asset: nextAsset } : layer), activePhoto.id);
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+    setUploadMessage(`Retrying background removal for ${sourceFile.name}…`);
+    try {
+      const processed = await customerApi.removePhotoBackground(sourceFile);
+      const nextAsset = {
+        ...asset,
+        url: processed.cleanedUrl,
+        path: processed.cleanedPath,
+        cleanedUrl: processed.cleanedUrl,
+        cleanedPath: processed.cleanedPath,
+        originalUrl: processed.originalUrl || asset.originalUrl,
+        originalPath: processed.originalPath || asset.originalPath,
+        backgroundMode: 'cleaned',
+        backgroundRemovalStatus: 'cleaned',
+        backgroundRemovalMessage: '',
+      };
+      if (processed.originalPath && processed.originalPath !== sourceKey) {
+        sourcePhotoFilesRef.current.delete(sourceKey);
+        sourcePhotoFilesRef.current.set(processed.originalPath, sourceFile);
+      }
+      syncPhotos(photos.map((layer) => layer.id === activePhoto.id ? { ...layer, asset: nextAsset } : layer), activePhoto.id);
+      setUploadMessage('Background removed successfully.');
+    } catch (backgroundError) {
+      const nextAsset = {
+        ...asset,
+        backgroundRemovalStatus: 'failed',
+        backgroundRemovalMessage: backgroundError?.message || 'Background removal is temporarily unavailable. You can keep editing with the original photo.',
+      };
+      syncPhotos(photos.map((layer) => layer.id === activePhoto.id ? { ...layer, asset: nextAsset } : layer), activePhoto.id);
+      setUploadMessage('');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const patchText = (patch) => {
@@ -760,6 +836,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
       {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (isBootleg) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
+        {activePhoto.asset?.backgroundRemovalStatus === 'failed' ? <div data-gdp-background-removal-fallback="true" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950"><div className="flex items-start gap-2"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><div className="min-w-0 flex-1"><p className="text-xs font-black">Background removal unavailable</p><p className="mt-1 text-[11px] font-semibold leading-4">{activePhoto.asset?.backgroundRemovalMessage || 'The background could not be removed.'} Using the original photo so you can keep editing.</p></div></div><button type="button" onClick={retryActiveBackgroundRemoval} disabled={uploading} className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-amber-300 bg-white px-3 text-xs font-black text-amber-950 disabled:cursor-not-allowed disabled:opacity-50">{uploading ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Retry Background Removal</button></div> : null}
         <RangeControl label="Photo size" value={activePhoto.transform?.scale || 100} min={30} max={220} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} />
         <RangeControl label="Move left / right" value={activePhoto.transform?.x || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ x: value })} />
         <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} />
