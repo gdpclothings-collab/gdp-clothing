@@ -146,6 +146,7 @@ function respond(req: Request, body: unknown, status = 200) {
 function validOrigin(value: unknown) {
   const text = String(value || "");
   if (["https://gdp-clothing.pages.dev", "https://gdpclothing.ca", "https://www.gdpclothing.ca"].includes(text)) return text;
+  if (/^https:\/\/[a-z0-9-]+\.gdp-clothing\.pages\.dev$/i.test(text)) return text;
   if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(text)) return text;
   return "https://gdp-clothing.pages.dev";
 }
