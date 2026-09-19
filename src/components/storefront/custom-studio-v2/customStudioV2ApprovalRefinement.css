@@ -1,0 +1,71 @@
+/*
+ * Custom Studio V2 approval-step presentation refinement.
+ *
+ * Keep this file presentation-only: no state, pricing, cart, production,
+ * fulfillment or approval logic belongs here.
+ */
+
+/*
+ * The legacy optional "Needed by" date remains supported by state/payloads for
+ * backward compatibility, but it is intentionally not customer-editable in V2.
+ * Anchor to the date input itself so unrelated labels stay untouched.
+ */
+[data-gdp-studio-v2-guard="true"]
+  div.mt-6.grid.gap-4:has(> label input[type="date"]) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+[data-gdp-studio-v2-guard="true"]
+  div.mt-6.grid.gap-4:has(> label input[type="date"])
+  > label:has(input[type="date"]) {
+  display: none !important;
+}
+
+[data-gdp-studio-v2-guard="true"]
+  div.mt-6.grid.gap-4:has(> label input[type="date"])
+  > .space-y-3 {
+  width: 100%;
+  max-width: 760px;
+}
+
+/* Make unchecked approval circles clearly visible against white cards. */
+[data-gdp-studio-v2-guard="true"]
+  div.mt-6.grid.gap-4:has(> label input[type="date"])
+  > .space-y-3
+  > button
+  > span:first-child {
+  border: 2px solid rgb(71 85 105);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.85);
+}
+
+/* Preserve the existing green approved state while strengthening its edge. */
+[data-gdp-studio-v2-guard="true"]
+  div.mt-6.grid.gap-4:has(> label input[type="date"])
+  > .space-y-3
+  > button.border-emerald-500
+  > span:first-child {
+  border-color: rgb(5 150 105);
+  box-shadow: none;
+}
+
+[data-gdp-studio-v2-guard="true"]
+  div.mt-6.grid.gap-4:has(> label input[type="date"])
+  > .space-y-3
+  > button:focus-visible
+  > span:first-child {
+  outline: 3px solid rgb(148 163 184 / 0.45);
+  outline-offset: 2px;
+}
+
+/*
+ * Final Review: hide the old fifth summary tile (Needed by). This selector is
+ * deliberately scoped to the two-column review card structure and the V2 guard.
+ * The stored value is not deleted, so older drafts remain readable internally.
+ */
+[data-gdp-studio-v2-guard="true"]
+  div.mt-6.grid.gap-4
+  > div.rounded-3xl.border.border-slate-200.bg-white.p-5.shadow-sm
+  > div.grid.gap-4
+  > div:nth-child(5) {
+  display: none !important;
+}

@@ -1,6 +1,7 @@
 import React from 'react';
 import CustomStudioV2 from '@/pages/CustomStudioV2';
 import './customStudioV2MobileRepair.css';
+import './customStudioV2ApprovalRefinement.css';
 
 /**
  * Presentation-only boundary for the rebuilt Custom Studio.
