@@ -41,6 +41,7 @@ jobs:
           node --check scripts/custom-studio-hardening-smoke.mjs
           node --check scripts/verify-custom-studio-garment-interactions.mjs
           node --check scripts/verify-custom-studio-garment-info.mjs
+          node --check scripts/verify-custom-studio-garment-layout-refinement.mjs
           node --check scripts/verify-custom-studio-garment-preview.mjs
           node --check scripts/verify-custom-order-guide-visibility.mjs
           node --check scripts/verify-custom-studio-hardening.mjs
@@ -79,6 +80,9 @@ jobs:
 
       - name: Verify Custom Studio garment information
         run: node scripts/verify-custom-studio-garment-info.mjs
+
+      - name: Verify Custom Studio garment layout refinement
+        run: node scripts/verify-custom-studio-garment-layout-refinement.mjs
 
       - name: Verify color-specific garment previews
         run: node scripts/verify-custom-studio-garment-preview.mjs
