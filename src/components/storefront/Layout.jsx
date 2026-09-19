@@ -38,7 +38,13 @@ export default function Layout() {
       {studioActive && <SeasonalStudioRuntimeGuard />}
       {studioActive && <CustomStudioShellEnhancer />}
       {studioActive && <CustomStudioNavigationDock />}
-      {!studioActive && <StoreFooter />}
+      {studioActive ? (
+        <div className="mt-8 sm:mt-10" data-gdp-studio-footer="true">
+          <StoreFooter />
+        </div>
+      ) : (
+        <StoreFooter />
+      )}
       {!cartActive && <AIAssistant />}
       <CookiePreferences />
     </div>
