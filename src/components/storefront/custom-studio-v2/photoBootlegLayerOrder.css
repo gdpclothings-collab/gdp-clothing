@@ -1,0 +1,12 @@
+/* Photo Bootleg layer-order repair.
+ * Scope: rebuilt Custom Studio only.
+ * Normal/photo editing stack: GDP template behind customer photos; text/stickers stay above.
+ * While Template is actively selected, its existing inline z-index is allowed to rise for direct manipulation.
+ */
+[data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-linked-photo-zone="true"] {
+  z-index: 25 !important;
+}
+
+[data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-template-layer="true"].pointer-events-none {
+  z-index: 15 !important;
+}
