@@ -42,6 +42,7 @@ jobs:
           node --check scripts/verify-custom-studio-garment-interactions.mjs
           node --check scripts/verify-custom-studio-garment-info.mjs
           node --check scripts/verify-custom-studio-garment-layout-refinement.mjs
+          node --check scripts/verify-custom-studio-focused-garment-v2.mjs
           node --check scripts/verify-custom-studio-footer.mjs
           node --check scripts/verify-custom-studio-garment-preview.mjs
           node --check scripts/verify-custom-order-guide-visibility.mjs
@@ -84,6 +85,9 @@ jobs:
 
       - name: Verify Custom Studio garment layout refinement
         run: node scripts/verify-custom-studio-garment-layout-refinement.mjs
+
+      - name: Verify safe Custom Studio focused garment mode
+        run: node scripts/verify-custom-studio-focused-garment-v2.mjs
 
       - name: Verify Custom Studio shared footer
         run: node scripts/verify-custom-studio-footer.mjs
