@@ -158,7 +158,6 @@ function SizeGuide({ sizes, rows, note }) {
         </div>
       ) : null}
       <p className="text-xs font-medium leading-5 text-slate-500">{note}</p>
-      <p className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Admin format: one row per line · SIZE | WIDTH | LENGTH | SLEEVE</p>
     </div>
   );
 }
