@@ -1,0 +1,63 @@
+name: Apply Photo Bootleg multi-text implementation
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-photo-bootleg-multi-text.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Correct local migration boundaries
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'scripts/apply-photo-bootleg-multi-text.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replace("interactiveTextLayer + 'function ProtectedPreview('", 'interactiveTextLayer');
+          source = source.replace("protectedPreview + 'export default function ProtectedTemplateEditorV2'", 'protectedPreview');
+          source = source.replace("newTextActions + '  const addSticker = (sticker) => {'", 'newTextActions');
+          source = source.replace("multiTextPanel + '  const stickerPanel ='", 'multiTextPanel');
+          fs.writeFileSync(path, source);
+          NODE
+
+      - name: Validate migration syntax
+        run: node --check scripts/apply-photo-bootleg-multi-text.mjs
+
+      - name: Apply guarded multi-text implementation
+        run: node scripts/apply-photo-bootleg-multi-text.mjs
+
+      - name: Verify Photo Bootleg contracts
+        run: node scripts/verify-photo-bootleg-desktop.mjs
+
+      - name: Validate changed source syntax
+        run: |
+          node --check src/lib/customStudioV2BootlegTextLayers.js
+          node --check src/lib/customStudioV2ProtectedProduction.js
+          node --check scripts/verify-photo-bootleg-desktop.mjs
+
+      - name: Commit generated implementation
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No generated implementation changes were needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx src/lib/customStudioV2ProtectedProduction.js scripts/verify-photo-bootleg-desktop.mjs
+          git commit -m "Add Photo Bootleg multi-text layers"
+          git push
