@@ -2,6 +2,16 @@ import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct } from "@/lib/supabaseMappers";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const backgroundRemovalFailures = new WeakMap();
+
+function createBackgroundRemovalFailure(file, message, retryable = true) {
+  const failure = Object.assign(
+    new Error(message || "Automatic background removal failed. Please retry."),
+    { code: "BACKGROUND_REMOVAL_FAILED", retryable: retryable !== false }
+  );
+  if (file && typeof file === "object") backgroundRemovalFailures.set(file, failure);
+  return failure;
+}
 
 const normalizeOrderItem = (row) => ({
   ...row,
@@ -247,6 +257,14 @@ export const customerApi = {
   },
 
   async uploadArtwork(file) {
+    const pendingBackgroundFailure = file && typeof file === "object"
+      ? backgroundRemovalFailures.get(file)
+      : null;
+    if (pendingBackgroundFailure) {
+      backgroundRemovalFailures.delete(file);
+      throw pendingBackgroundFailure;
+    }
+
     const user = await optionalAccountUser();
     const safeName = String(file.name || "artwork")
       .replace(/[^a-zA-Z0-9._-]+/g, "-")
@@ -299,8 +317,22 @@ export const customerApi = {
     const form = new FormData();
     form.append("photo", file, file.name || "photo");
     const { data, error } = await supabase.functions.invoke("remove-photo-background", { body: form });
-    if (error) throw new Error(await functionErrorMessage(error, "Background removal failed. Please retry."));
-    return data || { ok: false, retryable: true, message: "Background removal failed. Please retry." };
+    if (error) {
+      const message = await functionErrorMessage(error, "Automatic background removal failed. Please retry.");
+      throw createBackgroundRemovalFailure(file, message, true);
+    }
+
+    const response = data || { ok: false, retryable: true, message: "Automatic background removal failed. Please retry." };
+    if (!response.ok || !response.cleanedUrl || !response.cleanedPath) {
+      throw createBackgroundRemovalFailure(
+        file,
+        response.message || "Automatic background removal failed. Please retry.",
+        response.retryable !== false
+      );
+    }
+
+    backgroundRemovalFailures.delete(file);
+    return response;
   },
 
   async createCustomDesign(data) {
