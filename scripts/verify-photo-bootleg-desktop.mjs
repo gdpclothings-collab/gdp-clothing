@@ -66,17 +66,36 @@ assert(protectedV2.includes('No preset maximum'), 'Bootleg text size control com
 assert(protectedV2.includes('Number.POSITIVE_INFINITY'), 'direct Bootleg text pinch scaling has no configured upper size cap');
 assert(protectedV2.includes('freeTextLayout: true'), 'Bootleg text opts into full-print-area production layout');
 assert(protectedV2.includes('canvasX') && protectedV2.includes('canvasY'), 'Bootleg text stores full-print-area coordinates');
-assert(protectedV2.includes('data-gdp-bootleg-active-layer="true"'), 'Bootleg exposes explicit Template / Photo / Text active-layer selection');
+assert(protectedV2.includes('data-gdp-bootleg-active-layer="true"'), 'Bootleg exposes explicit active-layer selection');
 assert(protectedV2.includes("activeLayer === 'text'"), 'only the selected text layer receives direct text gestures');
 assert(protectedV2.includes("activeLayer === 'photo'"), 'only the selected photo layer receives direct photo gestures');
 assert(protectedV2.includes("activeLayer === 'template'"), 'only the selected template layer receives direct template gestures');
 assert(protectedV2.includes('data-gdp-bootleg-linked-photo-zone="true"'), 'photo zone is linked to the editable template transform');
-assert(protectedV2.includes('data-gdp-bootleg-sticky-preview'), 'Bootleg live garment preview is sticky on desktop');
+assert(protectedV2.includes('data-gdp-bootleg-sticky-preview'), 'Bootleg live garment preview remains isolated from inspector scrolling');
 assert(protectedV2.includes('data-gdp-bootleg-inspector-scroll'), 'Bootleg personalization controls use their own desktop scroll rail');
 assert(protectedV2.includes('data-gdp-bootleg-print-boundary-warning="true"'), 'unbounded text gets a non-blocking print-area overflow warning');
 assert(protectedV2.includes('bootlegAnchorToSlider') && protectedV2.includes('bootlegSliderToAnchor'), 'text sliders map visible text bounds to print-area edges instead of only moving the anchor point');
 assert(protectedV2.includes('layout.headline.glyphs.map'), 'large Arc/Wave text renders as explicit glyphs rather than a fixed SVG textPath');
 assert(!protectedV2.includes('unbounded={isBootleg}'), 'Bootleg no longer routes unlimited curved text through the legacy fixed-path renderer');
+
+// Recording-driven follow-up: preserve real multi-photo state and isolate layer controls.
+assert(protectedV2.includes('BOOTLEG_MAX_PHOTOS = 8'), 'Photo Bootleg keeps an explicit eight-photo total safety limit');
+assert(protectedV2.includes("const photos = [...currentPhotoLayers(editor)].sort"), 'rendering no longer mutates the live editor.photos array in place');
+assert(protectedV2.includes('const editorRef = useRef(editor)') && protectedV2.includes('editorRef.current = editor'), 'async uploads can read the latest editor state after background processing');
+assert(protectedV2.includes('const latestPhotos = [...currentPhotoLayers(editorRef.current)]'), 'upload completion preserves the latest existing photo layers and transforms');
+assert(protectedV2.includes('const next = [...latestPhotos, ...safeAdditions]'), 'new uploads append to existing photo layers instead of replacing them');
+assert(protectedV2.includes("data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined}"), 'Photo panel exposes the append-only multi-photo contract');
+assert(protectedV2.includes("{ value: 'photo', label: 'Photo', enabled: true }"), 'Photo tab remains available before the first upload so Add Photo is reachable');
+assert(protectedV2.includes("activeBootlegLayer === 'template' ? templatePanel"), 'Template controls render only when Template is the active Bootleg layer');
+assert(protectedV2.includes("activeBootlegLayer === 'photo' ? photoPanel"), 'Photo controls render only when Photo is the active Bootleg layer');
+assert(protectedV2.includes("activeBootlegLayer === 'text' ? textPanel"), 'Text controls render only when Text is the active Bootleg layer');
+assert(protectedV2.includes('data-gdp-bootleg-workspace={isBootleg ? \'single-viewport\' : undefined}'), 'Bootleg uses a dedicated single-viewport desktop workspace contract');
+assert(protectedV2.includes('xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden'), 'desktop workspace owns a viewport-bounded height instead of growing the page with the inspector');
+assert(protectedV2.includes("style={isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}"), 'garment preview is viewport-fitted so the full preview remains visible');
+assert(protectedV2.includes('data-gdp-bootleg-active-status="true"'), 'active layer gets a persistent visible editing label');
+assert(protectedV2.includes('data-gdp-bootleg-upload-status="true"'), 'background processing gets a visible canvas-adjacent progress status');
+assert(protectedV2.includes('Finish Template Editing'), 'template completion wording is explicit instead of ambiguous Done editing');
+assert(protectedV2.includes("photos.length ? 'Add another photo' : 'Add first photo'"), 'photo add action clearly distinguishes first and additional photos');
 
 assert(bootlegTextLayout.includes('curveGlyphs'), 'shared Bootleg layout owns dynamic per-glyph curve geometry');
 assert(bootlegTextLayout.includes('relativeBounds'), 'shared Bootleg layout exposes visible bounds for boundary-aware movement');
