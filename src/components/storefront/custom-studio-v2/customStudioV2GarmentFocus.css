@@ -45,6 +45,7 @@
   font-size: 0.75rem;
   font-weight: 900;
   line-height: 1;
+  white-space: nowrap;
   transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
@@ -73,7 +74,8 @@
   }
 
   .gdp-v2-change-garment {
-    width: 100%;
-    justify-content: center;
+    min-height: 38px;
+    padding-inline: 0.75rem;
+    font-size: 0.6875rem;
   }
 }
