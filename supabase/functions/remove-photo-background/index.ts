@@ -8,13 +8,14 @@ const allowedOrigins = new Set([
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxBytes = 20 * 1024 * 1024;
 const localOriginPattern = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const cloudflarePreviewOriginPattern = /^https:\/\/[a-z0-9-]+\.gdp-clothing\.pages\.dev$/i;
 
 function requestOrigin(req: Request) {
   return req.headers.get("origin") || "";
 }
 
 function isAllowedOrigin(origin: string) {
-  return !origin || allowedOrigins.has(origin) || localOriginPattern.test(origin);
+  return !origin || allowedOrigins.has(origin) || localOriginPattern.test(origin) || cloudflarePreviewOriginPattern.test(origin);
 }
 
 function headers(req: Request, extra: Record<string, string> = {}) {
