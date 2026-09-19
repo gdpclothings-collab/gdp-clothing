@@ -1,3 +1,5 @@
+import { resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
+
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
 
@@ -88,15 +90,23 @@ function drawCover(context, loaded, rect, transform = {}) {
   context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
 }
 
-function drawTemplateArtwork(context, loaded, widthPx, heightPx, transform = {}) {
+function withTemplateTransform(context, widthPx, heightPx, transform = {}, draw) {
   const scale = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) / 100;
   const centerX = widthPx * (0.5 + clamp(transform.x ?? 0, -50, 50) / 100);
   const centerY = heightPx * (0.5 + clamp(transform.y ?? 0, -50, 50) / 100);
   context.save();
   context.translate(centerX, centerY);
   context.rotate(clamp(transform.rotation ?? 0, -180, 180) * Math.PI / 180);
-  context.drawImage(loaded.image, -widthPx * scale / 2, -heightPx * scale / 2, widthPx * scale, heightPx * scale);
+  context.scale(scale, scale);
+  context.translate(-widthPx / 2, -heightPx / 2);
+  draw();
   context.restore();
+}
+
+function drawTemplateArtwork(context, loaded, widthPx, heightPx, transform = {}) {
+  withTemplateTransform(context, widthPx, heightPx, transform, () => {
+    context.drawImage(loaded.image, 0, 0, widthPx, heightPx);
+  });
 }
 
 function textEffect(context, style, baseSize) {
@@ -147,14 +157,14 @@ function resolveTextMetrics(zone, style, widthPx, heightPx, freeTextLayout = fal
   return { x, y, width, height, centerX, centerY, fontScale };
 }
 
-function drawArcText(context, text, zone, style, direction, widthPx, heightPx, freeTextLayout = false) {
-  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, freeTextLayout);
+function drawArcText(context, text, zone, style, direction, widthPx, heightPx) {
+  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, false);
   const fontSize = Math.max(12, metrics.height * 0.24 * metrics.fontScale / 100);
   const amount = clamp(style.curveAmount ?? 45, 0, 100) / 100;
   const span = (0.7 + amount * 1.15) * Math.PI;
   const radius = Math.max(metrics.width * 0.2, metrics.width / Math.max(0.8, span));
   const centerX = metrics.centerX;
-  const baselineY = freeTextLayout ? metrics.centerY - metrics.height * 0.04 : metrics.y + metrics.height * 0.46 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
+  const baselineY = metrics.y + metrics.height * 0.46 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
   const centerY = direction === 'up' ? baselineY + radius : baselineY - radius;
   const base = direction === 'up' ? -Math.PI / 2 : Math.PI / 2;
   const characters = [...text];
@@ -173,20 +183,20 @@ function drawArcText(context, text, zone, style, direction, widthPx, heightPx, f
     context.save();
     context.translate(px, py);
     context.rotate(direction === 'up' ? angle + Math.PI / 2 : angle - Math.PI / 2);
-    paintGlyph(context, character, 0, 0, style, freeTextLayout ? undefined : fontSize * 1.5);
+    paintGlyph(context, character, 0, 0, style, fontSize * 1.5);
     context.restore();
   });
   context.restore();
 }
 
-function drawWaveText(context, text, zone, style, widthPx, heightPx, freeTextLayout = false) {
-  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, freeTextLayout);
+function drawWaveText(context, text, zone, style, widthPx, heightPx) {
+  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, false);
   const fontSize = Math.max(12, metrics.height * 0.24 * metrics.fontScale / 100);
   const chars = [...text];
   const amount = clamp(style.curveAmount ?? 45, 0, 100) / 100;
   const amplitude = metrics.height * (0.08 + amount * 0.2);
-  const startX = freeTextLayout ? metrics.centerX - metrics.width * 0.42 : metrics.x + metrics.width * 0.08 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
-  const baselineY = freeTextLayout ? metrics.centerY - metrics.height * 0.08 : metrics.y + metrics.height * 0.42 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
+  const startX = metrics.x + metrics.width * 0.08 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
+  const baselineY = metrics.y + metrics.height * 0.42 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
   context.save();
   context.font = `900 ${fontSize}px ${style.fontFamily || 'Arial, sans-serif'}`;
   context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = style.color || '#ffffff';
@@ -197,9 +207,35 @@ function drawWaveText(context, text, zone, style, widthPx, heightPx, freeTextLay
     const phase = t * Math.PI * 2;
     const py = baselineY + Math.sin(phase) * amplitude;
     const slope = Math.cos(phase) * amplitude * Math.PI * 2 / Math.max(1, metrics.width * 0.84);
-    context.save(); context.translate(px, py); context.rotate(Math.atan(slope)); paintGlyph(context, character, 0, 0, style, freeTextLayout ? undefined : fontSize * 1.4); context.restore();
+    context.save(); context.translate(px, py); context.rotate(Math.atan(slope)); paintGlyph(context, character, 0, 0, style, fontSize * 1.4); context.restore();
   });
   context.restore();
+}
+
+function drawBootlegText(context, text = {}, zone = {}, style = {}, widthPx, heightPx) {
+  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, true);
+  const layout = resolveBootlegTextLayout({ text, zone, style, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
+  const drawItem = (item, weight) => {
+    if (!item) return;
+    context.save();
+    context.translate(item.x, item.y);
+    context.rotate(Number(item.rotation || 0) * Math.PI / 180);
+    context.font = `${weight} ${item.fontSize}px ${style.fontFamily || 'Arial, sans-serif'}`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = style.color || '#ffffff';
+    const effectStyle = { ...style, fontPx: item.fontSize };
+    textEffect(context, effectStyle, item.fontSize);
+    paintGlyph(context, item.text, 0, 0, effectStyle);
+    context.restore();
+  };
+
+  if (layout.headline?.kind === 'straight') drawItem(layout.headline, 900);
+  if (layout.headline?.kind === 'glyphs') {
+    layout.headline.glyphs.forEach((glyph) => drawItem({ ...glyph, text: glyph.character }, 900));
+  }
+  drawItem(layout.subline, 700);
+  drawItem(layout.message, 600);
 }
 
 function drawStyledText(context, text = {}, zone = {}, style = {}, widthPx, heightPx) {
@@ -208,21 +244,25 @@ function drawStyledText(context, text = {}, zone = {}, style = {}, widthPx, heig
   const message = String(text.message || '').trim();
   if (!headline && !subline && !message) return;
   const freeTextLayout = style.freeTextLayout === true;
-  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, freeTextLayout);
+  if (freeTextLayout) {
+    drawBootlegText(context, text, zone, style, widthPx, heightPx);
+    return;
+  }
+  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, false);
 
-  if (headline && style.curve === 'arc-up') drawArcText(context, headline, zone, { ...style }, 'up', widthPx, heightPx, freeTextLayout);
-  else if (headline && style.curve === 'arc-down') drawArcText(context, headline, zone, { ...style }, 'down', widthPx, heightPx, freeTextLayout);
-  else if (headline && style.curve === 'wave') drawWaveText(context, headline, zone, { ...style }, widthPx, heightPx, freeTextLayout);
+  if (headline && style.curve === 'arc-up') drawArcText(context, headline, zone, { ...style }, 'up', widthPx, heightPx);
+  else if (headline && style.curve === 'arc-down') drawArcText(context, headline, zone, { ...style }, 'down', widthPx, heightPx);
+  else if (headline && style.curve === 'wave') drawWaveText(context, headline, zone, { ...style }, widthPx, heightPx);
   else if (headline) {
-    const headlineY = freeTextLayout ? metrics.centerY - metrics.height * 0.2 : metrics.y + metrics.height * 0.3 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
-    const headlineX = freeTextLayout ? metrics.centerX : metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
+    const headlineY = metrics.y + metrics.height * 0.3 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
+    const headlineX = metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
     const size = Math.max(12, metrics.height * 0.24 * metrics.fontScale / 100);
     context.save();
     context.translate(headlineX, headlineY);
-    context.rotate(clamp(style.rotation || 0, freeTextLayout ? -180 : -25, freeTextLayout ? 180 : 25) * Math.PI / 180);
+    context.rotate(clamp(style.rotation || 0, -25, 25) * Math.PI / 180);
     context.font = `900 ${size}px ${style.fontFamily || 'Arial, sans-serif'}`;
     context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = style.color || '#ffffff';
-    style.fontPx = size; textEffect(context, style, size); paintGlyph(context, headline, 0, 0, style, freeTextLayout ? undefined : metrics.width * 0.96);
+    style.fontPx = size; textEffect(context, style, size); paintGlyph(context, headline, 0, 0, style, metrics.width * 0.96);
     context.restore();
   }
 
@@ -230,19 +270,17 @@ function drawStyledText(context, text = {}, zone = {}, style = {}, widthPx, heig
   context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = style.color || '#ffffff';
   if (subline) {
     const size = Math.max(10, metrics.height * 0.14 * metrics.fontScale / 100);
-    const sublineX = freeTextLayout ? metrics.centerX : metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
-    const sublineY = freeTextLayout ? metrics.centerY + metrics.height * 0.12 : metrics.y + metrics.height * 0.62 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
+    const sublineX = metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
+    const sublineY = metrics.y + metrics.height * 0.62 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
     context.font = `700 ${size}px ${style.fontFamily || 'Arial, sans-serif'}`; textEffect(context, style, size);
-    if (freeTextLayout) context.fillText(subline, sublineX, sublineY);
-    else context.fillText(subline, sublineX, sublineY, metrics.width * 0.95);
+    context.fillText(subline, sublineX, sublineY, metrics.width * 0.95);
   }
   if (message) {
     const size = Math.max(9, metrics.height * 0.1 * metrics.fontScale / 100);
-    const messageX = freeTextLayout ? metrics.centerX : metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
-    const messageY = freeTextLayout ? metrics.centerY + metrics.height * 0.34 : metrics.y + metrics.height * 0.84 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
+    const messageX = metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
+    const messageY = metrics.y + metrics.height * 0.84 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
     context.font = `600 ${size}px ${style.fontFamily || 'Arial, sans-serif'}`; textEffect(context, style, size);
-    if (freeTextLayout) context.fillText(message, messageX, messageY);
-    else context.fillText(message, messageX, messageY, metrics.width * 0.92);
+    context.fillText(message, messageX, messageY, metrics.width * 0.92);
   }
   context.restore();
 }
@@ -274,25 +312,30 @@ async function drawStickers(context, stickers, widthPx, heightPx) {
 }
 
 export async function renderProtectedStudioV2PngAdvanced({ product, size, side, editor, template, profile, dpi = 300 }) {
-  if (!template?.assetUrl) throw new Error('The locked GDP template is unavailable.');
+  if (!template?.assetUrl) throw new Error('The GDP template artwork is unavailable.');
   const photos = photoLayers(editor).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   if (!photos.length) throw new Error('The customer photo is unavailable.');
   const resolvedProfile = profile(product, size, side);
   const output = createCanvas(resolvedProfile, dpi);
+  const templateTransform = editor.textStyle?.templateTransform || null;
 
   for (const layer of photos) {
     const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
     try {
-      output.context.save();
-      const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
-      drawCover(output.context, loaded, rect, layer.transform || {});
-      output.context.restore();
+      const drawPhoto = () => {
+        output.context.save();
+        const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
+        drawCover(output.context, loaded, rect, layer.transform || {});
+        output.context.restore();
+      };
+      if (templateTransform) withTemplateTransform(output.context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
+      else drawPhoto();
     } finally { loaded.close(); }
   }
 
-  const lockedArtwork = await loadImage(template.assetUrl, 'The locked GDP template could not be reopened.');
-  try { drawTemplateArtwork(output.context, lockedArtwork, output.widthPx, output.heightPx, editor.textStyle?.templateTransform || {}); }
-  finally { lockedArtwork.close(); }
+  const templateArtwork = await loadImage(template.assetUrl, 'The GDP template artwork could not be reopened.');
+  try { drawTemplateArtwork(output.context, templateArtwork, output.widthPx, output.heightPx, templateTransform || {}); }
+  finally { templateArtwork.close(); }
 
   drawStyledText(output.context, editor.text || {}, template.textZone || {}, editor.textStyle || {}, output.widthPx, output.heightPx);
   await drawStickers(output.context, editor.stickers || [], output.widthPx, output.heightPx);
