@@ -53,6 +53,7 @@ jobs:
           node --check scripts/verify-custom-studio-mobile-refinement.mjs
           node --check scripts/verify-custom-studio-mobile-regression-repair.mjs
           node --check scripts/verify-custom-studio-v2.mjs
+          node --check scripts/verify-custom-studio-v2-approval-refinement.mjs
           node --check scripts/verify-seasonal-v2-loading-stability.mjs
           node --check scripts/verify-seasonal-v2-explicit-add-artwork.mjs
           node --check scripts/verify-admin-print-configuration.mjs
@@ -107,6 +108,9 @@ jobs:
 
       - name: Verify Custom Studio V2 isolation
         run: node scripts/verify-custom-studio-v2.mjs
+
+      - name: Verify Custom Studio V2 approval refinement
+        run: node scripts/verify-custom-studio-v2-approval-refinement.mjs
 
       - name: Verify Seasonal Studio V2 loading stability
         run: node scripts/verify-seasonal-v2-loading-stability.mjs
