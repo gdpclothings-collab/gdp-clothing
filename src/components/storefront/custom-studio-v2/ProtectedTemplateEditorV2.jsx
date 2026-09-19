@@ -235,10 +235,9 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
 }
 
 function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle }) {
-  if (!layout || (!layout.headline && !layout.subline && !layout.message)) return null;
-  const style = layer.style || {};
-  const bounds = layout.bounds;
-  const rawLimits = bootlegGestureLimits(layout);
+  const style = layer?.style || {};
+  const bounds = layout?.bounds || null;
+  const rawLimits = layout ? bootlegGestureLimits(layout) : { minX: -50, maxX: 50, minY: -50, maxY: 50 };
   const canvasX = Number.isFinite(Number(style.canvasX)) ? clamp(Number(style.canvasX), 0, 100) : 50;
   const canvasY = Number.isFinite(Number(style.canvasY)) ? clamp(Number(style.canvasY), 0, 100) : 50;
   const gesture = useTouchTransformV2({
@@ -252,7 +251,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle }) 
       canvasY: clamp(next.y + 50, 0, 100),
     }),
     containerRef: canvasRef,
-    enabled: selected && Boolean(layer.text?.headline),
+    enabled: selected && Boolean(layout) && Boolean(layer?.text?.headline),
     minScale: 1,
     maxScale: Number.POSITIVE_INFINITY,
     minX: clamp(rawLimits.minX, -50, 50),
@@ -260,6 +259,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle }) 
     minY: clamp(rawLimits.minY, -50, 50),
     maxY: clamp(rawLimits.maxY, -50, 50),
   });
+  if (!layout || (!layout.headline && !layout.subline && !layout.message)) return null;
   const common = /** @type {const} */ ({
     fill: style.color || '#ffffff',
     fontFamily: style.fontFamily || 'Arial, sans-serif',
