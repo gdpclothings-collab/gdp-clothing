@@ -36,7 +36,6 @@ export default function GarmentStep({ model }) {
   } = model;
 
   const [emptyCatalogSettled, setEmptyCatalogSettled] = useState(false);
-  const [garmentGalleryExpanded, setGarmentGalleryExpanded] = useState(() => !product);
 
   useEffect(() => {
     if (product || catalog.length > 0) {
@@ -49,82 +48,11 @@ export default function GarmentStep({ model }) {
     return () => window.clearTimeout(timer);
   }, [product, catalog.length]);
 
-  useEffect(() => {
-    if (!product && catalog.length > 0) setGarmentGalleryExpanded(true);
-  }, [product, catalog.length]);
-
   const showCatalogLoading = !product && catalog.length === 0 && !emptyCatalogSettled;
-  const focusedGarment = product ? garmentFromProduct(product) : null;
-  const focusedImage = product ? studioCardImage(product) : "";
-
-  const selectGarment = (option) => {
-    // The canonical product selection handler remains the only authority for
-    // product, variant, pricing, inventory and downstream Studio state.
-    chooseProduct(option);
-    setGarmentGalleryExpanded(false);
-  };
 
   return (
     <div>
       <StepTitle eyebrow="Choose your blank" title="CLOTHING, COLOR & SIZE" text="Pick the exact garment first. Colors, sizes, pricing and availability update automatically for that clothing type." />
-
-      {product && !garmentGalleryExpanded && (
-        <div
-          data-garment-focused-selection="true"
-          className="mb-6 flex items-center gap-4 rounded-2xl border border-[#D5DDE5] bg-[#F8FAFC] p-3.5 sm:p-4"
-        >
-          <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#F1EDE6] sm:h-24 sm:w-24">
-            {focusedImage ? (
-              <img src={focusedImage} alt="" className="h-full w-full object-contain" />
-            ) : (
-              <div className="h-[88%] aspect-[360/430]" aria-hidden="true">
-                <GarmentShape
-                  type={focusedGarment?.previewType || focusedGarment?.type}
-                  color={color || product?.colors?.[0] || "Black"}
-                  side="front"
-                />
-              </div>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#6A7681]">Your garment</div>
-            <div className="mt-1 flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-base font-black text-[#17324D] sm:text-lg">{product.name}</div>
-                <div className="mt-1 text-xs text-[#64707C]">
-                  {[color, size ? `Size ${size}` : "Select size"].filter(Boolean).join(" · ")}
-                </div>
-              </div>
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#17324D] text-white" aria-label="Selected garment">
-                <Check size={15}/>
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            data-change-garment="true"
-            onClick={() => setGarmentGalleryExpanded(true)}
-            className="shrink-0 rounded-xl border border-[#C8D0D8] bg-white px-3 py-2 text-xs font-bold text-[#17324D] transition hover:border-[#17324D] hover:bg-[#F4F7F9] sm:px-4 sm:py-2.5"
-          >
-            Change garment
-          </button>
-        </div>
-      )}
-
-      {product && garmentGalleryExpanded && (
-        <div data-garment-change-mode="true" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] px-4 py-3">
-          <div className="text-xs text-[#64707C]">
-            Current garment: <span className="font-bold text-[#17324D]">{product.name}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setGarmentGalleryExpanded(false)}
-            className="text-xs font-bold text-[#17324D] underline decoration-[#A9B5BF] underline-offset-4 hover:decoration-[#17324D]"
-          >
-            Keep current garment
-          </button>
-        </div>
-      )}
 
       {showCatalogLoading ? (
         <div role="status" aria-label="Loading Custom Studio garments" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -140,11 +68,7 @@ export default function GarmentStep({ model }) {
           <span className="sr-only">Loading garments…</span>
         </div>
       ) : (
-        <div
-          data-garment-grid
-          data-garment-gallery-expanded={garmentGalleryExpanded ? "true" : "false"}
-          className={(product && !garmentGalleryExpanded ? "hidden " : "") + "grid gap-3 sm:grid-cols-2 xl:grid-cols-3"}
-        >
+        <div data-garment-grid className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {(catalog.length ? catalog : (product ? [product] : [])).map((option) => {
             const optionGarment = garmentFromProduct(option);
             const optionImage = studioCardImage(option);
@@ -153,7 +77,7 @@ export default function GarmentStep({ model }) {
               <button
                 type="button"
                 key={option.id}
-                onClick={() => selectGarment(option)}
+                onClick={() => chooseProduct(option)}
                 className={"group overflow-hidden rounded-2xl border text-left transition-all duration-200 " + (active ? "border-accent bg-accent/[0.055] shadow-[0_10px_30px_rgba(25,22,18,.08)]" : "border-[#ddd7ce] bg-white/70 hover:border-accent hover:-translate-y-0.5")}
               >
                 <div className="aspect-[2/1] grid place-items-center overflow-hidden bg-[#f1ede6] sm:aspect-[16/10]">
@@ -192,7 +116,7 @@ export default function GarmentStep({ model }) {
         <div className="mt-5 rounded-xl border border-[#DCE3EA] bg-[#F8FAFC] p-4 text-sm text-[#52616F]">Choose a garment above to begin. Nothing has been selected for you.</div>
       )}
 
-      {product && !garmentGalleryExpanded && <>
+      {product && <>
         <div data-step1-color className="mt-7">
           <div className="flex items-center justify-between gap-3">
             <label className="font-mono text-xs uppercase text-muted-foreground">Color</label>
