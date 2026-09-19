@@ -1,3 +1,4 @@
+import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers';
 import { resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
@@ -350,7 +351,14 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     await drawTemplate();
   }
 
-  drawStyledText(output.context, editor.text || {}, template.textZone || {}, editor.textStyle || {}, output.widthPx, output.heightPx);
+  if (bootlegPhotoForeground) {
+    const bootlegTextLayers = resolveBootlegTextLayers(editor, editor.textStyle || {}).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    for (const layer of bootlegTextLayers) {
+      drawStyledText(output.context, layer.text || {}, template.textZone || {}, layer.style || {}, output.widthPx, output.heightPx);
+    }
+  } else {
+    drawStyledText(output.context, editor.text || {}, template.textZone || {}, editor.textStyle || {}, output.widthPx, output.heightPx);
+  }
   await drawStickers(output.context, editor.stickers || [], output.widthPx, output.heightPx);
 
   return {
