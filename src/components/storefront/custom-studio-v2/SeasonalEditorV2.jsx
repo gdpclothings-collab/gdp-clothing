@@ -173,7 +173,6 @@ function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
           alt=""
           draggable="false"
           className="pointer-events-none block h-full w-full select-none object-fill"
-          style={{ WebkitUserDrag: 'none' }}
         />
       </span>
     </button>
