@@ -134,6 +134,9 @@ function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
     restart();
   };
 
+  const rotation = Number(entry.layer.rotation || 0);
+  const visualTransform = Math.abs(rotation) > 0.001 ? `rotate(${rotation}deg)` : 'none';
+
   return (
     <button
       type="button"
@@ -143,18 +146,36 @@ function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
       onPointerMove={move}
       onPointerUp={end}
       onPointerCancel={end}
-      className={`absolute touch-none select-none border-0 bg-transparent p-0 ${entry.layer.locked ? 'cursor-default' : 'cursor-move'} ${active ? 'ring-2 ring-[#D9273E] ring-offset-2' : ''}`}
+      className={`absolute touch-none select-none border-0 bg-transparent p-0 ${entry.layer.locked ? 'cursor-default' : 'cursor-move'}`}
       style={{
         left: `${(entry.layout.x / area.width) * 100}%`,
         top: `${(entry.layout.y / area.height) * 100}%`,
         width: `${(entry.layout.width / area.width) * 100}%`,
         height: `${(entry.layout.height / area.height) * 100}%`,
-        transform: `rotate(${Number(entry.layer.rotation || 0)}deg)`,
-        transformOrigin: 'center',
+        isolation: 'isolate',
         zIndex: entry.order + 1,
       }}
     >
-      <img src={entry.artwork.preview} alt="" draggable="false" className="pointer-events-none h-full w-full object-fill" />
+      <span
+        data-seasonal-v2-layer-visual
+        aria-hidden="true"
+        className={`absolute inset-0 block ${active ? 'ring-2 ring-[#D9273E] ring-offset-2' : ''}`}
+        style={{
+          transform: visualTransform,
+          transformOrigin: 'center',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          willChange: visualTransform === 'none' ? 'auto' : 'transform',
+        }}
+      >
+        <img
+          src={entry.artwork.preview}
+          alt=""
+          draggable="false"
+          className="pointer-events-none block h-full w-full select-none object-fill"
+          style={{ WebkitUserDrag: 'none' }}
+        />
+      </span>
     </button>
   );
 }
