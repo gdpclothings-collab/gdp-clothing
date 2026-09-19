@@ -87,7 +87,7 @@ assert(state.includes("case 'SET_QUANTITY'"), 'V2 quantity state is missing');
 assert(page.includes('function GarmentVariantControls'), 'selected-garment option panel is missing');
 assert(page.includes('data-gdp-selected-garment-options="true"'), 'selected-garment option panel needs a stable regression marker');
 assert(page.includes('const selectedProduct = catalog.find'), 'selected product resolver is missing from Step 1');
-assert(page.includes('{selectedProduct && <GarmentVariantControls'), 'color/size/quantity options must render only for the selected garment');
+assert(page.includes('selectedProduct && !browseGarments && <GarmentVariantControls'), 'color/size/quantity options must render only for the selected garment while focused');
 assert(page.includes('aria-pressed={selected}'), 'garment selection state must be exposed accessibly');
 assert(page.includes('data-gdp-garment-continue="true"'), 'Step 1 Continue must live inside the selected garment configurator');
 assert(page.includes('onContinue={next} canContinue={canContinue}'), 'inline garment Continue must reuse the canonical next/canContinue flow');

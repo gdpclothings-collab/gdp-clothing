@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, Loader2, RotateCcw, ShieldCheck, Sparkles, Star } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
@@ -113,25 +113,60 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
 
 function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
   const selectedProduct = catalog.find((item) => String(item.id) === String(state.productId)) || null;
+  const previousProductIdRef = useRef(state.productId);
+  const [isChoosingGarment, setIsChoosingGarment] = useState(() => !state.productId);
+
+  useEffect(() => {
+    const previousProductId = previousProductIdRef.current;
+    if (!state.productId) setIsChoosingGarment(true);
+    else if (String(previousProductId || '') !== String(state.productId)) setIsChoosingGarment(false);
+    previousProductIdRef.current = state.productId;
+  }, [state.productId]);
+
+  const chooseProduct = (item) => {
+    dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: productColors(item)[0] || '' });
+    setIsChoosingGarment(false);
+  };
+
+  const browseGarments = !selectedProduct || isChoosingGarment;
+
   return (
-    <div className="space-y-5">
-      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Choose a garment first, then set its colour, size and quantity in the configuration panel below. You can switch garments anytime before continuing.</p></div>
-      <div className="flex items-end justify-between gap-3" data-gdp-garment-choices="top">
-        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Garment options</p><p className="mt-1 text-xs font-semibold text-slate-500">Select a garment below to update the configuration panel underneath.</p></div>
-        {selectedProduct && <span className="hidden rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 sm:inline-flex">{catalog.length} options</span>}
+    <div className="space-y-5" data-gdp-garment-mode={browseGarments ? 'browse' : 'focused'}>
+      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">{browseGarments ? 'Choose a garment first. After selection, the gallery collapses so you can focus on colour, size, quantity and DTF details.' : 'Your garment is selected. Configure its colour, size and quantity below, or change the garment without resetting the current selection.'}</p></div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3" data-gdp-garment-choices="top">
+        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{browseGarments ? 'Garment options' : 'Your garment'}</p><p className="mt-1 text-xs font-semibold text-slate-500">{browseGarments ? 'Select a garment below to continue.' : 'Only your selected garment stays visible while you configure it.'}</p></div>
+        {selectedProduct && (browseGarments
+          ? <button data-gdp-keep-current-garment="true" type="button" onClick={() => setIsChoosingGarment(false)} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Keep current garment</button>
+          : <button data-gdp-change-garment="true" type="button" onClick={() => setIsChoosingGarment(true)} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Change garment</button>)}
       </div>
-      <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {catalog.map((item) => {
-          const selected = String(item.id) === String(state.productId);
-          return <div key={item.id} className="min-w-0">
-            <button type="button" onClick={() => dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: productColors(item)[0] || '' })} className={`group w-full overflow-hidden rounded-3xl border-2 bg-white text-left transition ${selected ? 'border-slate-900 shadow-lg ring-1 ring-slate-900/5' : 'border-slate-200 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md'}`} aria-pressed={selected}>
-              <div className="relative aspect-[5/4] bg-slate-50 p-3 xl:aspect-[3/2]"><img src={item.images?.[0] || '/images/gdp-logo.webp'} alt={item.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]" />{selected && <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={12} /> Selected</span>}</div>
-              <div className="p-4"><p className="text-sm font-black text-slate-900">{item.name}</p><p className="mt-1 line-clamp-2 text-xs font-medium text-slate-500">{item.description || item.type || 'Custom garment'}</p></div>
-            </button>
-          </div>;
-        })}
-      </div>
-      {selectedProduct && <GarmentVariantControls product={selectedProduct} state={state} dispatch={dispatch} onContinue={onContinue} canContinue={canContinue} />}
+
+      {browseGarments ? (
+        <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3" data-gdp-garment-gallery="true">
+          {catalog.map((item) => {
+            const selected = String(item.id) === String(state.productId);
+            return <div key={item.id} className="min-w-0">
+              <button type="button" onClick={() => chooseProduct(item)} className={`group w-full overflow-hidden rounded-3xl border-2 bg-white text-left transition ${selected ? 'border-slate-900 shadow-lg ring-1 ring-slate-900/5' : 'border-slate-200 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md'}`} aria-pressed={selected}>
+                <div className="relative aspect-[5/4] bg-slate-50 p-3 xl:aspect-[3/2]"><img src={item.images?.[0] || '/images/gdp-logo.webp'} alt={item.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]" />{selected && <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={12} /> Selected</span>}</div>
+                <div className="p-4"><p className="text-sm font-black text-slate-900">{item.name}</p><p className="mt-1 line-clamp-2 text-xs font-medium text-slate-500">{item.description || item.type || 'Custom garment'}</p></div>
+              </button>
+            </div>;
+          })}
+        </div>
+      ) : (
+        <div data-gdp-selected-garment-summary="true" className="flex min-w-0 items-center gap-3 rounded-3xl border-2 border-slate-900 bg-white p-3 shadow-sm sm:p-4">
+          <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-slate-50 p-2 sm:h-24 sm:w-24">
+            <img src={selectedProduct.images?.[0] || '/images/gdp-logo.webp'} alt={selectedProduct.name} className="h-full w-full object-contain" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-black text-slate-950 sm:text-base">{selectedProduct.name}</p><span className="inline-flex items-center gap-1 rounded-full bg-slate-950 px-2 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={11} /> Selected</span></div>
+            <p className="mt-1 line-clamp-2 text-xs font-medium text-slate-500">{selectedProduct.description || selectedProduct.type || 'Custom garment'}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">{state.color && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">{displayVariantLabel(state.color)}</span>}{state.size && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">Size {state.size}</span>}</div>
+          </div>
+        </div>
+      )}
+
+      {selectedProduct && !browseGarments && <GarmentVariantControls product={selectedProduct} state={state} dispatch={dispatch} onContinue={onContinue} canContinue={canContinue} />}
     </div>
   );
 }
