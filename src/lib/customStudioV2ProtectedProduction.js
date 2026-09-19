@@ -318,24 +318,37 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
   const resolvedProfile = profile(product, size, side);
   const output = createCanvas(resolvedProfile, dpi);
   const templateTransform = editor.textStyle?.templateTransform || null;
+  const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true;
 
-  for (const layer of photos) {
-    const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
-    try {
-      const drawPhoto = () => {
-        output.context.save();
-        const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
-        drawCover(output.context, loaded, rect, layer.transform || {});
-        output.context.restore();
-      };
-      if (templateTransform) withTemplateTransform(output.context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
-      else drawPhoto();
-    } finally { loaded.close(); }
+  const drawPhotos = async () => {
+    for (const layer of photos) {
+      const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
+      try {
+        const drawPhoto = () => {
+          output.context.save();
+          const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
+          drawCover(output.context, loaded, rect, layer.transform || {});
+          output.context.restore();
+        };
+        if (templateTransform) withTemplateTransform(output.context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
+        else drawPhoto();
+      } finally { loaded.close(); }
+    }
+  };
+
+  const drawTemplate = async () => {
+    const templateArtwork = await loadImage(template.assetUrl, 'The GDP template artwork could not be reopened.');
+    try { drawTemplateArtwork(output.context, templateArtwork, output.widthPx, output.heightPx, templateTransform || {}); }
+    finally { templateArtwork.close(); }
+  };
+
+  if (bootlegPhotoForeground) {
+    await drawTemplate();
+    await drawPhotos();
+  } else {
+    await drawPhotos();
+    await drawTemplate();
   }
-
-  const templateArtwork = await loadImage(template.assetUrl, 'The GDP template artwork could not be reopened.');
-  try { drawTemplateArtwork(output.context, templateArtwork, output.widthPx, output.heightPx, templateTransform || {}); }
-  finally { templateArtwork.close(); }
 
   drawStyledText(output.context, editor.text || {}, template.textZone || {}, editor.textStyle || {}, output.widthPx, output.heightPx);
   await drawStickers(output.context, editor.stickers || [], output.widthPx, output.heightPx);
