@@ -30,7 +30,7 @@ const CustomStudioV2 = lazy(() => import('@/components/storefront/custom-studio-
 const Cart = lazy(() => import('@/pages/CartV2'));
 const Checkout = lazy(() => import('@/pages/Checkout'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
-const Account = lazy(() => import('@/pages/Account'));
+const Account = lazy(() => import('@/pages/AccountRefined'));
 const Admin = lazy(() => loadAdminPage(() => import('@/pages/Admin')));
 const AdminV3 = lazy(() => loadAdminPage(() => import('@/pages/AdminV3')));
 const AdminMediaOptimizer = lazy(() => import('@/pages/AdminMediaOptimizer'));
