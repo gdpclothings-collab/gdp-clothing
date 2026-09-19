@@ -380,7 +380,7 @@ export const customerApi = {
       if (previewUrl && !/^https?:\/\//i.test(previewUrl)) {
         previewUrl = await signedCustomerUpload(previewUrl);
       }
-      rows.push(normalizeSavedDesign({ ...row, preview_url: previewUrl });
+      rows.push(normalizeSavedDesign({ ...row, preview_url: previewUrl }));
     }
     return rows;
   },
