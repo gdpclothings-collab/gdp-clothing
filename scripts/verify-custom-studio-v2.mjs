@@ -83,12 +83,13 @@ assert(state.includes('stickers: []'), 'protected editor sticker state is missin
 assert(state.includes('textStyle:'), 'protected editor text-style state is missing');
 assert(state.includes("case 'SET_QUANTITY'"), 'V2 quantity state is missing');
 
-// Selected garment options must live directly under the selected garment only.
+// Selected garment options must remain scoped to the selected product while allowing a full-width configurator.
 assert(page.includes('function GarmentVariantControls'), 'selected-garment option panel is missing');
 assert(page.includes('data-gdp-selected-garment-options="true"'), 'selected-garment option panel needs a stable regression marker');
-assert(page.includes('{selected && <GarmentVariantControls'), 'color/size/quantity options must render only below the selected garment');
+assert(page.includes('const selectedProduct = catalog.find'), 'selected product resolver is missing from Step 1');
+assert(page.includes('{selectedProduct && <GarmentVariantControls'), 'color/size/quantity options must render only for the selected garment');
 assert(page.includes('aria-pressed={selected}'), 'garment selection state must be exposed accessibly');
-assert(page.includes('data-gdp-garment-continue="true"'), 'Step 1 Continue must live under the selected garment options');
+assert(page.includes('data-gdp-garment-continue="true"'), 'Step 1 Continue must live inside the selected garment configurator');
 assert(page.includes('onContinue={next} canContinue={canContinue}'), 'inline garment Continue must reuse the canonical next/canContinue flow');
 assert(page.includes("state.step !== 'review' && state.step !== 'garment'"), 'detached bottom action bar must be hidden on the garment step');
 assert(page.includes('gdp-custom-studio-v2-actions relative'), 'V2 navigation actions must remain in normal flow instead of covering the editor');
