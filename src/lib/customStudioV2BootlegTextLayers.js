@@ -1,5 +1,9 @@
 export const BOOTLEG_MAX_TEXT_LAYERS = 8;
 
+/**
+ * @param {Record<string, any>} text
+ * @returns {{ headline: string, subline: string, message: string }}
+ */
 function cleanText(text = {}) {
   return {
     headline: String(text?.headline || ''),
@@ -8,6 +12,13 @@ function cleanText(text = {}) {
   };
 }
 
+/**
+ * Keep GDP template transform outside individual text-layer styles while
+ * leaving each text layer free to own its visual typography/placement.
+ * @param {Record<string, any>} style
+ * @param {Record<string, any>} fallbackStyle
+ * @returns {Record<string, any>}
+ */
 export function normalizeBootlegTextStyle(style = {}, fallbackStyle = {}) {
   const layerStyle = { ...(style || {}) };
   delete layerStyle.templateTransform;
@@ -18,6 +29,11 @@ export function normalizeBootlegTextStyle(style = {}, fallbackStyle = {}) {
   };
 }
 
+/**
+ * @param {Record<string, any>} editor
+ * @param {Record<string, any>} fallbackStyle
+ * @returns {Array<Record<string, any>>}
+ */
 export function resolveBootlegTextLayers(editor = {}, fallbackStyle = {}) {
   if (Array.isArray(editor?.textLayers)) {
     return editor.textLayers
@@ -43,6 +59,13 @@ export function resolveBootlegTextLayers(editor = {}, fallbackStyle = {}) {
   }];
 }
 
+/**
+ * @param {Record<string, any>} editor
+ * @param {Array<Record<string, any>>} layers
+ * @param {string} activeId
+ * @param {Record<string, any>} fallbackStyle
+ * @returns {Record<string, any>}
+ */
 export function buildBootlegTextStatePatch(editor = {}, layers = [], activeId = '', fallbackStyle = {}) {
   const ordered = (layers || [])
     .filter(Boolean)
