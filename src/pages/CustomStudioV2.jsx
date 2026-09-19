@@ -115,10 +115,9 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
   const selectedProduct = catalog.find((item) => String(item.id) === String(state.productId)) || null;
   return (
     <div className="space-y-5">
-      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Choose a garment, then set its colour, size and quantity in the full-width configuration panel. You can switch garments anytime before continuing.</p></div>
-      {selectedProduct && <GarmentVariantControls product={selectedProduct} state={state} dispatch={dispatch} onContinue={onContinue} canContinue={canContinue} />}
-      <div className="flex items-end justify-between gap-3">
-        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Garment options</p><p className="mt-1 text-xs font-semibold text-slate-500">Select another garment below to update the configuration panel.</p></div>
+      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Choose a garment first, then set its colour, size and quantity in the configuration panel below. You can switch garments anytime before continuing.</p></div>
+      <div className="flex items-end justify-between gap-3" data-gdp-garment-choices="top">
+        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Garment options</p><p className="mt-1 text-xs font-semibold text-slate-500">Select a garment below to update the configuration panel underneath.</p></div>
         {selectedProduct && <span className="hidden rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 sm:inline-flex">{catalog.length} options</span>}
       </div>
       <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -132,6 +131,7 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
           </div>;
         })}
       </div>
+      {selectedProduct && <GarmentVariantControls product={selectedProduct} state={state} dispatch={dispatch} onContinue={onContinue} canContinue={canContinue} />}
     </div>
   );
 }
