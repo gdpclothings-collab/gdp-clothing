@@ -230,12 +230,12 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
 function BootlegTextLayer({ layout, style, gesture, selected }) {
   if (!layout || (!layout.headline && !layout.subline && !layout.message)) return null;
   const bounds = layout.bounds;
-  const common = {
+  const common = /** @type {const} */ ({
     fill: style.color || '#ffffff',
     fontFamily: style.fontFamily || 'Arial, sans-serif',
     textAnchor: 'middle',
     dominantBaseline: 'middle',
-  };
+  });
   return (
     <div
       {...gesture}
