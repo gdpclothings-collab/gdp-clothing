@@ -144,7 +144,18 @@ function layoutLine(text, fontSize, centerX, centerY, weight = 700) {
   };
 }
 
-export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, width, height, anchorX, anchorY }) {
+/**
+ * @param {{
+ *   text?: Record<string, any>,
+ *   zone?: Record<string, any>,
+ *   style?: Record<string, any>,
+ *   width: number,
+ *   height: number,
+ *   anchorX?: number,
+ *   anchorY?: number,
+ * }} options
+ */
+export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, width, height, anchorX = Number.NaN, anchorY = Number.NaN }) {
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
   const zoneHeight = Math.max(1, clamp(zone?.height ?? 16, 1, 100) / 100 * safeHeight);
