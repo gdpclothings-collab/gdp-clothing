@@ -33,6 +33,7 @@ import {
 
 const pathIcons = { seasonal: Sparkles, bootleg: Star, memorial: Heart, upload: ImageUp };
 const normalize = (value) => String(value || '').trim().toLowerCase();
+const displayVariantLabel = (value) => String(value || '').trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 function variantFor(product, color, size) {
   return (product?.variants || []).find((variant) =>
@@ -64,42 +65,70 @@ function StudioStepRail({ currentStep, onStep }) {
 function GarmentVariantControls({ product, state, dispatch, onContinue, canContinue }) {
   const colors = productColors(product);
   const sizes = productSizes(product, state.color);
+  const sizeRequired = !String(state.size || '').trim();
   return (
-    <div className="mt-3 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-inner sm:p-4" data-gdp-selected-garment-options="true">
-      <div>
-        <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Color</div>
-        <div className="flex flex-wrap gap-2">{colors.map((color) => {
-          const selected = state.color === color;
-          return <button key={color} type="button" onClick={() => dispatch({ type: 'SET_COLOR', color })} aria-label={`Select ${color}`} aria-pressed={selected} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 text-sm font-bold ${selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="h-5 w-5 shrink-0 rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: garmentColorSwatch(product, color) }} aria-hidden="true" /><span>{color}</span></button>;
-        })}</div>
+    <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-4 lg:p-5" data-gdp-selected-garment-options="true" data-gdp-selected-garment-configurator="true">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Selected garment</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-base font-black text-slate-950">{product?.name}</span>
+            {state.color && <><span className="text-slate-300">·</span><span className="text-sm font-bold text-slate-600">{displayVariantLabel(state.color)}</span></>}
+            {state.size && <><span className="text-slate-300">·</span><span className="text-sm font-bold text-slate-600">Size {state.size}</span></>}
+          </div>
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white"><span className="h-2 w-2 rounded-full bg-emerald-400" /> DTF Printing</div>
       </div>
-      <div>
-        <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Size</div>
-        <div className="flex flex-wrap gap-2">{sizes.map((size) => <button key={size} type="button" onClick={() => dispatch({ type: 'SET_SIZE', size })} className={`min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold ${state.size === size ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{size}</button>)}</div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr_.65fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Color</div>
+          <div className="flex flex-wrap gap-2">{colors.map((color) => {
+            const selected = state.color === color;
+            return <button data-gdp-garment-swatch="true" key={color} type="button" onClick={() => dispatch({ type: 'SET_COLOR', color })} aria-label={`Select ${displayVariantLabel(color)}`} aria-pressed={selected} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 text-sm font-bold transition ${selected ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}><span className="h-5 w-5 shrink-0 rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: garmentColorSwatch(product, color) }} aria-hidden="true" /><span>{displayVariantLabel(color)}</span></button>;
+          })}</div>
+        </div>
+
+        <div className={`rounded-2xl border bg-white p-3 sm:p-4 ${sizeRequired ? 'border-amber-300 ring-1 ring-amber-100' : 'border-slate-200'}`}>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Size</div>{sizeRequired && <span className="text-[11px] font-black text-amber-700">Required</span>}</div>
+          <div className="flex flex-wrap gap-2">{sizes.map((size) => <button key={size} type="button" onClick={() => dispatch({ type: 'SET_SIZE', size })} className={`min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold transition ${state.size === size ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}>{size}</button>)}</div>
+          {sizeRequired && <p className="mt-2 text-xs font-bold text-amber-700">Select a size to continue.</p>}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Quantity</div>
+          <div className="inline-flex min-h-11 items-center rounded-xl border-2 border-slate-200 bg-white"><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.max(1, Number(state.quantity || 1) - 1) })} disabled={Number(state.quantity || 1) <= 1} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">−</button><input type="number" min="1" max="99" value={state.quantity} onChange={(event) => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Math.max(1, Number(event.target.value || 1))) })} className="h-11 w-14 border-x border-slate-200 text-center text-base font-black outline-none sm:text-sm" /><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Number(state.quantity || 1) + 1) })} disabled={Number(state.quantity || 1) >= 99} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">+</button></div>
+        </div>
       </div>
+
       <GarmentInfoPanel product={product} sizes={sizes} />
-      <div>
-        <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Quantity</div>
-        <div className="inline-flex min-h-11 items-center rounded-xl border-2 border-slate-200 bg-white"><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.max(1, Number(state.quantity || 1) - 1) })} disabled={Number(state.quantity || 1) <= 1} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">−</button><input type="number" min="1" max="99" value={state.quantity} onChange={(event) => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Math.max(1, Number(event.target.value || 1))) })} className="h-11 w-14 border-x border-slate-200 text-center text-base font-black outline-none sm:text-sm" /><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Number(state.quantity || 1) + 1) })} disabled={Number(state.quantity || 1) >= 99} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">+</button></div>
+
+      <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto]">
+        <p className={`text-xs font-bold ${sizeRequired ? 'text-amber-700' : 'text-slate-500'}`}>{sizeRequired ? 'Select a size to continue to your design path.' : `${product?.name} · ${displayVariantLabel(state.color)} · Size ${state.size} is ready to customize.`}</p>
+        <button data-gdp-garment-continue="true" type="button" onClick={onContinue} disabled={!canContinue} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 sm:w-auto">Continue <ArrowRight size={17} /></button>
       </div>
-      <button data-gdp-garment-continue="true" type="button" onClick={onContinue} disabled={!canContinue} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-35">Continue <ArrowRight size={17} /></button>
     </div>
   );
 }
 
 function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
+  const selectedProduct = catalog.find((item) => String(item.id) === String(state.productId)) || null;
   return (
     <div className="space-y-5">
-      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Select a garment to reveal its DTF printing details, available colours, sizes, size guide and order information directly below it.</p></div>
+      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Choose a garment, then set its colour, size and quantity in the full-width configuration panel. You can switch garments anytime before continuing.</p></div>
+      {selectedProduct && <GarmentVariantControls product={selectedProduct} state={state} dispatch={dispatch} onContinue={onContinue} canContinue={canContinue} />}
+      <div className="flex items-end justify-between gap-3">
+        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Garment options</p><p className="mt-1 text-xs font-semibold text-slate-500">Select another garment below to update the configuration panel.</p></div>
+        {selectedProduct && <span className="hidden rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 sm:inline-flex">{catalog.length} options</span>}
+      </div>
       <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {catalog.map((item) => {
           const selected = String(item.id) === String(state.productId);
           return <div key={item.id} className="min-w-0">
-            <button type="button" onClick={() => dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: productColors(item)[0] || '' })} className={`w-full overflow-hidden rounded-3xl border-2 bg-white text-left transition ${selected ? 'border-slate-900 shadow-lg' : 'border-slate-200 hover:border-slate-400'}`} aria-pressed={selected}>
-              <div className="aspect-[5/4] bg-slate-50 p-3"><img src={item.images?.[0] || '/images/gdp-logo.webp'} alt={item.name} className="h-full w-full object-contain" /></div>
+            <button type="button" onClick={() => dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: productColors(item)[0] || '' })} className={`group w-full overflow-hidden rounded-3xl border-2 bg-white text-left transition ${selected ? 'border-slate-900 shadow-lg ring-1 ring-slate-900/5' : 'border-slate-200 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md'}`} aria-pressed={selected}>
+              <div className="relative aspect-[5/4] bg-slate-50 p-3 xl:aspect-[3/2]"><img src={item.images?.[0] || '/images/gdp-logo.webp'} alt={item.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]" />{selected && <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={12} /> Selected</span>}</div>
               <div className="p-4"><p className="text-sm font-black text-slate-900">{item.name}</p><p className="mt-1 line-clamp-2 text-xs font-medium text-slate-500">{item.description || item.type || 'Custom garment'}</p></div>
             </button>
-            {selected && <GarmentVariantControls product={item} state={state} dispatch={dispatch} onContinue={onContinue} canContinue={canContinue} />}
           </div>;
         })}
       </div>
