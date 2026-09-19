@@ -119,9 +119,11 @@ assert(protectedEditor.includes('Move text left / right'), 'direct text position
 assert(protectedEditor.includes('Text rotation'), 'text rotation controls are missing');
 assert(protectedEditor.includes('GDP template artwork never becomes an editable layer.'), 'locked-template contract copy is missing');
 
-// Side-aware garment preview must never fake a back view with a known front image.
+// Side-aware garment preview must use authoritative color/side metadata first and never fake a back view with a known front image.
 assert(preview.includes('studioV2GarmentPreview'), 'side-aware garment preview helper is missing');
-assert(preview.includes("if (side === 'back') return '';"), 'back preview must fall back safely instead of showing a known front image');
+assert(preview.includes('colorMockups'), 'color-specific garment preview mapping is missing');
+assert(preview.includes('mappedColorPreview'), 'authoritative color/side mockup must be resolved before filename fallback');
+assert(preview.includes("if (normalizedSide === 'back') return '';"), 'back preview must fall back safely instead of showing a known front image');
 assert(seasonal.includes('studioV2GarmentPreview'), 'Seasonal side-aware garment preview is missing');
 assert(protectedEditor.includes('studioV2GarmentPreview'), 'Bootleg/Memorial side-aware garment preview is missing');
 assert(uploadEditor.includes('studioV2GarmentPreview'), 'Upload side-aware garment preview is missing');
