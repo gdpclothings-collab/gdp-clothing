@@ -34,9 +34,12 @@ function formatInches(value) {
 }
 
 /**
- * Visual mapping of the exact recommended production area onto the garment mockup.
+ * Visual mapping of the exact production area onto the garment mockup.
  * Physical width/height always come from resolveStudioV2PrintProfile, so preview,
  * Seasonal workspace and final 300-DPI output share the same source of truth.
+ *
+ * File-quality guidance mirrors Printful's public apparel guidance: PNG/JPG,
+ * 150-DPI minimum, 300-DPI preferred output, sRGB, and product-specific max areas.
  */
 export function resolveStudioV2PrintGuide(product, size, side = 'front') {
   const normalizedSide = side === 'back' ? 'back' : 'front';
@@ -46,11 +49,21 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
   const widthPercent = Math.round(geometry.maxVisualWidth * ratio * 10) / 10;
   const topPercent = normalizedSide === 'back' ? geometry.backTop : geometry.frontTop;
   const dimensions = `${formatInches(profile.widthIn)} × ${formatInches(profile.heightIn)} in`;
+  const reference = product?.customization?.preview?.printGuide?.reference || null;
 
   return {
     ...profile,
-    label: dimensions,
-    recommendationLabel: `Recommended print area: ${dimensions}`,
+    label: `MAX ${dimensions}`,
+    dimensionsLabel: dimensions,
+    recommendationLabel: `Maximum print area: ${dimensions}`,
+    reference,
+    fileGuidelines: {
+      acceptedFormats: ['PNG', 'JPG'],
+      minimumDpi: 150,
+      preferredDpi: 300,
+      colorProfile: 'sRGB IEC61966-2.1',
+      keepImportantContentInSafeArea: true,
+    },
     style: {
       top: `${topPercent}%`,
       width: `${widthPercent}%`,
