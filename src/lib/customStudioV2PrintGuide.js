@@ -38,8 +38,9 @@ function formatInches(value) {
  * Physical width/height always come from resolveStudioV2PrintProfile, so preview,
  * Seasonal workspace and final 300-DPI output share the same source of truth.
  *
- * File-quality guidance mirrors Printful's public apparel guidance: PNG/JPG,
- * 150-DPI minimum, 300-DPI preferred output, sRGB, and product-specific max areas.
+ * GDP Clothing is DTF-first. File-quality guidance follows Printful's current
+ * DTF/DTFlex public guidance while physical max areas remain product/placement
+ * specific and continue to come from the configured production profile.
  */
 export function resolveStudioV2PrintGuide(product, size, side = 'front') {
   const normalizedSide = side === 'back' ? 'back' : 'front';
@@ -49,19 +50,38 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
   const widthPercent = Math.round(geometry.maxVisualWidth * ratio * 10) / 10;
   const topPercent = normalizedSide === 'back' ? geometry.backTop : geometry.frontTop;
   const dimensions = `${formatInches(profile.widthIn)} × ${formatInches(profile.heightIn)} in`;
-  const reference = product?.customization?.preview?.printGuide?.reference || null;
+  const configuredReference = product?.customization?.preview?.printGuide?.reference || null;
+  const reference = configuredReference || {
+    provider: 'Printful',
+    method: 'DTF',
+    printfulTechnique: 'DTFlex',
+    standard: 'Product-specific DTF/DTFlex max print area',
+  };
 
   return {
     ...profile,
-    label: `MAX ${dimensions}`,
+    printMethod: 'DTF',
+    printfulTechnique: 'DTFlex',
+    label: `DTF MAX ${dimensions}`,
     dimensionsLabel: dimensions,
-    recommendationLabel: `Maximum print area: ${dimensions}`,
+    recommendationLabel: `DTF maximum print area: ${dimensions}`,
     reference,
     fileGuidelines: {
       acceptedFormats: ['PNG', 'JPG'],
+      preferredFormat: 'PNG with transparent background when no background is intended',
       minimumDpi: 150,
       preferredDpi: 300,
+      maximumRecommendedDpi: 300,
       colorProfile: 'sRGB IEC61966-2.1',
+      minimumLinePt: 1,
+      minimumLinePxAt300Dpi: 4,
+      minimumTextStrokePt: 1,
+      generalTextSizePt: '10–12+',
+      preferTransparentBackground: true,
+      avoidSemiTransparency: true,
+      avoidSoftEdges: true,
+      useHalftoneInsteadOfOpacityFades: true,
+      avoidUnnecessaryLargeSolidAreas: true,
       keepImportantContentInSafeArea: true,
     },
     style: {
