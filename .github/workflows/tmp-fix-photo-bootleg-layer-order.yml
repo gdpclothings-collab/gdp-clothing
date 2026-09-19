@@ -1,0 +1,132 @@
+name: Temporary Photo Bootleg layer order repair
+
+on:
+  push:
+    branches:
+      - preview/photo-bootleg-safety-repair
+
+permissions:
+  contents: write
+
+jobs:
+  patch-layer-order:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v5
+        with:
+          ref: preview/photo-bootleg-safety-repair
+          fetch-depth: 0
+
+      - name: Patch Photo Bootleg preview and 300-DPI stacking order
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          editor_path = Path('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx')
+          editor = editor_path.read_text()
+
+          old_photo = '''            <div data-gdp-bootleg-linked-photo-zone="true" className="absolute inset-0" style={{ zIndex: 10, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}>'''
+          new_photo = '''            <div data-gdp-bootleg-linked-photo-zone="true" data-gdp-bootleg-photo-stack="foreground" className={`absolute inset-0 ${activeLayer === 'photo' ? '' : 'pointer-events-none'}`} style={{ zIndex: 25, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}>'''
+          if old_photo not in editor:
+              raise SystemExit('Expected Bootleg photo-zone stack token was not found')
+          editor = editor.replace(old_photo, new_photo, 1)
+
+          old_template_marker = '''                data-gdp-bootleg-template-layer="true"
+                className={`absolute inset-0 select-none ${templateEditing ? 'cursor-grab ring-2 ring-cyan-400/90 ring-inset' : 'pointer-events-none'}`}
+                style={{ ...(templateEditing ? templateGesture.style : {}), zIndex: templateEditing ? 45 : 20, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}'''
+          new_template_marker = '''                data-gdp-bootleg-template-layer="true"
+                data-gdp-bootleg-template-stack="background"
+                className={`absolute inset-0 select-none ${templateEditing ? 'cursor-grab ring-2 ring-cyan-400/90 ring-inset' : 'pointer-events-none'}`}
+                style={{ ...(templateEditing ? templateGesture.style : {}), zIndex: 15, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}'''
+          if old_template_marker not in editor:
+              raise SystemExit('Expected Bootleg template stack token was not found')
+          editor = editor.replace(old_template_marker, new_template_marker, 1)
+          editor_path.write_text(editor)
+
+          prod_path = Path('src/lib/customStudioV2ProtectedProduction.js')
+          prod = prod_path.read_text()
+          old_render = '''  for (const layer of photos) {
+    const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
+    try {
+      const drawPhoto = () => {
+        output.context.save();
+        const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
+        drawCover(output.context, loaded, rect, layer.transform || {});
+        output.context.restore();
+      };
+      if (templateTransform) withTemplateTransform(output.context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
+      else drawPhoto();
+    } finally { loaded.close(); }
+  }
+
+  const templateArtwork = await loadImage(template.assetUrl, 'The GDP template artwork could not be reopened.');
+  try { drawTemplateArtwork(output.context, templateArtwork, output.widthPx, output.heightPx, templateTransform || {}); }
+  finally { templateArtwork.close(); }
+'''
+          new_render = '''  const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true;
+
+  const drawPhotos = async () => {
+    for (const layer of photos) {
+      const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
+      try {
+        const drawPhoto = () => {
+          output.context.save();
+          const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
+          drawCover(output.context, loaded, rect, layer.transform || {});
+          output.context.restore();
+        };
+        if (templateTransform) withTemplateTransform(output.context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
+        else drawPhoto();
+      } finally { loaded.close(); }
+    }
+  };
+
+  const drawTemplate = async () => {
+    const templateArtwork = await loadImage(template.assetUrl, 'The GDP template artwork could not be reopened.');
+    try { drawTemplateArtwork(output.context, templateArtwork, output.widthPx, output.heightPx, templateTransform || {}); }
+    finally { templateArtwork.close(); }
+  };
+
+  if (bootlegPhotoForeground) {
+    await drawTemplate();
+    await drawPhotos();
+  } else {
+    await drawPhotos();
+    await drawTemplate();
+  }
+'''
+          if old_render not in prod:
+              raise SystemExit('Expected protected-render stacking block was not found')
+          prod = prod.replace(old_render, new_render, 1)
+          prod_path.write_text(prod)
+
+          verify_path = Path('scripts/verify-photo-bootleg-desktop.mjs')
+          verify = verify_path.read_text()
+          old_assert = "assert(protectedV2.includes('data-gdp-bootleg-linked-photo-zone=\"true\"'), 'photo zone is linked to the editable template transform');"
+          new_assert = old_assert + "\nassert(protectedV2.includes('data-gdp-bootleg-photo-stack=\"foreground\"'), 'Bootleg customer photos render above the GDP template in the live preview');\nassert(protectedV2.includes('data-gdp-bootleg-template-stack=\"background\"'), 'Bootleg GDP template is explicitly the background artwork layer');"
+          if old_assert not in verify:
+              raise SystemExit('Expected Bootleg preview verifier anchor was not found')
+          verify = verify.replace(old_assert, new_assert, 1)
+
+          old_prod_assert = "assert(protectedProduction.includes('if (templateTransform) withTemplateTransform'), 'production photo zone follows the edited GDP template transform');"
+          new_prod_assert = old_prod_assert + "\nassert(protectedProduction.includes('const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true'), 'production layer order is scoped to Photo Bootleg without changing Memorial behavior');\nassert(protectedProduction.includes('if (bootlegPhotoForeground)') && protectedProduction.includes('await drawTemplate();') && protectedProduction.includes('await drawPhotos();'), '300-DPI Photo Bootleg renders GDP template before customer photos');\nassert(protectedProduction.includes('} else {\\n    await drawPhotos();\\n    await drawTemplate();'), 'Memorial keeps the existing protected overlay order');"
+          if old_prod_assert not in verify:
+              raise SystemExit('Expected production verifier anchor was not found')
+          verify = verify.replace(old_prod_assert, new_prod_assert, 1)
+          verify_path.write_text(verify)
+          PY
+
+          node --check scripts/verify-photo-bootleg-desktop.mjs
+          node scripts/verify-photo-bootleg-desktop.mjs
+
+      - name: Remove temporary workflow and commit repair
+        shell: bash
+        run: |
+          rm .github/workflows/tmp-fix-photo-bootleg-layer-order.yml
+          git config user.name "gdpclothings-collab"
+          git config user.email "gdpclothings@gmail.com"
+          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx src/lib/customStudioV2ProtectedProduction.js scripts/verify-photo-bootleg-desktop.mjs .github/workflows/tmp-fix-photo-bootleg-layer-order.yml
+          git commit -m "fix: render Bootleg photos above template artwork"
+          git push origin HEAD:preview/photo-bootleg-safety-repair
