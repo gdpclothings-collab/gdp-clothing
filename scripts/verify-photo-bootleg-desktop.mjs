@@ -12,6 +12,8 @@ const editor = fs.readFileSync('src/components/storefront/CustomStudioAdvancedEd
 const protectedV2 = fs.readFileSync('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', 'utf8');
 const protectedProduction = fs.readFileSync('src/lib/customStudioV2ProtectedProduction.js', 'utf8');
 const bootlegTextLayout = fs.readFileSync('src/lib/customStudioV2BootlegTextLayout.js', 'utf8');
+const presentationGuard = fs.readFileSync('src/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard.jsx', 'utf8');
+const layerOrderCss = fs.readFileSync('src/components/storefront/custom-studio-v2/photoBootlegLayerOrder.css', 'utf8');
 const html = fs.readFileSync('index.html', 'utf8');
 
 function assert(condition, message) {
@@ -78,6 +80,13 @@ assert(protectedV2.includes('bootlegAnchorToSlider') && protectedV2.includes('bo
 assert(protectedV2.includes('layout.headline.glyphs.map'), 'large Arc/Wave text renders as explicit glyphs rather than a fixed SVG textPath');
 assert(!protectedV2.includes('unbounded={isBootleg}'), 'Bootleg no longer routes unlimited curved text through the legacy fixed-path renderer');
 
+// Layer-order parity: customer photos are in front of template artwork for Bootleg only.
+assert(presentationGuard.includes("import './photoBootlegLayerOrder.css';"), 'Photo Bootleg layer-order stylesheet is loaded only inside the V2 presentation guard');
+assert(layerOrderCss.includes('[data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-linked-photo-zone="true"]'), 'photo foreground rule is scoped to the rebuilt Bootleg preview');
+assert(layerOrderCss.includes('z-index: 25 !important'), 'customer photo group is visually above the normal GDP template layer');
+assert(layerOrderCss.includes('[data-gdp-bootleg-template-layer="true"].pointer-events-none'), 'only the non-active template is forced behind photos so direct Template editing can still rise above');
+assert(layerOrderCss.includes('z-index: 15 !important'), 'inactive GDP template is explicitly the background artwork layer');
+
 // Recording-driven follow-up: preserve real multi-photo state and isolate layer controls.
 assert(protectedV2.includes('BOOTLEG_MAX_PHOTOS = 8'), 'Photo Bootleg keeps an explicit eight-photo total safety limit');
 assert(protectedV2.includes("const photos = [...currentPhotoLayers(editor)].sort"), 'rendering no longer mutates the live editor.photos array in place');
@@ -106,6 +115,9 @@ assert(protectedProduction.includes('withTemplateTransform'), '300-DPI renderer 
 assert(protectedProduction.includes('if (templateTransform) withTemplateTransform'), 'production photo zone follows the edited GDP template transform');
 assert(protectedProduction.includes('drawTemplateArtwork'), '300-DPI renderer applies GDP template transforms');
 assert(protectedProduction.includes('editor.textStyle?.templateTransform'), 'production renderer reads the approved template transform from the snapshot');
+assert(protectedProduction.includes('const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true'), '300-DPI foreground-photo ordering is scoped to Photo Bootleg and leaves Memorial overlay behavior unchanged');
+assert(protectedProduction.includes('if (bootlegPhotoForeground)') && protectedProduction.includes('await drawTemplate();') && protectedProduction.includes('await drawPhotos();'), '300-DPI Photo Bootleg draws template first and customer photos above it');
+assert(protectedProduction.includes('} else {\n    await drawPhotos();\n    await drawTemplate();'), 'Memorial keeps the existing customer-photo then protected-template overlay order');
 assert(protectedProduction.includes('style.freeTextLayout === true'), 'production renderer recognizes full-print-area Bootleg text layout');
 assert(protectedProduction.includes('drawBootlegText'), 'Bootleg production text uses the shared unrestricted layout path');
 assert(protectedProduction.includes('positiveScale(style.fontScale)'), 'production Bootleg text compatibility path does not reapply the old 180 percent cap');
