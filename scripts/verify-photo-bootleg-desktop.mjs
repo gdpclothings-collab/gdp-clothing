@@ -113,6 +113,9 @@ assert(protectedV2.includes('duplicateActiveTextLayer'), 'Photo Bootleg supports
 assert(protectedV2.includes('deleteActiveTextLayer'), 'Photo Bootleg supports independent text deletion');
 assert(protectedV2.includes('activeTextLayerId'), 'Photo Bootleg persists an active text layer id');
 assert(protectedV2.includes('buildBootlegTextStatePatch'), 'Photo Bootleg mirrors active text into legacy fields for backward compatibility');
+assert(protectedV2.includes('const nextLayers = bootlegTextLayers.map'), 'template changes preserve independent text layers');
+assert(protectedV2.includes("layer.id === activeTextLayer?.id"), 'template text-zone repositioning is scoped to the active text layer');
+assert(!protectedV2.includes('setTimeout(() => {}, 0)'), 'multi-text layer list contains no generated hidden selector shim');
 assert(protectedProduction.includes('resolveBootlegTextLayers'), '300-DPI renderer resolves the same Bootleg multi-text model');
 assert(protectedProduction.includes('for (const layer of bootlegTextLayers)'), '300-DPI renderer prints every visible Bootleg text layer');
 assert(protectedV2.includes('>Your Text<input') && protectedV2.includes('>Name<input'), 'Photo Bootleg keeps Your Text while Memorial keeps Name');
