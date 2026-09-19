@@ -47,8 +47,13 @@ for (const token of [
 for (const token of [
   'resolveStudioV2PrintProfile(product, size, normalizedSide)',
   'aspectRatio: `${Number(profile.widthIn)} / ${Number(profile.heightIn)}`',
-  'Recommended print area:',
-]) expect(guide.includes(token), `Visual guide is no longer tied to production profile: ${token}`);
+  'Maximum print area:',
+  'label: `MAX ${dimensions}`',
+  "acceptedFormats: ['PNG', 'JPG']",
+  'minimumDpi: 150',
+  'preferredDpi: 300',
+  "colorProfile: 'sRGB IEC61966-2.1'",
+]) expect(guide.includes(token), `Visual guide / file guideline contract missing: ${token}`);
 
 for (const [name, source] of [
   ['Seasonal', seasonal],
