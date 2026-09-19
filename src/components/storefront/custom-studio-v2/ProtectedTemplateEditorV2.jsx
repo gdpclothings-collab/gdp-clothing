@@ -323,7 +323,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
       width: layoutWidth,
       height: layoutHeight,
     });
-    return { layer: { ...layer, style }, layout };
+    const previewLayer = /** @type {Record<string, any>} */ ({ ...layer, style });
+    return { layer: previewLayer, layout };
   });
 
   const legacyTextGesture = useTouchTransformV2({
