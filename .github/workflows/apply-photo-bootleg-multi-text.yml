@@ -40,6 +40,20 @@ jobs:
       - name: Apply guarded multi-text implementation
         run: node scripts/apply-photo-bootleg-multi-text.mjs
 
+      - name: Modernize superseded single-text assertion
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'scripts/verify-photo-bootleg-desktop.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replace(
+            `assert(protectedV2.includes("path === 'memorial' ? 'Name' : 'Your Text'"), 'Photo Bootleg renames Headline to Your Text while Memorial keeps Name');`,
+            `assert(protectedV2.includes('>Your Text<input') && protectedV2.includes('>Name<input'), 'Photo Bootleg keeps Your Text while Memorial keeps Name');`,
+          );
+          fs.writeFileSync(path, source);
+          NODE
+
       - name: Verify Photo Bootleg contracts
         run: node scripts/verify-photo-bootleg-desktop.mjs
 
