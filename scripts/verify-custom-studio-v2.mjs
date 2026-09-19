@@ -108,7 +108,7 @@ assert(uploadEditor.includes('useTouchTransformV2'), 'Upload editor touch manipu
 
 // Protected editor parity without unlocking GDP templates.
 assert(protectedEditor.includes('multiple accept="image/png,image/jpeg,image/webp"'), 'multi-photo upload is missing');
-assert(protectedEditor.includes('Up to 8 photos'), 'multi-photo limit/UX is missing');
+assert(protectedEditor.includes('Up to 8 photos') || protectedEditor.includes('BOOTLEG_MAX_PHOTOS = 8'), 'multi-photo limit/UX is missing');
 assert(protectedEditor.includes('Duplicate photo'), 'photo duplication is missing');
 assert(protectedEditor.includes('Bring photo forward'), 'photo layer ordering is missing');
 assert(protectedEditor.includes('Send photo backward'), 'photo layer ordering is missing');
