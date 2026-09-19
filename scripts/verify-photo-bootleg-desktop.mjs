@@ -4,6 +4,7 @@ import {
   resolveBootlegAnchorRanges,
   resolveBootlegTextLayout,
 } from '../src/lib/customStudioV2BootlegTextLayout.js';
+import { BOOTLEG_MAX_TEXT_LAYERS, buildBootlegTextStatePatch, resolveBootlegTextLayers } from '../src/lib/customStudioV2BootlegTextLayers.js';
 
 const studio = fs.readFileSync('src/pages/CustomStudio.jsx', 'utf8');
 const desktopCss = fs.readFileSync('src/components/storefront/customStudioDesktop.css', 'utf8');
@@ -105,7 +106,16 @@ assert(protectedV2.includes('data-gdp-bootleg-active-status="true"'), 'active la
 assert(protectedV2.includes('data-gdp-bootleg-upload-status="true"'), 'background processing gets a visible canvas-adjacent progress status');
 assert(protectedV2.includes('Finish Template Editing'), 'template completion wording is explicit instead of ambiguous Done editing');
 assert(protectedV2.includes("photos.length ? 'Add another photo' : 'Add first photo'"), 'photo add action clearly distinguishes first and additional photos');
-assert(protectedV2.includes("path === 'memorial' ? 'Name' : 'Your Text'"), 'Photo Bootleg renames Headline to Your Text while Memorial keeps Name');
+assert(protectedV2.includes('data-gdp-bootleg-multi-text="true"'), 'Photo Bootleg exposes the dedicated multi-text panel');
+assert(protectedV2.includes('data-gdp-bootleg-text-layer-list="true"'), 'Photo Bootleg exposes an explicit text-layer list');
+assert(protectedV2.includes('+ Add Text'), 'Photo Bootleg exposes an Add Text action');
+assert(protectedV2.includes('duplicateActiveTextLayer'), 'Photo Bootleg supports independent text duplication');
+assert(protectedV2.includes('deleteActiveTextLayer'), 'Photo Bootleg supports independent text deletion');
+assert(protectedV2.includes('activeTextLayerId'), 'Photo Bootleg persists an active text layer id');
+assert(protectedV2.includes('buildBootlegTextStatePatch'), 'Photo Bootleg mirrors active text into legacy fields for backward compatibility');
+assert(protectedProduction.includes('resolveBootlegTextLayers'), '300-DPI renderer resolves the same Bootleg multi-text model');
+assert(protectedProduction.includes('for (const layer of bootlegTextLayers)'), '300-DPI renderer prints every visible Bootleg text layer');
+assert(protectedV2.includes('>Your Text<input') && protectedV2.includes('>Name<input'), 'Photo Bootleg keeps Your Text while Memorial keeps Name');
 assert(!protectedV2.includes("'Dates' : 'Subline'"), 'Photo Bootleg no longer exposes a Subline input');
 assert(protectedV2.includes('data-gdp-bootleg-confirm-action="persistent"'), 'Photo Bootleg completion action is persistent in the live garment preview column');
 assert(protectedV2.indexOf('data-gdp-bootleg-confirm-action="persistent"') < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Photo Bootleg completion action is outside the scrollable Layer Controls inspector');
@@ -129,6 +139,16 @@ assert(protectedProduction.includes('positiveScale(style.fontScale)'), 'producti
 assert(protectedProduction.includes('style.canvasX') && protectedProduction.includes('style.canvasY'), 'production renderer preserves full-print-area text coordinates and old-draft fallback');
 assert(protectedProduction.includes('dpi = 300'), 'Photo Bootleg production output remains deterministic at 300 DPI');
 assert(!protectedProduction.includes('The locked GDP template is unavailable.'), 'Bootleg-capable production wording no longer incorrectly calls every GDP template locked');
+
+// Multi-text compatibility/runtime state checks.
+const legacyTextLayers = resolveBootlegTextLayers({ text: { headline: 'LEGACY' }, textStyle: { fontScale: 140, canvasX: 42, canvasY: 61 } }, { fontScale: 100, canvasX: 50, canvasY: 50 });
+assert(legacyTextLayers.length === 1 && legacyTextLayers[0].name === 'Text 1' && legacyTextLayers[0].text.headline === 'LEGACY', 'legacy single-text Bootleg designs migrate to Text 1 without losing content');
+assert(resolveBootlegTextLayers({ textLayers: [] }, {}).length === 0, 'an explicitly empty multi-text design remains a valid zero-text state');
+const sampleLayers = Array.from({ length: 10 }, (_, index) => ({ id: `t-${index}`, name: `Text ${index + 1}`, text: { headline: `Layer ${index + 1}` }, style: { fontScale: 100 + index, canvasX: 40 + index, canvasY: 50 } }));
+const samplePatch = buildBootlegTextStatePatch({ textStyle: { templateTransform: { scale: 120, x: 3, y: 4, rotation: 5 } } }, sampleLayers, 't-1', { fontScale: 100 });
+assert(samplePatch.textLayers.length === BOOTLEG_MAX_TEXT_LAYERS, 'multi-text state enforces the eight-layer safety cap');
+assert(samplePatch.activeTextLayerId === 't-1' && samplePatch.text.headline === 'Layer 2' && samplePatch.textStyle.fontScale === 101, 'active text layer mirrors into legacy text/textStyle fields');
+assert(samplePatch.textStyle.templateTransform?.scale === 120, 'multi-text state preserves the independent GDP template transform');
 
 // Runtime geometry checks: no missing glyphs at the large sizes shown in the recording.
 const hugeArc = resolveBootlegTextLayout({
