@@ -3,6 +3,7 @@ import { sortApparelSizes } from '../src/lib/productVariants.js';
 
 const touch = fs.readFileSync('src/components/storefront/custom-studio-v2/useTouchTransformV2.js', 'utf8');
 const protectedEditor = fs.readFileSync('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', 'utf8');
+const studioV2 = fs.readFileSync('src/pages/CustomStudioV2.jsx', 'utf8');
 const state = fs.readFileSync('src/lib/customStudioV2State.js', 'utf8');
 const mobileCss = fs.readFileSync('src/components/storefront/custom-studio-v2/customStudioV2MobileRepair.css', 'utf8');
 
@@ -24,6 +25,9 @@ assert(
   'long-form garment sizes use the same canonical order'
 );
 assert(state.includes('return sortApparelSizes(values);'), 'Custom Studio V2 uses shared canonical size sorting');
+assert(state.includes("color: action.color, size: action.size || ''"), 'color changes accept only the validated size supplied by the garment configurator');
+assert(studioV2.includes('const nextSizes = productSizes(product, color);'), 'garment color changes resolve sizes for the target color first');
+assert(studioV2.includes("const preservedSize = nextSizes.some((candidate) => normalize(candidate) === normalize(state.size)) ? state.size : '';"), 'current size is preserved only when the selected color really offers it');
 
 assert(touch.includes('onContextMenu: suppressNativeGesture'), 'selected canvas layers suppress the native context menu');
 assert(touch.includes('onDragStart: suppressNativeGesture'), 'selected canvas layers suppress native image dragging');
