@@ -321,3 +321,66 @@
     min-width: 680px;
   }
 }
+
+/*
+ * GDP Custom Studio desktop workspace stabilization
+ * -----------------------------------------------
+ * Keep the live garment visible while the user edits long tool panels. This
+ * only changes desktop layout/scroll containment; editor state and actions are
+ * intentionally untouched to reduce regression risk.
+ */
+@media (min-width: 1024px) {
+  [data-studio-row]:has([data-touch-studio-card="true"]) {
+    align-items: start;
+  }
+
+  [data-aside]:has([data-touch-studio-card="true"]) {
+    position: static !important;
+    top: auto !important;
+  }
+
+  [data-preview-card]:has([data-touch-studio-card="true"]) {
+    position: sticky;
+    top: 6rem;
+    z-index: 20;
+    display: grid;
+    grid-template-rows: auto minmax(300px, 52%) minmax(220px, 1fr);
+    max-height: calc(100dvh - 7rem);
+    overflow: hidden;
+  }
+
+  [data-preview-card]:has([data-touch-studio-card="true"]) > [data-gdp-studio-preview="live"] {
+    height: 100% !important;
+    min-height: 0;
+  }
+
+  [data-touch-studio-card="true"] {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-touch-studio-card="true"] #gdp-touch-studio-panel {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    height: 100%;
+    max-height: 100% !important;
+    margin-top: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  [data-touch-studio-card="true"] #gdp-touch-studio-panel::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  [data-touch-studio-card="true"] #gdp-touch-studio-panel::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.2);
+    background-clip: padding-box;
+  }
+}
