@@ -55,7 +55,7 @@ jobs:
           git fetch origin main
           git checkout origin/main -- .github/workflows/apply-free-photo-print-area.yml
           git rm scripts/apply_custom_studio_safe_boundary_fix.py
-          git add src/pages/CustomStudio.jsx .github/workflows/apply-free-photo-print-area.yml scripts/apply_custom_studio_safe_boundary_fix.py
+          git add src/pages/CustomStudio.jsx .github/workflows/apply-free-photo-print-area.yml
           git diff --cached --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
