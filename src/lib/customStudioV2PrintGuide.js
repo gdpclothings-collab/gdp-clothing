@@ -22,9 +22,8 @@ const DISPLAY_GEOMETRY = {
   baby: { bodyVisualWidthPercent: 36, frontTop: 31, backTop: 29 },
   toddler: { bodyVisualWidthPercent: 42, frontTop: 28, backTop: 26 },
   youth: { bodyVisualWidthPercent: 46, frontTop: 25, backTop: 24 },
-  // Recording-calibrated against the live Adult Pullover Hoodie mockup.
-  // The visible torso spans about 59% of the 4:5 preview canvas, so using 48%
-  // made an XL 11 in print appear ~34% of the torso instead of the physical 11/26 (~42%).
+  // Recording-calibrated fallback for hoodie products that do not provide
+  // their own preview.printArea geometry.
   hoodie: { bodyVisualWidthPercent: 59, frontTop: 25, backTop: 28 },
   crewneck: { bodyVisualWidthPercent: 49, frontTop: 23, backTop: 22 },
   adult: { bodyVisualWidthPercent: 49, frontTop: 22, backTop: 21 },
@@ -113,6 +112,18 @@ function configuredBodyVisualWidthPercent(product, side) {
   return Number.isFinite(value) && value > 0 ? clamp(value, 28, 70) : 0;
 }
 
+function configuredPreviewPrintArea(product, side) {
+  const area = product?.customization?.preview?.printArea?.[side] || null;
+  if (!area) return null;
+  const widthPercent = Number(area.width);
+  const topPercent = Number(area.top);
+  if (!Number.isFinite(widthPercent) || widthPercent <= 0 || !Number.isFinite(topPercent) || topPercent < 0) return null;
+  return {
+    widthPercent: clamp(widthPercent, 12, 72),
+    topPercent: clamp(topPercent, 4, 78),
+  };
+}
+
 function resolveDisplayGeometry(product, size, side) {
   const kind = garmentKind(product);
   const defaults = DISPLAY_GEOMETRY[kind] || DISPLAY_GEOMETRY.adult;
@@ -139,12 +150,19 @@ function formatInches(value) {
 /**
  * Map the exact production area onto the visible garment body.
  *
- * The production width/height still come only from resolveStudioV2PrintProfile.
- * The preview scale is separate: it uses the selected garment's flat body width
- * (product size-guide data first, then a conservative garment-family fallback)
- * so an 11-inch print no longer consumes ~40% of the whole 4:5 image canvas.
+ * The physical production width/height still come only from
+ * resolveStudioV2PrintProfile. For the live preview, a product-specific
+ * customization.preview.printArea is authoritative when present because it
+ * is calibrated to that exact garment mockup image. This prevents a selected
+ * apparel size from shrinking or moving the guide while the mockup image itself
+ * stays visually unchanged.
+ *
+ * If a product has no preview.printArea, the preview falls back to selected-size
+ * garment body-width math using product size-guide data and then conservative
+ * garment-family defaults.
  *
  * Optional product overrides:
+ * - preview.printArea[side].width / top
  * - printGuide[side].sizeOverrides[size].garmentWidthIn / bodyWidthIn
  * - printGuide[side].garmentWidthIn / bodyWidthIn
  * - preview.printGuide.visualGeometry[side].bodyWidthPercent
@@ -153,8 +171,11 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
   const normalizedSide = side === 'back' ? 'back' : 'front';
   const profile = resolveStudioV2PrintProfile(product, size, normalizedSide);
   const geometry = resolveDisplayGeometry(product, size, normalizedSide);
+  const configuredArea = configuredPreviewPrintArea(product, normalizedSide);
   const physicalRatio = clamp(Number(profile.widthIn) / Math.max(1, geometry.bodyWidthIn), 0.18, 0.78);
-  const widthPercent = Math.round(geometry.bodyVisualWidthPercent * physicalRatio * 10) / 10;
+  const fallbackWidthPercent = Math.round(geometry.bodyVisualWidthPercent * physicalRatio * 10) / 10;
+  const widthPercent = configuredArea?.widthPercent ?? fallbackWidthPercent;
+  const topPercent = configuredArea?.topPercent ?? geometry.topPercent;
   const dimensions = `${formatInches(profile.widthIn)} × ${formatInches(profile.heightIn)} in`;
   const configuredReference = product?.customization?.preview?.printGuide?.reference || null;
   const reference = configuredReference || {
@@ -163,6 +184,11 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
     printfulTechnique: 'DTFlex',
     standard: 'Product-specific DTF/DTFlex max print area',
   };
+  const bodyWidthSource = configuredBodyWidthIn(product, size, normalizedSide)
+    ? 'product-print-guide'
+    : sizeGuideBodyWidthIn(product, size)
+      ? 'product-size-guide'
+      : 'garment-family-fallback';
 
   return {
     ...profile,
@@ -177,11 +203,9 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
       garmentBodyWidthIn: Math.round(geometry.bodyWidthIn * 100) / 100,
       bodyVisualWidthPercent: geometry.bodyVisualWidthPercent,
       printWidthPercent: widthPercent,
-      source: configuredBodyWidthIn(product, size, normalizedSide)
-        ? 'product-print-guide'
-        : sizeGuideBodyWidthIn(product, size)
-          ? 'product-size-guide'
-          : 'garment-family-fallback',
+      topPercent,
+      source: configuredArea ? 'product-print-area' : bodyWidthSource,
+      bodyWidthSource,
     },
     fileGuidelines: {
       acceptedFormats: ['PNG', 'JPG'],
@@ -202,7 +226,7 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
       keepImportantContentInSafeArea: true,
     },
     style: {
-      top: `${geometry.topPercent}%`,
+      top: `${topPercent}%`,
       width: `${widthPercent}%`,
       aspectRatio: `${Number(profile.widthIn)} / ${Number(profile.heightIn)}`,
     },
