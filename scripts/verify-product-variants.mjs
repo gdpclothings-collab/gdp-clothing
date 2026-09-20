@@ -58,6 +58,11 @@ assert.equal(
   true,
   "Sell-when-out-of-stock keeps matching colors selectable."
 );
+assert.equal(
+  isProductColorAvailable({ ...colorAvailabilityProduct, variants: colorAvailabilityProduct.variants.map((item) => ({ ...item, active: false })) }, "Black"),
+  false,
+  "A product with variant records but no active variants must not expose a selectable color."
+);
 
 assert.equal(resolveProductSellingMode({ customDesignable: false }), PRODUCT_SELLING_MODES.READY_TO_WEAR);
 assert.equal(resolveProductSellingMode({ customDesignable: true }), PRODUCT_SELLING_MODES.CUSTOM);
