@@ -218,6 +218,7 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
   return (
     <div
       {...gesture}
+      data-gdp-sticker-layer-id={layer.id}
       onPointerDown={(event) => { onSelect(); gesture.onPointerDown(event); }}
       className={`absolute z-40 grid -translate-x-1/2 -translate-y-1/2 place-items-center select-none ${selected ? 'cursor-grab rounded-lg ring-2 ring-cyan-400/90' : 'pointer-events-none'}`}
       style={{
@@ -436,6 +437,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 
 export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
+  const uploadInFlightRef = useRef(false);
   const editorRef = useRef(editor);
   editorRef.current = editor;
   const [uploading, setUploading] = useState(false);
@@ -460,7 +462,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16 };
   const textPosition = resolveBootlegTextPosition(textStyle, textZone);
   const templateTransform = resolveBootlegTemplateTransform(legacyTextStyle);
-  const activeSticker = (editor.stickers || []).find((layer) => layer.id === editor.activeStickerId) || null;
+  const stickerLayers = Array.isArray(editor.stickers) ? editor.stickers : [];
+  const activeSticker = stickerLayers.find((layer) => layer.id === editor.activeStickerId) || null;
+  const activeStickerOption = activeSticker ? stickerLibrary.find((item) => item.id === activeSticker.stickerId) || null : null;
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
@@ -487,6 +491,24 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const nextActiveId = activeId && ordered.some((layer) => layer.id === activeId) ? activeId : ordered.at(-1)?.id || '';
     const patch = { photos: ordered, activePhotoId: nextActiveId, activeStickerId: '', photo: first?.asset || null, transform: first?.transform || { scale: 100, rotation: 0, x: 0, y: 0 } };
     editorRef.current = { ...editorRef.current, ...patch };
+    onPatch(patch);
+  };
+
+  const syncStickers = (next, activeId = '') => {
+    const latestEditor = editorRef.current || editor;
+    const byId = new Map();
+    next.filter(Boolean).forEach((layer) => {
+      if (!layer?.id) return;
+      byId.set(layer.id, layer);
+    });
+    const ordered = [...byId.values()].map((layer, index) => ({ ...layer, order: index }));
+    const nextActiveId = activeId && ordered.some((layer) => layer.id === activeId) ? activeId : '';
+    const patch = {
+      stickers: ordered,
+      activeStickerId: nextActiveId,
+      ...(nextActiveId ? { activePhotoId: '' } : {}),
+    };
+    editorRef.current = { ...latestEditor, ...patch };
     onPatch(patch);
   };
 
@@ -534,39 +556,64 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   };
 
   const uploadPhotos = async (files) => {
+    const incoming = [...(files || [])];
+    if (!incoming.length || uploadInFlightRef.current) return;
+
     const latestBeforeUpload = [...currentPhotoLayers(editorRef.current)];
     const availableSlots = Math.max(0, BOOTLEG_MAX_PHOTOS - latestBeforeUpload.length);
     if (!availableSlots) {
       setError(`Photo limit reached. You can use up to ${BOOTLEG_MAX_PHOTOS} photos.`);
       return;
     }
-    const selected = [...(files || [])].filter((file) => String(file.type || '').startsWith('image/')).slice(0, availableSlots);
-    if (!selected.length) { setError('Please choose JPG, PNG or WebP images.'); return; }
+
+    const imageFiles = incoming.filter((file) => String(file.type || '').startsWith('image/'));
+    if (!imageFiles.length) {
+      setError('Please choose JPG, PNG or WebP images.');
+      return;
+    }
+
+    const selected = imageFiles.slice(0, availableSlots);
+    uploadInFlightRef.current = true;
     setUploading(true);
     setError('');
     const additions = [];
+    const failed = [];
+
     try {
       for (const file of selected) {
-        const asset = await prepareAsset(file);
-        const currentCount = currentPhotoLayers(editorRef.current).length + additions.length;
-        additions.push(createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
-          scale: Number(template.defaultTransform?.scale || 100),
-          rotation: Number(template.defaultTransform?.rotation || 0),
-          x: Number(template.defaultTransform?.offset?.x || 0),
-          y: Number(template.defaultTransform?.offset?.y || 0),
-        } : {}));
+        try {
+          const asset = await prepareAsset(file);
+          const currentCount = currentPhotoLayers(editorRef.current).length + additions.length;
+          additions.push(createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
+            scale: Number(template.defaultTransform?.scale || 100),
+            rotation: Number(template.defaultTransform?.rotation || 0),
+            x: Number(template.defaultTransform?.offset?.x || 0),
+            y: Number(template.defaultTransform?.offset?.y || 0),
+          } : {}));
+        } catch (uploadError) {
+          failed.push({ file, uploadError });
+        }
       }
+
       const latestPhotos = [...currentPhotoLayers(editorRef.current)];
       const remainingSlots = Math.max(0, BOOTLEG_MAX_PHOTOS - latestPhotos.length);
       const safeAdditions = additions.slice(0, remainingSlots);
       const next = [...latestPhotos, ...safeAdditions];
-      syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
-      if (isBootleg) setActiveBootlegLayer('photo');
-      setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready${safeAdditions.length ? ` · added ${safeAdditions.length}` : ''}`);
-    } catch (uploadError) {
-      setError(uploadError?.message || 'We could not process that photo. Please retry the upload.');
-      setUploadMessage('');
+
+      if (safeAdditions.length) {
+        syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
+        if (isBootleg) setActiveBootlegLayer('photo');
+        setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}`);
+      } else {
+        setUploadMessage('');
+      }
+
+      if (failed.length) {
+        const failedNames = failed.map(({ file }) => file?.name || 'photo').slice(0, 3).join(', ');
+        setError(`Could not add ${failedNames}. Existing photos were kept. Please retry ${failed.length === 1 ? 'that file' : 'those files'}.`);
+      }
     } finally {
+      uploadInFlightRef.current = false;
       setUploading(false);
     }
   };
@@ -612,8 +659,6 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       : { ...asset, url: asset.cleanedUrl, path: asset.cleanedPath, backgroundMode: 'cleaned' };
     syncPhotos(photos.map((layer) => layer.id === activePhoto.id ? { ...layer, asset: nextAsset } : layer), activePhoto.id);
   };
-
-
 
   const patchText = (patch) => {
     if (!isBootleg) {
@@ -695,17 +740,41 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     setActiveBootlegLayer('text');
   };
 
-  const addSticker = (sticker) => {
-    const layer = createV2StickerLayer(sticker, (editor.stickers || []).length);
+  const selectStickerLayer = (layer) => {
+    if (!layer?.id) return;
+    const latestEditor = editorRef.current || editor;
+    const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
+    if (!current.some((item) => item.id === layer.id)) return;
     if (isBootleg) setActiveBootlegLayer('sticker');
-    onPatch({ stickers: [...(editor.stickers || []), layer], activeStickerId: layer.id, activePhotoId: '' });
+    syncStickers(current, layer.id);
+  };
+  const addSticker = (sticker) => {
+    const latestEditor = editorRef.current || editor;
+    const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
+    const layer = createV2StickerLayer(sticker, current.length);
+    if (isBootleg) setActiveBootlegLayer('sticker');
+    syncStickers([...current, layer], layer.id);
   };
   const patchActiveSticker = (patch) => {
-    if (!activeSticker) return;
+    const latestEditor = editorRef.current || editor;
+    const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
+    const activeId = latestEditor.activeStickerId || activeSticker?.id || '';
+    if (!activeId || !current.some((layer) => layer.id === activeId)) return;
     if (isBootleg) setActiveBootlegLayer('sticker');
-    onPatch({ stickers: (editor.stickers || []).map((layer) => layer.id === activeSticker.id ? { ...layer, transform: { ...layer.transform, ...patch } } : layer) });
+    syncStickers(current.map((layer) => layer.id === activeId ? { ...layer, transform: { ...layer.transform, ...patch } } : layer), activeId);
   };
-  const deleteActiveSticker = () => activeSticker && onPatch({ stickers: (editor.stickers || []).filter((layer) => layer.id !== activeSticker.id), activeStickerId: '' });
+  const deleteActiveSticker = () => {
+    const latestEditor = editorRef.current || editor;
+    const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
+    const activeId = latestEditor.activeStickerId || activeSticker?.id || '';
+    if (!activeId) return;
+    const index = current.findIndex((layer) => layer.id === activeId);
+    if (index < 0) return;
+    const remaining = current.filter((layer) => layer.id !== activeId);
+    const nextActive = remaining[Math.min(index, remaining.length - 1)] || null;
+    syncStickers(remaining, nextActive?.id || '');
+    if (isBootleg) setActiveBootlegLayer('sticker');
+  };
 
   // Historical regression-verifier token for the Memorial protected-template contract only:
   // GDP template artwork never becomes an editable layer.
@@ -723,7 +792,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       ? `Editing Photo — ${activePhoto?.asset?.name || 'add a photo'}`
       : activeBootlegLayer === 'text'
         ? `Editing Text — ${activeTextLayer?.name || 'add text'}${activeTextLayer?.text?.headline ? ` · ${String(activeTextLayer.text.headline).slice(0, 22)}` : ''}`
-        : `Editing Sticker — ${activeSticker?.label || 'choose a sticker'}`;
+        : `Editing Sticker — ${activeStickerOption?.label || activeSticker?.label || 'choose a sticker'}`;
 
   const templatePanel = isBootleg && template ? (
     <div data-gdp-bootleg-template-controls="true" data-gdp-bootleg-panel="template" className="space-y-3 rounded-2xl border border-cyan-100 bg-cyan-50/50 p-3">
@@ -745,7 +814,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       <div data-gdp-photo-upload-guidance="transparent-recommended" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Upload artwork with a transparent background when possible. Transparent PNG or WebP is recommended. JPG/JPEG and photos with backgrounds are still accepted and will keep their existing background.</p></div></div></div>
       <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
-      {uploadMessage && !error && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
+      {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
       {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
       {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (isBootleg) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
@@ -799,7 +868,13 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   );
 
   const stickerPanel = settings?.editorTools?.stickers !== false ? (
-    <div data-gdp-bootleg-panel={isBootleg ? 'sticker' : undefined} className="rounded-2xl border border-slate-100 p-3"><div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Stickers</div><div className="mt-2 flex flex-wrap gap-2">{stickerLibrary.filter((item) => path === 'memorial' || item.category !== 'memorial').map((sticker) => <button key={sticker.id} type="button" onClick={() => addSticker(sticker)} className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-slate-200 bg-white px-2 text-xl" title={sticker.label}>{sticker.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} className="h-7 w-7 object-contain" /> : sticker.glyph}</button>)}</div>{activeSticker ? <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-2"><RangeControl label="Sticker size" value={activeSticker.transform?.scale || 42} min={12} max={85} suffix="%" onChange={(value) => patchActiveSticker({ scale: value })} /><RangeControl label="Sticker rotation" value={activeSticker.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActiveSticker({ rotation: value })} /><button type="button" onClick={deleteActiveSticker} className="min-h-10 w-full rounded-lg bg-white text-xs font-black text-red-600">Delete selected sticker</button></div> : null}</div>
+    <div data-gdp-bootleg-panel={isBootleg ? 'sticker' : undefined} className="rounded-2xl border border-slate-100 p-3">
+      <div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Sticker library</div>
+      <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">Choose a sticker to place it. Then select the placed sticker instance below to resize, rotate or delete it.</p>
+      <div className="mt-2 flex flex-wrap gap-2">{stickerLibrary.filter((item) => path === 'memorial' || item.category !== 'memorial').map((sticker) => <button key={sticker.id} type="button" onClick={() => addSticker(sticker)} aria-label={`Add ${sticker.label || 'sticker'}`} className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-slate-200 bg-white px-2 text-xl" title={sticker.label}>{sticker.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} draggable="false" className="h-7 w-7 object-contain" /> : sticker.glyph}</button>)}</div>
+      {stickerLayers.length ? <div data-gdp-sticker-layer-list="true" className="mt-3 space-y-2"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Placed stickers</p>{stickerLayers.map((layer, index) => { const option = stickerLibrary.find((item) => item.id === layer.stickerId); const selected = layer.id === editor.activeStickerId; return <button key={layer.id} type="button" onClick={() => selectStickerLayer(layer)} className={`flex min-h-10 w-full items-center justify-between gap-2 rounded-xl border px-3 text-left text-xs font-black ${selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="truncate">{option?.label || layer.label || `Sticker ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>; })}</div> : null}
+      {activeSticker ? <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected sticker</p><p className="text-xs font-black text-slate-700">{activeStickerOption?.label || activeSticker.label || 'Placed sticker'}</p></div><RangeControl label="Sticker size" value={activeSticker.transform?.scale || 42} min={12} max={85} suffix="%" onChange={(value) => patchActiveSticker({ scale: value })} /><RangeControl label="Sticker rotation" value={activeSticker.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActiveSticker({ rotation: value })} /><button type="button" data-gdp-delete-selected-sticker="true" onClick={deleteActiveSticker} className="min-h-10 w-full rounded-lg bg-white text-xs font-black text-red-600">Delete selected sticker</button></div> : null}
+    </div>
   ) : null;
 
   return (
