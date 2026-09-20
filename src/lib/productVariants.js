@@ -9,14 +9,51 @@ export function normalizeVariantValue(value) {
 }
 
 function normalizedSizeToken(value) {
-  return String(value || "")
-    .trim()
-    .toUpperCase()
+  const raw = String(value || "").trim().toUpperCase();
+  const compact = raw.replace(/[\s_-]+/g, "");
+  const aliases = {
+    NEWBORN: "NB",
+    EXTRAEXTRASMALL: "XXS",
+    XXSMALL: "XXS",
+    EXTRASMALL: "XS",
+    XSMALL: "XS",
+    SMALL: "S",
+    MEDIUM: "M",
+    LARGE: "L",
+    EXTRALARGE: "XL",
+    XLARGE: "XL",
+    XXL: "2XL",
+    XXLARGE: "2XL",
+    "2XLARGE": "2XL",
+    XXXL: "3XL",
+    XXXLARGE: "3XL",
+    "3XLARGE": "3XL",
+    XXXXL: "4XL",
+    XXXXLARGE: "4XL",
+    "4XLARGE": "4XL",
+    XXXXXL: "5XL",
+    XXXXXLARGE: "5XL",
+    "5XLARGE": "5XL",
+    XXXXXXL: "6XL",
+    XXXXXXLARGE: "6XL",
+    "6XLARGE": "6XL",
+    YOUTHXSMALL: "YXS",
+    YOUTHEXTRASMALL: "YXS",
+    YOUTHSMALL: "YS",
+    YOUTHMEDIUM: "YM",
+    YOUTHLARGE: "YL",
+    YOUTHXLARGE: "YXL",
+    YOUTHEXTRALARGE: "YXL",
+  };
+  if (aliases[compact]) return aliases[compact];
+
+  return raw
     .replace(/\s+/g, "")
     .replace(/^XXL$/, "2XL")
     .replace(/^XXXL$/, "3XL")
     .replace(/^XXXXL$/, "4XL")
     .replace(/^XXXXXL$/, "5XL")
+    .replace(/^XXXXXXL$/, "6XL")
     .replace(/^YOUTH/, "Y");
 }
 

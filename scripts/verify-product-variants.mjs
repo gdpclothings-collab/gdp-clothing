@@ -15,6 +15,11 @@ assert.deepEqual(
   sortApparelSizes(["2XL", "S", "3XL", "M", "4XL", "L", "XL", "5XL"]),
   ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]
 );
+assert.deepEqual(
+  sortApparelSizes(["Large", "X-Large", "Small", "2X-Large", "Medium", "3X-Large"]),
+  ["Small", "Medium", "Large", "X-Large", "2X-Large", "3X-Large"],
+  "Common long-form apparel size labels keep the same canonical order across colors."
+);
 assert.deepEqual(sortApparelSizes(["5T", "2T", "4T", "3T"]), ["2T", "3T", "4T", "5T"]);
 
 const madeToOrder = {

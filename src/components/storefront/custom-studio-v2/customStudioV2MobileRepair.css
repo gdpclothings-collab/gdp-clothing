@@ -38,6 +38,13 @@
     max-width: 100%;
   }
 
+  /* In focused garment mode the configurator already repeats the selected
+     garment name/color/size. Hide the extra summary card on phones so users do
+     not scroll through the same garment information twice. */
+  [data-gdp-studio-v2-guard="true"] [data-gdp-garment-mode="focused"] [data-gdp-selected-garment-summary="true"] {
+    display: none;
+  }
+
   /* A long uploaded filename plus the four layer-action buttons previously had
      enough intrinsic width to compete for the same row on narrow phones. Allow
      that small action cluster to wrap instead of overlapping the card edge. */
@@ -65,6 +72,27 @@
     will-change: transform;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
+  }
+
+  /* The editor canvas is an application surface, not an image-download surface.
+     Suppress iOS/Safari's native image callout inside this one preview only;
+     normal product imagery elsewhere on the storefront is unaffected. */
+  [data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-preview-canvas] img,
+  [data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-template-layer="true"] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  [data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-preview-canvas] img {
+    -webkit-user-drag: none;
+  }
+
+  /* Keep the active inspector destination clear when a user switches layers on
+     a small screen. This is intentionally normal-flow rather than a large sticky
+     editor card, which avoids covering controls on short iPhones. */
+  [data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-inspector-scroll="true"] {
+    scroll-margin-top: 12px;
   }
 
   /* The recording showed the V2 Previous/Continue surface competing with editor
