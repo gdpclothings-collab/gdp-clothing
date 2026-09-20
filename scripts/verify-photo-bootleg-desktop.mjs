@@ -120,9 +120,10 @@ assert(protectedProduction.includes('resolveBootlegTextLayers'), '300-DPI render
 assert(protectedProduction.includes('for (const layer of bootlegTextLayers)'), '300-DPI renderer prints every visible Bootleg text layer');
 assert(protectedV2.includes('>Your Text<input') && protectedV2.includes('>Name<input'), 'Photo Bootleg keeps Your Text while Memorial keeps Name');
 assert(!protectedV2.includes("'Dates' : 'Subline'"), 'Photo Bootleg no longer exposes a Subline input');
-assert(protectedV2.includes('data-gdp-bootleg-confirm-action="persistent"'), 'Photo Bootleg completion action is persistent in the live garment preview column');
-assert(protectedV2.indexOf('data-gdp-bootleg-confirm-action="persistent"') < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Photo Bootleg completion action is outside the scrollable Layer Controls inspector');
-assert(protectedV2.includes('{!isBootleg ? <button type="button" disabled={!template || !photos.length}'), 'Memorial retains its existing confirmation action in Customer Controls');
+assert(protectedV2.includes("data-gdp-bootleg-confirm-action={isBootleg ? 'persistent' : undefined}"), 'Photo Bootleg completion action stays persistent in the live garment preview column');
+assert(protectedV2.includes("data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined}"), 'Memorial completion action is centered in the live garment preview column');
+assert(protectedV2.indexOf("data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined}") < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Memorial completion action is outside the right Layer Controls inspector');
+assert(protectedV2.includes('{!usesLayerLab ? <button type="button" disabled={!template || !photos.length}'), 'protected layer-lab paths do not duplicate confirmation inside Customer Controls');
 
 // Memorial Tribute now reuses the proven protected-layer interaction engine while
 // preserving protected artwork contents and Memorial-specific production stacking.
