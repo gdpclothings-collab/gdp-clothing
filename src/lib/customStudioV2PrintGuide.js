@@ -22,7 +22,10 @@ const DISPLAY_GEOMETRY = {
   baby: { bodyVisualWidthPercent: 36, frontTop: 31, backTop: 29 },
   toddler: { bodyVisualWidthPercent: 42, frontTop: 28, backTop: 26 },
   youth: { bodyVisualWidthPercent: 46, frontTop: 25, backTop: 24 },
-  hoodie: { bodyVisualWidthPercent: 48, frontTop: 25, backTop: 28 },
+  // Recording-calibrated against the live Adult Pullover Hoodie mockup.
+  // The visible torso spans about 59% of the 4:5 preview canvas, so using 48%
+  // made an XL 11 in print appear ~34% of the torso instead of the physical 11/26 (~42%).
+  hoodie: { bodyVisualWidthPercent: 59, frontTop: 25, backTop: 28 },
   crewneck: { bodyVisualWidthPercent: 49, frontTop: 23, backTop: 22 },
   adult: { bodyVisualWidthPercent: 49, frontTop: 22, backTop: 21 },
 };
