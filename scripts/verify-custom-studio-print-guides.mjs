@@ -26,7 +26,9 @@ if (helper.includes('maxVisualWidth')) fail('Legacy whole-canvas maxVisualWidth 
 if (!helper.includes("source: configuredBodyWidthIn(product, size, normalizedSide)")) fail('Print-guide calibration source is not exposed for diagnostics.');
 
 if (!seasonal.includes('p_side: side')) fail('Seasonal library is not side-aware.');
-if (!seasonal.includes('[product.id, size, side]')) fail('Seasonal side change will not refresh its physical print area.');
+if (!seasonal.includes('seasonalCatalogKey(product?.id, size, side)')) fail('Seasonal catalog key does not include product, size and side.');
+if (!seasonal.includes('[product?.id, size, side]')) fail('Seasonal print guide will not recompute when product, size or side changes.');
+if (!seasonal.includes('[product.id, size, side, requestKey, retryVersion]')) fail('Seasonal side/size change will not refresh its physical artwork area.');
 for (const [name, source] of [['seasonal', seasonal], ['protected', protectedEditor], ['upload', upload]]) {
   if (!source.includes('data-gdp-print-guide="true"')) fail(`${name} editor is missing the calibrated print guide.`);
   if (!source.includes('printGuide.label')) fail(`${name} editor does not show print dimensions.`);
