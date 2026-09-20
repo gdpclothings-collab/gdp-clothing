@@ -65,12 +65,16 @@ export default function CustomStudioProtectedArtworkControls({
     if (!canvasEditMode) gestureRef.current = null;
   }, [canvasEditMode]);
 
-  const changeOffset = (patch) => {
-    onTransformStart?.();
+  const setOffset = (patch) => {
     onOffsetChange?.({
       x: clampOffset(patch.x ?? offset?.x ?? 0),
       y: clampOffset(patch.y ?? offset?.y ?? 0),
     });
+  };
+
+  const changeOffset = (patch) => {
+    onTransformStart?.();
+    setOffset(patch);
   };
 
   const openTextLab = () => {
@@ -239,12 +243,12 @@ export default function CustomStudioProtectedArtworkControls({
         <label>
           <span><Move size={13} /> Left / right</span>
           <strong>{Math.round(Number(offset?.x || 0))}%</strong>
-          <input type="range" min="-42" max="42" value={Number(offset?.x || 0)} onPointerDown={() => onTransformStart?.()} onChange={(event) => changeOffset({ x: Number(event.target.value) })} />
+          <input type="range" min="-42" max="42" value={Number(offset?.x || 0)} onPointerDown={() => onTransformStart?.()} onChange={(event) => setOffset({ x: Number(event.target.value) })} />
         </label>
         <label>
           <span><Move size={13} /> Up / down</span>
           <strong>{Math.round(Number(offset?.y || 0))}%</strong>
-          <input type="range" min="-42" max="42" value={Number(offset?.y || 0)} onPointerDown={() => onTransformStart?.()} onChange={(event) => changeOffset({ y: Number(event.target.value) })} />
+          <input type="range" min="-42" max="42" value={Number(offset?.y || 0)} onPointerDown={() => onTransformStart?.()} onChange={(event) => setOffset({ y: Number(event.target.value) })} />
         </label>
       </div>
 
