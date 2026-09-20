@@ -13,7 +13,11 @@ export default function ProductCard({ product }) {
   const wished = product.id ? wishlist.includes(product.id) : false;
   const hasSecondImage = Boolean(product.images?.[1]);
   const showSecondImage = hasSecondImage && secondaryRequested;
-  const productHref = product.slug === "dtf-gang-sheet" ? "/products/dtf-gang-sheet" : "/product/" + product.id;
+  const productHref = product.slug === "dtf-gang-sheet"
+    ? "/products/dtf-gang-sheet"
+    : product.slug
+      ? "/products/" + product.slug
+      : "/product/" + product.id;
   const outOfStock = isProductOutOfStock(product);
   const sellingMode = resolveProductSellingMode(product);
   const flowLabel = product.slug === "dtf-gang-sheet" || sellingMode === PRODUCT_SELLING_MODES.SERVICE
@@ -103,7 +107,7 @@ export default function ProductCard({ product }) {
           <div className="shrink-0 text-right">
             <span className="font-mono text-xs sm:text-sm">{product.slug === "dtf-gang-sheet" ? "From " : ""}${Number(product.price || 0).toFixed(2)}</span>
             {product.compareAtPrice && product.compareAtPrice > product.price && (
-              <span className="block text-[10px] text-black/35 line-through">${Number(product.compareAtPrice).toFixed(2)}</span>
+              <span className="block text-[10px] text-black/35 line-through">${product.compareAtPrice.toFixed(2)}</span>
             )}
           </div>
         </div>
