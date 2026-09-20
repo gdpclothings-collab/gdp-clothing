@@ -1,0 +1,50 @@
+name: Apply Photo Bootleg full print area movement
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-free-photo-print-area.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Apply scoped Photo Bootleg patch
+        run: node scripts/apply-free-photo-print-area.mjs
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify Photo Bootleg contracts
+        run: node scripts/verify-photo-bootleg-desktop.mjs
+
+      - name: Verify Custom Studio V2 contracts
+        run: node scripts/verify-custom-studio-v2.mjs
+
+      - name: Verify print guides
+        run: node scripts/verify-custom-studio-print-guides.mjs
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Check patch cleanliness
+        run: git diff --check
+
+      - name: Commit verified app changes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No app changes were needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx src/lib/customStudioV2ProtectedProduction.js
+          git commit -m "Let Photo Bootleg photos move across print area"
+          git push
