@@ -1,4 +1,4 @@
-import { sortApparelSizes } from '@/lib/productVariants';
+import { sortApparelSizes } from './productVariants.js';
 
 export const STUDIO_V2_STEPS = [
   { id: 'garment', label: 'Garment' },
@@ -105,7 +105,7 @@ export function studioV2Reducer(state, action) {
       return { ...next, productId: action.productId, color: action.color || '' };
     }
     case 'SET_COLOR':
-      return invalidateAllEditors({ ...state, color: action.color, size: '' });
+      return invalidateAllEditors({ ...state, color: action.color, size: action.size || '' });
     case 'SET_SIZE':
       return invalidateAllEditors({ ...state, size: action.size });
     case 'SET_QUANTITY':
