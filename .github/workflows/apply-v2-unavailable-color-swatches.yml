@@ -1,5 +1,6 @@
 name: Apply V2 unavailable color swatches
 
+# Retry 2 after regression assertion quote fix.
 on:
   push:
     branches:
