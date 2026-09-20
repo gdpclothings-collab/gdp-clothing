@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Maximize2, Move, RotateCcw, Trash2 } from "lucide-react";
+import { Layers, Maximize2, Move, RotateCcw, Trash2, Type } from "lucide-react";
 
 function clampOffset(value) {
   return Math.min(42, Math.max(-42, Number(value || 0)));
@@ -73,6 +73,27 @@ export default function CustomStudioProtectedArtworkControls({
     });
   };
 
+  const openTextLab = () => {
+    if (typeof window === "undefined") return;
+    setCanvasEditMode(false);
+    window.dispatchEvent(new CustomEvent("gdp-studio-open-tab", { detail: { tab: "lettering" } }));
+    window.requestAnimationFrame(() => document.getElementById("gdp-touch-studio-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+  };
+
+  const addAnotherText = () => {
+    if (typeof document === "undefined") return;
+    setCanvasEditMode(false);
+    const panel = document.getElementById("gdp-touch-studio-panel");
+    const addTextButton = [...(panel?.querySelectorAll("button") || [])].find((button) =>
+      String(button.textContent || "").trim().toLowerCase().includes("add text")
+    );
+    if (addTextButton) {
+      addTextButton.click();
+      return;
+    }
+    openTextLab();
+  };
+
   const beginCanvasGesture = (event) => {
     if (!canvasEditMode || !canvasHost) return;
     event.preventDefault();
@@ -124,11 +145,10 @@ export default function CustomStudioProtectedArtworkControls({
     if (points.length >= 2) {
       const [a, b] = points;
       const center = midpoint(a, b);
-      const nextOffset = {
+      onOffsetChange?.({
         x: clampOffset(gesture.startOffset.x + ((center.x - gesture.startMidpoint.x) / width) * 100),
         y: clampOffset(gesture.startOffset.y + ((center.y - gesture.startMidpoint.y) / height) * 100),
-      };
-      onOffsetChange?.(nextOffset);
+      });
       onScaleChange?.(clampScale(gesture.startScale * (distance(a, b) / Math.max(1, gesture.startDistance))));
       onRotationChange?.(clampRotation(gesture.startRotation + angleDelta(angle(a, b), gesture.startAngle)));
       return;
@@ -236,6 +256,15 @@ export default function CustomStudioProtectedArtworkControls({
         <button type="button" onClick={() => changeOffset({ x: Number(offset?.x || 0) + 5 })} aria-label="Move protected artwork right">→</button>
         <button type="button" className="gdp-protected-artwork-controls__reset" onClick={() => { onTransformStart?.(); onReset?.(); }}><RotateCcw size={13} /> Reset</button>
         <button type="button" className="gdp-protected-artwork-controls__remove" onClick={() => { setCanvasEditMode(false); onRemove?.(); }}><Trash2 size={13} /> Remove artwork</button>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-white/10 bg-white/[.035] p-2.5">
+        <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.08em] text-white/75"><Layers size={13} className="text-[#D9273E]" /> Bootleg-style customer layers</div>
+        <p className="mt-1 text-[8px] leading-relaxed text-white/42">Your portrait can be dragged anywhere inside the print area. Every added text block stays independent so it can be moved, resized, rotated, duplicated and styled separately.</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button type="button" onClick={openTextLab} className="rounded-lg border border-white/10 bg-white/[.04] px-2 py-2 text-[8px] font-bold uppercase text-white/65"><Type size={12} className="mr-1 inline" /> Text layers</button>
+          <button type="button" onClick={addAnotherText} className="rounded-lg border border-[#D9273E]/35 bg-[#D9273E]/10 px-2 py-2 text-[8px] font-bold uppercase text-white"><Type size={12} className="mr-1 inline" /> Add another text</button>
+        </div>
       </div>
     </section>
   );
