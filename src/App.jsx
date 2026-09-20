@@ -10,6 +10,7 @@ import { NotificationProvider } from '@/lib/NotificationContext';
 import { UnsavedChangesProvider } from '@/lib/UnsavedChangesContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
+import SeoRouteManager from '@/components/SeoRouteManager';
 import StoreLayout from '@/components/storefront/Layout';
 import MaintenanceGate from '@/components/storefront/MaintenanceGate';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -137,6 +138,7 @@ function App() {
             <NotificationProvider>
               <UnsavedChangesProvider>
                 <ScrollToTop />
+                <SeoRouteManager />
                 <AuthenticatedApp />
               </UnsavedChangesProvider>
             </NotificationProvider>
