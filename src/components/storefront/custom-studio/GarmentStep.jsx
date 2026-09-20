@@ -1,7 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { ArrowRight, Check, Minus, Plus } from "lucide-react";
+import { isProductColorAvailable } from "@/lib/productVariants";
 
 const EMPTY_CATALOG_GRACE_MS = 1400;
+
+const uniqueColors = (values = []) =>
+  [...new Map(
+    values
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .map((value) => [value.toLowerCase(), value])
+  ).values()];
 
 export default function GarmentStep({ model }) {
   const {
@@ -49,6 +58,7 @@ export default function GarmentStep({ model }) {
   }, [product, catalog.length]);
 
   const showCatalogLoading = !product && catalog.length === 0 && !emptyCatalogSettled;
+  const displayColors = uniqueColors([...(product?.colors || []), ...availableColors]);
 
   return (
     <div>
@@ -123,20 +133,28 @@ export default function GarmentStep({ model }) {
             <span className="text-xs font-semibold">{color}</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {availableColors.map((optionColor) => (
-              <button
-                type="button"
-                key={optionColor}
-                onClick={() => chooseColor(optionColor)}
-                className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : "border-[#ddd7ce] bg-white hover:border-[#aaa39a]")}
-              >
-                <span
-                  className="h-5 w-5 rounded-full border border-slate-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.75),0_0_0_1px_rgba(15,23,42,0.18)]"
-                  style={{ backgroundColor: swatchFor(product, optionColor) }}
-                />
-                {optionColor}
-              </button>
-            ))}
+            {displayColors.map((optionColor) => {
+              const enabled = isProductColorAvailable(product, optionColor);
+              return (
+                <button
+                  type="button"
+                  key={optionColor}
+                  disabled={!enabled}
+                  onClick={() => enabled && chooseColor(optionColor)}
+                  title={!enabled ? `${optionColor} — Unavailable` : optionColor}
+                  aria-label={!enabled ? `${optionColor}, unavailable` : optionColor}
+                  className={"inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " + (color === optionColor && enabled ? "border-[#17324D] bg-[#17324D] text-white shadow-sm" : enabled ? "border-[#ddd7ce] bg-white hover:border-[#aaa39a]" : "cursor-not-allowed border-[#e5e0d9] bg-[#f4f1ec] text-[#8e8982] opacity-75")}
+                >
+                  <span className="relative h-5 w-5 shrink-0 rounded-full border border-slate-900/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.75),0_0_0_1px_rgba(15,23,42,0.18)]" style={{ backgroundColor: swatchFor(product, optionColor) }}>
+                    {!enabled && <span aria-hidden="true" className="absolute left-1/2 top-[-2px] h-6 w-px -translate-x-1/2 rotate-45 bg-slate-600" />}
+                  </span>
+                  <span className="text-left leading-tight">
+                    <span className="block">{optionColor}</span>
+                    {!enabled && <span className="mt-0.5 block font-mono text-[8px] font-bold uppercase tracking-[0.1em]">Unavailable</span>}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
