@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   findProductVariant,
+  isProductColorAvailable,
   isProductOutOfStock,
   isProductVariantAvailable,
   sortApparelSizes,
@@ -34,6 +35,34 @@ assert.equal(isProductVariantAvailable({ ...madeToOrder, trackInventory: true, s
 assert.equal(isProductOutOfStock({ ...madeToOrder, trackInventory: true }), true);
 assert.equal(isProductOutOfStock({ ...madeToOrder, trackInventory: true, sellWhenOutOfStock: true }), false);
 assert.equal(isProductOutOfStock({ ...madeToOrder, trackInventory: true, variants: [{ ...variant, stock: 2 }] }), false);
+
+const colorAvailabilityProduct = {
+  trackInventory: true,
+  sellWhenOutOfStock: false,
+  colors: ["Black", "Sand", "Forest Green"],
+  variants: [
+    { id: "black-m", color: "Black", size: "M", stock: 2, active: true },
+    { id: "sand-m", color: "Sand", size: "M", stock: 0, active: true },
+  ],
+};
+assert.equal(isProductColorAvailable(colorAvailabilityProduct, "Black"), true);
+assert.equal(isProductColorAvailable(colorAvailabilityProduct, "Sand"), false);
+assert.equal(isProductColorAvailable(colorAvailabilityProduct, "Forest Green"), false);
+assert.equal(
+  isProductColorAvailable({ ...colorAvailabilityProduct, trackInventory: false }, "Sand"),
+  true,
+  "Made-to-order colors stay selectable when a matching active variant exists."
+);
+assert.equal(
+  isProductColorAvailable({ ...colorAvailabilityProduct, sellWhenOutOfStock: true }, "Sand"),
+  true,
+  "Sell-when-out-of-stock keeps matching colors selectable."
+);
+assert.equal(
+  isProductColorAvailable({ ...colorAvailabilityProduct, variants: colorAvailabilityProduct.variants.map((item) => ({ ...item, active: false })) }, "Black"),
+  false,
+  "A product with variant records but no active variants must not expose a selectable color."
+);
 
 assert.equal(resolveProductSellingMode({ customDesignable: false }), PRODUCT_SELLING_MODES.READY_TO_WEAR);
 assert.equal(resolveProductSellingMode({ customDesignable: true }), PRODUCT_SELLING_MODES.CUSTOM);
