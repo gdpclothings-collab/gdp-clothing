@@ -125,6 +125,15 @@ export default function useTouchTransformV2({
     startGesture();
   }, [startGesture]);
 
+  /** @type {import('react').CSSProperties} */
+  const interactionStyle = {
+    touchAction: enabled ? 'none' : 'auto',
+    userSelect: enabled ? 'none' : 'auto',
+    WebkitUserSelect: enabled ? 'none' : 'auto',
+    WebkitTouchCallout: enabled ? 'none' : 'default',
+    WebkitTapHighlightColor: enabled ? 'transparent' : undefined,
+  };
+
   return {
     onPointerDown,
     onPointerMove,
@@ -132,12 +141,6 @@ export default function useTouchTransformV2({
     onPointerCancel: endPointer,
     onContextMenu: suppressNativeGesture,
     onDragStart: suppressNativeGesture,
-    style: {
-      touchAction: enabled ? 'none' : 'auto',
-      userSelect: enabled ? 'none' : 'auto',
-      WebkitUserSelect: enabled ? 'none' : 'auto',
-      WebkitTouchCallout: enabled ? 'none' : 'default',
-      WebkitTapHighlightColor: enabled ? 'transparent' : undefined,
-    },
+    style: interactionStyle,
   };
 }
