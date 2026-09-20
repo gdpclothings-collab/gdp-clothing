@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Activity, ArrowLeft, ExternalLink, HeartPulse } from "lucide-react";
+import { Activity, ArrowLeft, ExternalLink, HeartPulse, UsersRound } from "lucide-react";
 import AdminV2 from "@/pages/AdminV2";
+import SalesLeads from "@/pages/SalesLeads";
 import SystemHealthModule from "@/components/admin/SystemHealthModule";
 import { systemHealthApi } from "@/lib/systemHealthApi";
 
@@ -106,6 +107,20 @@ function HealthShortcut() {
   );
 }
 
+function SalesShortcut() {
+  return (
+    <Link
+      to="/admin/sales-leads"
+      className="fixed bottom-20 right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8] focus:outline-none focus:ring-2 focus:ring-[#d7193f]/30"
+      aria-label="Open Qualified Prospects"
+      title="Open Qualified Prospects"
+    >
+      <UsersRound size={17} />
+      <span>Sales Leads</span>
+    </Link>
+  );
+}
+
 export default function AdminV3() {
   const location = useLocation();
 
@@ -113,9 +128,14 @@ export default function AdminV3() {
     return <SystemHealthPage />;
   }
 
+  if (location.pathname === "/admin/sales-leads") {
+    return <SalesLeads />;
+  }
+
   return (
     <>
       <AdminV2 />
+      <SalesShortcut />
       <HealthShortcut />
     </>
   );
