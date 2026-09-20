@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDown,
@@ -127,6 +127,84 @@ function resolveBootlegTemplateTransform(style) {
   };
 }
 
+function resolveMemorialTextLayers(editor = {}, fallbackStyle = {}, textZone = {}) {
+  if (Array.isArray(editor?.textLayers)) {
+    return editor.textLayers
+      .filter(Boolean)
+      .slice(0, BOOTLEG_MAX_TEXT_LAYERS)
+      .map((layer, index) => ({
+        ...layer,
+        id: String(layer.id || `memorial-text-${index + 1}`),
+        name: String(layer.name || `Text ${index + 1}`),
+        role: String(layer.role || 'custom'),
+        text: { headline: String(layer.text?.headline || ''), subline: '', message: '' },
+        style: normalizeBootlegTextStyle(layer.style || {}, fallbackStyle),
+        order: index,
+        visible: layer.visible !== false,
+      }));
+  }
+
+  const centerX = clamp(Number(textZone?.x ?? 12) + Number(textZone?.width ?? 76) / 2, 0, 100);
+  const zoneY = Number(textZone?.y ?? 78);
+  const zoneHeight = Number(textZone?.height ?? 16);
+  const legacy = editor?.text || {};
+  const base = normalizeBootlegTextStyle(editor?.textStyle || {}, fallbackStyle);
+  const seed = (id, role, name, value, yRatio, scale) => ({
+    id,
+    role,
+    name,
+    text: { headline: String(value || ''), subline: '', message: '' },
+    style: normalizeBootlegTextStyle({
+      ...base,
+      canvasX: centerX,
+      canvasY: clamp(zoneY + zoneHeight * yRatio, 0, 100),
+      fontScale: scale,
+      rotation: Number(base.rotation || 0),
+    }, fallbackStyle),
+    visible: true,
+  });
+
+  return [
+    seed('memorial-name', 'name', 'Name', legacy.headline, 0.25, Number(base.fontScale || 100)),
+    seed('memorial-dates', 'dates', 'Dates', legacy.subline, 0.56, Math.max(45, Number(base.fontScale || 100) * 0.72)),
+    seed('memorial-message', 'message', 'Message', legacy.message, 0.83, Math.max(38, Number(base.fontScale || 100) * 0.58)),
+  ].map((layer, index) => ({ ...layer, order: index }));
+}
+
+function buildMemorialTextStatePatch(editor = {}, layers = [], activeId = '', fallbackStyle = {}) {
+  const ordered = (layers || [])
+    .filter(Boolean)
+    .slice(0, BOOTLEG_MAX_TEXT_LAYERS)
+    .map((layer, index) => ({
+      ...layer,
+      id: String(layer.id || `memorial-text-${index + 1}`),
+      name: String(layer.name || `Text ${index + 1}`),
+      role: String(layer.role || 'custom'),
+      text: { headline: String(layer.text?.headline || ''), subline: '', message: '' },
+      style: normalizeBootlegTextStyle(layer.style || {}, fallbackStyle),
+      order: index,
+      visible: layer.visible !== false,
+    }));
+  const active = ordered.find((layer) => layer.id === activeId) || ordered.find((layer) => layer.role === 'name') || ordered[0] || null;
+  const byRole = (role) => ordered.find((layer) => layer.role === role)?.text?.headline || '';
+  const templateTransform = editor?.textStyle?.templateTransform;
+  return {
+    textLayers: ordered,
+    activeTextLayerId: active?.id || '',
+    text: {
+      headline: byRole('name'),
+      subline: byRole('dates'),
+      message: byRole('message'),
+    },
+    textStyle: {
+      ...(active?.style || fallbackStyle || {}),
+      freeTextLayout: true,
+      photoForeground: false,
+      ...(templateTransform ? { templateTransform } : {}),
+    },
+  };
+}
+
 function textEffectStyle(style) {
   const effect = style.effect || 'shadow';
   const strength = clamp(style.effectStrength ?? 45, 0, 100) / 100;
@@ -218,7 +296,7 @@ function resolvePhotoCanvasPosition(transform = {}, zone = {}) {
   };
 }
 
-function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTransform }) {
+function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTransform, scope = 'bootleg' }) {
   const position = resolvePhotoCanvasPosition(layer.transform || {}, zone);
   const gesture = useTouchTransformV2({
     transform: {
@@ -247,7 +325,8 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
   return (
     <div
       {...gesture}
-      data-gdp-bootleg-free-photo-layer="true"
+      data-gdp-bootleg-free-photo-layer={scope === 'bootleg' ? 'true' : undefined}
+      data-gdp-memorial-free-photo-layer={scope === 'memorial' ? 'true' : undefined}
       onPointerDown={(event) => { onSelect(); gesture.onPointerDown(event); }}
       className={`absolute origin-center overflow-hidden select-none ${selected ? 'cursor-grab ring-2 ring-cyan-400/90' : 'pointer-events-none'}`}
       style={{
@@ -300,7 +379,7 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
   );
 }
 
-function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle }) {
+function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, scope = 'bootleg' }) {
   const style = layer?.style || {};
   const bounds = layout?.bounds || null;
   const rawLimits = layout ? bootlegGestureLimits(layout) : { minX: -50, maxX: 50, minY: -50, maxY: 50 };
@@ -335,12 +414,14 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle }) 
   return (
     <div
       {...gesture}
-      data-gdp-bootleg-text-layer="true"
-      data-gdp-bootleg-text-layer-id={layer.id}
+      data-gdp-bootleg-text-layer={scope === 'bootleg' ? 'true' : undefined}
+      data-gdp-memorial-text-layer={scope === 'memorial' ? 'true' : undefined}
+      data-gdp-bootleg-text-layer-id={scope === 'bootleg' ? layer.id : undefined}
+      data-gdp-memorial-text-layer-id={scope === 'memorial' ? layer.id : undefined}
       className={`absolute inset-0 z-30 ${selected ? 'cursor-grab' : 'pointer-events-none'}`}
       style={gesture.style}
     >
-      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label={`Editable Photo Bootleg ${layer.name || 'text'} layer`}>
+      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label={`Editable ${scope === 'memorial' ? 'Memorial Tribute' : 'Photo Bootleg'} ${layer.name || 'text'} layer`}>
         {selected && bounds ? <rect data-gdp-bootleg-text-bounds="true" x={bounds.minX} y={bounds.minY} width={Math.max(0, bounds.maxX - bounds.minX)} height={Math.max(0, bounds.maxY - bounds.minY)} fill="none" stroke="rgb(34 211 238)" strokeWidth={Math.max(2, layout.width * 0.004)} strokeDasharray={`${Math.max(5, layout.width * 0.009)} ${Math.max(4, layout.width * 0.006)}`} /> : null}
         {layout.headline?.kind === 'straight' ? (
           <text {...common} x={layout.headline.x} y={layout.headline.y} fontSize={layout.headline.fontSize} fontWeight="900" transform={`rotate(${layout.headline.rotation || 0} ${layout.headline.x} ${layout.headline.y})`} style={svgTextEffect(style, layout.headline.fontSize)}>{layout.headline.text}</text>
@@ -359,6 +440,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const isBootleg = path === 'bootleg';
+  const isMemorial = path === 'memorial';
+  const usesLayerLab = isBootleg || isMemorial;
   const zone = template?.photoZone || { x: 15, y: 12, width: 70, height: 68, radius: 12, shape: 'rounded' };
   const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16, align: 'center' };
   const photos = currentPhotoLayers(editor).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
@@ -369,14 +452,16 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const legacyStyle = { ...fallbackTextStyle, ...(editor.textStyle || {}) };
   const bootlegTextLayers = isBootleg
     ? resolveBootlegTextLayers(editor, fallbackTextStyle).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
-    : [];
+    : isMemorial
+      ? resolveMemorialTextLayers(editor, fallbackTextStyle, textZone).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+      : [];
   const activeTextLayerId = editor.activeTextLayerId || bootlegTextLayers.at(-1)?.id || '';
   const radius = zone.shape === 'circle' || zone.shape === 'oval' ? '50%' : `${Number(zone.radius || 0)}%`;
   const stickerById = Object.fromEntries(stickers.map((item) => [item.id, item]));
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
   const templateTransform = resolveBootlegTemplateTransform(legacyStyle);
-  const templateEditing = isBootleg && activeLayer === 'template';
+  const templateEditing = usesLayerLab && activeLayer === 'template';
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
   const bootlegTextLayouts = bootlegTextLayers.map((layer) => {
@@ -397,7 +482,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     transform: { scale: legacyStyle.fontScale || 100, rotation: legacyStyle.rotation || 0, x: legacyStyle.x || 0, y: legacyStyle.y || 0 },
     onChange: (next) => onPatch({ textStyle: { ...legacyStyle, fontScale: next.scale, rotation: next.rotation, x: next.x, y: next.y } }),
     containerRef: canvasRef,
-    enabled: !isBootleg && Boolean(editor.text?.headline || editor.text?.subline || editor.text?.message),
+    enabled: !usesLayerLab && Boolean(editor.text?.headline || editor.text?.subline || editor.text?.message),
     minScale: 55,
     maxScale: 180,
     minX: -42,
@@ -409,11 +494,11 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const templateGesture = useTouchTransformV2({
     transform: templateTransform,
     onChange: (next) => {
-      if (!isBootleg) return;
-      onPatch({ textStyle: { ...legacyStyle, freeTextLayout: true, templateTransform: { scale: clamp(next.scale, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE), rotation: next.rotation, x: next.x, y: next.y } } });
+      if (!usesLayerLab) return;
+      onPatch({ textStyle: { ...legacyStyle, ...(isBootleg ? { freeTextLayout: true, photoForeground: true } : { photoForeground: false }), templateTransform: { scale: clamp(next.scale, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE), rotation: next.rotation, x: next.x, y: next.y } } });
     },
     containerRef: canvasRef,
-    enabled: isBootleg && templateEditing && Boolean(template),
+    enabled: usesLayerLab && templateEditing && Boolean(template),
     minScale: BOOTLEG_TEMPLATE_MIN_SCALE,
     maxScale: BOOTLEG_TEMPLATE_MAX_SCALE,
     minX: -50,
@@ -449,8 +534,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   );
 
   const bootlegPhotoCanvas = (
-    <div data-gdp-bootleg-linked-photo-zone="true" data-gdp-bootleg-free-photo-canvas="true" className="absolute inset-0 overflow-hidden" style={{ zIndex: 10 }}>
-      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
+    <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10 }}>
+      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
       {!photos.length && <div className="absolute grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>Photo zone</div>}
     </div>
   );
@@ -466,13 +551,14 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         <div ref={canvasRef} data-gdp-print-guide="true" aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
           <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
 
-          {isBootleg ? bootlegPhotoCanvas : photoZone}
+          {usesLayerLab ? bootlegPhotoCanvas : photoZone}
 
           {template?.assetUrl ? (
-            isBootleg ? (
+            usesLayerLab ? (
               <div
                 {...(templateEditing ? templateGesture : {})}
-                data-gdp-bootleg-template-layer="true"
+                data-gdp-bootleg-template-layer={isBootleg ? 'true' : undefined}
+                data-gdp-memorial-template-layer={isMemorial ? 'true' : undefined}
                 className={`absolute inset-0 select-none ${templateEditing ? 'cursor-grab ring-2 ring-cyan-400/90 ring-inset' : 'pointer-events-none'}`}
                 style={{ ...(templateEditing ? templateGesture.style : {}), zIndex: templateEditing ? 45 : 20, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}
               >
@@ -483,9 +569,9 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             ) : <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" />
           ) : null}
 
-          {isBootleg ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
+          {usesLayerLab ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} scope={path} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
 
-          {!isBootleg && (headline || editor.text?.subline || editor.text?.message) ? (
+          {!usesLayerLab && (headline || editor.text?.subline || editor.text?.message) ? (
             <div {...legacyTextGesture} className="absolute z-30 flex cursor-grab flex-col justify-center px-1 text-center font-black drop-shadow-[0_2px_3px_rgba(0,0,0,.8)] ring-1 ring-transparent active:ring-cyan-400/80" style={{ ...legacyTextGesture.style, ...textBlockStyle, color: legacyStyle.color, fontFamily: legacyStyle.fontFamily, transform: textTransform, ...textEffectStyle(legacyStyle) }}>
               {headline ? <div className={`${legacyStyle.curve === 'straight' ? 'truncate' : 'h-[70%]'} leading-none uppercase`} style={{ fontSize: `${fontScale * 0.105}px` }}><CurvedHeadline text={headline.toUpperCase()} style={legacyStyle} /></div> : null}
               {editor.text?.subline ? <div className="truncate font-bold leading-tight">{editor.text.subline}</div> : null}
@@ -498,7 +584,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
       {isBootleg && bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-amber-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>Part of a text layer is outside the print area. Text size is not limited, but anything outside the dashed print boundary will not be printed.</span></div> : null}
-      <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{isBootleg ? `${activeLayer === 'template' ? 'Template' : activeLayer === 'photo' ? 'Photo' : activeLayer === 'text' ? 'Text' : 'Sticker'} layer selected · ` : ''}One finger moves · two fingers pinch/rotate · {String(side || 'front').toUpperCase()} side</p>
+      <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? `${activeLayer === 'template' ? 'Template' : activeLayer === 'photo' ? 'Photo' : activeLayer === 'text' ? 'Text' : 'Sticker'} layer selected · ` : ''}One finger moves · two fingers pinch/rotate · {String(side || 'front').toUpperCase()} side</p>
     </div>
   );
 }
@@ -513,6 +599,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const [error, setError] = useState('');
   const [activeBootlegLayer, setActiveBootlegLayer] = useState('photo');
   const isBootleg = path === 'bootleg';
+  const isMemorial = path === 'memorial';
+  const usesLayerLab = isBootleg || isMemorial;
   const category = path === 'memorial' ? 'memorial_tribute' : 'photo_bootleg';
   const templates = useMemo(() => normalizeStyleTemplates(settings?.styleTemplates || {}).filter((item) => item.enabled && item.category === category), [settings?.styleTemplates, category]);
   const template = templates.find((item) => item.id === editor.templateId) || null;
@@ -522,12 +610,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const activePhoto = photos.find((layer) => layer.id === activePhotoId) || photos.at(-1) || null;
   const fallbackBootlegTextStyle = defaultV2TextStyle(path);
   const legacyTextStyle = { ...fallbackBootlegTextStyle, ...(editor.textStyle || {}) };
-  const bootlegTextLayers = isBootleg ? resolveBootlegTextLayers(editor, fallbackBootlegTextStyle) : [];
+  const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16 };
+  const bootlegTextLayers = isBootleg ? resolveBootlegTextLayers(editor, fallbackBootlegTextStyle) : isMemorial ? resolveMemorialTextLayers(editor, fallbackBootlegTextStyle, textZone) : [];
   const activeTextLayerId = editor.activeTextLayerId || bootlegTextLayers.at(-1)?.id || '';
   const activeTextLayer = bootlegTextLayers.find((layer) => layer.id === activeTextLayerId) || bootlegTextLayers.at(-1) || null;
-  const textStyle = isBootleg ? normalizeBootlegTextStyle(activeTextLayer?.style || {}, fallbackBootlegTextStyle) : legacyTextStyle;
-  const textContent = isBootleg ? (activeTextLayer?.text || { headline: '', subline: '', message: '' }) : (editor.text || {});
-  const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16 };
+  const textStyle = usesLayerLab ? normalizeBootlegTextStyle(activeTextLayer?.style || {}, fallbackBootlegTextStyle) : legacyTextStyle;
+  const textContent = usesLayerLab ? (activeTextLayer?.text || { headline: '', subline: '', message: '' }) : (editor.text || {});
   const textPosition = resolveBootlegTextPosition(textStyle, textZone);
   const templateTransform = resolveBootlegTemplateTransform(legacyTextStyle);
   const stickerLayers = Array.isArray(editor.stickers) ? editor.stickers : [];
@@ -536,15 +624,20 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
-  const textLayout = isBootleg && activeTextLayer ? resolveBootlegTextLayout({ text: textContent, zone: textZone, style: { ...textStyle, canvasX: textPosition.x, canvasY: textPosition.y }, width: layoutWidth, height: layoutHeight }) : null;
-  const textAnchorRanges = isBootleg && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
-  const textXSlider = isBootleg && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
-  const textYSlider = isBootleg && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
-  const activePhotoCanvasPosition = isBootleg && activePhoto ? resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 }) : null;
+  const textLayout = usesLayerLab && activeTextLayer ? resolveBootlegTextLayout({ text: textContent, zone: textZone, style: { ...textStyle, canvasX: textPosition.x, canvasY: textPosition.y }, width: layoutWidth, height: layoutHeight }) : null;
+  const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
+  const textXSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
+  const textYSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
+  const activePhotoCanvasPosition = usesLayerLab && activePhoto ? resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 }) : null;
 
   const syncTextLayers = (next, activeId = '') => {
     const latestEditor = editorRef.current || editor;
-    const patch = buildBootlegTextStatePatch(latestEditor, next, activeId, fallbackBootlegTextStyle);
+    const basePatch = isMemorial
+      ? buildMemorialTextStatePatch(latestEditor, next, activeId, fallbackBootlegTextStyle)
+      : buildBootlegTextStatePatch(latestEditor, next, activeId, fallbackBootlegTextStyle);
+    const patch = isBootleg
+      ? { ...basePatch, textStyle: { ...basePatch.textStyle, freeTextLayout: true, photoForeground: true } }
+      : basePatch;
     editorRef.current = { ...latestEditor, ...patch };
     onPatch(patch);
   };
@@ -581,6 +674,16 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     onPatch(patch);
   };
 
+
+  useEffect(() => {
+    if (!isMemorial || !template || Array.isArray(editor.textLayers)) return;
+    const seeded = resolveMemorialTextLayers(editor, fallbackBootlegTextStyle, textZone);
+    const activeId = seeded.find((layer) => layer.role === 'name')?.id || seeded[0]?.id || '';
+    const patch = buildMemorialTextStatePatch(editor, seeded, activeId, fallbackBootlegTextStyle);
+    editorRef.current = { ...editorRef.current, ...patch };
+    onPatch(patch);
+  }, [isMemorial, template?.id]);
+
   const selectTemplate = (item) => {
     const defaults = {
       scale: Number(item.defaultTransform?.scale || 100),
@@ -601,6 +704,24 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         ...(nextPhotos.length ? {} : { transform: defaults }),
         ...textPatch,
         textStyle: { ...textPatch.textStyle, templateTransform: { scale: 100, rotation: 0, x: 0, y: 0 } },
+      };
+      editorRef.current = { ...latestEditor, ...patch };
+      onPatch(patch);
+      setActiveBootlegLayer('template');
+      return;
+    }
+    if (isMemorial) {
+      const nextTextPosition = resolveBootlegTextPosition(textStyle, item.textZone || { x: 12, y: 78, width: 76, height: 16 });
+      const nextLayers = bootlegTextLayers.map((layer) => layer.id === activeTextLayer?.id
+        ? { ...layer, style: normalizeBootlegTextStyle({ ...layer.style, canvasX: nextTextPosition.x, canvasY: nextTextPosition.y }, fallbackBootlegTextStyle) }
+        : layer);
+      const latestEditor = editorRef.current || editor;
+      const textPatch = buildMemorialTextStatePatch(latestEditor, nextLayers, activeTextLayer?.id || '', fallbackBootlegTextStyle);
+      const patch = {
+        templateId: item.id,
+        ...(nextPhotos.length ? {} : { transform: defaults }),
+        ...textPatch,
+        textStyle: { ...textPatch.textStyle, photoForeground: false, templateTransform: { scale: 100, rotation: 0, x: 0, y: 0 } },
       };
       editorRef.current = { ...latestEditor, ...patch };
       onPatch(patch);
@@ -671,7 +792,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
       if (safeAdditions.length) {
         syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
-        if (isBootleg) setActiveBootlegLayer('photo');
+        if (usesLayerLab) setActiveBootlegLayer('photo');
         setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}`);
       } else {
         setUploadMessage('');
@@ -689,11 +810,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
   const patchActivePhotoTransform = (patch) => {
     if (!activePhoto) return;
-    if (isBootleg) setActiveBootlegLayer('photo');
+    if (usesLayerLab) setActiveBootlegLayer('photo');
     syncPhotos(photos.map((layer) => {
       if (layer.id !== activePhoto.id) return layer;
       const nextTransform = { ...layer.transform, ...patch };
-      if (isBootleg) {
+      if (usesLayerLab) {
         const position = resolvePhotoCanvasPosition(nextTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
         if (!Number.isFinite(Number(nextTransform.canvasX))) nextTransform.canvasX = position.x;
         if (!Number.isFinite(Number(nextTransform.canvasY))) nextTransform.canvasY = position.y;
@@ -713,12 +834,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       return;
     }
     const duplicatePosition = resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
-    const duplicateTransform = isBootleg
+    const duplicateTransform = usesLayerLab
       ? { ...activePhoto.transform, canvasX: clamp(duplicatePosition.x + 4, 0, 100), canvasY: clamp(duplicatePosition.y + 4, 0, 100) }
       : { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) };
     const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: duplicateTransform };
     syncPhotos([...photos, duplicate], duplicate.id);
-    if (isBootleg) setActiveBootlegLayer('photo');
+    if (usesLayerLab) setActiveBootlegLayer('photo');
   };
   const moveActivePhoto = (delta) => {
     if (!activePhoto) return;
@@ -743,7 +864,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   };
 
   const patchText = (patch) => {
-    if (!isBootleg) {
+    if (!usesLayerLab) {
       onPatch({ text: { ...editor.text, ...patch } });
       return;
     }
@@ -752,7 +873,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     syncTextLayers(bootlegTextLayers.map((layer) => layer.id === activeTextLayer.id ? { ...layer, text: { ...layer.text, ...patch, subline: '', message: '' } } : layer), activeTextLayer.id);
   };
   const patchTextStyle = (patch, activateText = true) => {
-    if (!isBootleg) {
+    if (!usesLayerLab) {
       onPatch({ textStyle: { ...legacyTextStyle, ...patch } });
       return;
     }
@@ -761,14 +882,14 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     syncTextLayers(bootlegTextLayers.map((layer) => layer.id === activeTextLayer.id ? { ...layer, style: normalizeBootlegTextStyle({ ...layer.style, ...patch }, fallbackBootlegTextStyle) } : layer), activeTextLayer.id);
   };
   const patchTemplateTransform = (patch) => {
-    if (isBootleg) setActiveBootlegLayer('template');
+    if (usesLayerLab) setActiveBootlegLayer('template');
     const latestEditor = editorRef.current || editor;
-    const nextTextStyle = { ...(latestEditor.textStyle || legacyTextStyle), freeTextLayout: true, templateTransform: { ...templateTransform, ...patch } };
+    const nextTextStyle = { ...(latestEditor.textStyle || legacyTextStyle), ...(isBootleg ? { freeTextLayout: true, photoForeground: true } : isMemorial ? { photoForeground: false } : {}), templateTransform: { ...templateTransform, ...patch } };
     editorRef.current = { ...latestEditor, textStyle: nextTextStyle };
     onPatch({ textStyle: nextTextStyle });
   };
   const patchTextVisualPosition = (axis, value) => {
-    if (!isBootleg || !activeTextLayer || !textLayout || !textAnchorRanges) return;
+    if (!usesLayerLab || !activeTextLayer || !textLayout || !textAnchorRanges) return;
     const anchor = bootlegSliderToAnchor(value, textAnchorRanges[axis]);
     const canvasX = axis === 'x' ? clamp(anchor / layoutWidth * 100, 0, 100) : textPosition.x;
     const canvasY = axis === 'y' ? clamp(anchor / layoutHeight * 100, 0, 100) : textPosition.y;
@@ -787,10 +908,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     syncTextLayers(bootlegTextLayers, layer.id);
   };
   const addTextLayer = () => {
-    if (!isBootleg || bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS) return;
+    if (!usesLayerLab || bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS) return;
     const layer = {
       id: v2LayerId('text'),
       name: nextTextName(),
+      ...(isMemorial ? { role: 'custom' } : {}),
       text: { headline: '', subline: '', message: '' },
       style: normalizeBootlegTextStyle({ ...fallbackBootlegTextStyle, canvasX: 50, canvasY: clamp(50 + bootlegTextLayers.length * 5, 15, 85), fontScale: 100, rotation: 0 }, fallbackBootlegTextStyle),
       order: bootlegTextLayers.length,
@@ -827,14 +949,14 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const latestEditor = editorRef.current || editor;
     const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
     if (!current.some((item) => item.id === layer.id)) return;
-    if (isBootleg) setActiveBootlegLayer('sticker');
+    if (usesLayerLab) setActiveBootlegLayer('sticker');
     syncStickers(current, layer.id);
   };
   const addSticker = (sticker) => {
     const latestEditor = editorRef.current || editor;
     const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
     const layer = createV2StickerLayer(sticker, current.length);
-    if (isBootleg) setActiveBootlegLayer('sticker');
+    if (usesLayerLab) setActiveBootlegLayer('sticker');
     syncStickers([...current, layer], layer.id);
   };
   const patchActiveSticker = (patch) => {
@@ -842,7 +964,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
     const activeId = latestEditor.activeStickerId || activeSticker?.id || '';
     if (!activeId || !current.some((layer) => layer.id === activeId)) return;
-    if (isBootleg) setActiveBootlegLayer('sticker');
+    if (usesLayerLab) setActiveBootlegLayer('sticker');
     syncStickers(current.map((layer) => layer.id === activeId ? { ...layer, transform: { ...layer.transform, ...patch } } : layer), activeId);
   };
   const deleteActiveSticker = () => {
@@ -855,11 +977,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const remaining = current.filter((layer) => layer.id !== activeId);
     const nextActive = remaining[Math.min(index, remaining.length - 1)] || null;
     syncStickers(remaining, nextActive?.id || '');
-    if (isBootleg) setActiveBootlegLayer('sticker');
+    if (usesLayerLab) setActiveBootlegLayer('sticker');
   };
 
-  // Historical regression-verifier token for the Memorial protected-template contract only:
+  // Historical regression-verifier token for protected-template content safety:
   // GDP template artwork never becomes an editable layer.
+  // The whole protected template can move/resize/rotate as one placement layer; its internal artwork remains locked.
 
   const bootlegLayerButtons = [
     { value: 'template', label: 'Template', enabled: Boolean(template) },
@@ -876,7 +999,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         ? `Editing Text — ${activeTextLayer?.name || 'add text'}${activeTextLayer?.text?.headline ? ` · ${String(activeTextLayer.text.headline).slice(0, 22)}` : ''}`
         : `Editing Sticker — ${activeStickerOption?.label || activeSticker?.label || 'choose a sticker'}`;
 
-  const templatePanel = isBootleg && template ? (
+  const templatePanel = usesLayerLab && template ? (
     <div data-gdp-bootleg-template-controls="true" data-gdp-bootleg-panel="template" className="space-y-3 rounded-2xl border border-cyan-100 bg-cyan-50/50 p-3">
       <div className="flex items-center justify-between gap-2">
         <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently anywhere inside the print area.</p></div>
@@ -898,10 +1021,10 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
       {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
       {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
-      {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (isBootleg) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
+      {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
         <RangeControl label="Photo size" value={activePhoto.transform?.scale || 100} min={30} max={220} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} />
-        {isBootleg ? <>
+        {usesLayerLab ? <>
           <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.x ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} />
           <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.y ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} />
         </> : <>
@@ -912,7 +1035,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
         <button type="button" onClick={() => {
           const resetTransform = { scale: template?.defaultTransform?.scale || 100, rotation: 0, x: Number(template?.defaultTransform?.offset?.x || 0), y: Number(template?.defaultTransform?.offset?.y || 0) };
-          if (isBootleg) {
+          if (usesLayerLab) {
             const resetPosition = resolvePhotoCanvasPosition(resetTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
             patchActivePhotoTransform({ ...resetTransform, canvasX: resetPosition.x, canvasY: resetPosition.y });
           } else {
@@ -923,7 +1046,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     </div>
   );
 
-  const textPanel = isBootleg ? (
+  const textPanel = usesLayerLab ? (
     <div data-gdp-bootleg-panel="text" data-gdp-bootleg-multi-text="true" className="space-y-3 rounded-2xl border border-slate-100 p-3">
       <div className="flex items-center justify-between gap-3">
         <div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Text</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{bootlegTextLayers.length} / {BOOTLEG_MAX_TEXT_LAYERS} text layers</p></div>
@@ -979,23 +1102,23 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>
 
         <div className="mt-5 border-t border-slate-100 pt-4"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Photo layers</p><p className="text-xs font-bold text-slate-600">{photos.length} of {BOOTLEG_MAX_PHOTOS} photos</p></div><Layers size={17} className="text-slate-400" /></div>
-          <div className="mt-3 space-y-2">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (isBootleg) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId && (!isBootleg || activeBootlegLayer === 'photo') ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div>
+          <div className="mt-3 space-y-2">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId && (!isBootleg || activeBootlegLayer === 'photo') ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div>
         </div>
       </section>
 
       <section data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:h-full xl:overflow-hidden' : ''}`}>
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">{isBootleg ? 'Choose a layer first. Only the active layer can move, resize or rotate on the print area.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p></div>
-        {isBootleg ? <div data-gdp-bootleg-active-layer="true" className="mb-2 grid gap-2 rounded-2xl bg-slate-100 p-1.5" style={{ gridTemplateColumns: `repeat(${bootlegLayerButtons.length}, minmax(0, 1fr))` }}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => setActiveBootlegLayer(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
-        {isBootleg ? <div data-gdp-bootleg-active-status="true" className="mb-3 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-900">{activeLayerSummary}</div> : null}
+        {usesLayerLab ? <div data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined} data-gdp-memorial-active-layer={isMemorial ? 'true' : undefined} className="mb-2 grid gap-2 rounded-2xl bg-slate-100 p-1.5" style={{ gridTemplateColumns: `repeat(${bootlegLayerButtons.length}, minmax(0, 1fr))` }}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => setActiveBootlegLayer(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
+        {usesLayerLab ? <div data-gdp-bootleg-active-status={isBootleg ? 'true' : undefined} data-gdp-memorial-active-status={isMemorial ? 'true' : undefined} className="mb-3 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-900">{activeLayerSummary}</div> : null}
         {isBootleg ? <button type="button" data-gdp-bootleg-confirm-action="persistent" disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={'sticky top-2 z-40 mb-3 flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left shadow-sm transition ' + (editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500') + ' disabled:cursor-not-allowed disabled:opacity-40'}><span className={'grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ' + (editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent')}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm template, photos, layers, text and placement before review.</span></span></button> : null}
         {isBootleg && uploading ? <div data-gdp-bootleg-upload-status="true" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950"><Loader2 size={17} className="shrink-0 animate-spin" /><div><p className="text-xs font-black">Processing photo</p><p className="text-[11px] font-semibold">{uploadMessage || 'Preparing your image…'}</p></div></div> : null}
-        <ProtectedPreview product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} activeLayer={isBootleg ? activeBootlegLayer : 'photo'} onActiveLayerChange={isBootleg ? setActiveBootlegLayer : undefined} />
+        <ProtectedPreview product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} activeLayer={usesLayerLab ? activeBootlegLayer : 'photo'} onActiveLayerChange={usesLayerLab ? setActiveBootlegLayer : undefined} />
       </section>
 
       <section data-gdp-bootleg-inspector-scroll={isBootleg ? 'true' : undefined} data-gdp-bootleg-inspector-active={isBootleg ? activeBootlegLayer : undefined} className={`space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
-        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'Layer controls' : 'Customer controls'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Personalize</h2>{isBootleg ? <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Only the selected layer controls are shown here. The live garment stays visible while this panel scrolls.</p> : null}</div>
+        <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{usesLayerLab ? 'Layer controls' : 'Customer controls'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Personalize</h2>{usesLayerLab ? <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Only the selected layer controls are shown here. Customer photo, protected template placement and text layers remain independent.</p> : null}</div>
 
-        {isBootleg ? (
+        {usesLayerLab ? (
           <>
             {activeBootlegLayer === 'template' ? templatePanel : null}
             {activeBootlegLayer === 'photo' ? photoPanel : null}
