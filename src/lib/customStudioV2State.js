@@ -1,3 +1,5 @@
+import { sortApparelSizes } from '@/lib/productVariants';
+
 export const STUDIO_V2_STEPS = [
   { id: 'garment', label: 'Garment' },
   { id: 'design', label: 'Choose Design' },
@@ -210,7 +212,7 @@ export function productSizes(product, color) {
   const values = variants.length
     ? variants.filter((variant) => !color || String(variant.color || '').toLowerCase() === String(color).toLowerCase()).map((variant) => variant.size)
     : (product?.sizes || []);
-  return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
+  return sortApparelSizes(values);
 }
 
 export function studioV2SideHasContent(state, side) {
