@@ -1,3 +1,5 @@
+import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
+
 const MOCKUP_WIDTH = 1200;
 const MOCKUP_HEIGHT = 1500;
 
@@ -43,12 +45,26 @@ function canvasToBlob(canvas) {
   });
 }
 
+function percentValue(value, fallback) {
+  const parsed = Number.parseFloat(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 /**
  * Build a customer-facing garment mockup from the already-approved production PNG.
  * This never changes the production file. It only creates a separate preview asset
  * for cart, checkout and order-confirmation surfaces.
+ *
+ * Placement uses the same selected-size print guide as the live Studio so the cart
+ * mockup cannot drift back to the old fixed 42%-of-canvas scale.
  */
-export async function renderStudioV2CustomerMockup({ garmentUrl = '', productionBlob }) {
+export async function renderStudioV2CustomerMockup({
+  garmentUrl = '',
+  productionBlob,
+  product = null,
+  size = '',
+  side = 'front',
+}) {
   if (!productionBlob) throw new Error('Approved artwork is missing from the customer preview.');
 
   const canvas = document.createElement('canvas');
@@ -72,15 +88,19 @@ export async function renderStudioV2CustomerMockup({ garmentUrl = '', production
   }
   if (!garmentDrawn) drawNeutralGarment(ctx);
 
+  const printGuide = resolveStudioV2PrintGuide(product, size, side);
+  const widthPercent = percentValue(printGuide?.style?.width, 28);
+  const topPercent = percentValue(printGuide?.style?.top, 24);
+  const printWidthIn = Math.max(0.01, Number(printGuide?.widthIn || 1));
+  const printHeightIn = Math.max(0.01, Number(printGuide?.heightIn || 1));
+
   const artworkUrl = URL.createObjectURL(productionBlob);
   try {
     const artwork = await loadImage(artworkUrl);
-    // Mirrors the V2 garment workspace: centered print area, 42% garment width,
-    // starting 24% from the top, with a 4:5 printable box.
-    const printWidth = canvas.width * 0.42;
-    const printHeight = printWidth * 1.25;
+    const printWidth = canvas.width * (widthPercent / 100);
+    const printHeight = printWidth * (printHeightIn / printWidthIn);
     const printX = (canvas.width - printWidth) / 2;
-    const printY = canvas.height * 0.24;
+    const printY = canvas.height * (topPercent / 100);
     drawContained(ctx, artwork, printX, printY, printWidth, printHeight);
   } finally {
     URL.revokeObjectURL(artworkUrl);
