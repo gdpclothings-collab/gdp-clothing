@@ -8,6 +8,7 @@ import GarmentInfoPanel, { garmentColorSwatch } from '@/components/storefront/cu
 import { customerApi } from '@/lib/customerApi';
 import { useCart } from '@/lib/CartContext';
 import { normalizeStyleTemplates } from '@/lib/customStudioStyleTemplates';
+import { isProductColorAvailable, isProductVariantAvailable } from '@/lib/productVariants';
 import {
   buildSeasonalStudioV2Snapshot,
   digestStudioV2Snapshot,
@@ -65,7 +66,14 @@ function StudioStepRail({ currentStep, onStep }) {
 function GarmentVariantControls({ product, state, dispatch, onContinue, canContinue }) {
   const colors = productColors(product);
   const sizes = productSizes(product, state.color);
+  const selectedColorAvailable = !state.color || isProductColorAvailable(product, state.color);
   const sizeRequired = !String(state.size || '').trim();
+
+  useEffect(() => {
+    if (state.color && !selectedColorAvailable) {
+      dispatch({ type: 'SET_COLOR', color: '', size: '' });
+    }
+  }, [dispatch, selectedColorAvailable, state.color]);
   return (
     <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-4 lg:p-5" data-gdp-selected-garment-options="true" data-gdp-selected-garment-configurator="true">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
@@ -84,14 +92,41 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
         <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
           <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Color</div>
           <div className="flex flex-wrap gap-2">{colors.map((color) => {
-            const selected = state.color === color;
-            return <button data-gdp-garment-swatch="true" key={color} type="button" onClick={() => { const nextSizes = productSizes(product, color); const preservedSize = nextSizes.some((candidate) => normalize(candidate) === normalize(state.size)) ? state.size : ''; dispatch({ type: 'SET_COLOR', color, size: preservedSize }); }} aria-label={`Select ${displayVariantLabel(color)}`} aria-pressed={selected} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 text-sm font-bold transition ${selected ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}><span className="h-5 w-5 shrink-0 rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: garmentColorSwatch(product, color) }} aria-hidden="true" /><span>{displayVariantLabel(color)}</span></button>;
+            const available = isProductColorAvailable(product, color);
+            const selected = available && state.color === color;
+            const label = displayVariantLabel(color);
+            return <button
+              data-gdp-garment-swatch="true"
+              data-gdp-color-available={available ? 'true' : 'false'}
+              key={color}
+              type="button"
+              disabled={!available}
+              onClick={() => {
+                if (!available) return;
+                const nextSizes = productSizes(product, color);
+                const preservedSize = nextSizes.some((candidate) => normalize(candidate) === normalize(state.size)) ? state.size : '';
+                dispatch({ type: 'SET_COLOR', color, size: preservedSize });
+              }}
+              aria-label={available ? `Select ${label}` : `${label}, unavailable`}
+              aria-pressed={selected}
+              title={available ? label : `${label} — Unavailable`}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 text-sm font-bold transition ${selected ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : available ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-400' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-70'}`}
+            >
+              <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: garmentColorSwatch(product, color) }} aria-hidden="true">
+                {!available && <span className="absolute left-1/2 top-[-3px] h-7 w-px -translate-x-1/2 rotate-45 bg-slate-600" />}
+              </span>
+              <span className="text-left leading-tight"><span className="block">{label}</span>{!available && <span className="mt-0.5 block text-[8px] font-black uppercase tracking-[.08em]">Unavailable</span>}</span>
+            </button>;
           })}</div>
         </div>
 
         <div className={`rounded-2xl border bg-white p-3 sm:p-4 ${sizeRequired ? 'border-amber-300 ring-1 ring-amber-100' : 'border-slate-200'}`}>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Size</div>{sizeRequired && <span className="text-[11px] font-black text-amber-700">Required</span>}</div>
-          <div className="flex flex-wrap gap-2">{sizes.map((size) => <button key={size} type="button" onClick={() => dispatch({ type: 'SET_SIZE', size })} className={`min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold transition ${state.size === size ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}>{size}</button>)}</div>
+          <div className="flex flex-wrap gap-2">{sizes.map((size) => {
+            const sizeVariant = variantFor(product, state.color, size);
+            const available = isProductVariantAvailable(product, sizeVariant);
+            return <button key={size} type="button" disabled={!available} onClick={() => available && dispatch({ type: 'SET_SIZE', size })} title={!available ? `${size} — Unavailable` : size} className={`min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold transition ${state.size === size && available ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : available ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-400' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 line-through opacity-70'}`}>{size}</button>;
+          })}</div>
           {sizeRequired && <p className="mt-2 text-xs font-bold text-amber-700">Select a size to continue.</p>}
         </div>
 
@@ -124,7 +159,8 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
   }, [state.productId]);
 
   const chooseProduct = (item) => {
-    dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: productColors(item)[0] || '' });
+    const firstAvailableColor = productColors(item).find((candidate) => isProductColorAvailable(item, candidate)) || '';
+    dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: firstAvailableColor });
     setIsChoosingGarment(false);
   };
 
@@ -276,7 +312,11 @@ export default function CustomStudioV2() {
   }, []);
 
   const product = useMemo(() => catalog.find((item) => String(item.id) === String(state.productId)) || null, [catalog, state.productId]);
-  const canContinue = studioV2CanContinue(state);
+  const baseCanContinue = studioV2CanContinue(state);
+  const selectedGarmentVariant = state.step === 'garment' && product ? variantFor(product, state.color, state.size) : null;
+  const canContinue = state.step === 'garment'
+    ? Boolean(baseCanContinue && isProductColorAvailable(product, state.color) && isProductVariantAvailable(product, selectedGarmentVariant))
+    : baseCanContinue;
   const currentEditor = state.designPath ? state[state.designPath]?.sides?.[state.side] : null;
 
   const next = () => {

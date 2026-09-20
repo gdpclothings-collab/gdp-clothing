@@ -90,6 +90,11 @@ assert(page.includes('const selectedProduct = catalog.find'), 'selected product 
 assert(page.includes('selectedProduct && !browseGarments && <GarmentVariantControls'), 'color/size/quantity options must render only for the selected garment while focused');
 assert(page.includes('aria-pressed={selected}'), 'garment selection state must be exposed accessibly');
 assert(page.includes('data-gdp-garment-continue="true"'), 'Step 1 Continue must live inside the selected garment configurator');
+assert(page.includes("data-gdp-color-available={available ? 'true' : 'false'}"), 'V2 color swatches must expose availability state');
+assert(page.includes('disabled={!available}'), 'V2 unavailable color swatches must be disabled');
+assert(page.includes('Unavailable</span>'), 'V2 unavailable color swatches must show an Unavailable label');
+assert(page.includes('isProductColorAvailable(product, color)'), 'V2 color availability must use shared inventory-aware logic');
+assert(state.includes("...(product?.colors || [])"), 'V2 must retain configured colors so unavailable swatches remain visible');
 assert(page.includes('onContinue={next} canContinue={canContinue}'), 'inline garment Continue must reuse the canonical next/canContinue flow');
 assert(page.includes("state.step !== 'review' && state.step !== 'garment'"), 'detached bottom action bar must be hidden on the garment step');
 assert(page.includes('gdp-custom-studio-v2-actions relative'), 'V2 navigation actions must remain in normal flow instead of covering the editor');

@@ -16,7 +16,8 @@ expect(start >= 0 && end > start, 'GarmentStepV2 is present and isolated for ins
 expect(page.includes("import React, { useEffect, useMemo, useRef, useState } from 'react';"), 'focused mode uses local React state/ref only');
 expect(garmentStep.includes("const [isChoosingGarment, setIsChoosingGarment] = useState(() => !state.productId);"), 'browse/focus state is local UI state');
 expect(garmentStep.includes("const previousProductIdRef = useRef(state.productId);"), 'product changes are observed without duplicating selected product state');
-expect(garmentStep.includes("dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: productColors(item)[0] || '' });"), 'existing canonical SELECT_PRODUCT dispatch remains authoritative');
+expect(garmentStep.includes("const firstAvailableColor = productColors(item).find((candidate) => isProductColorAvailable(item, candidate)) || '';"), 'garment selection resolves the first actually available color');
+expect(garmentStep.includes("dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: firstAvailableColor });"), 'existing canonical SELECT_PRODUCT dispatch remains authoritative');
 expect((garmentStep.match(/type: 'SELECT_PRODUCT'/g) || []).length === 1, 'only one product-selection dispatch exists in GarmentStepV2');
 expect(garmentStep.includes('data-gdp-change-garment="true"'), 'Change garment control exists');
 expect(garmentStep.includes('onClick={() => setIsChoosingGarment(true)}'), 'Change garment changes presentation state only');
