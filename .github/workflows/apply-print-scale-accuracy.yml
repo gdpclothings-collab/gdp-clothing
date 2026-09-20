@@ -1,0 +1,38 @@
+name: Apply print scale accuracy patch
+
+on:
+  push:
+    branches:
+      - fix/custom-studio-print-scale-accuracy-20260919
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/custom-studio-print-scale-accuracy-20260919
+      - name: Patch customer mockup call
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/CustomStudioV2.jsx')
+          s = p.read_text()
+          old = """      const customerMockup = await renderStudioV2CustomerMockup({\n        garmentUrl: studioV2GarmentPreview(product, state.color, firstSide),\n        productionBlob: firstRendered?.blob,\n      });"""
+          new = """      const customerMockup = await renderStudioV2CustomerMockup({\n        garmentUrl: studioV2GarmentPreview(product, state.color, firstSide),\n        productionBlob: firstRendered?.blob,\n        product,\n        size: state.size,\n        side: firstSide,\n      });"""
+          if old not in s:
+              raise SystemExit('Expected customer mockup call was not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Remove one-shot workflow and commit
+        run: |
+          git rm .github/workflows/apply-print-scale-accuracy.yml
+          git add src/pages/CustomStudioV2.jsx
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sync customer mockup to selected garment print scale"
+          git push origin HEAD:fix/custom-studio-print-scale-accuracy-20260919
