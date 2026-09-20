@@ -15,8 +15,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate patcher syntax
+        run: python -m py_compile scripts/apply_free_photo_print_area.py
+
       - name: Apply scoped Photo Bootleg patch
-        run: node scripts/apply-free-photo-print-area.mjs
+        run: python scripts/apply_free_photo_print_area.py
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
