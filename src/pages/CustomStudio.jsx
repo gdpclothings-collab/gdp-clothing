@@ -1651,21 +1651,40 @@ export default function CustomStudio() {
     ? photos.findIndex((photo) => String(photo?.id || "") === String(selectedPhotoLayer.photoId || ""))
     : activePhotoIndex;
   const selectedPhotoAsset = selectedPhotoIndex >= 0 ? photos[selectedPhotoIndex] : previewArtworkPhoto;
-  const editorOutsideWarning = selectedEditorLayer
-    ? (
-        Number(selectedEditorLayer.x || 50) < 7 ||
-        Number(selectedEditorLayer.x || 50) > 93 ||
-        Number(selectedEditorLayer.y || 50) < 7 ||
-        Number(selectedEditorLayer.y || 50) > 93 ||
-        (selectedEditorLayer.type === "photo" && Number(selectedEditorLayer.size || 62) > 135)
-          ? "Part of your design is outside the printable area. Reposition or resize it before approval."
-          : ""
-      )
-    : (
-        previewArtworkPhoto && (Math.abs(Number(artworkOffset.x || 0)) > 34 || Math.abs(Number(artworkOffset.y || 0)) > 34 || artworkScale > 132)
-          ? "Part of your design may be outside the printable area. Reposition or resize it before approval."
-          : ""
-      );
+  const editorLayerOutsideSafeArea = (layer) => {
+    if (!layer || layer.visible === false) return false;
+    const x = Number(layer.x ?? 50);
+    const y = Number(layer.y ?? 50);
+    return (
+      x < 7 ||
+      x > 93 ||
+      y < 7 ||
+      y > 93 ||
+      (layer.type === "photo" && Number(layer.size ?? 62) > 135)
+    );
+  };
+  const printedEditorSides = placement === "front_back"
+    ? ["front", "back"]
+    : [placement === "back" ? "back" : "front"];
+  const unsafeEditorSide = printedEditorSides.find((side) =>
+    (editorLayersBySide[side] || []).some(editorLayerOutsideSafeArea)
+  ) || "";
+  const unsafeLegacyArtworkSide = printedEditorSides.find((side) => {
+    const state = artworkStates[side] || defaultArtworkState(styleTemplateForSide(side));
+    const offset = state.offset || { x: 0, y: 0 };
+    return Boolean(artworkPhotoForSide(side)) && (
+      Math.abs(Number(offset.x || 0)) > 34 ||
+      Math.abs(Number(offset.y || 0)) > 34 ||
+      Number(state.scale ?? 92) > 132
+    );
+  }) || "";
+  const unsafePrintSide = unsafeEditorSide || unsafeLegacyArtworkSide;
+  const hasUnsafeEditorContent = Boolean(unsafePrintSide);
+  const editorOutsideWarning = hasUnsafeEditorContent
+    ? unsafePrintSide !== previewSide
+      ? `Part of your ${unsafePrintSide} design is outside the printable area. Switch to the ${unsafePrintSide} side and reposition or resize it before approval.`
+      : "Part of your design is outside the printable area. Reposition or resize it before approval."
+    : "";
 
   const resetPreviewPlacement = () => {
     setArtworkStates((current) => ({
@@ -1991,7 +2010,7 @@ export default function CustomStudio() {
     if (step === 1) return Boolean(product) && Boolean(color) && Boolean(size) && selectedAvailable;
     if (step === 2) return Boolean(designPath);
     if (step === 3) {
-      return Boolean(orderDesignStyle) && photos.length >= minPhotos && memorialDetailsReady;
+      return Boolean(orderDesignStyle) && photos.length >= minPhotos && memorialDetailsReady && !hasUnsafeEditorContent;
     }
     if (step === 4) return rightsConfirmed && approvalAcknowledged;
     return true;
@@ -2011,6 +2030,11 @@ export default function CustomStudio() {
       if (photos.length < minPhotos) return `Upload at least ${minPhotos} photo${minPhotos === 1 ? "" : "s"} to continue.`;
       if (designPath === "memorial" && !String(personalization.name || "").trim()) return "Enter the memorial name exactly as it should be printed.";
       if (designPath === "memorial" && !memorialNameConfirmed) return "Verify the memorial name spelling to continue.";
+      if (hasUnsafeEditorContent) {
+        return unsafePrintSide && unsafePrintSide !== previewSide
+          ? `Move or resize the ${unsafePrintSide} design inside the printable area to continue.`
+          : "Move or resize every design element inside the printable area to continue.";
+      }
     }
     if (step === 4) return "Confirm both artwork rights and proof approval terms to continue.";
     return "Complete the required choices to continue.";
@@ -2207,6 +2231,12 @@ export default function CustomStudio() {
     }
     if (designPath === "memorial" && !memorialDetailsReady) {
       setWarn("Enter the memorial name and verify its spelling before approval.");
+      return;
+    }
+    if (hasUnsafeEditorContent) {
+      setWarn("Move or resize every design element inside the printable area before approval.");
+      setPreviewSide(unsafePrintSide || previewSide);
+      setStep(3);
       return;
     }
 
