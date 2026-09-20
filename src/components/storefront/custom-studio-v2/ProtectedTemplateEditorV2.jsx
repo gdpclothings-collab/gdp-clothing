@@ -201,6 +201,71 @@ function PhotoLayer({ layer, selected, zoneRef, onSelect, onTransform }) {
   );
 }
 
+
+function resolvePhotoCanvasPosition(transform = {}, zone = {}) {
+  const directX = Number(transform?.canvasX);
+  const directY = Number(transform?.canvasY);
+  if (Number.isFinite(directX) && Number.isFinite(directY)) {
+    return { x: clamp(directX, 0, 100), y: clamp(directY, 0, 100) };
+  }
+  const zoneX = Number(zone?.x ?? 15);
+  const zoneY = Number(zone?.y ?? 12);
+  const zoneWidth = Number(zone?.width ?? 70);
+  const zoneHeight = Number(zone?.height ?? 68);
+  return {
+    x: clamp(zoneX + zoneWidth / 2 + (clamp(transform?.x || 0, -48, 48) / 100) * zoneWidth, 0, 100),
+    y: clamp(zoneY + zoneHeight / 2 + (clamp(transform?.y || 0, -48, 48) / 100) * zoneHeight, 0, 100),
+  };
+}
+
+function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTransform }) {
+  const position = resolvePhotoCanvasPosition(layer.transform || {}, zone);
+  const gesture = useTouchTransformV2({
+    transform: {
+      ...(layer.transform || {}),
+      x: position.x - 50,
+      y: position.y - 50,
+    },
+    onChange: (next) => onTransform({
+      ...(layer.transform || {}),
+      scale: next.scale,
+      rotation: next.rotation,
+      canvasX: clamp(next.x + 50, 0, 100),
+      canvasY: clamp(next.y + 50, 0, 100),
+    }),
+    containerRef: canvasRef,
+    enabled: selected,
+    minScale: 30,
+    maxScale: 220,
+    minX: -50,
+    maxX: 50,
+    minY: -50,
+    maxY: 50,
+  });
+  const transform = layer.transform || {};
+  const radius = zone?.shape === 'circle' || zone?.shape === 'oval' ? '50%' : `${Number(zone?.radius || 0)}%`;
+  return (
+    <div
+      {...gesture}
+      data-gdp-bootleg-free-photo-layer="true"
+      onPointerDown={(event) => { onSelect(); gesture.onPointerDown(event); }}
+      className={`absolute origin-center overflow-hidden select-none ${selected ? 'cursor-grab ring-2 ring-cyan-400/90' : 'pointer-events-none'}`}
+      style={{
+        ...gesture.style,
+        zIndex: 5 + Number(layer.order || 0),
+        left: `${position.x}%`,
+        top: `${position.y}%`,
+        width: `${Math.max(1, Number(zone?.width ?? 70))}%`,
+        height: `${Math.max(1, Number(zone?.height ?? 68))}%`,
+        borderRadius: radius,
+        transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 220) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
+      }}
+    >
+      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-cover" />
+    </div>
+  );
+}
+
 function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransform }) {
   const gesture = useTouchTransformV2({
     transform: layer.transform,
@@ -378,8 +443,15 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 
   const photoZone = (
     <div ref={zoneRef} className="absolute overflow-hidden" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>
-      {photos.map((layer) => <PhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && (isBootleg ? activeLayer === 'photo' : !activeStickerId)} zoneRef={zoneRef} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
+      {photos.map((layer) => <PhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && !activeStickerId} zoneRef={zoneRef} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
       {!photos.length && <div className="absolute inset-0 grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90">Photo zone</div>}
+    </div>
+  );
+
+  const bootlegPhotoCanvas = (
+    <div data-gdp-bootleg-linked-photo-zone="true" data-gdp-bootleg-free-photo-canvas="true" className="absolute inset-0 overflow-hidden" style={{ zIndex: 10 }}>
+      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
+      {!photos.length && <div className="absolute grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>Photo zone</div>}
     </div>
   );
 
@@ -394,11 +466,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         <div ref={canvasRef} data-gdp-print-guide="true" aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
           <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
 
-          {isBootleg ? (
-            <div data-gdp-bootleg-linked-photo-zone="true" className="absolute inset-0" style={{ zIndex: 10, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}>
-              <div className="absolute inset-0" style={{ transformOrigin: '50% 50%', transform: `scale(${templateTransform.scale / 100}) rotate(${templateTransform.rotation}deg)` }}>{photoZone}</div>
-            </div>
-          ) : photoZone}
+          {isBootleg ? bootlegPhotoCanvas : photoZone}
 
           {template?.assetUrl ? (
             isBootleg ? (
@@ -472,6 +540,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const textAnchorRanges = isBootleg && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
   const textXSlider = isBootleg && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
   const textYSlider = isBootleg && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
+  const activePhotoCanvasPosition = isBootleg && activePhoto ? resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 }) : null;
 
   const syncTextLayers = (next, activeId = '') => {
     const latestEditor = editorRef.current || editor;
@@ -621,7 +690,16 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const patchActivePhotoTransform = (patch) => {
     if (!activePhoto) return;
     if (isBootleg) setActiveBootlegLayer('photo');
-    syncPhotos(photos.map((layer) => layer.id === activePhoto.id ? { ...layer, transform: { ...layer.transform, ...patch } } : layer), activePhoto.id);
+    syncPhotos(photos.map((layer) => {
+      if (layer.id !== activePhoto.id) return layer;
+      const nextTransform = { ...layer.transform, ...patch };
+      if (isBootleg) {
+        const position = resolvePhotoCanvasPosition(nextTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
+        if (!Number.isFinite(Number(nextTransform.canvasX))) nextTransform.canvasX = position.x;
+        if (!Number.isFinite(Number(nextTransform.canvasY))) nextTransform.canvasY = position.y;
+      }
+      return { ...layer, transform: nextTransform };
+    }), activePhoto.id);
   };
   const deleteActivePhoto = () => {
     if (!activePhoto) return;
@@ -634,7 +712,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       setError(`Photo limit reached. You can use up to ${BOOTLEG_MAX_PHOTOS} photos.`);
       return;
     }
-    const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) } };
+    const duplicatePosition = resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
+    const duplicateTransform = isBootleg
+      ? { ...activePhoto.transform, canvasX: clamp(duplicatePosition.x + 4, 0, 100), canvasY: clamp(duplicatePosition.y + 4, 0, 100) }
+      : { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) };
+    const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: duplicateTransform };
     syncPhotos([...photos, duplicate], duplicate.id);
     if (isBootleg) setActiveBootlegLayer('photo');
   };
@@ -797,7 +879,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const templatePanel = isBootleg && template ? (
     <div data-gdp-bootleg-template-controls="true" data-gdp-bootleg-panel="template" className="space-y-3 rounded-2xl border border-cyan-100 bg-cyan-50/50 p-3">
       <div className="flex items-center justify-between gap-2">
-        <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · photo zone stays linked for alignment.</p></div>
+        <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently anywhere inside the print area.</p></div>
         <button type="button" onClick={() => setActiveBootlegLayer('photo')} className="min-h-10 rounded-xl bg-cyan-600 px-3 text-xs font-black text-white">Finish Template Editing</button>
       </div>
       <RangeControl label="Template size" value={templateTransform.scale} min={BOOTLEG_TEMPLATE_MIN_SCALE} max={BOOTLEG_TEMPLATE_MAX_SCALE} suffix="%" onChange={(value) => patchTemplateTransform({ scale: value })} />
@@ -819,11 +901,24 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (isBootleg) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
         <RangeControl label="Photo size" value={activePhoto.transform?.scale || 100} min={30} max={220} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} />
-        <RangeControl label="Move left / right" value={activePhoto.transform?.x || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ x: value })} />
-        <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} />
+        {isBootleg ? <>
+          <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.x ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} />
+          <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.y ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} />
+        </> : <>
+          <RangeControl label="Move left / right" value={activePhoto.transform?.x || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ x: value })} />
+          <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} />
+        </>}
         <RangeControl label="Rotation" value={activePhoto.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} />
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
-        <button type="button" onClick={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100, rotation: 0, x: 0, y: 0 })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset selected photo</button>
+        <button type="button" onClick={() => {
+          const resetTransform = { scale: template?.defaultTransform?.scale || 100, rotation: 0, x: Number(template?.defaultTransform?.offset?.x || 0), y: Number(template?.defaultTransform?.offset?.y || 0) };
+          if (isBootleg) {
+            const resetPosition = resolvePhotoCanvasPosition(resetTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
+            patchActivePhotoTransform({ ...resetTransform, canvasX: resetPosition.x, canvasY: resetPosition.y });
+          } else {
+            patchActivePhotoTransform(resetTransform);
+          }
+        }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset selected photo</button>
       </div> : null}
     </div>
   );
@@ -880,7 +975,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   return (
     <div data-gdp-bootleg-workspace={isBootleg ? 'single-viewport' : undefined} className={`grid gap-4 xl:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.4fr)_minmax(300px,.86fr)] ${isBootleg ? 'xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden' : ''}`}>
       <section className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
-        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'GDP templates' : 'Protected GDP templates'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{isBootleg ? 'GDP template artwork is an independent editable layer. Resize, position and rotate it inside the print area; the photo zone stays linked so the frame and photo remain aligned.' : 'Memorial template artwork stays protected while your photo and text remain editable.'}</p></div>
+        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'GDP templates' : 'Protected GDP templates'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{isBootleg ? 'GDP template artwork is an independent editable layer. Resize, position and rotate it inside the print area; uploaded photos can also move independently across the printable boundary.' : 'Memorial template artwork stays protected while your photo and text remain editable.'}</p></div>
         <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>
 
         <div className="mt-5 border-t border-slate-100 pt-4"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Photo layers</p><p className="text-xs font-bold text-slate-600">{photos.length} of {BOOTLEG_MAX_PHOTOS} photos</p></div><Layers size={17} className="text-slate-400" /></div>

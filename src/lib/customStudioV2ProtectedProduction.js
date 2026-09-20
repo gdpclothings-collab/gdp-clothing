@@ -91,6 +91,57 @@ function drawCover(context, loaded, rect, transform = {}) {
   context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
 }
 
+
+function hasFreePhotoCanvasTransform(transform = {}) {
+  return Number.isFinite(Number(transform?.canvasX)) && Number.isFinite(Number(transform?.canvasY));
+}
+
+function resolveFreePhotoPosition(transform = {}, zone = {}) {
+  const zoneX = Number(zone?.x ?? 15);
+  const zoneY = Number(zone?.y ?? 12);
+  const zoneWidth = Number(zone?.width ?? 70);
+  const zoneHeight = Number(zone?.height ?? 68);
+  const directX = Number(transform?.canvasX);
+  const directY = Number(transform?.canvasY);
+  return {
+    x: Number.isFinite(directX) ? clamp(directX, 0, 100) : clamp(zoneX + zoneWidth / 2 + (clamp(transform?.x || 0, -48, 48) / 100) * zoneWidth, 0, 100),
+    y: Number.isFinite(directY) ? clamp(directY, 0, 100) : clamp(zoneY + zoneHeight / 2 + (clamp(transform?.y || 0, -48, 48) / 100) * zoneHeight, 0, 100),
+  };
+}
+
+function clipFreePhotoShape(context, zone, width, height) {
+  context.beginPath();
+  if (zone?.shape === 'circle' || zone?.shape === 'oval') {
+    context.ellipse(0, 0, width / 2, height / 2, 0, 0, Math.PI * 2);
+  } else if (typeof context.roundRect === 'function' && zone?.shape === 'rounded') {
+    const radius = Math.min(width, height) * clamp(zone?.radius || 0, 0, 50) / 100;
+    context.roundRect(-width / 2, -height / 2, width, height, radius);
+  } else {
+    context.rect(-width / 2, -height / 2, width, height);
+  }
+  context.clip();
+}
+
+function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx) {
+  const boxWidth = Math.max(1, Number(zone?.width ?? 70) / 100 * widthPx);
+  const boxHeight = Math.max(1, Number(zone?.height ?? 68) / 100 * heightPx);
+  const position = resolveFreePhotoPosition(transform, zone);
+  const centerX = position.x / 100 * widthPx;
+  const centerY = position.y / 100 * heightPx;
+  const userScale = clamp(transform?.scale || 100, 30, 220) / 100;
+  const baseScale = Math.max(boxWidth / Math.max(1, loaded.width), boxHeight / Math.max(1, loaded.height));
+  const drawWidth = loaded.width * baseScale;
+  const drawHeight = loaded.height * baseScale;
+
+  context.save();
+  context.translate(centerX, centerY);
+  context.rotate(clamp(transform?.rotation || 0, -180, 180) * Math.PI / 180);
+  context.scale(userScale, userScale);
+  clipFreePhotoShape(context, zone, boxWidth, boxHeight);
+  context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  context.restore();
+}
+
 function withTemplateTransform(context, widthPx, heightPx, transform = {}, draw) {
   const scale = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) / 100;
   const centerX = widthPx * (0.5 + clamp(transform.x ?? 0, -50, 50) / 100);
@@ -325,6 +376,10 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     for (const layer of photos) {
       const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
       try {
+        if (hasFreePhotoCanvasTransform(layer.transform || {})) {
+          drawFreePhoto(output.context, loaded, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx);
+          continue;
+        }
         const drawPhoto = () => {
           output.context.save();
           const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
