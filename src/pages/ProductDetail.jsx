@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
-import { findProductVariant, isProductOutOfStock, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
+import { findProductVariant, isProductColorAvailable, isProductOutOfStock, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
+import { resolveColorSwatch } from "@/lib/colorSwatches";
 import { PRODUCT_SELLING_MODES, onlineStoreEnabled, resolveProductSellingMode } from "@/lib/productSelling";
 
 const uniqueValues = (values = []) =>
@@ -19,7 +20,7 @@ function productOptions(product) {
   const variantSizes = uniqueValues(variants.map((variant) => variant.size));
 
   return {
-    colors: productColors.length ? productColors : variantColors,
+    colors: uniqueValues([...productColors, ...variantColors]),
     sizes: sortApparelSizes(productSizes.length ? productSizes : variantSizes),
   };
 }
@@ -94,7 +95,7 @@ export default function ProductDetail() {
 
     if (!product) return;
     const options = productOptions(product);
-    if (options.colors.length === 1) setColor(options.colors[0]);
+    if (options.colors.length === 1 && isProductColorAvailable(product, options.colors[0])) setColor(options.colors[0]);
     if (options.sizes.length === 1) setSize(options.sizes[0]);
   }, [product, navigate]);
 
@@ -153,6 +154,7 @@ export default function ProductDetail() {
   const visibleImages = galleryImages.length ? galleryImages.slice(0, 4) : [null];
 
   const selectColor = (nextColor) => {
+    if (!isProductColorAvailable(product, nextColor)) return;
     setColor(nextColor);
     setQty(1);
   };
@@ -263,11 +265,29 @@ export default function ProductDetail() {
                   <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{color || "Choose"}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {colors.map((item) => (
-                    <button key={item} onClick={() => selectColor(item)} className={"min-h-10 border px-4 text-[9px] font-black uppercase tracking-[0.12em] transition " + (color === item ? "border-black bg-black text-white" : "border-black/20 bg-transparent text-black hover:border-black")}>
-                      {item}
-                    </button>
-                  ))}
+                  {colors.map((item) => {
+                    const enabled = isProductColorAvailable(product, item);
+                    const swatch = resolveColorSwatch(product?.customization?.preview?.colorSwatches, item);
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        disabled={!enabled}
+                        onClick={() => enabled && selectColor(item)}
+                        title={!enabled ? `${item} — Unavailable` : item}
+                        aria-label={!enabled ? `${item}, unavailable` : item}
+                        className={"inline-flex min-h-10 items-center gap-2 border px-3 text-[9px] font-black uppercase tracking-[0.12em] transition " + (color === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 bg-black/[0.03] text-black/40 opacity-75")}
+                      >
+                        <span className="relative h-4 w-4 shrink-0 rounded-full border border-black/45 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]" style={{ backgroundColor: swatch }}>
+                          {!enabled && <span aria-hidden="true" className="absolute left-1/2 top-[-2px] h-5 w-px -translate-x-1/2 rotate-45 bg-black/55" />}
+                        </span>
+                        <span className="text-left leading-tight">
+                          <span className="block">{item}</span>
+                          {!enabled && <span className="mt-0.5 block font-mono text-[7px] font-bold tracking-[0.09em]">Unavailable</span>}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
