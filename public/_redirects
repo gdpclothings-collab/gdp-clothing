@@ -1,3 +1,31 @@
+/es / 301
+/es/ / 301
+/de / 301
+/de/ / 301
+
+/es/cart /cart 301
+/es/cart/ /cart 301
+/de/cart /cart 301
+/de/cart/ /cart 301
+
+/es/collections /shop 301
+/es/collections/ /shop 301
+/de/collections /shop 301
+/de/collections/ /shop 301
+
+/es/pages/contact /pages/contact 301
+/es/pages/contact/ /pages/contact 301
+/de/pages/contact /pages/contact 301
+/de/pages/contact/ /pages/contact 301
+
+/es/pages/about-us /pages/about 301
+/es/pages/about-us/ /pages/about 301
+/de/pages/about-us /pages/about 301
+/de/pages/about-us/ /pages/about 301
+
+/es/policies/refund-policy /pages/returns-refunds 301
+/es/policies/refund-policy/ /pages/returns-refunds 301
+
 /pages/privacy /privacy-policy.html 200
 /pages/privacy/ /privacy-policy.html 200
 /* /index.html 200
