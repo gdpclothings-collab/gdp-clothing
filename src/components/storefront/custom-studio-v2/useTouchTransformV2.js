@@ -69,6 +69,12 @@ export default function useTouchTransformV2({
     }
   }, []);
 
+  const suppressNativeGesture = useCallback((event) => {
+    if (!enabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, [enabled]);
+
   const onPointerDown = useCallback((event) => {
     if (!enabled) return;
     event.preventDefault();
@@ -124,6 +130,14 @@ export default function useTouchTransformV2({
     onPointerMove,
     onPointerUp: endPointer,
     onPointerCancel: endPointer,
-    style: { touchAction: enabled ? 'none' : 'auto' },
+    onContextMenu: suppressNativeGesture,
+    onDragStart: suppressNativeGesture,
+    style: {
+      touchAction: enabled ? 'none' : 'auto',
+      userSelect: enabled ? 'none' : 'auto',
+      WebkitUserSelect: enabled ? 'none' : 'auto',
+      WebkitTouchCallout: enabled ? 'none' : 'default',
+      WebkitTapHighlightColor: enabled ? 'transparent' : undefined,
+    },
   };
 }
