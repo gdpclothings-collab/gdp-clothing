@@ -60,7 +60,7 @@ state = replace_once(
 )
 
 verify_anchor = """assert(page.includes('data-gdp-garment-continue=\"true\"'), 'Step 1 Continue must live inside the selected garment configurator');\n"""
-verify_insert = verify_anchor + """assert(page.includes('data-gdp-color-available={available ? \'true\' : \'false\'}'), 'V2 color swatches must expose availability state');\nassert(page.includes('disabled={!available}'), 'V2 unavailable color swatches must be disabled');\nassert(page.includes('Unavailable</span>'), 'V2 unavailable color swatches must show an Unavailable label');\nassert(page.includes('isProductColorAvailable(product, color)'), 'V2 color availability must use shared inventory-aware logic');\nassert(state.includes(\"...(product?.colors || [])\"), 'V2 must retain configured colors so unavailable swatches remain visible');\n"""
+verify_insert = verify_anchor + """assert(page.includes(\"data-gdp-color-available={available ? 'true' : 'false'}\"), 'V2 color swatches must expose availability state');\nassert(page.includes('disabled={!available}'), 'V2 unavailable color swatches must be disabled');\nassert(page.includes('Unavailable</span>'), 'V2 unavailable color swatches must show an Unavailable label');\nassert(page.includes('isProductColorAvailable(product, color)'), 'V2 color availability must use shared inventory-aware logic');\nassert(state.includes(\"...(product?.colors || [])\"), 'V2 must retain configured colors so unavailable swatches remain visible');\n"""
 verify = replace_once(verify, verify_anchor, verify_insert, 'V2 unavailable color regression assertions')
 
 PAGE.write_text(page)
