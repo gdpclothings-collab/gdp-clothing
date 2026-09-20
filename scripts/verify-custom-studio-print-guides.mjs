@@ -25,6 +25,13 @@ if (!helper.includes('bodyVisualWidthPercent')) fail('Garment-body visual calibr
 if (helper.includes('maxVisualWidth')) fail('Legacy whole-canvas maxVisualWidth scaling is still active.');
 if (!helper.includes("source: configuredBodyWidthIn(product, size, normalizedSide)")) fail('Print-guide calibration source is not exposed for diagnostics.');
 
+const hoodieGeometry = helper.match(/hoodie:\s*\{\s*bodyVisualWidthPercent:\s*([0-9.]+)/);
+if (!hoodieGeometry) fail('Hoodie visual-body calibration is missing.');
+const hoodieBodyVisualWidth = Number(hoodieGeometry[1]);
+if (Math.abs(hoodieBodyVisualWidth - 59) > 0.01) fail(`Hoodie mockup calibration regressed: expected 59%, received ${hoodieBodyVisualWidth}%.`);
+const hoodieXLPrintCanvasPercent = Math.round(hoodieBodyVisualWidth * (11 / 26) * 10) / 10;
+if (Math.abs(hoodieXLPrintCanvasPercent - 25) > 0.1) fail(`Recorded XL hoodie 11 in print should occupy about 25% of the 4:5 preview canvas; received ${hoodieXLPrintCanvasPercent}%.`);
+
 if (!seasonal.includes('p_side: side')) fail('Seasonal library is not side-aware.');
 if (!seasonal.includes('seasonalCatalogKey(product?.id, size, side)')) fail('Seasonal catalog key does not include product, size and side.');
 if (!seasonal.includes('[product?.id, size, side]')) fail('Seasonal print guide will not recompute when product, size or side changes.');
