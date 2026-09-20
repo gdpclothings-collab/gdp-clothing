@@ -1,0 +1,46 @@
+name: Patch V2 Color Size Preservation
+
+on:
+  push:
+    branches:
+      - fix/custom-studio-mobile-editor-safety-20260919
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/custom-studio-mobile-editor-safety-20260919
+          fetch-depth: 0
+      - name: Preserve size only when valid for selected color
+        shell: python
+        run: |
+          from pathlib import Path
+
+          target = Path('src/pages/CustomStudioV2.jsx')
+          text = target.read_text()
+          old = "onClick={() => dispatch({ type: 'SET_COLOR', color })}"
+          new = "onClick={() => { const nextSizes = productSizes(product, color); const preservedSize = nextSizes.some((candidate) => normalize(candidate) === normalize(state.size)) ? state.size : ''; dispatch({ type: 'SET_COLOR', color, size: preservedSize }); }}"
+          if old not in text and new not in text:
+              raise SystemExit('Expected SET_COLOR handler was not found; refusing a broad edit.')
+          if old in text:
+              text = text.replace(old, new, 1)
+              target.write_text(text)
+
+          workflow = Path('.github/workflows/patch-v2-color-size-preservation.yml')
+          workflow.unlink(missing_ok=True)
+      - name: Commit surgical patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CustomStudioV2.jsx .github/workflows/patch-v2-color-size-preservation.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Preserve valid size when changing garment color"
+          git push origin HEAD:fix/custom-studio-mobile-editor-safety-20260919
