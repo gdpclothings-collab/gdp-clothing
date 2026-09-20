@@ -96,8 +96,11 @@ export function isProductVariantAvailable(product, variant) {
 }
 
 export function isProductColorAvailable(product, color) {
-  const variants = (product?.variants || []).filter((variant) => variant?.active !== false);
-  if (!variants.length) return true;
+  const allVariants = product?.variants || [];
+  if (!allVariants.length) return true;
+
+  const variants = allVariants.filter((variant) => variant?.active !== false);
+  if (!variants.length) return false;
 
   const wantedColor = normalizeVariantValue(color);
   const matchingVariants = variants.filter((variant) => {
