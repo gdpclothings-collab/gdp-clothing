@@ -1,0 +1,32 @@
+from pathlib import Path
+
+editor_path = Path('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx')
+verify_path = Path('scripts/verify-photo-bootleg-desktop.mjs')
+
+editor = editor_path.read_text()
+old_center = '''        {isBootleg ? <button type="button" data-gdp-bootleg-confirm-action="persistent" disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={'sticky top-2 z-40 mb-3 flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left shadow-sm transition ' + (editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500') + ' disabled:cursor-not-allowed disabled:opacity-40'}><span className={'grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ' + (editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent')}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm template, photos, layers, text and placement before review.</span></span></button> : null}'''
+new_center = '''        {usesLayerLab ? <button type="button" data-gdp-bootleg-confirm-action={isBootleg ? 'persistent' : undefined} data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined} disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={'sticky top-2 z-40 mb-3 flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left shadow-sm transition ' + (editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500') + ' disabled:cursor-not-allowed disabled:opacity-40'}><span className={'grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ' + (editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent')}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm template, photos, layers, text and placement before review.</span></span></button> : null}'''
+if editor.count(old_center) != 1:
+    raise RuntimeError(f'center confirmation anchor expected once, found {editor.count(old_center)}')
+editor = editor.replace(old_center, new_center, 1)
+
+old_side = '''        {!isBootleg ? <button type="button" disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'} disabled:cursor-not-allowed disabled:opacity-40`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm {isBootleg ? 'template, photos, layers, text and placement' : 'photos, layers, text and placement'} before review.</span></span></button> : null}'''
+new_side = '''        {!usesLayerLab ? <button type="button" disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'} disabled:cursor-not-allowed disabled:opacity-40`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm photos, layers, text and placement before review.</span></span></button> : null}'''
+if editor.count(old_side) != 1:
+    raise RuntimeError(f'side confirmation anchor expected once, found {editor.count(old_side)}')
+editor = editor.replace(old_side, new_side, 1)
+editor_path.write_text(editor)
+
+verify = verify_path.read_text()
+old_tests = '''assert(protectedV2.includes('data-gdp-bootleg-confirm-action="persistent"'), 'Photo Bootleg completion action is persistent in the live garment preview column');
+assert(protectedV2.indexOf('data-gdp-bootleg-confirm-action="persistent"') < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Photo Bootleg completion action is outside the scrollable Layer Controls inspector');
+assert(protectedV2.includes('{!isBootleg ? <button type="button" disabled={!template || !photos.length}'), 'Memorial retains its existing confirmation action in Customer Controls');'''
+new_tests = '''assert(protectedV2.includes("data-gdp-bootleg-confirm-action={isBootleg ? 'persistent' : undefined}"), 'Photo Bootleg completion action stays persistent in the live garment preview column');
+assert(protectedV2.includes("data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined}"), 'Memorial completion action is centered in the live garment preview column');
+assert(protectedV2.indexOf("data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined}") < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Memorial completion action is outside the right Layer Controls inspector');
+assert(protectedV2.includes('{!usesLayerLab ? <button type="button" disabled={!template || !photos.length}'), 'protected layer-lab paths do not duplicate confirmation inside Customer Controls');'''
+if verify.count(old_tests) != 1:
+    raise RuntimeError(f'verifier confirmation block expected once, found {verify.count(old_tests)}')
+verify_path.write_text(verify.replace(old_tests, new_tests, 1))
+
+print('Applied Memorial center-confirmation parity patch.')
