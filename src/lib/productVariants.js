@@ -95,6 +95,20 @@ export function isProductVariantAvailable(product, variant) {
   return Number(variant.stock || 0) > 0;
 }
 
+export function isProductColorAvailable(product, color) {
+  const variants = (product?.variants || []).filter((variant) => variant?.active !== false);
+  if (!variants.length) return true;
+
+  const wantedColor = normalizeVariantValue(color);
+  const matchingVariants = variants.filter((variant) => {
+    const variantColor = normalizeVariantValue(variant.color);
+    return !variantColor || variantColor === wantedColor;
+  });
+
+  if (!matchingVariants.length) return false;
+  return matchingVariants.some((variant) => isProductVariantAvailable(product, variant));
+}
+
 export function isProductOutOfStock(product) {
   const variants = (product?.variants || []).filter((variant) => variant?.active !== false);
   if (!variants.length || product?.trackInventory === false || product?.sellWhenOutOfStock === true) return false;
