@@ -203,8 +203,8 @@ export function studioV2Reducer(state, action) {
 
 export function productColors(product) {
   const variants = (product?.variants || []).filter((variant) => variant?.active !== false);
-  const values = variants.length ? variants.map((variant) => variant.color) : (product?.colors || []);
-  return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
+  const values = [...(product?.colors || []), ...variants.map((variant) => variant.color)];
+  return [...new Map(values.map((value) => String(value || '').trim()).filter(Boolean).map((value) => [value.toLowerCase(), value])).values()];
 }
 
 export function productSizes(product, color) {
