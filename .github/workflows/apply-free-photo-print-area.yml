@@ -1,9 +1,7 @@
-name: Apply scoped Custom Studio safe-boundary repair
+name: Apply Photo Bootleg full print area movement
 
 on:
   push:
-    branches:
-      - repair/custom-studio-safe-20260920
     paths:
       - ".github/workflows/apply-free-photo-print-area.yml"
 
@@ -12,52 +10,44 @@ permissions:
 
 jobs:
   apply-and-verify:
-    if: github.ref == 'refs/heads/repair/custom-studio-safe-20260920'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repair branch
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Validate scoped patcher syntax
-        run: python -m py_compile scripts/apply_custom_studio_safe_boundary_fix.py
+      - name: Validate patcher syntax
+        run: python -m py_compile scripts/apply_free_photo_print_area.py
 
-      - name: Apply scoped Custom Studio patch
-        run: python scripts/apply_custom_studio_safe_boundary_fix.py
-
-      - name: Verify only the intended source file changed
-        shell: bash
-        run: |
-          changed="$(git diff --name-only)"
-          test "$changed" = "src/pages/CustomStudio.jsx" || {
-            echo "Unexpected working-tree changes:"
-            printf '%s\n' "$changed"
-            exit 1
-          }
-          git diff --check
+      - name: Apply scoped Photo Bootleg patch
+        run: python scripts/apply_free_photo_print_area.py
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Verify Memorial Tribute contracts
-        run: npm run test:memorial
+      - name: Verify Photo Bootleg contracts
+        run: node scripts/verify-photo-bootleg-desktop.mjs
 
-      - name: Verify fresh-session state
-        run: npm run test:fresh-session
+      - name: Verify Custom Studio V2 contracts
+        run: node scripts/verify-custom-studio-v2.mjs
+
+      - name: Verify print guides
+        run: node scripts/verify-custom-studio-print-guides.mjs
 
       - name: Build production bundle
         run: npm run build
 
-      - name: Restore temporary tooling and commit only verified app result
+      - name: Check patch cleanliness
+        run: git diff --check
+
+      - name: Commit verified app changes
         shell: bash
         run: |
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/apply-free-photo-print-area.yml
-          git rm scripts/apply_custom_studio_safe_boundary_fix.py
-          git add src/pages/CustomStudio.jsx .github/workflows/apply-free-photo-print-area.yml
-          git diff --cached --check
+          if git diff --quiet; then
+            echo "No app changes were needed."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Fix Custom Studio print-area approval gating [skip ci]"
+          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx src/lib/customStudioV2ProtectedProduction.js
+          git commit -m "Let Photo Bootleg photos move across print area"
           git push
