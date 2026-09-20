@@ -370,7 +370,8 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
   const resolvedProfile = profile(product, size, side);
   const output = createCanvas(resolvedProfile, dpi);
   const templateTransform = editor.textStyle?.templateTransform || null;
-  const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true;
+  const usesFreeTextLayers = editor.textStyle?.freeTextLayout === true;
+  const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true && editor.textStyle?.photoForeground !== false;
 
   const drawPhotos = async () => {
     for (const layer of photos) {
@@ -406,7 +407,7 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     await drawTemplate();
   }
 
-  if (bootlegPhotoForeground) {
+  if (usesFreeTextLayers) {
     const bootlegTextLayers = resolveBootlegTextLayers(editor, editor.textStyle || {}).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     for (const layer of bootlegTextLayers) {
       drawStyledText(output.context, layer.text || {}, template.textZone || {}, layer.style || {}, output.widthPx, output.heightPx);

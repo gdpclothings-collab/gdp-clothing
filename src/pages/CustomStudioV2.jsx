@@ -365,6 +365,8 @@ export default function CustomStudioV2() {
             photos: protectedPhotos.map((layer) => ({ id: layer.id, path: layer.asset?.path || '', transform: layer.transform || {}, order: Number(layer.order || 0), backgroundMode: layer.asset?.backgroundMode || 'original' })),
             stickers: (editor.stickers || []).map((layer) => ({ id: layer.id, stickerId: layer.stickerId, glyph: layer.glyph || '', assetUrl: layer.assetUrl || '', transform: layer.transform || {}, order: Number(layer.order || 0) })),
             text: editor.text || {},
+            textLayers: (editor.textLayers || []).map((layer) => ({ id: layer.id, name: layer.name || '', role: layer.role || '', text: layer.text || {}, style: layer.style || {}, order: Number(layer.order || 0), visible: layer.visible !== false })),
+            activeTextLayerId: editor.activeTextLayerId || '',
             textStyle: editor.textStyle || {},
             printArea: resolveStudioV2PrintProfile(product, state.size, side),
           };

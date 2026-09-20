@@ -69,11 +69,11 @@ assert(protectedV2.includes('No preset maximum'), 'Bootleg text size control com
 assert(protectedV2.includes('Number.POSITIVE_INFINITY'), 'direct Bootleg text pinch scaling has no configured upper size cap');
 assert(protectedV2.includes('freeTextLayout: true'), 'Bootleg text opts into full-print-area production layout');
 assert(protectedV2.includes('canvasX') && protectedV2.includes('canvasY'), 'Bootleg text stores full-print-area coordinates');
-assert(protectedV2.includes('data-gdp-bootleg-active-layer="true"'), 'Bootleg exposes explicit active-layer selection');
+assert(protectedV2.includes("data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined}"), 'Bootleg exposes explicit active-layer selection without leaking its marker into Memorial');
 assert(protectedV2.includes("activeLayer === 'text'"), 'only the selected text layer receives direct text gestures');
 assert(protectedV2.includes("activeLayer === 'photo'"), 'only the selected photo layer receives direct photo gestures');
 assert(protectedV2.includes("activeLayer === 'template'"), 'only the selected template layer receives direct template gestures');
-assert(protectedV2.includes('data-gdp-bootleg-linked-photo-zone="true"'), 'photo zone is linked to the editable template transform');
+assert(protectedV2.includes("data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined}"), 'Bootleg photo zone remains linked without applying Bootleg foreground stacking to Memorial');
 assert(protectedV2.includes('data-gdp-bootleg-sticky-preview'), 'Bootleg live garment preview remains isolated from inspector scrolling');
 assert(protectedV2.includes('data-gdp-bootleg-inspector-scroll'), 'Bootleg personalization controls use their own desktop scroll rail');
 assert(protectedV2.includes('data-gdp-bootleg-print-boundary-warning="true"'), 'unbounded text gets a non-blocking print-area overflow warning');
@@ -102,7 +102,7 @@ assert(protectedV2.includes("activeBootlegLayer === 'text' ? textPanel"), 'Text 
 assert(protectedV2.includes('data-gdp-bootleg-workspace={isBootleg ? \'single-viewport\' : undefined}'), 'Bootleg uses a dedicated single-viewport desktop workspace contract');
 assert(protectedV2.includes('xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden'), 'desktop workspace owns a viewport-bounded height instead of growing the page with the inspector');
 assert(protectedV2.includes("style={isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}"), 'garment preview is viewport-fitted so the full preview remains visible');
-assert(protectedV2.includes('data-gdp-bootleg-active-status="true"'), 'active layer gets a persistent visible editing label');
+assert(protectedV2.includes("data-gdp-bootleg-active-status={isBootleg ? 'true' : undefined}"), 'Bootleg active-layer status remains explicitly scoped');
 assert(protectedV2.includes('data-gdp-bootleg-upload-status="true"'), 'background processing gets a visible canvas-adjacent progress status');
 assert(protectedV2.includes('Finish Template Editing'), 'template completion wording is explicit instead of ambiguous Done editing');
 assert(protectedV2.includes("photos.length ? 'Add another photo' : 'Add first photo'"), 'photo add action clearly distinguishes first and additional photos');
@@ -123,6 +123,19 @@ assert(!protectedV2.includes("'Dates' : 'Subline'"), 'Photo Bootleg no longer ex
 assert(protectedV2.includes('data-gdp-bootleg-confirm-action="persistent"'), 'Photo Bootleg completion action is persistent in the live garment preview column');
 assert(protectedV2.indexOf('data-gdp-bootleg-confirm-action="persistent"') < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Photo Bootleg completion action is outside the scrollable Layer Controls inspector');
 assert(protectedV2.includes('{!isBootleg ? <button type="button" disabled={!template || !photos.length}'), 'Memorial retains its existing confirmation action in Customer Controls');
+
+// Memorial Tribute now reuses the proven protected-layer interaction engine while
+// preserving protected artwork contents and Memorial-specific production stacking.
+assert(protectedV2.includes("const usesLayerLab = isBootleg || isMemorial"), 'Bootleg and Memorial share the protected layer-lab interaction engine');
+assert(protectedV2.includes('resolveMemorialTextLayers'), 'Memorial legacy Name/Dates/Message can migrate into independent text layers');
+assert(protectedV2.includes('buildMemorialTextStatePatch'), 'Memorial text layers mirror canonical Name/Dates/Message state');
+assert(protectedV2.includes("photoForeground: false"), 'Memorial keeps customer photos behind the protected template artwork');
+assert(protectedV2.includes('data-gdp-memorial-free-photo-zone'), 'Memorial customer photos use full print-area coordinates without Bootleg layer-order CSS');
+assert(protectedV2.includes('data-gdp-memorial-template-layer'), 'Memorial whole-template placement has a dedicated transformable layer marker');
+assert(protectedV2.includes('data-gdp-memorial-text-layer'), 'Memorial exposes independent direct-manipulation text layers');
+assert(protectedV2.includes("role: 'custom'"), 'Memorial can add independent custom wording without overwriting Name/Dates/Message roles');
+assert(protectedProduction.includes('const usesFreeTextLayers = editor.textStyle?.freeTextLayout === true'), 'production multi-text rendering is independent from photo foreground ordering');
+assert(protectedProduction.includes('editor.textStyle?.photoForeground !== false'), 'production preserves Bootleg foreground photos while allowing Memorial template overlay');
 
 assert(bootlegTextLayout.includes('curveGlyphs'), 'shared Bootleg layout owns dynamic per-glyph curve geometry');
 assert(bootlegTextLayout.includes('relativeBounds'), 'shared Bootleg layout exposes visible bounds for boundary-aware movement');
