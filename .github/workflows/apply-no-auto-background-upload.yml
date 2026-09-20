@@ -1,0 +1,45 @@
+name: Apply no-auto-background photo upload
+
+on:
+  push:
+    branches:
+      - refine/photo-upload-no-auto-bg
+    paths:
+      - scripts/apply-no-auto-background-upload.mjs
+      - .github/workflows/apply-no-auto-background-upload.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refine/photo-upload-no-auto-bg
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply isolated editor patch
+        run: node scripts/apply-no-auto-background-upload.mjs
+      - name: Verify intended markers
+        run: |
+          grep -q 'data-gdp-photo-upload-guidance="transparent-recommended"' src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx
+          ! grep -q 'customerApi.removePhotoBackground(' src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx
+          ! grep -q 'Retry Background Removal' src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo 'No patch changes detected.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx
+          git commit -m 'refine: upload original photos without automatic background removal'
+          git push origin HEAD:refine/photo-upload-no-auto-bg
