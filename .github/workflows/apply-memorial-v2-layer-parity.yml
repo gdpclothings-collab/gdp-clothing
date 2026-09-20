@@ -1,0 +1,62 @@
+name: Apply Memorial V2 layer parity safely
+
+on:
+  push:
+    branches:
+      - fix/custom-studio-v2-safe-parity
+    paths:
+      - "scripts/apply_memorial_v2_layer_parity.py"
+      - ".github/workflows/apply-memorial-v2-layer-parity.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-verify-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout safety branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/custom-studio-v2-safe-parity
+
+      - name: Validate patcher syntax
+        run: python -m py_compile scripts/apply_memorial_v2_layer_parity.py
+
+      - name: Apply scoped V2 patch
+        run: python scripts/apply_memorial_v2_layer_parity.py
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify Photo Bootleg and Memorial contracts
+        run: node scripts/verify-photo-bootleg-desktop.mjs
+
+      - name: Verify Custom Studio V2 contracts
+        run: node scripts/verify-custom-studio-v2.mjs
+
+      - name: Verify print guides
+        run: node scripts/verify-custom-studio-print-guides.mjs
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Check diff cleanliness
+        run: git diff --check
+
+      - name: Commit only verified application changes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No application changes were needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx \
+            src/lib/customStudioV2ProtectedProduction.js \
+            src/pages/CustomStudioV2.jsx \
+            scripts/verify-photo-bootleg-desktop.mjs
+          git commit -m "Give Memorial Studio protected layer parity"
+          git push
