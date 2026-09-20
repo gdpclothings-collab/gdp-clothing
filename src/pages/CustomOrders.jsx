@@ -19,6 +19,17 @@ const initialForm = {
   website: "",
 };
 
+const intakeHighlights = [
+  { Icon: PackageCheck, title: "Quantity first", copy: "We size the job properly." },
+  { Icon: ShieldCheck, title: "Clear intake", copy: "Fewer missing details." },
+  { Icon: Sparkles, title: "Artwork aware", copy: "Ready art gets identified early." },
+];
+
+function localDateInputValue(date = new Date()) {
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
+}
+
 export default function CustomOrders() {
   const location = useLocation();
   const [form, setForm] = useState(initialForm);
@@ -103,11 +114,7 @@ export default function CustomOrders() {
               Shirts, hoodies, team orders, business apparel and DTF transfers. Share the essentials once and GDP can prioritize the right jobs faster.
             </p>
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
-              {[
-                [PackageCheck, "Quantity first", "We size the job properly."],
-                [ShieldCheck, "Clear intake", "Fewer missing details."],
-                [Sparkles, "Artwork aware", "Ready art gets identified early."],
-              ].map(([Icon, title, copy]) => (
+              {intakeHighlights.map(({ Icon, title, copy }) => (
                 <div key={title} className="rounded-2xl border border-[#e3e4e8] bg-[#fafafa] p-4">
                   <Icon size={20} className="text-[#a70f2d]" />
                   <div className="mt-2 text-sm font-extrabold">{title}</div>
@@ -160,7 +167,7 @@ export default function CustomOrders() {
               </select>
             </Field>
 
-            <Field label="Needed by"><input type="date" min={new Date().toISOString().slice(0, 10)} value={form.deadline} onChange={update("deadline")} className={inputClass} /></Field>
+            <Field label="Needed by"><input type="date" min={localDateInputValue()} value={form.deadline} onChange={update("deadline")} className={inputClass} /></Field>
             <Field label="Preferred contact *">
               <select required value={form.preferredContact} onChange={update("preferredContact")} className={inputClass}>
                 <option value="email">Email</option>
