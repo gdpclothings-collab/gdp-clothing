@@ -382,6 +382,9 @@ export default function CustomStudioV2() {
       const customerMockup = await renderStudioV2CustomerMockup({
         garmentUrl: studioV2GarmentPreview(product, state.color, firstSide),
         productionBlob: firstRendered?.blob,
+        product,
+        size: state.size,
+        side: firstSide,
       });
       const mockupFile = new File(
         [customerMockup.blob],
