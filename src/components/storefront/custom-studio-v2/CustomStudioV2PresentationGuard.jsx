@@ -21,6 +21,17 @@ export default function CustomStudioV2PresentationGuard() {
 
     let animationFrame = 0;
 
+    const neutralizePrintingTerms = (value) => String(value || '')
+      .replace(/DTF file guidelines/gi, 'File guidelines')
+      .replace(/DTF printing disclaimer/gi, 'Printing disclaimer')
+      .replace(/DTF print care/gi, 'Print care')
+      .replace(/DTF print guide/gi, 'print guide')
+      .replace(/DTF production/gi, 'production')
+      .replace(/DTF printing/gi, 'printing')
+      .replace(/DTF prints/gi, 'prints')
+      .replace(/DTF print/gi, 'print')
+      .replace(/\bDTF\b/gi, 'printing');
+
     const syncPresentationLabels = () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
@@ -52,6 +63,22 @@ export default function CustomStudioV2PresentationGuard() {
         if (browseDescription?.getAttribute('aria-label') !== neutralBrowseDescription) {
           browseDescription?.setAttribute('aria-label', neutralBrowseDescription);
         }
+
+        root.querySelectorAll('[data-gdp-garment-info="true"] [role="dialog"]').forEach((dialog) => {
+          const label = dialog.getAttribute('aria-label') || '';
+          if (/what is dtf printing/i.test(label)) return;
+
+          const neutralLabel = neutralizePrintingTerms(label);
+          if (neutralLabel !== label) dialog.setAttribute('aria-label', neutralLabel);
+
+          const walker = document.createTreeWalker(dialog, NodeFilter.SHOW_TEXT);
+          const textNodes = [];
+          while (walker.nextNode()) textNodes.push(walker.currentNode);
+          textNodes.forEach((node) => {
+            const nextValue = neutralizePrintingTerms(node.nodeValue);
+            if (nextValue !== node.nodeValue) node.nodeValue = nextValue;
+          });
+        });
       });
     };
 
@@ -62,6 +89,7 @@ export default function CustomStudioV2PresentationGuard() {
       subtree: true,
       attributes: true,
       attributeFilter: ['aria-label'],
+      characterData: true,
     });
 
     return () => {
