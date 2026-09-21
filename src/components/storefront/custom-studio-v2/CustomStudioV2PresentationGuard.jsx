@@ -31,7 +31,10 @@ export default function CustomStudioV2PresentationGuard() {
 
           const dimensions = match[1].replace(/\s*x\s*/i, ' × ').replace(/\s*×\s*/g, ' × ');
           const frame = guide.parentElement;
-          if (frame) frame.setAttribute('data-gdp-print-size', `Print size · ${dimensions}`);
+          const printSizeLabel = `Print size · ${dimensions}`;
+          if (frame?.getAttribute('data-gdp-print-size') !== printSizeLabel) {
+            frame?.setAttribute('data-gdp-print-size', printSizeLabel);
+          }
 
           const neutralAriaLabel = `Print area · ${dimensions}`;
           if (guide.getAttribute('aria-label') !== neutralAriaLabel) {
@@ -40,11 +43,14 @@ export default function CustomStudioV2PresentationGuard() {
         });
 
         const printingTypeButton = root.querySelector('[data-gdp-garment-info="true"] > div:first-child > button');
-        if (printingTypeButton) printingTypeButton.setAttribute('aria-label', 'Printing type');
+        if (printingTypeButton?.getAttribute('aria-label') !== 'Printing type') {
+          printingTypeButton?.setAttribute('aria-label', 'Printing type');
+        }
 
         const browseDescription = root.querySelector('[data-gdp-garment-mode="browse"] > div:first-child > p:last-child');
-        if (browseDescription) {
-          browseDescription.setAttribute('aria-label', 'Choose a garment first. After selection, the gallery collapses so you can focus on colour, size, quantity and printing details.');
+        const neutralBrowseDescription = 'Choose a garment first. After selection, the gallery collapses so you can focus on colour, size, quantity and printing details.';
+        if (browseDescription?.getAttribute('aria-label') !== neutralBrowseDescription) {
+          browseDescription?.setAttribute('aria-label', neutralBrowseDescription);
         }
       });
     };
