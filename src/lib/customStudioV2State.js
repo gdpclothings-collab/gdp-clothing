@@ -3,8 +3,7 @@ import { sortApparelSizes } from './productVariants.js';
 export const STUDIO_V2_STEPS = [
   { id: 'garment', label: 'Garment' },
   { id: 'design', label: 'Choose Design' },
-  { id: 'customize', label: 'Customize' },
-  { id: 'approval', label: 'Approval' },
+  { id: 'customize', label: 'Customize & Approve' },
   { id: 'review', label: 'Review' },
 ];
 
@@ -237,7 +236,9 @@ export function studioV2CanContinue(state) {
   if (state.step === 'customize') {
     const sides = studioV2PrintableSides(state);
     if (!sides.length) return false;
-    return sides.every((side) => Boolean(state[state.designPath]?.sides?.[side]?.confirmed));
+    const sidesConfirmed = sides.every((side) => Boolean(state[state.designPath]?.sides?.[side]?.confirmed));
+    const rightsRequired = state.designPath !== 'seasonal';
+    return Boolean(sidesConfirmed && state.approval.finalDesignApproved && (!rightsRequired || state.approval.rightsConfirmed));
   }
   if (state.step === 'approval') {
     const rightsRequired = state.designPath !== 'seasonal';
