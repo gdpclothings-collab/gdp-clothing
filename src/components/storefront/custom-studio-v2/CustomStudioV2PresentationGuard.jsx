@@ -71,7 +71,8 @@ export default function CustomStudioV2PresentationGuard() {
           const neutralLabel = neutralizePrintingTerms(label);
           if (neutralLabel !== label) dialog.setAttribute('aria-label', neutralLabel);
 
-          const walker = document.createTreeWalker(dialog, NodeFilter.SHOW_TEXT);
+          const textNodeFilter = window.NodeFilter?.SHOW_TEXT ?? 4;
+          const walker = document.createTreeWalker(dialog, textNodeFilter);
           const textNodes = [];
           while (walker.nextNode()) textNodes.push(walker.currentNode);
           textNodes.forEach((node) => {
