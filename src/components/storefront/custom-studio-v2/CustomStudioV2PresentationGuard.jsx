@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import CustomStudioV2 from '@/pages/CustomStudioV2';
 import './customStudioV2MobileRepair.css';
 import './customStudioV2ApprovalRefinement.css';
 import './photoBootlegLayerOrder.css';
+import './customStudioV2PresentationCleanup.css';
 
 /**
  * Presentation-only boundary for the rebuilt Custom Studio.
@@ -12,8 +13,59 @@ import './photoBootlegLayerOrder.css';
  * silently change customer design data or fulfillment behavior.
  */
 export default function CustomStudioV2PresentationGuard() {
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof MutationObserver === 'undefined') return undefined;
+
+    let animationFrame = 0;
+
+    const syncPresentationLabels = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        root.querySelectorAll('[data-gdp-print-guide="true"]').forEach((guide) => {
+          const source = guide.getAttribute('aria-label') || guide.textContent || '';
+          const match = source.match(/(\d+(?:\.\d+)?\s*[×x]\s*\d+(?:\.\d+)?\s*in)/i);
+          if (!match) return;
+
+          const dimensions = match[1].replace(/\s*x\s*/i, ' × ').replace(/\s*×\s*/g, ' × ');
+          const frame = guide.parentElement;
+          if (frame) frame.setAttribute('data-gdp-print-size', `Print size · ${dimensions}`);
+
+          const neutralAriaLabel = `Print area · ${dimensions}`;
+          if (guide.getAttribute('aria-label') !== neutralAriaLabel) {
+            guide.setAttribute('aria-label', neutralAriaLabel);
+          }
+        });
+
+        const printingTypeButton = root.querySelector('[data-gdp-garment-info="true"] > div:first-child > button');
+        if (printingTypeButton) printingTypeButton.setAttribute('aria-label', 'Printing type');
+
+        const browseDescription = root.querySelector('[data-gdp-garment-mode="browse"] > div:first-child > p:last-child');
+        if (browseDescription) {
+          browseDescription.setAttribute('aria-label', 'Choose a garment first. After selection, the gallery collapses so you can focus on colour, size, quantity and printing details.');
+        }
+      });
+    };
+
+    syncPresentationLabels();
+    const observer = new MutationObserver(syncPresentationLabels);
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['aria-label'],
+    });
+
+    return () => {
+      observer.disconnect();
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+    };
+  }, []);
+
   return (
-    <div data-gdp-studio-v2-guard="true" className="min-w-0 max-w-full overflow-x-clip">
+    <div ref={rootRef} data-gdp-studio-v2-guard="true" className="min-w-0 max-w-full overflow-x-clip">
       <CustomStudioV2 />
     </div>
   );
