@@ -1,0 +1,93 @@
+/*
+ * Customer-facing Custom Studio presentation cleanup.
+ *
+ * Keep these refinements presentation-only so editor state, confirmation state,
+ * print geometry, production rendering, pricing, inventory, uploads and cart
+ * behavior remain untouched.
+ */
+
+/*
+ * Step 3 now owns the shared side-finish action. Hide the older per-editor
+ * confirmation buttons, but explicitly preserve the shared Step 3 control.
+ */
+[data-gdp-studio-v2-guard]
+  button[aria-pressed][class*="min-h-[60px]"]:not([data-gdp-step3-finish-side="true"]) {
+  display: none !important;
+}
+
+/* Remove the redundant DTF status pill from the selected-garment summary. */
+[data-gdp-selected-garment-options="true"] > div:first-child > div:last-child {
+  display: none !important;
+}
+
+/* Replace the browse-mode DTF wording without touching garment workflow logic. */
+[data-gdp-garment-mode="browse"] > div:first-child > p:last-child {
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+[data-gdp-garment-mode="browse"] > div:first-child > p:last-child::after {
+  content: "Choose a garment first. After selection, the gallery collapses so you can focus on colour, size, quantity and printing details.";
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
+/*
+ * Keep printing-method details hidden until the customer deliberately opens
+ * the Printing type control. The existing button behavior/modal is preserved.
+ */
+[data-gdp-garment-info="true"] > div:first-child > div:first-child {
+  display: none !important;
+}
+
+[data-gdp-garment-info="true"] > div:first-child {
+  justify-content: flex-end;
+}
+
+[data-gdp-garment-info="true"] > div:first-child > button {
+  font-size: 0 !important;
+}
+
+[data-gdp-garment-info="true"] > div:first-child > button > svg {
+  display: none !important;
+}
+
+[data-gdp-garment-info="true"] > div:first-child > button::after {
+  content: "Printing type";
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1rem;
+}
+
+/*
+ * The old in-box print-guide badge is hidden. CustomStudioV2PresentationGuard
+ * mirrors its dynamic dimensions to the garment-preview frame so the label is
+ * shown outside the printable area as "Print size · W × H in".
+ */
+[data-gdp-print-guide="true"] > span:first-child {
+  display: none !important;
+}
+
+[data-gdp-print-size]::before {
+  content: attr(data-gdp-print-size);
+  position: absolute;
+  top: 0.65rem;
+  left: 50%;
+  z-index: 70;
+  transform: translateX(-50%);
+  max-width: calc(100% - 1.5rem);
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgb(226 232 240 / 0.95);
+  border-radius: 0.55rem;
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 2px 10px rgb(15 23 42 / 0.08);
+  color: rgb(51 65 85);
+  font-size: 0.65rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+  pointer-events: none;
+}
