@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, Search, ShoppingBag, User, X } from "lucide-react";
+import { LogOut, Menu, Search, ShoppingBag, User, X } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
+import { useAuth } from "@/lib/AuthContext";
 import { isLandingDraftPreview, storefrontContentApi } from "@/lib/storefrontContentApi";
 import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
 
@@ -60,6 +61,7 @@ function AnnouncementLink({ announcement }) {
 
 export default function StoreNav() {
   const { itemCount } = useCart();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const headerRef = useRef(null);
@@ -68,6 +70,7 @@ export default function StoreNav() {
   const [query, setQuery] = useState("");
   const [navItems, setNavItems] = useState(FALLBACK_NAV);
   const [landing, setLanding] = useState(DEFAULT_LANDING_PAGE);
+  const [signingOut, setSigningOut] = useState(false);
   const previewDraft = isLandingDraftPreview();
 
   useEffect(() => {
@@ -130,6 +133,18 @@ export default function StoreNav() {
 
   const closeMobileNavigation = () => {
     setMenuOpen(false);
+  };
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      setMenuOpen(false);
+      await logout(true);
+    } catch (error) {
+      console.error("Sign out failed:", error);
+      setSigningOut(false);
+    }
   };
 
   const submitSearch = (event) => {
@@ -264,6 +279,17 @@ export default function StoreNav() {
             <Link to="/account" onClick={closeMobileNavigation} className="flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">
               Account <User size={20} className="text-white/50" />
             </Link>
+            {user && (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="flex w-full items-center justify-between border-b border-white/10 py-5 text-left text-3xl font-black uppercase tracking-tight text-white disabled:cursor-wait disabled:opacity-60"
+              >
+                {signingOut ? "Signing Out…" : "Sign Out"}
+                <LogOut size={20} className="text-white/50" />
+              </button>
+            )}
           </nav>
         </div>
       )}
