@@ -75,7 +75,9 @@ for (const path of ['seasonal', 'bootleg', 'memorial', 'upload']) {
   assert(state.includes(`id: '${path}'`), `${path} design path is missing from V2 state`);
   assert(page.includes(`state.designPath === '${path}'`) || page.includes(`state.designPath === 'bootleg' || state.designPath === 'memorial'`), `${path} editor is not wired in V2`);
 }
-assert(state.includes("{ id: 'approval', label: 'Approval' }"), 'Timing & Approval step is missing');
+assert(state.includes("{ id: 'customize', label: 'Customize & Approve' }"), 'Step 3 Customize & Approve flow is missing');
+assert(!state.includes("{ id: 'approval', label: 'Approval' }"), 'legacy standalone Approval step must stay removed');
+assert(page.includes('data-gdp-step3-approval="true"'), 'Step 3 approval panel is missing');
 assert(state.includes('sides: pathSides'), 'front/back editor state must be independent');
 assert(state.includes('studioV2PrintableSides'), 'printable-side resolver is missing');
 assert(state.includes('photos: []'), 'protected editor multi-photo state is missing');

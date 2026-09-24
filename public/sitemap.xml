@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://gdpclothing.ca/</loc></url>
-  <url><loc>https://gdpclothing.ca/shop</loc></url>
-  <url><loc>https://gdpclothing.ca/custom-studio</loc></url>
-  <url><loc>https://gdpclothing.ca/custom-orders</loc></url>
-  <url><loc>https://gdpclothing.ca/dtf</loc></url>
-  <url><loc>https://gdpclothing.ca/products/dtf-gang-sheet</loc></url>
-  <url><loc>https://gdpclothing.ca/faq</loc></url>
-  <url><loc>https://gdpclothing.ca/pages/about</loc></url>
-  <url><loc>https://gdpclothing.ca/pages/contact</loc></url>
-  <url><loc>https://gdpclothing.ca/pages/shipping-delivery</loc></url>
-  <url><loc>https://gdpclothing.ca/pages/returns-refunds</loc></url>
-  <url><loc>https://gdpclothing.ca/pages/privacy</loc></url>
-  <url><loc>https://gdpclothing.ca/pages/terms</loc></url>
+  <url><loc>https://gdpclothing.ca/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://gdpclothing.ca/shop</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://gdpclothing.ca/custom-studio</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://gdpclothing.ca/custom-orders</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gdpclothing.ca/dtf</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gdpclothing.ca/products/dtf-gang-sheet</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gdpclothing.ca/faq</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://gdpclothing.ca/pages/about</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://gdpclothing.ca/pages/contact</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://gdpclothing.ca/pages/shipping-delivery</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://gdpclothing.ca/pages/returns-refunds</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://gdpclothing.ca/pages/privacy</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://gdpclothing.ca/pages/terms</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
 </urlset>
