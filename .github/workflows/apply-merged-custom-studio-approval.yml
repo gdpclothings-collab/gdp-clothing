@@ -48,3 +48,5 @@ jobs:
           git add src/pages/CustomStudioV2.jsx src/lib/customStudioV2State.js scripts/verify-custom-studio-v2-approval-refinement.mjs
           git commit -m "Merge Custom Studio finish and print approval"
           git push
+
+# Triggered intentionally after the workflow existed so the scoped patch can be verified before commit.
