@@ -1,0 +1,37 @@
+name: Repair production smoke product route selector
+
+on:
+  push:
+    paths:
+      - ".github/workflows/repair-production-smoke-product-route.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Repair only stale product-link selector
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/production-smoke.mjs')
+          s = p.read_text()
+          old = "page.locator('a[href^=\"/product/\"]')"
+          new = "page.locator('a[href^=\"/products/\"], a[href^=\"/product/\"]')"
+          count = s.count(old)
+          if count != 2:
+              raise SystemExit(f'Expected exactly 2 stale product selectors, found {count}; refusing broader change.')
+          p.write_text(s.replace(old, new))
+          PY
+          git diff --check
+          git diff -- scripts/production-smoke.mjs
+      - name: Commit canary-only repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/production-smoke.mjs
+          git commit -m "Fix production smoke product route discovery"
+          git push
