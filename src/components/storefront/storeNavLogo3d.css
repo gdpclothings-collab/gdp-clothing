@@ -1,0 +1,58 @@
+.gdp-logo-3d-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 720px;
+}
+
+.gdp-logo-3d-spinner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+  will-change: transform;
+  animation: gdp-logo-3d-spin 9s linear infinite;
+}
+
+.gdp-logo-3d-spinner::before,
+.gdp-logo-3d-spinner::after {
+  content: "";
+  position: absolute;
+  inset: 8% 10%;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.28;
+  transform: translateZ(-3px);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.18);
+}
+
+.gdp-logo-3d-spinner::after {
+  opacity: 0.14;
+  transform: translateZ(-6px);
+}
+
+.gdp-logo-3d-spinner > img {
+  position: relative;
+  z-index: 1;
+  backface-visibility: visible;
+  transform: translateZ(3px);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+
+.gdp-logo-3d-stage[data-menu-open="true"] .gdp-logo-3d-spinner {
+  animation-play-state: paused;
+}
+
+@keyframes gdp-logo-3d-spin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gdp-logo-3d-spinner {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
+}
