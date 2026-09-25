@@ -8,6 +8,7 @@ import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
 import SeasonalStudioRuntimeGuard from "./SeasonalStudioRuntimeGuard";
 import CustomStudioShellEnhancer from "./CustomStudioShellEnhancer";
 import CustomStudioNavigationDock from "./CustomStudioNavigationDock";
+import "./storeNavGlow.css";
 import "./customStudioMobile.css";
 import "./customStudioDesktop.css";
 import "./seasonalStudioMobile.css";
