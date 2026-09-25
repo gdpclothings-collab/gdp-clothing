@@ -5,294 +5,81 @@ import { useCart } from "@/lib/CartContext";
 import { useAuth } from "@/lib/AuthContext";
 import { isLandingDraftPreview, storefrontContentApi } from "@/lib/storefrontContentApi";
 import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
+import "./storeNavLogo3d.css";
 
 const FALLBACK_NAV = [
-  { label: "Home", path: "/" },
-  { label: "Shop", path: "/shop" },
-  { label: "DTF", path: "/dtf" },
-  { label: "Collections", path: "/shop?view=collections" },
-  { label: "Custom Studio", path: "/custom-studio" },
-  { label: "About", path: "/pages/about" },
-  { label: "Contact", path: "/pages/contact" },
+  { label: "Home", path: "/" }, { label: "Shop", path: "/shop" }, { label: "DTF", path: "/dtf" },
+  { label: "Collections", path: "/shop?view=collections" }, { label: "Custom Studio", path: "/custom-studio" },
+  { label: "About", path: "/pages/about" }, { label: "Contact", path: "/pages/contact" },
 ];
 
 function normalizeNavigationItem(item) {
   const path = String(item?.path || "");
   const pathname = path.split("?")[0].split("#")[0].replace(/\/$/, "") || "/";
-  if (pathname === "/custom-studio" || pathname === "/design") {
-    return { ...item, label: "Custom Studio" };
-  }
+  if (pathname === "/custom-studio" || pathname === "/design") return { ...item, label: "Custom Studio" };
   return item;
 }
 
 function ManagedLogo({ src, fallbackSrc, alt, className }) {
   const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
-
-  useEffect(() => {
-    setCurrentSrc(src || fallbackSrc);
-  }, [src, fallbackSrc]);
-
-  return (
-    <img
-      src={currentSrc}
-      alt={alt}
-      className={className}
-      onError={() => {
-        if (currentSrc !== fallbackSrc) setCurrentSrc(fallbackSrc);
-      }}
-    />
-  );
+  useEffect(() => { setCurrentSrc(src || fallbackSrc); }, [src, fallbackSrc]);
+  return <img src={currentSrc} alt={alt} className={className} onError={() => { if (currentSrc !== fallbackSrc) setCurrentSrc(fallbackSrc); }} />;
 }
 
 function AnnouncementLink({ announcement }) {
-  const content = (
-    <>
-      <span>{announcement.text}</span>
-      {announcement.linkLabel && <span className="ml-2 underline underline-offset-2">{announcement.linkLabel}</span>}
-    </>
-  );
-
+  const content = <><span>{announcement.text}</span>{announcement.linkLabel && <span className="ml-2 underline underline-offset-2">{announcement.linkLabel}</span>}</>;
   if (!announcement.url) return <div>{content}</div>;
-  if (/^https?:\/\//i.test(announcement.url)) {
-    return <a href={announcement.url}>{content}</a>;
-  }
+  if (/^https?:\/\//i.test(announcement.url)) return <a href={announcement.url}>{content}</a>;
   return <Link to={announcement.url}>{content}</Link>;
 }
 
 export default function StoreNav() {
-  const { itemCount } = useCart();
-  const { user, logout } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const headerRef = useRef(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [navItems, setNavItems] = useState(FALLBACK_NAV);
-  const [landing, setLanding] = useState(DEFAULT_LANDING_PAGE);
-  const [signingOut, setSigningOut] = useState(false);
-  const previewDraft = isLandingDraftPreview();
+  const { itemCount } = useCart(); const { user, logout } = useAuth(); const location = useLocation(); const navigate = useNavigate();
+  const headerRef = useRef(null); const [menuOpen, setMenuOpen] = useState(false); const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState(""); const [navItems, setNavItems] = useState(FALLBACK_NAV); const [landing, setLanding] = useState(DEFAULT_LANDING_PAGE);
+  const [signingOut, setSigningOut] = useState(false); const previewDraft = isLandingDraftPreview();
 
   useEffect(() => {
     let active = true;
-
-    Promise.all([
-      storefrontContentApi.getMenu("main-menu"),
-      storefrontContentApi.getHomepage({ previewDraft }),
-    ])
-      .then(([menu, homepage]) => {
-        const items = (menu?.navigation_items || [])
-          .filter((item) => item.url)
-          .map((item) => normalizeNavigationItem({ label: item.label, path: item.url }));
-        if (!active) return;
-        if (items.length) setNavItems(items);
-        if (homepage) setLanding(homepage);
-      })
-      .catch((error) => {
-        console.error("Store navigation content load failed:", error);
-      });
-
-    return () => {
-      active = false;
-    };
+    Promise.all([storefrontContentApi.getMenu("main-menu"), storefrontContentApi.getHomepage({ previewDraft })]).then(([menu, homepage]) => {
+      const items = (menu?.navigation_items || []).filter((item) => item.url).map((item) => normalizeNavigationItem({ label: item.label, path: item.url }));
+      if (!active) return; if (items.length) setNavItems(items); if (homepage) setLanding(homepage);
+    }).catch((error) => console.error("Store navigation content load failed:", error));
+    return () => { active = false; };
   }, [previewDraft]);
 
   useEffect(() => {
-    const header = headerRef.current;
-    if (!header || typeof document === "undefined") return undefined;
-
-    const updateHeaderHeight = () => {
-      const height = Math.ceil(header.getBoundingClientRect().height || 70);
-      document.documentElement.style.setProperty("--gdp-store-header-height", `${height}px`);
-    };
-
-    updateHeaderHeight();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateHeaderHeight) : null;
-    observer?.observe(header);
-    window.addEventListener("resize", updateHeaderHeight);
-
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", updateHeaderHeight);
-    };
+    const header = headerRef.current; if (!header || typeof document === "undefined") return undefined;
+    const updateHeaderHeight = () => document.documentElement.style.setProperty("--gdp-store-header-height", `${Math.ceil(header.getBoundingClientRect().height || 70)}px`);
+    updateHeaderHeight(); const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateHeaderHeight) : null; observer?.observe(header); window.addEventListener("resize", updateHeaderHeight);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", updateHeaderHeight); };
   }, []);
+  useEffect(() => { if (!menuOpen) return undefined; const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previous; }; }, [menuOpen]);
+  useEffect(() => { setMenuOpen(false); setSearchOpen(false); }, [location.pathname, location.search, location.hash]);
 
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [menuOpen]);
-
-  useEffect(() => {
-    setMenuOpen(false);
-    setSearchOpen(false);
-  }, [location.pathname, location.search, location.hash]);
-
-  const closeMobileNavigation = () => {
-    setMenuOpen(false);
-  };
-
-  const handleSignOut = async () => {
-    if (signingOut) return;
-    setSigningOut(true);
-    try {
-      setMenuOpen(false);
-      await logout(true);
-    } catch (error) {
-      console.error("Sign out failed:", error);
-      setSigningOut(false);
-    }
-  };
-
-  const submitSearch = (event) => {
-    event.preventDefault();
-    const value = query.trim();
-    if (!value) return;
-    navigate("/shop?q=" + encodeURIComponent(value));
-    setSearchOpen(false);
-    setMenuOpen(false);
-  };
-
-  const active = (path) => {
-    if (!path || /^https?:\/\//i.test(path)) return false;
-    const [rawPathname, rawQuery = ""] = path.split("?");
-    const pathname = rawPathname.split("#")[0];
-    if (pathname === "/") return location.pathname === "/";
-    if (rawQuery) {
-      return location.pathname === pathname && location.search === "?" + rawQuery;
-    }
-    return location.pathname === pathname && !location.search;
-  };
-
+  const closeMobileNavigation = () => setMenuOpen(false);
+  const handleSignOut = async () => { if (signingOut) return; setSigningOut(true); try { setMenuOpen(false); await logout(true); } catch (error) { console.error("Sign out failed:", error); setSigningOut(false); } };
+  const submitSearch = (event) => { event.preventDefault(); const value = query.trim(); if (!value) return; navigate("/shop?q=" + encodeURIComponent(value)); setSearchOpen(false); setMenuOpen(false); };
+  const active = (path) => { if (!path || /^https?:\/\//i.test(path)) return false; const [rawPathname, rawQuery = ""] = path.split("?"); const pathname = rawPathname.split("#")[0]; if (pathname === "/") return location.pathname === "/"; if (rawQuery) return location.pathname === pathname && location.search === "?" + rawQuery; return location.pathname === pathname && !location.search; };
   const NavLink = ({ item, mobile = false }) => {
     const external = /^https?:\/\//i.test(item.path || "");
-    const className = mobile
-      ? "flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight"
-      : "relative py-2 text-[12px] font-medium transition " + (active(item.path) ? "text-white" : "text-white/70 hover:text-white");
-
-    if (external) {
-      return <a href={item.path} className={className} onClick={mobile ? closeMobileNavigation : undefined}>{item.label}</a>;
-    }
-
-    return (
-      <Link to={item.path || "/"} className={className} onClick={mobile ? closeMobileNavigation : undefined}>
-        {item.label}
-        {!mobile && active(item.path) && <span className="absolute inset-x-0 -bottom-1 h-px bg-white" />}
-      </Link>
-    );
+    const className = mobile ? "flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight" : "relative py-2 text-[12px] font-medium transition " + (active(item.path) ? "text-white" : "text-white/70 hover:text-white");
+    if (external) return <a href={item.path} className={className} onClick={mobile ? closeMobileNavigation : undefined}>{item.label}</a>;
+    return <Link to={item.path || "/"} className={className} onClick={mobile ? closeMobileNavigation : undefined}>{item.label}{!mobile && active(item.path) && <span className="absolute inset-x-0 -bottom-1 h-px bg-white" />}</Link>;
   };
+  const announcementEnabled = landing.announcement?.enabled && landing.announcement?.text; const branding = landing.branding || DEFAULT_LANDING_PAGE.branding;
 
-  const announcementEnabled = landing.announcement?.enabled && landing.announcement?.text;
-  const branding = landing.branding || DEFAULT_LANDING_PAGE.branding;
-
-  return (
-    <header ref={headerRef} className="sticky top-0 z-50 border-b border-white/10 bg-[#080909] text-white">
-      {announcementEnabled && (
-        <div className="flex min-h-[34px] items-center justify-center bg-white px-4 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-black sm:text-xs">
-          <AnnouncementLink announcement={landing.announcement} />
-        </div>
-      )}
-
-      <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-10">
-        <div className="flex h-[70px] items-center justify-between">
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-start lg:hidden"
-            onClick={() => setMenuOpen((value) => !value)}
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={menuOpen}
-          >
-            {menuOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
-
-          <Link to="/" className="flex shrink-0 items-center" aria-label="GDP Clothing home" onClick={closeMobileNavigation}>
-            <ManagedLogo
-              src={branding.mobileLogoUrl || branding.logoUrl}
-              fallbackSrc="/images/gdp-logo.webp"
-              alt={branding.logoAlt || "GDP Clothing"}
-              className="h-12 w-[92px] object-contain object-left lg:hidden"
-            />
-            <ManagedLogo
-              src={branding.logoUrl}
-              fallbackSrc="/images/gdp-logo.webp"
-              alt={branding.logoAlt || "GDP Clothing"}
-              className="hidden h-12 w-[92px] object-contain object-left lg:block"
-            />
-          </Link>
-
-          <nav className="hidden flex-1 items-center justify-center gap-8 lg:flex" aria-label="Primary navigation">
-            {navItems.map((item) => <NavLink key={item.label + item.path} item={item} />)}
-          </nav>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setSearchOpen((value) => !value)}
-              className="p-2.5 text-white/80 transition hover:text-white"
-              aria-label="Search"
-            >
-              <Search size={21} strokeWidth={1.7} />
-            </button>
-            <Link to="/account" className="hidden p-2.5 text-white/80 transition hover:text-white sm:block" aria-label="Account">
-              <User size={21} strokeWidth={1.7} />
-            </Link>
-            <Link to="/cart" className="relative p-2.5 text-white/80 transition hover:text-white" aria-label={"Cart with " + itemCount + " items"}>
-              <ShoppingBag size={22} strokeWidth={1.7} />
-              {itemCount > 0 && (
-                <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] font-black text-black">
-                  {itemCount}
-                </span>
-              )}
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {searchOpen && (
-        <div className="border-t border-white/10 bg-[#0b0b0b]">
-          <form onSubmit={submitSearch} className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-4 sm:px-6">
-            <Search size={18} className="text-white/40" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search GDP Clothing"
-              className="min-w-0 flex-1 bg-transparent py-2 text-sm text-white outline-none placeholder:text-white/35"
-            />
-            <button type="submit" className="border border-white/25 px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-white hover:text-black">
-              Search
-            </button>
-          </form>
-        </div>
-      )}
-
-      {menuOpen && (
-        <div
-          className="fixed inset-x-0 bottom-0 overflow-y-auto bg-[#080909] lg:hidden"
-          style={{ top: "var(--gdp-store-header-height, 70px)" }}
-        >
-          <nav className="px-5 py-5" aria-label="Mobile navigation">
-            {navItems.map((item) => <NavLink key={item.label + item.path} item={item} mobile />)}
-            <Link to="/account" onClick={closeMobileNavigation} className="flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">
-              Account <User size={20} className="text-white/50" />
-            </Link>
-            {user && (
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={signingOut}
-                className="flex w-full items-center justify-between border-b border-white/10 py-5 text-left text-3xl font-black uppercase tracking-tight text-white disabled:cursor-wait disabled:opacity-60"
-              >
-                {signingOut ? "Signing Out…" : "Sign Out"}
-                <LogOut size={20} className="text-white/50" />
-              </button>
-            )}
-          </nav>
-        </div>
-      )}
-    </header>
-  );
+  return <header ref={headerRef} className="sticky top-0 z-50 border-b border-white/10 bg-[#080909] text-white">
+    {announcementEnabled && <div className="flex min-h-[34px] items-center justify-center bg-white px-4 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-black sm:text-xs"><AnnouncementLink announcement={landing.announcement} /></div>}
+    <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-10"><div className="flex h-[70px] items-center justify-between">
+      <button type="button" className="flex h-10 w-10 items-center justify-start lg:hidden" onClick={() => setMenuOpen((value) => !value)} aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen}>{menuOpen ? <X size={22} /> : <Menu size={22} />}</button>
+      <Link to="/" className="gdp-logo-3d-stage flex shrink-0 items-center" data-menu-open={menuOpen ? "true" : "false"} aria-label="GDP Clothing home" onClick={closeMobileNavigation}>
+        <span className="gdp-logo-3d-spinner"><ManagedLogo src={branding.mobileLogoUrl || branding.logoUrl} fallbackSrc="/images/gdp-logo.webp" alt={branding.logoAlt || "GDP Clothing"} className="h-12 w-[92px] object-contain lg:hidden" /><ManagedLogo src={branding.logoUrl} fallbackSrc="/images/gdp-logo.webp" alt={branding.logoAlt || "GDP Clothing"} className="hidden h-12 w-[92px] object-contain lg:block" /></span>
+      </Link>
+      <nav className="hidden flex-1 items-center justify-center gap-8 lg:flex" aria-label="Primary navigation">{navItems.map((item) => <NavLink key={item.label + item.path} item={item} />)}</nav>
+      <div className="flex items-center gap-1"><button type="button" onClick={() => setSearchOpen((value) => !value)} className="p-2.5 text-white/80 transition hover:text-white" aria-label="Search"><Search size={21} strokeWidth={1.7} /></button><Link to="/account" className="hidden p-2.5 text-white/80 transition hover:text-white sm:block" aria-label="Account"><User size={21} strokeWidth={1.7} /></Link><Link to="/cart" className="relative p-2.5 text-white/80 transition hover:text-white" aria-label={"Cart with " + itemCount + " items"}><ShoppingBag size={22} strokeWidth={1.7} />{itemCount > 0 && <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] font-black text-black">{itemCount}</span>}</Link></div>
+    </div></div>
+    {searchOpen && <div className="border-t border-white/10 bg-[#0b0b0b]"><form onSubmit={submitSearch} className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-4 sm:px-6"><Search size={18} className="text-white/40" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search GDP Clothing" className="min-w-0 flex-1 bg-transparent py-2 text-sm text-white outline-none placeholder:text-white/35" /><button type="submit" className="border border-white/25 px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-white hover:text-black">Search</button></form></div>}
+    {menuOpen && <div className="fixed inset-x-0 bottom-0 overflow-y-auto bg-[#080909] lg:hidden" style={{ top: "var(--gdp-store-header-height, 70px)" }}><nav className="px-5 py-5" aria-label="Mobile navigation">{navItems.map((item) => <NavLink key={item.label + item.path} item={item} mobile />)}<Link to="/account" onClick={closeMobileNavigation} className="flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight sm:hidden">Account <User size={20} className="text-white/50" /></Link>{user && <button type="button" onClick={handleSignOut} disabled={signingOut} className="flex w-full items-center justify-between border-b border-white/10 py-5 text-left text-3xl font-black uppercase tracking-tight text-white disabled:cursor-wait disabled:opacity-60">{signingOut ? "Signing Out…" : "Sign Out"}<LogOut size={20} className="text-white/50" /></button>}</nav></div>}
+  </header>;
 }
