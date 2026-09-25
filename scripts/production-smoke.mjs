@@ -212,7 +212,7 @@ async function main() {
     await runCheck(browser, "shop catalog + product discovery", DESKTOP, async (page) => {
       await navigate(page, "/shop");
       await page.getByRole("heading", { name: /SHOP ALL|BEST SELLERS|LATEST DROP|COLLECTIONS/i }).first().waitFor();
-      const links = page.locator('a[href^="/product/"]');
+      const links = page.locator('a[href^="/products/"], a[href^="/product/"]');
       assert((await links.count()) > 0, "No published storefront products were discovered.");
       productHref = await links.first().getAttribute("href");
       assert(productHref, "First published product did not have a usable link.");
@@ -221,7 +221,7 @@ async function main() {
     await runCheck(browser, "product detail + variant controls", DESKTOP, async (page) => {
       if (!productHref) {
         await navigate(page, "/shop");
-        const links = page.locator('a[href^="/product/"]');
+        const links = page.locator('a[href^="/products/"], a[href^="/product/"]');
         assert((await links.count()) > 0, "No published product available for product-detail test.");
         productHref = await links.first().getAttribute("href");
       }
