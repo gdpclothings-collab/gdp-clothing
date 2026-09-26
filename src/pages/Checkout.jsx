@@ -5,6 +5,7 @@ import { useCart } from "@/lib/CartContext";
 import { useAuth } from "@/lib/AuthContext";
 import { removeStoredKey, scopedStorageKey } from "@/lib/customerStorageScope";
 import { customerApi } from "@/lib/customerApi";
+import { supabase } from "@/lib/supabaseClient";
 import { isIframe } from "@/lib/utils";
 import { loadStripe } from "@stripe/stripe-js";
 import { calculateCartQuantityDiscount } from "@/lib/cartPricing";
@@ -70,6 +71,8 @@ export default function Checkout() {
   const [paymentUnavailable, setPaymentUnavailable] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [checkoutConfig, setCheckoutConfig] = useState(null);
+  const [canadaPostRate, setCanadaPostRate] = useState(null);
+  const [shippingRateStatus, setShippingRateStatus] = useState("idle");
   const [checkoutActions, setCheckoutActions] = useState(null);
   const [paymentSession, setPaymentSession] = useState(null);
   const [paymentCanConfirm, setPaymentCanConfirm] = useState(false);
@@ -93,7 +96,8 @@ export default function Checkout() {
     form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping"
       ? 0
       : (afterCoupon >= 150 ? 0 : 12.99);
-  const shipping = checkoutConfig?.shipping ?? fallbackShipping;
+  const shippingIsFree = form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping" || afterCoupon >= 150;
+  const shipping = shippingIsFree ? 0 : (canadaPostRate?.price ?? checkoutConfig?.shipping ?? fallbackShipping);
   const taxRate = checkoutConfig?.taxRate ?? (FALLBACK_TAX_RATES[form.province] ?? 0.05);
   const taxShipping = checkoutConfig?.taxShipping ?? true;
   const tax = (afterCoupon + (taxShipping ? shipping : 0)) * taxRate;
@@ -151,6 +155,45 @@ export default function Checkout() {
     appliedDiscount?.type,
     checkoutActions,
   ]);
+
+  useEffect(() => {
+    if (checkoutActions) return undefined;
+    const postalCode = normalizeCanadianPostalCode(form.postalCode);
+    if (!postalCode || shippingIsFree) {
+      setCanadaPostRate(null);
+      setShippingRateStatus("idle");
+      return undefined;
+    }
+
+    let active = true;
+    setShippingRateStatus("loading");
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data, error: rateError } = await supabase.functions.invoke("canada-post-rates", {
+          body: { destinationPostalCode: postalCode },
+        });
+        if (!active) return;
+        const rate = Array.isArray(data?.rates) ? data.rates[0] : null;
+        if (!rateError && rate && Number.isFinite(Number(rate.price))) {
+          setCanadaPostRate({ ...rate, price: Number(rate.price) });
+          setShippingRateStatus("live");
+        } else {
+          setCanadaPostRate(null);
+          setShippingRateStatus("fallback");
+        }
+      } catch (rateError) {
+        if (!active) return;
+        console.debug("Canada Post rate fallback:", rateError?.message || rateError);
+        setCanadaPostRate(null);
+        setShippingRateStatus("fallback");
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.postalCode, shippingIsFree, checkoutActions]);
 
   useEffect(() => {
     if (!items.length || checkoutActions || loadedCheckoutStorageKey !== checkoutStorageKey) return undefined;
@@ -474,7 +517,7 @@ export default function Checkout() {
           <Section n="03" title="Shipping Method">
             <div className="grid sm:grid-cols-2 gap-3">
               <Option selected={form.shippingMethod === "standard"} onClick={() => set("shippingMethod", "standard")}
-                icon={Truck} title="Standard Shipping" desc={shipping === 0 ? "FREE · 3-7 business days" : `$${shipping.toFixed(2)} · 3-7 business days`} />
+                icon={Truck} title="Standard Shipping" desc={shipping === 0 ? "FREE · 3-7 business days" : shippingRateStatus === "loading" ? "Calculating Canada Post rate…" : canadaPostRate ? `$${shipping.toFixed(2)} · Canada Post estimate` : `$${shipping.toFixed(2)} · estimated shipping`} />
               <Option selected={form.shippingMethod === "pickup"} onClick={() => set("shippingMethod", "pickup")}
                 icon={Store} title="Local Pickup" desc="Free · Saskatoon studio" />
             </div>
