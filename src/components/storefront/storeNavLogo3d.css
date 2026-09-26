@@ -2,7 +2,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  perspective: 720px;
+  perspective: 420px;
+  perspective-origin: 50% 45%;
 }
 
 .gdp-logo-3d-spinner {
@@ -12,32 +13,44 @@
   justify-content: center;
   transform-style: preserve-3d;
   will-change: transform;
-  animation: gdp-logo-3d-spin 9s linear infinite;
+  animation: gdp-logo-3d-spin 11s cubic-bezier(.42, 0, .58, 1) infinite;
 }
 
+/* Layered rim behind the transparent logo creates a stronger emblem-like depth cue. */
 .gdp-logo-3d-spinner::before,
 .gdp-logo-3d-spinner::after {
   content: "";
   position: absolute;
-  inset: 8% 10%;
-  border-radius: 50%;
+  inset: 5% 7%;
+  border-radius: 48%;
   pointer-events: none;
-  opacity: 0.28;
-  transform: translateZ(-3px);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.18);
+  transform-style: preserve-3d;
+}
+
+.gdp-logo-3d-spinner::before {
+  opacity: .62;
+  transform: translateZ(-10px) scale(.94);
+  background: linear-gradient(115deg, rgba(255,255,255,.42), rgba(72,72,72,.5) 42%, rgba(8,8,8,.8) 72%, rgba(210,210,210,.28));
+  box-shadow: 7px 0 10px rgba(0,0,0,.7), inset -4px 0 5px rgba(0,0,0,.7), inset 2px 0 3px rgba(255,255,255,.22);
 }
 
 .gdp-logo-3d-spinner::after {
-  opacity: 0.14;
-  transform: translateZ(-6px);
+  opacity: .35;
+  transform: translateZ(-17px) scale(.89);
+  background: linear-gradient(90deg, rgba(10,10,10,.9), rgba(150,150,150,.34), rgba(4,4,4,.95));
+  box-shadow: 9px 0 12px rgba(0,0,0,.65);
 }
 
 .gdp-logo-3d-spinner > img {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   backface-visibility: visible;
-  transform: translateZ(3px);
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  transform: translateZ(7px);
+  filter:
+    drop-shadow(1px 0 0 rgba(255,255,255,.45))
+    drop-shadow(3px 0 0 rgba(110,110,110,.7))
+    drop-shadow(6px 0 1px rgba(25,25,25,.9))
+    drop-shadow(10px 2px 5px rgba(0,0,0,.7));
 }
 
 .gdp-logo-3d-stage[data-menu-open="true"] .gdp-logo-3d-spinner {
@@ -45,8 +58,11 @@
 }
 
 @keyframes gdp-logo-3d-spin {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(360deg); }
+  0%   { transform: rotateX(-4deg) rotateY(0deg); }
+  25%  { transform: rotateX(2deg) rotateY(90deg); }
+  50%  { transform: rotateX(4deg) rotateY(180deg); }
+  75%  { transform: rotateX(-2deg) rotateY(270deg); }
+  100% { transform: rotateX(-4deg) rotateY(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
