@@ -328,6 +328,32 @@ async function getShippingRule(service: any, amount: number) {
       };
 }
 
+async function getCanadaPostEstimate(postalCode: unknown) {
+  const normalized = normalizeCanadianPostalCode(postalCode);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  if (!normalized || !supabaseUrl) return null;
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/canada-post-rates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destinationPostalCode: normalized }),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json().catch(() => ({}));
+    const rate = Array.isArray(payload?.rates) ? payload.rates[0] : null;
+    const price = Number(rate?.price);
+    if (!Number.isFinite(price) || price < 0) return null;
+    return {
+      price: roundMoney(price),
+      name: String(rate?.serviceName || "Canada Post Estimated Shipping"),
+      transitDays: Number(rate?.transitDays || 0) || null,
+    };
+  } catch (error) {
+    console.error("Canada Post estimate fallback", error);
+    return null;
+  }
+}
+
 async function getCheckoutRules(
   service: any,
   customer: any,
@@ -337,10 +363,14 @@ async function getCheckoutRules(
   const amount = Math.max(0, roundMoney(amountAfterDiscounts));
   const shippingMethod = customer?.shippingMethod === "pickup" ? "pickup" : "standard";
   const shippingRule = await getShippingRule(service, amount);
+  const ruleShipping = roundMoney(Number(shippingRule?.price || 0));
+  const canadaPost = shippingMethod === "standard" && !freeShipping && ruleShipping > 0
+    ? await getCanadaPostEstimate(customer?.postalCode)
+    : null;
   const shipping =
     shippingMethod === "pickup" || freeShipping
       ? 0
-      : roundMoney(Number(shippingRule?.price || 0));
+      : (canadaPost?.price ?? ruleShipping);
 
   const taxRule = await getTaxRule(service, customer?.province);
   const taxRate = Math.max(0, Number(taxRule?.rate || 0));
@@ -351,7 +381,7 @@ async function getCheckoutRules(
   return {
     shippingMethod,
     shipping,
-    shippingName: shippingMethod === "pickup" ? "Local Pickup" : shippingRule?.name || "Standard Shipping",
+    shippingName: shippingMethod === "pickup" ? "Local Pickup" : canadaPost?.name || shippingRule?.name || "Standard Shipping",
     minDeliveryDays: shippingMethod === "pickup" ? 0 : shippingRule?.min_delivery_days ?? 3,
     maxDeliveryDays: shippingMethod === "pickup" ? 0 : shippingRule?.max_delivery_days ?? 7,
     freeShippingThreshold:
