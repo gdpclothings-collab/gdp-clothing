@@ -30,7 +30,7 @@ const CustomOrders = lazy(() => import('@/pages/CustomOrders'));
 const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspace'));
 const CustomStudioV2 = lazy(() => import('@/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard'));
 const Cart = lazy(() => import('@/pages/CartV2'));
-const Checkout = lazy(() => import('@/pages/Checkout'));
+const Checkout = lazy(() => import('@/pages/CheckoutTwoStep'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
 const Account = lazy(() => import('@/pages/AccountRefined'));
 const Admin = lazy(() => loadAdminPage(() => import('@/pages/Admin')));
@@ -102,6 +102,7 @@ const AuthenticatedApp = () => {
             <Route path="/custom-studio-v2" element={<CustomStudioV2 />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/checkout/payment" element={<Checkout />} />
             <Route path="/order/:orderNumber" element={<OrderConfirmation />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/pages/:slug" element={<ContentPage />} />
