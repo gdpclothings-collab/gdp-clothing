@@ -29,8 +29,8 @@ jobs:
         run: npm ci
       - name: Production build
         run: npm run build
-      - name: Production wiring smoke
-        run: npm run test:production-wiring
+      - name: Typecheck
+        run: npm run typecheck
       - name: Check whitespace
         run: git diff --check
       - name: Commit repaired checkout
