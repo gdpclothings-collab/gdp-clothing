@@ -1,0 +1,47 @@
+name: Apply Checkout Payment Terms Gate
+
+on:
+  push:
+    branches:
+      - fix/checkout-payment-terms-gate
+    paths:
+      - scripts/fix-checkout-payment-terms-gate.mjs
+      - .github/workflows/apply-checkout-payment-terms-gate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply checkout repair
+        run: node scripts/fix-checkout-payment-terms-gate.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build
+        run: npm run build
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Check whitespace
+        run: git diff --check
+      - name: Commit repaired checkout
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "gdp-clothing-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/pages/CheckoutTwoStep.jsx
+          git commit -m "fix: restore Stripe payment initialization"
+          git push origin HEAD:fix/checkout-payment-terms-gate
