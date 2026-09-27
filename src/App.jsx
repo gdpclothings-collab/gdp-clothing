@@ -18,7 +18,11 @@ import AdminMfaGate from '@/components/AdminMfaGate';
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
 
-const loadAdminPage = async (loader) => { await import('@/lib/installAdminProductMediaOptimization'); return loader(); };
+const loadAdminPage = async (loader) => {
+  await import('@/lib/installAdminProductMediaOptimization');
+  return loader();
+};
+
 const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
@@ -35,6 +39,7 @@ const AdminMediaOptimizer = lazy(() => import('@/pages/AdminMediaOptimizer'));
 const TemplateManager = lazy(() => import('@/pages/TemplateManager'));
 const FAQ = lazy(() => import('@/pages/FAQ'));
 const ContentPage = lazy(() => import('@/pages/ContentPage'));
+// Auth pages
 const Login = lazy(() => import('@/pages/Login'));
 const Register = lazy(() => import('@/pages/Register'));
 const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'));
@@ -43,25 +48,107 @@ const AuthComplete = lazy(() => import('@/pages/AuthComplete'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
-  if (isLoadingPublicSettings || isLoadingAuth) return <div className="fixed inset-0 flex items-center justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div></div>;
-  if (authError) {
-    if (authError.type === 'user_not_registered') return <UserNotRegisteredError />;
-    if (authError.type === 'auth_required') { navigateToLogin(); return null; }
+
+  // Show loading spinner while checking app public settings or auth
+  if (isLoadingPublicSettings || isLoadingAuth) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      </div>
+    );
   }
-  return <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>}>
-    <MaintenanceGate><Routes>
-      <Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} /><Route path="/auth/complete" element={<AuthComplete />} /><Route path="/forgot-password" element={<ForgotPassword />} /><Route path="/reset-password" element={<ResetPassword />} />
-      <Route element={<StoreLayout />}>
-        <Route path="/" element={<Home />} /><Route path="/shop" element={<Shop />} /><Route path="/dtf" element={<DTF />} /><Route path="/products/dtf-gang-sheet" element={<DTFGangSheet />} /><Route path="/dtf-gang-sheet" element={<DTFGangSheet />} /><Route path="/custom-orders" element={<CustomOrders />} /><Route path="/bulk-orders" element={<CustomOrders />} /><Route path="/products/:slug" element={<ProductDetail />} /><Route path="/product/:id" element={<ProductDetail />} /><Route path="/custom-studio" element={<CustomStudioV2 />} /><Route path="/design" element={<CustomStudioV2 />} /><Route path="/custom-studio-legacy" element={<CustomStudio />} /><Route path="/custom-studio-v2" element={<CustomStudioV2 />} /><Route path="/cart" element={<Cart />} />
-        <Route path="/checkout" element={<Checkout />} /><Route path="/checkout/payment" element={<Checkout />} />
-        <Route path="/order/:orderNumber" element={<OrderConfirmation />} /><Route path="/faq" element={<FAQ />} /><Route path="/pages/:slug" element={<ContentPage />} />
-        <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}><Route path="/account" element={<Account />} /></Route>
-      </Route>
-      <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}><Route element={<AdminMfaGate />}><Route path="/admin/legacy" element={<Admin />} /><Route path="/admin/custom-studio/templates" element={<TemplateManager />} /><Route path="/admin/media-optimizer" element={<AdminMediaOptimizer />} /><Route path="/admin/*" element={<AdminV3 />} /></Route></Route>
-      <Route path="*" element={<PageNotFound />} />
-    </Routes></MaintenanceGate>
-  </Suspense>;
+
+  // Handle authentication errors
+  if (authError) {
+    if (authError.type === 'user_not_registered') {
+      return <UserNotRegisteredError />;
+    } else if (authError.type === 'auth_required') {
+      // Redirect to login automatically
+      navigateToLogin();
+      return null;
+    }
+  }
+
+  // Render the main app
+  return (
+    <Suspense
+      fallback={
+        <div className="fixed inset-0 flex items-center justify-center bg-background">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <MaintenanceGate>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/auth/complete" element={<AuthComplete />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+
+          <Route element={<StoreLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/dtf" element={<DTF />} />
+            <Route path="/products/dtf-gang-sheet" element={<DTFGangSheet />} />
+            <Route path="/dtf-gang-sheet" element={<DTFGangSheet />} />
+            <Route path="/custom-orders" element={<CustomOrders />} />
+            <Route path="/bulk-orders" element={<CustomOrders />} />
+            <Route path="/products/:slug" element={<ProductDetail />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/custom-studio" element={<CustomStudioV2 />} />
+            <Route path="/design" element={<CustomStudioV2 />} />
+            <Route path="/custom-studio-legacy" element={<CustomStudio />} />
+            <Route path="/custom-studio-v2" element={<CustomStudioV2 />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/checkout/payment" element={<Checkout />} />
+            <Route path="/order/:orderNumber" element={<OrderConfirmation />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/pages/:slug" element={<ContentPage />} />
+
+            <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+              <Route path="/account" element={<Account />} />
+            </Route>
+          </Route>
+
+          <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}>
+            <Route element={<AdminMfaGate />}>
+              <Route path="/admin/legacy" element={<Admin />} />
+              <Route path="/admin/custom-studio/templates" element={<TemplateManager />} />
+              <Route path="/admin/media-optimizer" element={<AdminMediaOptimizer />} />
+              <Route path="/admin/*" element={<AdminV3 />} />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </MaintenanceGate>
+    </Suspense>
+  );
 };
 
-function App() { return <AuthProvider><QueryClientProvider client={queryClientInstance}><CartProvider><Router><NotificationProvider><UnsavedChangesProvider><ScrollToTop /><SeoRouteManager /><AuthenticatedApp /></UnsavedChangesProvider></NotificationProvider></Router><Toaster /></CartProvider></QueryClientProvider></AuthProvider> }
+
+function App() {
+
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <CartProvider>
+          <Router>
+            <NotificationProvider>
+              <UnsavedChangesProvider>
+                <ScrollToTop />
+                <SeoRouteManager />
+                <AuthenticatedApp />
+              </UnsavedChangesProvider>
+            </NotificationProvider>
+          </Router>
+          <Toaster />
+        </CartProvider>
+      </QueryClientProvider>
+    </AuthProvider>
+  )
+}
+
 export default App
