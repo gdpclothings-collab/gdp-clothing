@@ -70,7 +70,7 @@ async function assertClickReached(card, garmentName) {
   const reached = await card.getAttribute("data-gdp-smoke-click-reached");
   assert(
     reached === "1",
-    `Click did not reach garment card \"${garmentName}\". A capture-phase click interceptor may be blocking Step 1.`
+    `Click did not reach garment card "${garmentName}". A capture-phase click interceptor may be blocking Step 1.`
   );
 }
 
@@ -103,8 +103,15 @@ async function main() {
     await record("Custom Studio Step 1 garment cards accept selection clicks", async () => {
       await navigate(page, "/custom-studio");
 
-      const heading = page.getByText("CLOTHING, COLOR & SIZE", { exact: true }).first();
-      await heading.waitFor({ state: "visible" });
+      // Keep this assertion aligned with the live Canadian storefront copy. The UI may
+      // render either "Color" or "Colour" and may split the heading across elements.
+      const workspace = page.locator("#custom-studio-workspace");
+      await workspace.waitFor({ state: "visible" });
+      const workspaceText = normalizeText(await workspace.innerText());
+      assert(
+        /CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i.test(workspaceText),
+        "Custom Studio Step 1 clothing, colour & size section was not visible."
+      );
 
       const cards = page.locator("#custom-studio-workspace button:has(.font-bold.leading-tight)");
       const count = await cards.count();
@@ -127,12 +134,12 @@ async function main() {
 
       const targetAfter = await cardState(target);
       if (!targetBefore.selected) {
-        assert(targetAfter.selected, `Garment \"${targetBefore.name}\" received the click but did not become selected.`);
+        assert(targetAfter.selected, `Garment "${targetBefore.name}" received the click but did not become selected.`);
       }
 
-      const colorLabel = page.getByText("Color", { exact: true }).first();
+      const colorLabel = page.getByText(/^(Color|Colour)$/i).first();
       const sizeLabel = page.getByText("Size", { exact: true }).first();
-      assert(await colorLabel.isVisible().catch(() => false), "Color controls did not appear after selecting a garment.");
+      assert(await colorLabel.isVisible().catch(() => false), "Colour controls did not appear after selecting a garment.");
       assert(await sizeLabel.isVisible().catch(() => false), "Size controls did not appear after selecting a garment.");
 
       let switchedTo = null;
@@ -148,8 +155,8 @@ async function main() {
 
         const secondAfter = await cardState(second);
         const firstAfterSwitch = await cardState(target);
-        assert(secondAfter.selected, `Second garment \"${secondBefore.name}\" did not become selected.`);
-        assert(!firstAfterSwitch.selected, `Previous garment \"${targetBefore.name}\" stayed selected after switching garments.`);
+        assert(secondAfter.selected, `Second garment "${secondBefore.name}" did not become selected.`);
+        assert(!firstAfterSwitch.selected, `Previous garment "${targetBefore.name}" stayed selected after switching garments.`);
         switchedTo = secondBefore.name;
       }
 
