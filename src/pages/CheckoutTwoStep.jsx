@@ -97,8 +97,6 @@ export default function CheckoutTwoStep() {
   };
 
   const editInformation = () => {
-    // A prepared Stripe Checkout Session is immutable. Start a fresh checkout token so
-    // changed address/shipping/tax can never accidentally reuse the previous amount.
     ensureToken(true);
     setActions(null); setCanConfirm(false); setPaymentSession(null); preparing.current = false; setError("");
     navigate("/checkout");
@@ -182,7 +180,7 @@ export default function CheckoutTwoStep() {
 }
 
 function Section({n,title,children}){return <section><div className="flex items-center gap-2 mb-3"><span className="font-mono text-xs text-accent">{n}</span><h2 className="font-display text-2xl">{title}</h2></div>{children}</section>}
-function Input({label,value,onChange,type="text",readOnly=false}){const id=`checkout-${label.toLowerCase().replace(/[^a-z0-9]+/g,"-")}`;return <div><label htmlFor={id} className="font-mono text-xs uppercase text-muted-foreground">{label}</label><input id={id} type={type} value={value} readOnly={readOnly} onChange={e=>onChange?.(e.target.value)} className="w-full bg-background border border-border px-3 py-2 mt-1 outline-none focus:border-accent read-only:opacity-70"/></div>}
+function Input({label,value,onChange=undefined,type="text",readOnly=false}){const id=`checkout-${label.toLowerCase().replace(/[^a-z0-9]+/g,"-")}`;return <div><label htmlFor={id} className="font-mono text-xs uppercase text-muted-foreground">{label}</label><input id={id} type={type} value={value} readOnly={readOnly} onChange={e=>onChange?.(e.target.value)} className="w-full bg-background border border-border px-3 py-2 mt-1 outline-none focus:border-accent read-only:opacity-70"/></div>}
 function Select({label,value,onChange,options}){const id=`checkout-${label.toLowerCase().replace(/[^a-z0-9]+/g,"-")}`;return <div><label htmlFor={id} className="font-mono text-xs uppercase text-muted-foreground">{label}</label><select id={id} value={value} onChange={e=>onChange(e.target.value)} className="w-full bg-background border border-border px-3 py-2 mt-1">{options.map(o=><option key={o}>{o}</option>)}</select></div>}
 function Option({selected,onClick,icon:Icon,title,desc}){return <button type="button" onClick={onClick} className={`border p-4 text-left flex items-center gap-3 ${selected?"border-accent bg-accent/5":"border-border hover:border-accent"}`}><Icon size={20}/><div><div className="font-bold text-sm">{title}</div><div className="text-xs text-muted-foreground">{desc}</div></div></button>}
 function Row({k,v,accent=false}){return <div className="flex justify-between"><span className="text-muted-foreground">{k}</span><span className={`font-mono ${accent?"text-accent":""}`}>{v}</span></div>}
