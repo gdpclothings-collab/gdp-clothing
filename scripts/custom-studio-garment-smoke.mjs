@@ -103,17 +103,21 @@ async function main() {
     await record("Custom Studio Step 1 garment cards accept selection clicks", async () => {
       await navigate(page, "/custom-studio");
 
-      // Keep this assertion aligned with the live Canadian storefront copy. The UI may
-      // render either "Color" or "Colour" and may split the heading across elements.
-      const workspace = page.locator("#custom-studio-workspace");
-      await workspace.waitFor({ state: "visible" });
-      const workspaceText = normalizeText(await workspace.innerText());
-      assert(
-        /CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i.test(workspaceText),
-        "Custom Studio Step 1 clothing, colour & size section was not visible."
-      );
+      // Do not depend on the removed #custom-studio-workspace wrapper. Anchor the
+      // regression to the live Step 1 controls and preserve the real click/selection assertions.
+      const stepHeading = page.getByText(/CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i).first();
+      const headingVisible = await stepHeading.isVisible().catch(() => false);
+      if (!headingVisible) {
+        const bodyText = normalizeText(await page.locator("body").innerText());
+        assert(
+          /CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i.test(bodyText),
+          "Custom Studio Step 1 clothing, colour & size section was not visible."
+        );
+      }
 
-      const cards = page.locator("#custom-studio-workspace button:has(.font-bold.leading-tight)");
+      // Garment cards are buttons containing the garment-name element. Scoping to
+      // visible buttons avoids coupling this smoke test to a presentation-only wrapper id.
+      const cards = page.locator("button:has(.font-bold.leading-tight):visible");
       const count = await cards.count();
       assert(count > 0, "No selectable garment cards were found in Custom Studio Step 1.");
 
