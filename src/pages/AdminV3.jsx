@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Activity, ArrowLeft, Bot, ExternalLink, HeartPulse, Truck, UsersRound } from "lucide-react";
+import { Activity, ArrowLeft, Bot, DollarSign, ExternalLink, HeartPulse, Truck, UsersRound } from "lucide-react";
 import AdminV2 from "@/pages/AdminV2";
 import SalesLeads from "@/pages/SalesLeads";
 import AdminShipping from "@/pages/AdminShipping";
+import AdminPricing from "@/pages/AdminPricing";
 import SystemHealthModule from "@/components/admin/SystemHealthModule";
 import AiBusinessManagerModule from "@/components/admin/AiBusinessManagerModule";
 import { systemHealthApi } from "@/lib/systemHealthApi";
@@ -26,6 +27,7 @@ function HealthShortcut() { const [health,setHealth]=useState(null); useEffect((
 function SalesShortcut(){return <Link to="/admin/sales-leads" className="fixed bottom-20 right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]"><UsersRound size={17}/><span>Sales Leads</span></Link>;}
 function AiShortcut(){return <Link to="/admin/ai-manager" className="fixed bottom-[8.75rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]"><Bot size={17}/><span>AI Manager</span></Link>;}
 function ShippingShortcut(){return <Link to="/admin/shipping-delivery" className="fixed bottom-[12.5rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Shipping & Delivery"><Truck size={17}/><span>Shipping & Delivery</span></Link>;}
+function PricingShortcut(){return <Link to="/admin/pricing" className="fixed bottom-[16.25rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Apparel Pricing"><DollarSign size={17}/><span>Apparel Pricing</span></Link>;}
 
 export default function AdminV3(){
   const location=useLocation();
@@ -33,5 +35,6 @@ export default function AdminV3(){
   if(location.pathname==="/admin/sales-leads") return <SalesLeads/>;
   if(location.pathname==="/admin/ai-manager") return <BusinessManagerPage/>;
   if(location.pathname==="/admin/shipping-delivery") return <AdminShipping/>;
-  return <><AdminV2/><ShippingShortcut/><AiShortcut/><SalesShortcut/><HealthShortcut/></>;
+  if(location.pathname==="/admin/pricing") return <AdminPricing/>;
+  return <><AdminV2/><PricingShortcut/><ShippingShortcut/><AiShortcut/><SalesShortcut/><HealthShortcut/></>;
 }
