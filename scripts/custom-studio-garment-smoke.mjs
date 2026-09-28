@@ -6,12 +6,7 @@ const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").r
 const ARTIFACT_DIR = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
 const VIEWPORT = { width: 1440, height: 1000 };
 
-const report = {
-  baseUrl: BASE_URL,
-  generatedAt: new Date().toISOString(),
-  status: "running",
-  checks: [],
-};
+const report = { baseUrl: BASE_URL, generatedAt: new Date().toISOString(), status: "running", checks: [] };
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -19,10 +14,6 @@ function assert(condition, message) {
 
 function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function hasExactClass(value, className) {
-  return String(value || "").split(/\s+/).includes(className);
 }
 
 async function record(name, fn) {
@@ -33,12 +24,7 @@ async function record(name, fn) {
     console.log(`PASS ${name}`);
     return details;
   } catch (error) {
-    report.checks.push({
-      name,
-      status: "failed",
-      durationMs: Date.now() - startedAt,
-      error: error?.message || String(error),
-    });
+    report.checks.push({ name, status: "failed", durationMs: Date.now() - startedAt, error: error?.message || String(error) });
     console.error(`FAIL ${name}: ${error?.message || error}`);
     throw error;
   }
@@ -50,37 +36,18 @@ async function navigate(page, route) {
   assert(response, `No document response received for ${target}`);
   assert(response.status() < 400, `${target} returned HTTP ${response.status()}`);
   await page.locator("body").waitFor({ state: "visible", timeout: 15000 });
-  await page.waitForTimeout(900);
 }
 
-async function attachClickProbe(card) {
-  await card.evaluate((element) => {
+async function attachClickProbe(button) {
+  await button.evaluate((element) => {
     element.dataset.gdpSmokeClickReached = "0";
-    element.addEventListener(
-      "click",
-      () => {
-        element.dataset.gdpSmokeClickReached = "1";
-      },
-      { once: true }
-    );
+    element.addEventListener("click", () => { element.dataset.gdpSmokeClickReached = "1"; }, { once: true });
   });
 }
 
-async function assertClickReached(card, garmentName) {
-  const reached = await card.getAttribute("data-gdp-smoke-click-reached");
-  assert(
-    reached === "1",
-    `Click did not reach garment card "${garmentName}". A capture-phase click interceptor may be blocking Step 1.`
-  );
-}
-
-async function cardState(card) {
-  const name = normalizeText(await card.locator(".font-bold.leading-tight").first().innerText());
-  const className = await card.getAttribute("class");
-  return {
-    name,
-    selected: hasExactClass(className, "border-accent"),
-  };
+async function assertClickReached(button, label) {
+  const reached = await button.getAttribute("data-gdp-smoke-click-reached");
+  assert(reached === "1", `Click did not reach ${label}. A capture-phase click interceptor may be blocking Step 1.`);
 }
 
 async function main() {
@@ -94,7 +61,7 @@ async function main() {
     colorScheme: "light",
   });
   const page = await context.newPage();
-  page.setDefaultTimeout(15000);
+  page.setDefaultTimeout(20000);
 
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -103,81 +70,59 @@ async function main() {
     await record("Custom Studio Step 1 garment cards accept selection clicks", async () => {
       await navigate(page, "/custom-studio");
 
-      // Custom Studio loads garment inventory asynchronously from Supabase. Wait for
-      // the live Step 1 section instead of sampling immediately after navigation.
-      const stepHeading = page.getByText(/CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i).first();
-      await stepHeading.waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
-      const headingVisible = await stepHeading.isVisible().catch(() => false);
-      if (!headingVisible) {
-        const bodyText = normalizeText(await page.locator("body").innerText());
-        assert(
-          /CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i.test(bodyText),
-          "Custom Studio Step 1 clothing, colour & size section was not visible after waiting for async garment data."
-        );
-      }
+      const stepHeading = page.getByRole("heading", { name: /choose your garment/i }).first();
+      await stepHeading.waitFor({ state: "visible", timeout: 20000 });
 
-      // Garment cards are buttons containing the garment-name element. Give the
-      // async product query time to populate before asserting card availability.
-      const cards = page.locator("button:has(.font-bold.leading-tight):visible");
-      await cards.first().waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
+      const gallery = page.locator('[data-gdp-garment-gallery="true"]');
+      await gallery.waitFor({ state: "visible", timeout: 20000 });
+      const cards = gallery.locator(":scope > div > button");
       const count = await cards.count();
-      assert(count > 0, "No selectable garment cards were found in Custom Studio Step 1 after waiting for async garment data.");
+      assert(count > 0, "No selectable garment cards were found in Custom Studio Step 1.");
 
-      const before = [];
-      for (let index = 0; index < count; index += 1) {
-        before.push(await cardState(cards.nth(index)));
-      }
+      const first = cards.first();
+      const firstText = normalizeText(await first.innerText());
+      await attachClickProbe(first);
+      await first.click();
+      await assertClickReached(first, `garment card "${firstText}"`);
 
-      const inactiveIndex = before.findIndex((item) => !item.selected);
-      const targetIndex = inactiveIndex >= 0 ? inactiveIndex : 0;
-      const target = cards.nth(targetIndex);
-      const targetBefore = before[targetIndex];
-
-      await attachClickProbe(target);
-      await target.click();
-      await page.waitForTimeout(300);
-      await assertClickReached(target, targetBefore.name);
-
-      const targetAfter = await cardState(target);
-      if (!targetBefore.selected) {
-        assert(targetAfter.selected, `Garment "${targetBefore.name}" received the click but did not become selected.`);
-      }
-
-      const colorLabel = page.getByText(/^(Color|Colour)$/i).first();
-      const sizeLabel = page.getByText("Size", { exact: true }).first();
-      assert(await colorLabel.isVisible().catch(() => false), "Colour controls did not appear after selecting a garment.");
-      assert(await sizeLabel.isVisible().catch(() => false), "Size controls did not appear after selecting a garment.");
+      // Current Step 1 intentionally collapses the gallery after selection and shows
+      // a focused configurator. Assert that real behavior instead of an old CSS class.
+      const configurator = page.locator('[data-gdp-selected-garment-configurator="true"]');
+      await configurator.waitFor({ state: "visible", timeout: 10000 });
+      assert(await page.locator('[data-gdp-selected-garment-options="true"]').isVisible(), "Selected garment options did not appear after selection.");
+      assert(await page.getByText("Color", { exact: true }).first().isVisible(), "Color controls did not appear after selecting a garment.");
+      assert(await page.getByText("Size", { exact: true }).first().isVisible(), "Size controls did not appear after selecting a garment.");
+      assert(await page.locator('[data-gdp-garment-continue="true"]').isVisible(), "Garment Continue control did not appear after selection.");
 
       let switchedTo = null;
       if (count > 1) {
-        const secondIndex = targetIndex === 0 ? 1 : 0;
-        const second = cards.nth(secondIndex);
-        const secondBefore = await cardState(second);
+        const changeButton = page.locator('[data-gdp-change-garment="true"]');
+        await changeButton.waitFor({ state: "visible", timeout: 10000 });
+        await changeButton.click();
 
+        await gallery.waitFor({ state: "visible", timeout: 10000 });
+        const refreshedCards = gallery.locator(":scope > div > button");
+        assert(await refreshedCards.count() > 1, "Garment gallery did not restore after choosing Change garment.");
+
+        const second = refreshedCards.nth(1);
+        const secondText = normalizeText(await second.innerText());
         await attachClickProbe(second);
         await second.click();
-        await page.waitForTimeout(300);
-        await assertClickReached(second, secondBefore.name);
-
-        const secondAfter = await cardState(second);
-        const firstAfterSwitch = await cardState(target);
-        assert(secondAfter.selected, `Second garment "${secondBefore.name}" did not become selected.`);
-        assert(!firstAfterSwitch.selected, `Previous garment "${targetBefore.name}" stayed selected after switching garments.`);
-        switchedTo = secondBefore.name;
+        await assertClickReached(second, `second garment card "${secondText}"`);
+        await configurator.waitFor({ state: "visible", timeout: 10000 });
+        switchedTo = secondText;
       }
 
-      await page.screenshot({
-        path: path.join(ARTIFACT_DIR, "custom-studio-garment-selection.png"),
-        fullPage: true,
-      });
+      await page.screenshot({ path: path.join(ARTIFACT_DIR, "custom-studio-garment-selection.png"), fullPage: true });
 
       return {
         garmentCount: count,
-        selected: targetBefore.name,
+        selected: firstText,
         switchedTo,
         clickReachedCard: true,
         colorControlsVisible: true,
         sizeControlsVisible: true,
+        focusedConfiguratorVisible: true,
       };
     });
 
@@ -188,23 +133,15 @@ async function main() {
     report.error = error?.message || String(error);
     report.pageErrors = pageErrors;
     try {
-      await page.screenshot({
-        path: path.join(ARTIFACT_DIR, "custom-studio-garment-selection-FAILED.png"),
-        fullPage: true,
-      });
-    } catch {
-      // Best-effort evidence only.
-    }
+      await page.screenshot({ path: path.join(ARTIFACT_DIR, "custom-studio-garment-selection-FAILED.png"), fullPage: true });
+    } catch { /* best-effort evidence */ }
     process.exitCode = 1;
   } finally {
     await context.close();
     await browser.close();
   }
 
-  await fs.writeFile(
-    path.join(ARTIFACT_DIR, "custom-studio-garment-report.json"),
-    JSON.stringify(report, null, 2)
-  );
+  await fs.writeFile(path.join(ARTIFACT_DIR, "custom-studio-garment-report.json"), JSON.stringify(report, null, 2));
 
   const lines = [
     "# GDP Clothing Custom Studio Garment Regression",
@@ -214,11 +151,7 @@ async function main() {
     "",
     ...report.checks.map((item) => `- ${item.status === "passed" ? "PASS" : "FAIL"} - ${item.name}${item.error ? `: ${item.error}` : ""}`),
   ];
-
-  await fs.writeFile(
-    path.join(ARTIFACT_DIR, "custom-studio-garment-summary.md"),
-    lines.join("\n")
-  );
+  await fs.writeFile(path.join(ARTIFACT_DIR, "custom-studio-garment-summary.md"), lines.join("\n"));
   console.log(`\n${lines.join("\n")}`);
 }
 
@@ -226,12 +159,7 @@ main().catch(async (error) => {
   console.error(error);
   try {
     await fs.mkdir(ARTIFACT_DIR, { recursive: true });
-    await fs.writeFile(
-      path.join(ARTIFACT_DIR, "custom-studio-garment-fatal-error.txt"),
-      error?.stack || error?.message || String(error)
-    );
-  } catch {
-    // Ignore artifact write failure after a fatal setup error.
-  }
+    await fs.writeFile(path.join(ARTIFACT_DIR, "custom-studio-garment-fatal-error.txt"), error?.stack || error?.message || String(error));
+  } catch { /* ignore artifact write failure after fatal setup error */ }
   process.exitCode = 1;
 });
