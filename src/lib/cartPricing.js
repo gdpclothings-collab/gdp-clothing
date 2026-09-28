@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "./supabaseClient.js";
 import {
   DEFAULT_APPAREL_PRICING,
   apparelPlacementKey,
@@ -6,7 +6,7 @@ import {
   getExactBundlePrice,
   getVolumePercent,
   normalizeApparelPricing,
-} from "@/lib/apparelPricing";
+} from "./apparelPricing.js";
 
 const CACHE_KEY = "gdp_apparel_pricing_v1";
 let cachedPricing = normalizeApparelPricing(DEFAULT_APPAREL_PRICING);
@@ -27,8 +27,6 @@ if (typeof window !== "undefined") {
     cachedPricing = next;
     try { window.localStorage.setItem(CACHE_KEY, serialized); } catch { /* ignore */ }
 
-    // A direct visit to Cart/Checkout can render before the settings request finishes.
-    // Reload once only when the server configuration actually changed.
     if (previous !== serialized && /^\/(cart|checkout)/.test(window.location.pathname)) {
       const guard = `gdp_pricing_reload_${serialized.length}_${next.customQuoteMinQty}`;
       if (window.sessionStorage.getItem(guard) !== "1") {
