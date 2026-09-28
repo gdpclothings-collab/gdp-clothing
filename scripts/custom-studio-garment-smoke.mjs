@@ -59,46 +59,57 @@ async function visibleCount(locator) {
   return visible;
 }
 
+async function firstVisible(locator) {
+  const count = await locator.count();
+  for (let index = 0; index < count; index += 1) {
+    const candidate = locator.nth(index);
+    if (await candidate.isVisible().catch(() => false)) return candidate;
+  }
+  return null;
+}
+
 async function findGarmentCards(page) {
-  // Prefer current explicit data hooks when the deployed bundle exposes them.
   const explicitGallery = page.locator("[data-garment-grid]");
   if (await explicitGallery.count()) {
     const explicitCards = explicitGallery.locator(":scope > button");
     if (await visibleCount(explicitCards)) return { cards: explicitCards, strategy: "data-garment-grid" };
   }
 
-  // Production may briefly serve a bundle whose Step 1 markup predates the data hook.
-  // Anchor to the visible Step 1 heading, then use semantic garment-card structure:
-  // selectable buttons containing garment artwork. This tests user-visible behavior
-  // without coupling the smoke check to CSS classes or an internal wrapper name.
-  await page.getByRole("heading", { name: /choose your garment/i }).waitFor({ state: "visible", timeout: 30000 });
+  const heading = page.getByRole("heading", { name: /choose your garment/i });
+  await heading.waitFor({ state: "visible", timeout: 30000 });
 
   const workspace = page.locator("#custom-studio-workspace");
   const root = (await workspace.count()) ? workspace : page.locator("main");
-  const semanticCards = root.locator("button").filter({ has: root.locator("img") });
+  const imageButtons = root.locator("button:has(img)");
+  const visible = [];
+  const headingBox = await heading.boundingBox();
+  const count = await imageButtons.count();
 
-  await semanticCards.first().waitFor({ state: "visible", timeout: 10000 });
-  return { cards: semanticCards, strategy: "semantic-image-buttons" };
+  for (let index = 0; index < count; index += 1) {
+    const candidate = imageButtons.nth(index);
+    if (!(await candidate.isVisible().catch(() => false))) continue;
+    const box = await candidate.boundingBox();
+    if (!box) continue;
+    if (headingBox && box.y + box.height < headingBox.y) continue;
+    visible.push(candidate);
+  }
+
+  assert(visible.length > 0, "No visible garment image buttons were found below the Choose your garment heading.");
+  return { cards: visible, strategy: "semantic-image-buttons" };
 }
 
 async function waitForSelectionState(page, selectedLabel) {
   const explicitState = page.locator("[data-step1-color], [data-step1-size], [data-step1-quantity], [data-step1-complete]");
-  if (await explicitState.count()) {
-    await explicitState.first().waitFor({ state: "visible", timeout: 10000 });
+  const explicitVisible = await firstVisible(explicitState);
+  if (explicitVisible) {
+    await explicitVisible.waitFor({ state: "visible", timeout: 10000 });
     return "data-step1-controls";
   }
 
-  // Fallback for the currently deployed live markup: after a garment is selected,
-  // the gallery collapses/focuses and the next garment-detail controls become visible.
-  // Accept common Canadian/US labels so copy changes do not create a false outage.
   const detailText = page.getByText(/colour|color|size|quantity|printing details/i);
-  await detailText.first().waitFor({ state: "visible", timeout: 10000 });
-
-  const bodyText = normalizeText(await page.locator("body").innerText());
-  assert(
-    /colour|color|size|quantity/i.test(bodyText),
-    `Garment card "${selectedLabel}" received a click but no garment-detail controls appeared.`
-  );
+  const semanticVisible = await firstVisible(detailText);
+  assert(semanticVisible, `Garment card "${selectedLabel}" received a click but no garment-detail controls appeared.`);
+  await semanticVisible.waitFor({ state: "visible", timeout: 10000 });
   return "semantic-detail-controls";
 }
 
@@ -123,10 +134,11 @@ async function main() {
       await navigate(page, "/custom-studio");
 
       const { cards, strategy } = await findGarmentCards(page);
-      const count = await visibleCount(cards);
+      const count = Array.isArray(cards) ? cards.length : await visibleCount(cards);
       assert(count > 0, "No selectable garment cards were found in Custom Studio Step 1.");
 
-      const first = cards.first();
+      const first = Array.isArray(cards) ? cards[0] : await firstVisible(cards);
+      assert(first, "No visible garment card was available to test.");
       const firstText = normalizeText(await first.innerText());
       await attachClickProbe(first);
       await first.click();
