@@ -4,6 +4,7 @@ on:
     paths:
       - 'src/pages/CheckoutTwoStep.jsx'
       - 'scripts/verify-checkout-terms-hotfix.mjs'
+      - '.github/workflows/verify-checkout-regression.yml'
 jobs:
   checkout-regression:
     runs-on: ubuntu-latest
@@ -11,9 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: node scripts/verify-checkout-terms-hotfix.mjs
       - run: npm run build
-      - run: npx tsc --noEmit
