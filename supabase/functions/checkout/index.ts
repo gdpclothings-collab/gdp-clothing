@@ -47,6 +47,51 @@ const defaultDtfSettings = {
   ],
 };
 
+const defaultApparelPricing = {
+  enabled: true,
+  currency: "CAD",
+  customQuoteMinQty: 50,
+  allowCouponStacking: true,
+  products: {
+    tshirt: { front: { 1: 34.99, 2: 64.99, 5: 149.99, 10: 279.99 }, front_back: { 1: 44.99, 2: 84.99, 5: 199.99, 10: 369.99 } },
+    crewneck: { front: { 1: 59.99, 2: 109.99, 5: 259.99, 10: 489.99 }, front_back: { 1: 69.99, 2: 129.99, 5: 309.99, 10: 579.99 } },
+    hoodie: { front: { 1: 69.99, 2: 129.99, 5: 309.99, 10: 579.99 }, front_back: { 1: 79.99, 2: 149.99, 5: 359.99, 10: 669.99 } },
+  },
+  tiers: [
+    { min: 3, max: 5, percent: 5 },
+    { min: 6, max: 9, percent: 10 },
+    { min: 10, max: 19, percent: 15 },
+    { min: 20, max: 49, percent: 20 },
+  ],
+};
+
+function normalizeApparelPricing(raw: any = {}) {
+  const next: any = { ...defaultApparelPricing, ...(raw || {}) };
+  next.products = { ...defaultApparelPricing.products, ...(raw?.products || {}) };
+  next.tiers = Array.isArray(raw?.tiers) && raw.tiers.length ? raw.tiers : defaultApparelPricing.tiers;
+  next.customQuoteMinQty = Math.max(1, Math.floor(Number(raw?.customQuoteMinQty || 50)));
+  next.enabled = raw?.enabled !== false;
+  next.allowCouponStacking = raw?.allowCouponStacking !== false;
+  return next;
+}
+
+function apparelProductKey(product: any) {
+  const value = `${String(product?.type || "")} ${String(product?.name || "")}`.toLowerCase();
+  if (value.includes("hoodie")) return "hoodie";
+  if (value.includes("crewneck") || value.includes("sweatshirt")) return "crewneck";
+  if (value.includes("t-shirt") || value.includes("tshirt") || value.includes("tee")) return "tshirt";
+  return null;
+}
+
+function apparelPlacementKey(design: any) {
+  return design?.placement === "front_back" ? "front_back" : "front";
+}
+
+function apparelVolumePercent(settings: any, quantity: number) {
+  const tier = (settings?.tiers || []).find((row: any) => quantity >= Number(row?.min || 0) && quantity <= Number(row?.max || 0));
+  return Math.min(95, Math.max(0, Number(tier?.percent || 0)));
+}
+
 function numberOr(value: unknown, fallback: number) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -1026,13 +1071,14 @@ Deno.serve(async (req: Request) => {
 
     const { data: storeSettings, error: storeSettingsError } = await service
       .from("store_settings")
-      .select("order_prefix,dtf_settings,payment_mode,test_inventory_workflow")
+      .select("order_prefix,dtf_settings,payment_mode,test_inventory_workflow,apparel_pricing")
       .eq("id", 1)
       .maybeSingle();
     if (storeSettingsError) throw storeSettingsError;
 
     const dtfSettings = normalizeDtfSettings(storeSettings?.dtf_settings || {});
     const paymentMode = storeSettings?.payment_mode === "test" ? "test" : "live";
+    const apparelPricing = normalizeApparelPricing(storeSettings?.apparel_pricing || {});
 
     const { data: variantRows, error: variantError } = await service
       .from("product_variants")
@@ -1311,6 +1357,23 @@ Deno.serve(async (req: Request) => {
         if (design.priority === "rush") {
           unitPrice += Number(cfg.rushDesignFee ?? 10) + Number(cfg.rushProductionFee ?? 15);
         }
+
+        const apparelKey = apparelProductKey(product);
+        if (apparelPricing.enabled && apparelKey) {
+          const placementKey = apparelPlacementKey(design);
+          const productBase = Number(product.price || 0) + (placementKey === "front_back" ? Number(cfg.frontBackFee ?? 10) : 0);
+          const surcharge = roundMoney(Math.max(0, unitPrice - productBase));
+          const configuredOne = Number(apparelPricing.products?.[apparelKey]?.[placementKey]?.[1]);
+          if (Number.isFinite(configuredOne) && configuredOne >= 0) {
+            unitPrice = configuredOne + surcharge;
+            customData = {
+              ...customData,
+              apparelPricingKey: apparelKey,
+              apparelPlacement: placementKey,
+              apparelSurcharge: surcharge,
+            };
+          }
+        }
       }
 
       unitPrice = roundMoney(unitPrice);
@@ -1344,13 +1407,44 @@ Deno.serve(async (req: Request) => {
     subtotal = roundMoney(subtotal);
     eligibleSubtotal = roundMoney(eligibleSubtotal);
     exemptSubtotal = roundMoney(exemptSubtotal);
-    const quantityFactor = eligibleItemCount >= 3 ? 0.75 : eligibleItemCount >= 2 ? 0.80 : 1;
-    const eligibleDiscounted = roundMoney(eligibleSubtotal * quantityFactor);
+
+    let eligibleDiscounted = 0;
+    for (const item of normalizedItems) {
+      if (item.discountExempt) continue;
+      const apparelKey = String((item.customData as any)?.apparelPricingKey || "");
+      if (!apparelKey) {
+        eligibleDiscounted += Number(item.unitPrice || 0) * Number(item.quantity || 1);
+        continue;
+      }
+
+      const quantity = Number(item.quantity || 1);
+      if (quantity >= Number(apparelPricing.customQuoteMinQty || 50)) {
+        return respond(req, {
+          error: true,
+          message: `Orders of ${apparelPricing.customQuoteMinQty}+ custom apparel pieces require a custom quote. Please contact GDP Clothing.`,
+          requiresQuote: true,
+        }, 409);
+      }
+
+      const placementKey = String((item.customData as any)?.apparelPlacement || "front");
+      const surcharge = Math.max(0, Number((item.customData as any)?.apparelSurcharge || 0));
+      const matrix = apparelPricing.products?.[apparelKey]?.[placementKey] || {};
+      const exact = [2, 5, 10].includes(quantity) ? Number(matrix?.[quantity]) : NaN;
+      if (Number.isFinite(exact) && exact >= 0) {
+        eligibleDiscounted += exact + surcharge * quantity;
+      } else {
+        const onePrice = Math.max(0, Number(matrix?.[1] ?? (Number(item.unitPrice || 0) - surcharge)));
+        const percent = apparelVolumePercent(apparelPricing, quantity);
+        eligibleDiscounted += onePrice * quantity * (1 - percent / 100) + surcharge * quantity;
+      }
+    }
+
+    eligibleDiscounted = roundMoney(eligibleDiscounted);
     const discounted = roundMoney(eligibleDiscounted + exemptSubtotal);
-    const quantityDiscount = roundMoney(eligibleSubtotal - eligibleDiscounted);
+    const quantityDiscount = roundMoney(Math.max(0, eligibleSubtotal - eligibleDiscounted));
 
     const couponCode = String(body?.discountCode || customer.discountCode || "").trim().toUpperCase();
-    const coupon = await getCoupon(service, couponCode, discounted);
+    const coupon = (apparelPricing.allowCouponStacking || quantityDiscount <= 0) ? await getCoupon(service, couponCode, discounted) : null;
     let couponAmount = 0;
     let freeShipping = false;
 

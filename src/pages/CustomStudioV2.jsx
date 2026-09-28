@@ -480,6 +480,8 @@ export default function CustomStudioV2() {
         productId: product.id,
         variantId: variant?.id || null,
         name: product.name,
+        productType: product.type || '',
+        placement: bothSides ? 'front_back' : firstSide,
         image: customerMockupUpload.file_url,
         price,
         quantity,
