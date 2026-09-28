@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - ".github/**"
+      - "docs/**"
+      - "**/*.md"
+      - "scripts/*smoke*.mjs"
   schedule:
     - cron: "13 */6 * * *"
   workflow_dispatch:
@@ -25,77 +30,24 @@ jobs:
   production-smoke:
     name: Production smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 16
+    timeout-minutes: 18
     env:
       PRODUCTION_BASE_URL: ${{ github.event.inputs.base_url || 'https://gdpclothing.ca' }}
       SMOKE_ARTIFACT_DIR: production-smoke-results
-      PLAYWRIGHT_VERSION: "1.63.0"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 2
-
-      - name: Detect production-impacting changes
-        if: github.event_name == 'push'
-        id: production_changes
-        shell: bash
-        run: |
-          set -euo pipefail
-          before="${{ github.event.before }}"
-          after="${GITHUB_SHA}"
-
-          if [[ -z "$before" || "$before" == "0000000000000000000000000000000000000000" ]]; then
-            echo "runtime_changed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          changed="$(git diff --name-only "$before" "$after" || true)"
-          printf 'Changed files:\n%s\n' "$changed"
-
-          # Workflow/docs/smoke-test-only edits do not require waiting for a new
-          # Cloudflare production deployment. Everything else remains fail-safe.
-          runtime_changed=false
-          while IFS= read -r file; do
-            [[ -z "$file" ]] && continue
-            case "$file" in
-              .github/*|docs/*|*.md|scripts/*smoke*.mjs)
-                ;;
-              *)
-                runtime_changed=true
-                break
-                ;;
-            esac
-          done <<< "$changed"
-
-          echo "runtime_changed=$runtime_changed" >> "$GITHUB_OUTPUT"
-          echo "Production runtime changed: $runtime_changed"
-
       - name: Set up supported Node.js
         uses: actions/setup-node@v5
         with:
           node-version: "22"
-
-      - name: Cache Playwright Chromium
-        id: playwright_cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}-chromium
-
       - name: Install Playwright runner
-        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@${PLAYWRIGHT_VERSION}
-
-      - name: Install Chromium system dependencies
-        run: npx playwright install-deps chromium
-
-      - name: Install Chromium browser
-        if: steps.playwright_cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
-
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
       - name: Wait for Cloudflare production deployment
-        if: github.event_name == 'push' && steps.production_changes.outputs.runtime_changed == 'true'
+        if: github.event_name == 'push'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,14 +63,8 @@ jobs:
             sleep 5
           done
           exit 1
-
-      - name: Skip Cloudflare wait for non-runtime change
-        if: github.event_name == 'push' && steps.production_changes.outputs.runtime_changed != 'true'
-        run: echo "Fast smoke: no production runtime files changed; Cloudflare deployment wait skipped."
-
       - name: Run maintenance-aware production canary
         run: node scripts/production-smoke-v2.mjs
-
       - name: Run Custom Studio garment selection regression
         if: success()
         shell: bash
@@ -128,21 +74,18 @@ jobs:
             exit 0
           fi
           node scripts/custom-studio-garment-smoke.mjs
-
       - name: Run Custom Studio hardening regression
         if: success()
         shell: bash
         run: |
           if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then exit 0; fi
           node scripts/custom-studio-hardening-smoke.mjs
-
       - name: Run safe storefront wiring canary
         if: success()
         shell: bash
         run: |
           if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then exit 0; fi
           node scripts/production-wiring-smoke.mjs
-
       - name: Upload production smoke evidence
         if: always()
         uses: actions/upload-artifact@v5
