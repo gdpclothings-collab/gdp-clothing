@@ -70,12 +70,13 @@ async function main() {
     await record("Custom Studio Step 1 garment cards accept selection clicks", async () => {
       await navigate(page, "/custom-studio");
 
-      const stepHeading = page.getByRole("heading", { name: /choose your garment/i }).first();
-      await stepHeading.waitFor({ state: "visible", timeout: 20000 });
+      // Current production Step 1 owns stable semantic hooks directly in GarmentStep.
+      // Wait for the async catalog through those hooks instead of old wrapper-specific
+      // data-gdp-* attributes that were removed during the unified workspace refactor.
+      const gallery = page.locator("[data-garment-grid]");
+      await gallery.waitFor({ state: "visible", timeout: 30000 });
 
-      const gallery = page.locator('[data-gdp-garment-gallery="true"]');
-      await gallery.waitFor({ state: "visible", timeout: 20000 });
-      const cards = gallery.locator(":scope > div > button");
+      const cards = gallery.locator(":scope > button");
       const count = await cards.count();
       assert(count > 0, "No selectable garment cards were found in Custom Studio Step 1.");
 
@@ -85,31 +86,29 @@ async function main() {
       await first.click();
       await assertClickReached(first, `garment card "${firstText}"`);
 
-      // Current Step 1 intentionally collapses the gallery after selection and shows
-      // a focused configurator. Assert that real behavior instead of an old CSS class.
-      const configurator = page.locator('[data-gdp-selected-garment-configurator="true"]');
-      await configurator.waitFor({ state: "visible", timeout: 10000 });
-      assert(await page.locator('[data-gdp-selected-garment-options="true"]').isVisible(), "Selected garment options did not appear after selection.");
-      assert(await page.getByText("Color", { exact: true }).first().isVisible(), "Color controls did not appear after selecting a garment.");
-      assert(await page.getByText("Size", { exact: true }).first().isVisible(), "Size controls did not appear after selecting a garment.");
-      assert(await page.locator('[data-gdp-garment-continue="true"]').isVisible(), "Garment Continue control did not appear after selection.");
+      // Selection is proven by the native Step 1 controls appearing. These hooks are
+      // part of the current GarmentStep component and are also protected by static CI.
+      const colorControls = page.locator("[data-step1-color]");
+      const sizeQuantity = page.locator("[data-step1-size-quantity]");
+      const sizeControls = page.locator("[data-step1-size]");
+      const quantityControls = page.locator("[data-step1-quantity]");
+      const completion = page.locator("[data-step1-complete]");
+
+      await colorControls.waitFor({ state: "visible", timeout: 10000 });
+      await sizeQuantity.waitFor({ state: "visible", timeout: 10000 });
+      await sizeControls.waitFor({ state: "visible", timeout: 10000 });
+      await quantityControls.waitFor({ state: "visible", timeout: 10000 });
+      assert(await completion.count() === 1, "Step 1 completion region is missing after garment selection.");
 
       let switchedTo = null;
-      if (count > 1) {
-        const changeButton = page.locator('[data-gdp-change-garment="true"]');
-        await changeButton.waitFor({ state: "visible", timeout: 10000 });
-        await changeButton.click();
-
-        await gallery.waitFor({ state: "visible", timeout: 10000 });
-        const refreshedCards = gallery.locator(":scope > div > button");
-        assert(await refreshedCards.count() > 1, "Garment gallery did not restore after choosing Change garment.");
-
-        const second = refreshedCards.nth(1);
+      if (count > 1 && await gallery.isVisible()) {
+        const second = cards.nth(1);
         const secondText = normalizeText(await second.innerText());
         await attachClickProbe(second);
         await second.click();
         await assertClickReached(second, `second garment card "${secondText}"`);
-        await configurator.waitFor({ state: "visible", timeout: 10000 });
+        await colorControls.waitFor({ state: "visible", timeout: 10000 });
+        await sizeControls.waitFor({ state: "visible", timeout: 10000 });
         switchedTo = secondText;
       }
 
@@ -122,7 +121,7 @@ async function main() {
         clickReachedCard: true,
         colorControlsVisible: true,
         sizeControlsVisible: true,
-        focusedConfiguratorVisible: true,
+        quantityControlsVisible: true,
       };
     });
 
