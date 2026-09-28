@@ -38,16 +38,18 @@ async function navigate(page, route) {
   await page.locator("body").waitFor({ state: "visible", timeout: 15000 });
 }
 
-async function attachClickProbe(button) {
+async function attachClickProbe(page, button) {
+  await page.evaluate(() => { window.__gdpSmokeClickReached = false; });
   await button.evaluate((element) => {
-    element.dataset.gdpSmokeClickReached = "0";
-    element.addEventListener("click", () => { element.dataset.gdpSmokeClickReached = "1"; }, { once: true });
+    element.addEventListener("click", () => {
+      window.__gdpSmokeClickReached = true;
+    }, { once: true });
   });
 }
 
-async function assertClickReached(button, label) {
-  const reached = await button.getAttribute("data-gdp-smoke-click-reached");
-  assert(reached === "1", `Click did not reach ${label}. A capture-phase click interceptor may be blocking Step 1.`);
+async function assertClickReached(page, label) {
+  const reached = await page.evaluate(() => window.__gdpSmokeClickReached === true);
+  assert(reached, `Click did not reach ${label}. A capture-phase click interceptor may be blocking Step 1.`);
 }
 
 async function visibleCount(locator) {
@@ -140,9 +142,9 @@ async function main() {
       const first = Array.isArray(cards) ? cards[0] : await firstVisible(cards);
       assert(first, "No visible garment card was available to test.");
       const firstText = normalizeText(await first.innerText());
-      await attachClickProbe(first);
+      await attachClickProbe(page, first);
       await first.click();
-      await assertClickReached(first, `garment card "${firstText}"`);
+      await assertClickReached(page, `garment card "${firstText}"`);
 
       const selectionState = await waitForSelectionState(page, firstText);
 
