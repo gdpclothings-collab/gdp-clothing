@@ -1,4 +1,3 @@
-import { supabase } from "./supabaseClient.js";
 import {
   DEFAULT_APPAREL_PRICING,
   apparelPlacementKey,
@@ -17,24 +16,36 @@ if (typeof window !== "undefined") {
     if (stored) cachedPricing = normalizeApparelPricing(JSON.parse(stored));
   } catch { /* use defaults */ }
 
-  Promise.resolve(
-    supabase.from("store_settings").select("apparel_pricing").eq("id", 1).maybeSingle()
-  ).then(({ data, error }) => {
-    if (error || !data?.apparel_pricing) return;
-    const next = normalizeApparelPricing(data.apparel_pricing);
-    const previous = JSON.stringify(cachedPricing);
-    const serialized = JSON.stringify(next);
-    cachedPricing = next;
-    try { window.localStorage.setItem(CACHE_KEY, serialized); } catch { /* ignore */ }
+  const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+  if (supabaseUrl && anonKey) {
+    fetch(`${supabaseUrl}/rest/v1/store_settings?id=eq.1&select=apparel_pricing`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        Accept: "application/json",
+      },
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("pricing config unavailable")))
+      .then((rows) => {
+        const raw = Array.isArray(rows) ? rows[0]?.apparel_pricing : null;
+        if (!raw) return;
+        const next = normalizeApparelPricing(raw);
+        const previous = JSON.stringify(cachedPricing);
+        const serialized = JSON.stringify(next);
+        cachedPricing = next;
+        try { window.localStorage.setItem(CACHE_KEY, serialized); } catch { /* ignore */ }
 
-    if (previous !== serialized && /^\/(cart|checkout)/.test(window.location.pathname)) {
-      const guard = `gdp_pricing_reload_${serialized.length}_${next.customQuoteMinQty}`;
-      if (window.sessionStorage.getItem(guard) !== "1") {
-        window.sessionStorage.setItem(guard, "1");
-        window.location.reload();
-      }
-    }
-  }).catch(() => {});
+        if (previous !== serialized && /^\/(cart|checkout)/.test(window.location.pathname)) {
+          const guard = `gdp_pricing_reload_${serialized.length}_${next.customQuoteMinQty}`;
+          if (window.sessionStorage.getItem(guard) !== "1") {
+            window.sessionStorage.setItem(guard, "1");
+            window.location.reload();
+          }
+        }
+      })
+      .catch(() => {});
+  }
 }
 
 export function calculateCartQuantityDiscount(items = []) {
@@ -52,24 +63,33 @@ export function calculateCartQuantityDiscount(items = []) {
 
     if (item.discountExempt) {
       const line = rawUnitPrice * quantity;
-      subtotal += line; afterDiscount += line; exemptSubtotal += line;
+      subtotal += line;
+      afterDiscount += line;
+      exemptSubtotal += line;
       continue;
     }
 
     const isCustom = Boolean(item.isCustom || item.customDesignId);
-    const productKey = isCustom ? apparelProductKey(item.productType || item.variant || "", item.name || "") : null;
+    const productKey = isCustom
+      ? apparelProductKey(item.productType || item.variant || "", item.name || "")
+      : null;
     const placement = apparelPlacementKey(item.placement || "front");
 
     if (!config.enabled || !productKey) {
       const line = rawUnitPrice * quantity;
-      subtotal += line; afterDiscount += line; eligibleSubtotal += line; eligibleCount += quantity;
+      subtotal += line;
+      afterDiscount += line;
+      eligibleSubtotal += line;
+      eligibleCount += quantity;
       continue;
     }
 
     const onePrice = Number(config.products?.[productKey]?.[placement]?.[1] ?? rawUnitPrice);
     const surcharge = Math.max(0, rawUnitPrice - onePrice);
     const regularLine = onePrice * quantity + surcharge * quantity;
-    subtotal += regularLine; eligibleSubtotal += regularLine; eligibleCount += quantity;
+    subtotal += regularLine;
+    eligibleSubtotal += regularLine;
+    eligibleCount += quantity;
 
     if (quantity >= Number(config.customQuoteMinQty || 50)) {
       requiresQuote = true;
@@ -93,11 +113,19 @@ export function calculateCartQuantityDiscount(items = []) {
   subtotal = round(subtotal);
   afterDiscount = round(afterDiscount);
   const discount = round(Math.max(0, subtotal - afterDiscount));
-  const factor = eligibleSubtotal > 0 ? afterDiscount / Math.max(eligibleSubtotal + exemptSubtotal, 0.01) : 1;
+  const factor = eligibleSubtotal > 0
+    ? afterDiscount / Math.max(eligibleSubtotal + exemptSubtotal, 0.01)
+    : 1;
 
   return {
-    subtotal, afterDiscount, discount, eligibleSubtotal: round(eligibleSubtotal),
-    exemptSubtotal: round(exemptSubtotal), eligibleCount, factor, requiresQuote,
+    subtotal,
+    afterDiscount,
+    discount,
+    eligibleSubtotal: round(eligibleSubtotal),
+    exemptSubtotal: round(exemptSubtotal),
+    eligibleCount,
+    factor,
+    requiresQuote,
     customQuoteMinQty: Number(config.customQuoteMinQty || 50),
     label: discount > 0 ? "GDP bundle / volume pricing applied" : "",
   };
