@@ -1,0 +1,52 @@
+name: Apply Guest Design Payment Lifecycle Repair
+
+on:
+  push:
+    branches:
+      - fix/guest-design-payment-lifecycle
+    paths:
+      - scripts/fix-guest-design-payment-lifecycle.mjs
+      - .github/workflows/apply-guest-design-payment-lifecycle.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply targeted lifecycle repair
+        run: node scripts/fix-guest-design-payment-lifecycle.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build
+        run: npm run build
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Verify lifecycle invariants
+        shell: bash
+        run: |
+          grep -q 'converted_at: null' supabase/functions/checkout/index.ts
+          grep -q 'status: "converted"' supabase/functions/stripe-webhook/index.ts
+          grep -q 'Finaliz.*guest custom designs\|Finalize guest custom designs' supabase/functions/stripe-webhook/index.ts
+          git diff --check
+      - name: Commit repaired backend
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "gdp-clothing-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add supabase/functions/checkout/index.ts supabase/functions/stripe-webhook/index.ts
+          git commit -m "fix: finalize guest designs only after payment"
+          git push origin HEAD:fix/guest-design-payment-lifecycle
