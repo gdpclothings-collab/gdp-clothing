@@ -103,23 +103,25 @@ async function main() {
     await record("Custom Studio Step 1 garment cards accept selection clicks", async () => {
       await navigate(page, "/custom-studio");
 
-      // Do not depend on the removed #custom-studio-workspace wrapper. Anchor the
-      // regression to the live Step 1 controls and preserve the real click/selection assertions.
+      // Custom Studio loads garment inventory asynchronously from Supabase. Wait for
+      // the live Step 1 section instead of sampling immediately after navigation.
       const stepHeading = page.getByText(/CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i).first();
+      await stepHeading.waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
       const headingVisible = await stepHeading.isVisible().catch(() => false);
       if (!headingVisible) {
         const bodyText = normalizeText(await page.locator("body").innerText());
         assert(
           /CLOTHING,?\s*COLOU?R\s*&\s*SIZE/i.test(bodyText),
-          "Custom Studio Step 1 clothing, colour & size section was not visible."
+          "Custom Studio Step 1 clothing, colour & size section was not visible after waiting for async garment data."
         );
       }
 
-      // Garment cards are buttons containing the garment-name element. Scoping to
-      // visible buttons avoids coupling this smoke test to a presentation-only wrapper id.
+      // Garment cards are buttons containing the garment-name element. Give the
+      // async product query time to populate before asserting card availability.
       const cards = page.locator("button:has(.font-bold.leading-tight):visible");
+      await cards.first().waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
       const count = await cards.count();
-      assert(count > 0, "No selectable garment cards were found in Custom Studio Step 1.");
+      assert(count > 0, "No selectable garment cards were found in Custom Studio Step 1 after waiting for async garment data.");
 
       const before = [];
       for (let index = 0; index < count; index += 1) {
