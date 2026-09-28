@@ -1,0 +1,30 @@
+name: GDP Fast Mode Policy Check
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/fast-mode-risk.mjs'
+      - 'docs/GDP_FAST_MODE_V2.md'
+
+concurrency:
+  group: gdp-fast-mode-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Verify risk classifier contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node scripts/fast-mode-risk.mjs src/pages/About.jsx)" = GREEN
+          test "$(node scripts/fast-mode-risk.mjs src/pages/custom-studio/Studio.jsx)" = YELLOW
+          test "$(node scripts/fast-mode-risk.mjs supabase/functions/create-checkout-session/index.ts)" = RED
+          test "$(node scripts/fast-mode-risk.mjs src/auth/session.ts)" = RED
+          echo "GDP FAST MODE risk contracts passed."
