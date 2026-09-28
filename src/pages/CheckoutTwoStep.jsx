@@ -112,7 +112,7 @@ export default function CheckoutTwoStep() {
       try {
         const token = ensureToken();
         const checkoutForm = { ...form, postalCode:normalizePostal(form.postalCode), country:"Canada" };
-        await customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token);
+        void customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token).catch(() => {});
         const data = await customerApi.createOrder(items, checkoutForm, checkoutForm.discountCode, window.location.origin, token);
         if (data?.paid && data?.orderNumber) {
           clearCart();
