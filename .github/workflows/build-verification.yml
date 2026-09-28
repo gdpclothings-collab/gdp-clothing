@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: build-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   standalone-build:
     runs-on: ubuntu-latest
@@ -23,6 +27,8 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Verify no active Base44 runtime dependency
         shell: bash
@@ -35,126 +41,45 @@ jobs:
 
       - name: Verify test harness syntax
         run: |
-          node --check scripts/production-smoke.mjs
-          node --check scripts/production-wiring-smoke.mjs
-          node --check scripts/custom-studio-garment-smoke.mjs
-          node --check scripts/custom-studio-hardening-smoke.mjs
-          node --check scripts/verify-custom-studio-garment-interactions.mjs
-          node --check scripts/verify-custom-studio-garment-info.mjs
-          node --check scripts/verify-custom-studio-garment-layout-refinement.mjs
-          node --check scripts/verify-custom-studio-focused-garment-v2.mjs
-          node --check scripts/verify-custom-studio-footer.mjs
-          node --check scripts/verify-custom-studio-garment-preview.mjs
-          node --check scripts/verify-custom-order-guide-visibility.mjs
-          node --check scripts/verify-custom-studio-hardening.mjs
-          node --check scripts/verify-custom-studio-shell-architecture.mjs
-          node --check scripts/verify-custom-studio-layout-refinement.mjs
-          node --check scripts/verify-custom-studio-touch-studio.mjs
-          node --check scripts/verify-custom-studio-mobile-refinement.mjs
-          node --check scripts/verify-custom-studio-mobile-regression-repair.mjs
-          node --check scripts/verify-custom-studio-mobile-editor-safety.mjs
-          node --check scripts/verify-custom-studio-v2.mjs
-          node --check scripts/verify-custom-studio-v2-approval-refinement.mjs
-          node --check scripts/verify-seasonal-v2-loading-stability.mjs
-          node --check scripts/verify-seasonal-v2-explicit-add-artwork.mjs
-          node --check scripts/verify-admin-print-configuration.mjs
-          node --check scripts/verify-custom-studio-print-guides.mjs
-          node --check scripts/verify-custom-studio-print-pipeline.mjs
-          node --check scripts/assert-safe-staging-target.mjs
-          node --check scripts/verify-seasonal-artwork.mjs
-          node --check scripts/verify-photo-bootleg-desktop.mjs
-          node --check scripts/verify-cart-pricing.mjs
-          node --check scripts/verify-custom-studio-canonical-flow.mjs
+          for file in scripts/*.mjs; do node --check "$file"; done
 
-      - name: Verify Custom Studio shell architecture
-        run: node scripts/verify-custom-studio-shell-architecture.mjs
-
-      - name: Verify Custom Studio layout refinement
-        run: node scripts/verify-custom-studio-layout-refinement.mjs
-
-      - name: Verify GDP Touch Studio refinement
-        run: node scripts/verify-custom-studio-touch-studio.mjs
-
-      - name: Verify Custom Studio mobile-only refinement
-        run: node scripts/verify-custom-studio-mobile-refinement.mjs
-
-      - name: Verify Custom Studio mobile regression repair
-        run: node scripts/verify-custom-studio-mobile-regression-repair.mjs
-
-      - name: Verify Custom Studio mobile editor safety
-        run: node scripts/verify-custom-studio-mobile-editor-safety.mjs
-
-      - name: Verify Custom Studio garment interactions
-        run: node scripts/verify-custom-studio-garment-interactions.mjs
-
-      - name: Verify Custom Studio garment information
-        run: node scripts/verify-custom-studio-garment-info.mjs
-
-      - name: Verify Custom Studio garment layout refinement
-        run: node scripts/verify-custom-studio-garment-layout-refinement.mjs
-
-      - name: Verify safe Custom Studio focused garment mode
-        run: node scripts/verify-custom-studio-focused-garment-v2.mjs
-
-      - name: Verify Custom Studio shared footer
-        run: node scripts/verify-custom-studio-footer.mjs
-
-      - name: Verify color-specific garment previews
-        run: node scripts/verify-custom-studio-garment-preview.mjs
-
-      - name: Verify How Custom Orders Work visibility
-        run: node scripts/verify-custom-order-guide-visibility.mjs
-
-      - name: Verify Custom Studio hardening
-        run: node scripts/verify-custom-studio-hardening.mjs
-
-      - name: Verify Custom Studio canonical approval flow
-        run: node scripts/verify-custom-studio-canonical-flow.mjs
-
-      - name: Verify Custom Studio V2 isolation
-        run: node scripts/verify-custom-studio-v2.mjs
-
-      - name: Verify Custom Studio V2 approval refinement
-        run: node scripts/verify-custom-studio-v2-approval-refinement.mjs
-
-      - name: Verify Seasonal Studio V2 loading stability
-        run: node scripts/verify-seasonal-v2-loading-stability.mjs
-
-      - name: Verify Seasonal Studio explicit Add Artwork flow
-        run: node scripts/verify-seasonal-v2-explicit-add-artwork.mjs
-
-      - name: Verify Admin Print Configuration
-        run: node scripts/verify-admin-print-configuration.mjs
-
-      - name: Verify Custom Studio print guide calibration
-        run: node scripts/verify-custom-studio-print-guides.mjs
-
-      - name: Verify Custom Studio print pipeline
-        run: node scripts/verify-custom-studio-print-pipeline.mjs
-
-      - name: Verify cart quantity pricing policy
-        run: node scripts/verify-cart-pricing.mjs
+      - name: Run dependency-free regression checks
+        run: |
+          node scripts/verify-custom-studio-shell-architecture.mjs
+          node scripts/verify-custom-studio-layout-refinement.mjs
+          node scripts/verify-custom-studio-touch-studio.mjs
+          node scripts/verify-custom-studio-mobile-refinement.mjs
+          node scripts/verify-custom-studio-mobile-regression-repair.mjs
+          node scripts/verify-custom-studio-mobile-editor-safety.mjs
+          node scripts/verify-custom-studio-garment-interactions.mjs
+          node scripts/verify-custom-studio-garment-info.mjs
+          node scripts/verify-custom-studio-garment-layout-refinement.mjs
+          node scripts/verify-custom-studio-focused-garment-v2.mjs
+          node scripts/verify-custom-studio-footer.mjs
+          node scripts/verify-custom-studio-garment-preview.mjs
+          node scripts/verify-custom-order-guide-visibility.mjs
+          node scripts/verify-custom-studio-hardening.mjs
+          node scripts/verify-custom-studio-canonical-flow.mjs
+          node scripts/verify-custom-studio-v2.mjs
+          node scripts/verify-custom-studio-v2-approval-refinement.mjs
+          node scripts/verify-seasonal-v2-loading-stability.mjs
+          node scripts/verify-seasonal-v2-explicit-add-artwork.mjs
+          node scripts/verify-admin-print-configuration.mjs
+          node scripts/verify-custom-studio-print-guides.mjs
+          node scripts/verify-custom-studio-print-pipeline.mjs
+          node scripts/verify-cart-pricing.mjs
+          node scripts/verify-seasonal-artwork.mjs
+          node scripts/verify-photo-bootleg-desktop.mjs
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
-      - name: Verify DTF nesting algorithm
-        run: npm run test:dtf-nesting
-
-      - name: Verify fresh customer sessions
-        run: npm run test:fresh-session
-
-      - name: Verify product variant logic
-        run: npm run test:product-variants
-
-      - name: Verify Memorial Tribute workflow
-        run: npm run test:memorial
-
-      - name: Verify Seasonal Studio workflow
-        run: node scripts/verify-seasonal-artwork.mjs
-
-      - name: Verify Photo Bootleg workspace
-        run: node scripts/verify-photo-bootleg-desktop.mjs
+      - name: Run package regression checks
+        run: |
+          npm run test:dtf-nesting
+          npm run test:fresh-session
+          npm run test:product-variants
+          npm run test:memorial
 
       - name: Build production app
         run: npm run build
