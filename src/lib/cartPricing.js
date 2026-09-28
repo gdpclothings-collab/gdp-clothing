@@ -1,33 +1,132 @@
+import {
+  DEFAULT_APPAREL_PRICING,
+  apparelPlacementKey,
+  apparelProductKey,
+  getExactBundlePrice,
+  getVolumePercent,
+  normalizeApparelPricing,
+} from "./apparelPricing.js";
+
+const CACHE_KEY = "gdp_apparel_pricing_v1";
+let cachedPricing = normalizeApparelPricing(DEFAULT_APPAREL_PRICING);
+
+if (typeof window !== "undefined") {
+  try {
+    const stored = window.localStorage.getItem(CACHE_KEY);
+    if (stored) cachedPricing = normalizeApparelPricing(JSON.parse(stored));
+  } catch { /* use defaults */ }
+
+  const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+  if (supabaseUrl && anonKey) {
+    fetch(`${supabaseUrl}/rest/v1/store_settings?id=eq.1&select=apparel_pricing`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        Accept: "application/json",
+      },
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("pricing config unavailable")))
+      .then((rows) => {
+        const raw = Array.isArray(rows) ? rows[0]?.apparel_pricing : null;
+        if (!raw) return;
+        const next = normalizeApparelPricing(raw);
+        const previous = JSON.stringify(cachedPricing);
+        const serialized = JSON.stringify(next);
+        cachedPricing = next;
+        try { window.localStorage.setItem(CACHE_KEY, serialized); } catch { /* ignore */ }
+
+        if (previous !== serialized && /^\/(cart|checkout)/.test(window.location.pathname)) {
+          const guard = `gdp_pricing_reload_${serialized.length}_${next.customQuoteMinQty}`;
+          if (window.sessionStorage.getItem(guard) !== "1") {
+            window.sessionStorage.setItem(guard, "1");
+            window.location.reload();
+          }
+        }
+      })
+      .catch(() => {});
+  }
+}
+
 export function calculateCartQuantityDiscount(items = []) {
-  const eligible = items.filter((item) => !item.discountExempt);
-  const exempt = items.filter((item) => item.discountExempt);
+  const config = cachedPricing;
+  let subtotal = 0;
+  let afterDiscount = 0;
+  let eligibleSubtotal = 0;
+  let exemptSubtotal = 0;
+  let eligibleCount = 0;
+  let requiresQuote = false;
 
-  const eligibleSubtotal = eligible.reduce(
-    (sum, item) => sum + Number(item.price || 0) * Math.max(1, Number(item.quantity || 1)),
-    0
-  );
-  const exemptSubtotal = exempt.reduce(
-    (sum, item) => sum + Number(item.price || 0) * Math.max(1, Number(item.quantity || 1)),
-    0
-  );
-  const eligibleCount = eligible.reduce(
-    (sum, item) => sum + Math.max(1, Number(item.quantity || 1)),
-    0
-  );
+  for (const item of items) {
+    const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
+    const rawUnitPrice = Math.max(0, Number(item.price || 0));
 
-  const factor = eligibleCount >= 3 ? 0.75 : eligibleCount >= 2 ? 0.8 : 1;
-  const eligibleAfterDiscount = eligibleSubtotal * factor;
-  const subtotal = eligibleSubtotal + exemptSubtotal;
-  const afterDiscount = eligibleAfterDiscount + exemptSubtotal;
-  const discount = subtotal - afterDiscount;
+    if (item.discountExempt) {
+      const line = rawUnitPrice * quantity;
+      subtotal += line;
+      afterDiscount += line;
+      exemptSubtotal += line;
+      continue;
+    }
+
+    const isCustom = Boolean(item.isCustom || item.customDesignId);
+    const productKey = isCustom
+      ? apparelProductKey(item.productType || item.variant || "", item.name || "")
+      : null;
+    const placement = apparelPlacementKey(item.placement || "front");
+
+    if (!config.enabled || !productKey) {
+      const line = rawUnitPrice * quantity;
+      subtotal += line;
+      afterDiscount += line;
+      eligibleSubtotal += line;
+      eligibleCount += quantity;
+      continue;
+    }
+
+    const onePrice = Number(config.products?.[productKey]?.[placement]?.[1] ?? rawUnitPrice);
+    const surcharge = Math.max(0, rawUnitPrice - onePrice);
+    const regularLine = onePrice * quantity + surcharge * quantity;
+    subtotal += regularLine;
+    eligibleSubtotal += regularLine;
+    eligibleCount += quantity;
+
+    if (quantity >= Number(config.customQuoteMinQty || 50)) {
+      requiresQuote = true;
+      afterDiscount += regularLine;
+      continue;
+    }
+
+    const exact = [2, 5, 10].includes(quantity)
+      ? getExactBundlePrice(config, productKey, placement, quantity)
+      : null;
+    if (exact != null) {
+      afterDiscount += Number(exact) + surcharge * quantity;
+      continue;
+    }
+
+    const percent = getVolumePercent(config, quantity);
+    afterDiscount += onePrice * quantity * (1 - percent / 100) + surcharge * quantity;
+  }
+
+  const round = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  subtotal = round(subtotal);
+  afterDiscount = round(afterDiscount);
+  const discount = round(Math.max(0, subtotal - afterDiscount));
+  const factor = eligibleSubtotal > 0
+    ? afterDiscount / Math.max(eligibleSubtotal + exemptSubtotal, 0.01)
+    : 1;
 
   return {
     subtotal,
     afterDiscount,
     discount,
-    eligibleSubtotal,
-    exemptSubtotal,
+    eligibleSubtotal: round(eligibleSubtotal),
+    exemptSubtotal: round(exemptSubtotal),
     eligibleCount,
     factor,
+    requiresQuote,
+    customQuoteMinQty: Number(config.customQuoteMinQty || 50),
+    label: discount > 0 ? "GDP bundle / volume pricing applied" : "",
   };
 }
