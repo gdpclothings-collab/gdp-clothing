@@ -26,7 +26,7 @@ function MoneyInput({ value, onChange, label }) {
           min="0"
           step="0.01"
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => onChange(Number(event.target.value || 0))}
           className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
           aria-label={label}
         />
@@ -63,7 +63,7 @@ export default function AdminPricing() {
           ...current.products[productKey],
           [placement]: {
             ...current.products[productKey][placement],
-            [quantity]: value,
+            [quantity]: Number(value || 0),
           },
         },
       },
@@ -74,7 +74,7 @@ export default function AdminPricing() {
     setMessage(""); setError("");
     setPricing((current) => ({
       ...current,
-      tiers: current.tiers.map((tier, i) => i === index ? { ...tier, [field]: value } : tier),
+      tiers: current.tiers.map((tier, i) => i === index ? { ...tier, [field]: Number(value || 0) } : tier),
     }));
   };
 
@@ -83,7 +83,7 @@ export default function AdminPricing() {
     try {
       const saved = await adminApparelPricingApi.save(pricing);
       setPricing(saved);
-      setMessage("Pricing settings saved. New carts and checkout calculations will use these values after the pricing rollout is published.");
+      setMessage("Pricing settings saved successfully.");
     } catch (err) {
       setError(err?.message || "Could not save pricing settings.");
     } finally {
@@ -93,7 +93,7 @@ export default function AdminPricing() {
 
   const reset = () => {
     setPricing(normalizeApparelPricing(DEFAULT_APPAREL_PRICING));
-    setMessage("Recommended GDP pricing restored in the editor. Select Save changes to publish these settings.");
+    setMessage("Recommended GDP pricing restored in the editor. Select Save changes to apply it.");
     setError("");
   };
 
@@ -162,7 +162,7 @@ export default function AdminPricing() {
             ))}
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#666b73]">Custom quote starts at</span><div className="flex h-11 items-center rounded-lg border border-[#d8dade] px-3"><input type="number" min="1" value={pricing.customQuoteMinQty} onChange={(e) => setPricing((current) => ({ ...current, customQuoteMinQty: e.target.value }))} className="w-full bg-transparent text-sm font-semibold outline-none"/><span className="text-xs text-[#6c7078]">pcs</span></div></label>
+            <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#666b73]">Custom quote starts at</span><div className="flex h-11 items-center rounded-lg border border-[#d8dade] px-3"><input type="number" min="1" value={pricing.customQuoteMinQty} onChange={(e) => setPricing((current) => ({ ...current, customQuoteMinQty: Math.max(1, Number(e.target.value || 1)) }))} className="w-full bg-transparent text-sm font-semibold outline-none"/><span className="text-xs text-[#6c7078]">pcs</span></div></label>
             <label className="flex min-h-11 items-center justify-between gap-4 rounded-lg border border-[#d8dade] px-4"><div><div className="text-sm font-semibold">Allow coupon codes after volume pricing</div><div className="mt-0.5 text-xs text-[#6c7078]">Keep enabled for current checkout behavior.</div></div><input type="checkbox" checked={pricing.allowCouponStacking !== false} onChange={(e) => setPricing((current) => ({ ...current, allowCouponStacking: e.target.checked }))} className="h-5 w-5"/></label>
           </div>
         </section>
@@ -172,5 +172,5 @@ export default function AdminPricing() {
 }
 
 function MoneylessInput({ label, value, onChange }) {
-  return <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-[#6c7078]">{label}</span><input type="number" min="0" value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-full rounded-lg border border-[#d8dade] bg-white px-2 text-sm font-semibold outline-none focus:border-[#111214]"/></label>;
+  return <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-[#6c7078]">{label}</span><input type="number" min="0" value={value} onChange={(e) => onChange(Number(e.target.value || 0))} className="h-10 w-full rounded-lg border border-[#d8dade] bg-white px-2 text-sm font-semibold outline-none focus:border-[#111214]"/></label>;
 }
