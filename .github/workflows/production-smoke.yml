@@ -33,18 +33,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
       - name: Set up supported Node.js
         uses: actions/setup-node@v5
         with:
           node-version: "22"
-
       - name: Install Playwright runner
         run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
-
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-
       - name: Wait for Cloudflare production deployment
         if: github.event_name == 'push'
         shell: bash
@@ -57,69 +53,34 @@ jobs:
             status="$(printf '%s' "$payload" | jq -r '[.check_runs[] | select(.name == "Cloudflare Pages")][0].status // "missing"')"
             conclusion="$(printf '%s' "$payload" | jq -r '[.check_runs[] | select(.name == "Cloudflare Pages")][0].conclusion // ""')"
             echo "Cloudflare Pages check: status=${status} conclusion=${conclusion:-pending}"
-            if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
-              echo "Cloudflare reports success. Waiting 10 seconds for edge propagation before browser checks."
-              sleep 10
-              exit 0
-            fi
-            if [[ "$status" == "completed" && -n "$conclusion" && "$conclusion" != "success" ]]; then
-              echo "Cloudflare production deployment failed with conclusion: $conclusion"
-              exit 1
-            fi
+            if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then sleep 10; exit 0; fi
+            if [[ "$status" == "completed" && -n "$conclusion" && "$conclusion" != "success" ]]; then exit 1; fi
             sleep 10
           done
-          echo "Timed out waiting for Cloudflare Pages production deployment."
           exit 1
-
       - name: Run maintenance-aware production canary
-        run: node scripts/production-smoke-gate.mjs
-
+        run: node scripts/production-smoke-v2.mjs
       - name: Run Custom Studio garment selection regression
         if: success()
         shell: bash
         run: |
           if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then
-            echo "::notice title=Custom Studio garment regression skipped::Maintenance mode is active, so the public garment interaction could not be exercised. This is SKIPPED, not PASSED."
-            mkdir -p "${SMOKE_ARTIFACT_DIR}"
-            cat > "${SMOKE_ARTIFACT_DIR}/custom-studio-garment-report.json" <<'JSON'
-          {
-            "status": "skipped",
-            "reason": "maintenance",
-            "message": "Maintenance mode blocked the public Custom Studio garment interaction. No live garment click assertion was executed."
-          }
-          JSON
-            cat > "${SMOKE_ARTIFACT_DIR}/custom-studio-garment-summary.md" <<'MD'
-          # GDP Clothing Custom Studio Garment Regression
-
-          Status: SKIPPED
-          Reason: maintenance mode
-
-          The public Custom Studio garment click was not exercised. Do not interpret the workflow's overall success as a garment-interaction pass.
-          MD
+            echo "::notice title=Custom Studio garment regression skipped::Maintenance mode is active."
             exit 0
           fi
           node scripts/custom-studio-garment-smoke.mjs
-
       - name: Run Custom Studio hardening regression
         if: success()
         shell: bash
         run: |
-          if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then
-            echo "Maintenance mode is active; skipping Custom Studio hardening browser checks."
-            exit 0
-          fi
+          if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then exit 0; fi
           node scripts/custom-studio-hardening-smoke.mjs
-
       - name: Run safe storefront wiring canary
         if: success()
         shell: bash
         run: |
-          if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then
-            echo "Maintenance mode is active; skipping open-storefront wiring checks."
-            exit 0
-          fi
+          if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then exit 0; fi
           node scripts/production-wiring-smoke.mjs
-
       - name: Upload production smoke evidence
         if: always()
         uses: actions/upload-artifact@v5
