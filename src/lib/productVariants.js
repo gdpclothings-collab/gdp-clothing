@@ -1,4 +1,4 @@
-// Runtime-safe marker: trigger final production verification after CI smoke alignment.
+// Runtime-safe marker: trigger production verification for the resilient garment smoke test.
 const SIZE_ORDER = [
   "NB", "0-3M", "3-6M", "6-9M", "6-12M", "9-12M", "12-18M", "18-24M",
   "2T", "3T", "4T", "5T", "YXS", "YS", "YM", "YL", "YXL",
