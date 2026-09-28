@@ -1,1 +1,0 @@
-This focused regression guard exists to prevent the two-step checkout from creating an order before explicit terms acceptance.
