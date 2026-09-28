@@ -1,0 +1,30 @@
+name: Apply checkout session race fix
+on:
+  push:
+    branches: [fix/checkout-edit-retry-session]
+    paths:
+      - '.github/workflows/apply-checkout-session-race-fix.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/checkout-edit-retry-session
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/fix-checkout-session-race.mjs
+      - run: npm ci
+      - run: npm run build
+      - name: Commit targeted fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/CheckoutTwoStep.jsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix checkout payment session preparation race'
+          git push origin HEAD:fix/checkout-edit-retry-session
