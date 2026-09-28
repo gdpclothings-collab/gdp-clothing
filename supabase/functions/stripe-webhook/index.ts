@@ -189,6 +189,29 @@ Deno.serve(async (req: Request) => {
         }
         const nextStatus = matchedMode === "test" ? "paid" : hasCustom ? (productionReady ? "production_queue" : "artwork_needed") : "paid";
 
+        // Finalize guest custom designs only after Stripe has confirmed payment.
+        // The converted_order_id predicate prevents an older abandoned/retried
+        // checkout from consuming a design currently reserved by a newer one.
+        if (customDesignIds.length) {
+          const paidAt = new Date().toISOString();
+          const { data: finalizedGuestSessions, error: guestFinalizeError } = await service
+            .from("guest_design_sessions")
+            .update({ converted_at: paidAt, updated_at: paidAt })
+            .eq("converted_order_id", orderId)
+            .is("converted_at", null)
+            .select("design_id");
+          if (guestFinalizeError) throw guestFinalizeError;
+
+          const finalizedGuestIds = (finalizedGuestSessions || []).map((row: any) => row.design_id);
+          if (finalizedGuestIds.length) {
+            const { error: guestDesignError } = await service
+              .from("custom_designs")
+              .update({ order_id: orderId, status: "ordered" })
+              .in("id", finalizedGuestIds);
+            if (guestDesignError) throw guestDesignError;
+          }
+        }
+
         const { error } = await service
           .from("orders")
           .update({
@@ -204,7 +227,12 @@ Deno.serve(async (req: Request) => {
 
         const { error: checkoutCleanupError } = await service
           .from("checkout_sessions")
-          .update({ stripe_client_secret: null, processing_started_at: null, last_activity_at: new Date().toISOString() })
+          .update({
+            status: "converted",
+            stripe_client_secret: null,
+            processing_started_at: null,
+            last_activity_at: new Date().toISOString(),
+          })
           .eq("converted_order_id", orderId);
         if (checkoutCleanupError) console.error("checkout secret cleanup failed", checkoutCleanupError);
 

@@ -1073,7 +1073,7 @@ Deno.serve(async (req: Request) => {
       if (guestDesignIds.length) {
         const { data: sessions, error: sessionError } = await service
           .from("guest_design_sessions")
-          .select("id,design_id,token_hash,expires_at,converted_at")
+          .select("id,design_id,token_hash,expires_at,converted_order_id,converted_at")
           .in("design_id", guestDesignIds);
         if (sessionError) throw sessionError;
         for (const session of sessions || []) guestDesignSessions.set(session.design_id, session);
@@ -1521,8 +1521,10 @@ Deno.serve(async (req: Request) => {
         const { data: claimedSession, error: claimError } = await service
           .from("guest_design_sessions")
           .update({
+            // Reserve the guest design for this pending payment, but do not
+            // permanently consume it until Stripe confirms payment.
             converted_order_id: order.id,
-            converted_at: convertedAt,
+            converted_at: null,
             updated_at: convertedAt,
           })
           .eq("design_id", design.id)
@@ -1540,12 +1542,16 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      await service
-        .from("custom_designs")
-        .update({ order_id: order.id, status: "ordered", ...(user && !design.user_id ? { user_id: user.id } : {}) })
-        .eq("id", design.id);
+      // Guest designs stay in_cart while payment is pending. The Stripe
+      // webhook performs the permanent order/status transition after payment.
+      if (!guestDesignSessions.has(design.id)) {
+        await service
+          .from("custom_designs")
+          .update({ order_id: order.id, status: "ordered", ...(user && !design.user_id ? { user_id: user.id } : {}) })
+          .eq("id", design.id);
+      }
 
-      if (design.proof_required !== false) {
+      if (!guestDesignSessions.has(design.id) && design.proof_required !== false) {
         const { data: existing } = await service
           .from("design_proofs")
           .select("id")
@@ -1569,6 +1575,7 @@ Deno.serve(async (req: Request) => {
 
     if (!stripeSecret || !stripePublishableKey) {
       await releaseCheckoutReservations(service, order.id);
+      await releaseGuestDesignClaims(service, order.id);
       await service
         .from("orders")
         .update({
@@ -1582,8 +1589,8 @@ Deno.serve(async (req: Request) => {
         await service
           .from("checkout_sessions")
           .update({
-            status: "converted",
-            converted_order_id: order.id,
+            status: "active",
+            converted_order_id: null,
             last_activity_at: new Date().toISOString(),
           })
           .eq("session_token", checkoutSessionToken);
@@ -1684,8 +1691,12 @@ Deno.serve(async (req: Request) => {
       await service
         .from("checkout_sessions")
         .update({
-          status: "converted",
+          // A Stripe session is only pending payment; conversion is finalized
+          // by the verified Stripe webhook after successful payment.
+          status: "active",
           converted_order_id: order.id,
+          stripe_checkout_session_id: stripeData.id,
+          stripe_client_secret: stripeData.client_secret,
           last_activity_at: new Date().toISOString(),
         })
         .eq("session_token", checkoutSessionToken);
