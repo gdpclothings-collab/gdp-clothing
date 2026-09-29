@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/lib/supabaseClient";
 import {
   readStoredJson,
   removeStoredKey,
@@ -35,6 +36,50 @@ function clampItemQuantity(item, quantity) {
   return requested;
 }
 
+function customerUploadPathFromUrl(value) {
+  const raw = String(value || "");
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    const marker = "/customer-uploads/";
+    const index = url.pathname.indexOf(marker);
+    if (index < 0) return "";
+    return decodeURIComponent(url.pathname.slice(index + marker.length));
+  } catch {
+    return "";
+  }
+}
+
+function persistableCartItem(item) {
+  if (!item?.isCustom || item?.isDtf) return item;
+  const imagePath = item.imagePath || customerUploadPathFromUrl(item.image);
+  return imagePath ? { ...item, imagePath } : item;
+}
+
+async function refreshCustomPreview(item, user) {
+  if (!item?.isCustom || item?.isDtf) return persistableCartItem(item);
+  const imagePath = item.imagePath || customerUploadPathFromUrl(item.image);
+  if (!imagePath) return item;
+
+  try {
+    if (user && user.is_anonymous !== true) {
+      const { data, error } = await supabase.storage
+        .from("customer-uploads")
+        .createSignedUrl(imagePath, 3600);
+      if (!error && data?.signedUrl) return { ...item, imagePath, image: data.signedUrl };
+    } else {
+      const { data, error } = await supabase.functions.invoke("checkout", {
+        body: { action: "signGuestCustomUpload", path: imagePath },
+      });
+      if (!error && !data?.error && data?.signedUrl) return { ...item, imagePath, image: data.signedUrl };
+    }
+  } catch {
+    // Keep the stored item intact. A later cart load can retry signing it.
+  }
+
+  return { ...item, imagePath };
+}
+
 export function CartProvider({ children }) {
   const { user, isLoadingAuth } = useAuth();
   const storageKeys = useMemo(() => ({
@@ -55,25 +100,35 @@ export function CartProvider({ children }) {
       return;
     }
 
-    setItems(readStoredJson(storageKeys.cart, []));
-    setSaved(readStoredJson(storageKeys.saved, []));
+    let active = true;
+    const storedItems = readStoredJson(storageKeys.cart, []).map(persistableCartItem);
+    const storedSaved = readStoredJson(storageKeys.saved, []).map(persistableCartItem);
+    setItems(storedItems);
+    setSaved(storedSaved);
     setWishlist(readStoredJson(storageKeys.wishlist, []));
     setLoadedStorageSignature(storageSignature);
+
+    Promise.all(storedItems.map((item) => refreshCustomPreview(item, user)))
+      .then((refreshed) => { if (active) setItems(refreshed); });
+    Promise.all(storedSaved.map((item) => refreshCustomPreview(item, user)))
+      .then((refreshed) => { if (active) setSaved(refreshed); });
 
     // The old v1 keys were shared by every account in the browser. Remove
     // them after auth resolution so they can never leak into another user.
     LEGACY_KEYS.forEach(removeStoredKey);
+    return () => { active = false; };
   }, [
     isLoadingAuth,
     storageKeys.cart,
     storageKeys.saved,
     storageKeys.wishlist,
     storageSignature,
+    user,
   ]);
 
   useEffect(() => {
     if (loadedStorageSignature !== storageSignature) return;
-    writeStoredJson(storageKeys.cart, items);
+    writeStoredJson(storageKeys.cart, items.map(persistableCartItem));
   }, [items, loadedStorageSignature, storageSignature, storageKeys.cart]);
 
   useEffect(() => {
@@ -83,11 +138,11 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     if (loadedStorageSignature !== storageSignature) return;
-    writeStoredJson(storageKeys.saved, saved);
+    writeStoredJson(storageKeys.saved, saved.map(persistableCartItem));
   }, [saved, loadedStorageSignature, storageSignature, storageKeys.saved]);
 
   const addItem = useCallback((item) => {
-    const prepared = captureStudioDraftForCartItem(item);
+    const prepared = persistableCartItem(captureStudioDraftForCartItem(item));
     const editKey = prepared?.isCustom && !prepared?.isDtf ? peekStudioEditKey() : "";
     if (editKey) clearStudioEditIntent();
 
@@ -121,7 +176,7 @@ export function CartProvider({ children }) {
   }, []);
 
   const replaceItem = useCallback((key, item) => {
-    const prepared = captureStudioDraftForCartItem(item);
+    const prepared = persistableCartItem(captureStudioDraftForCartItem(item));
     if (peekStudioEditKey() === key) clearStudioEditIntent();
     const next = { ...prepared, key: cartItemKey(prepared) };
     next.quantity = clampItemQuantity(next, prepared.quantity || 1);
