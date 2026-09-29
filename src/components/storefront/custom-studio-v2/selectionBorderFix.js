@@ -65,6 +65,21 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       font-size: 0.6875rem !important;
       line-height: 1.15rem !important;
     }
+
+    /* Keep the active-layer status obvious without letting the old cyan bar
+       dominate the garment preview. Applies only to Bootleg/Memorial editor
+       status elements that already expose dedicated data attributes. */
+    [data-gdp-bootleg-active-status="true"],
+    [data-gdp-memorial-active-status="true"] {
+      margin-bottom: 0.6rem !important;
+      padding: 0.5rem 0.75rem !important;
+      border-color: rgb(226 232 240) !important;
+      background-color: rgb(248 250 252 / 0.92) !important;
+      color: rgb(51 65 85) !important;
+      box-shadow: inset 3px 0 0 rgb(15 23 42 / 0.9);
+      font-size: 0.72rem !important;
+      line-height: 1rem !important;
+    }
   `;
   document.head.appendChild(style);
 }
