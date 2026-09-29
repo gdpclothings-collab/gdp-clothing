@@ -1,0 +1,40 @@
+name: GDP Fast Mode Classifier
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: gdp-fast-mode-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  classify:
+    name: Fast Mode risk classification
+    runs-on: ubuntu-latest
+    outputs:
+      risk: ${{ steps.risk.outputs.risk }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: risk
+        name: Classify changed paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > /tmp/changed.txt
+          cat /tmp/changed.txt
+          risk=GREEN
+          if grep -Eiq '(^|/)(checkout|payment|stripe|auth|inventory|reservation|supabase|migrations?|functions)(/|\.|$)|guest.*design|webhook' /tmp/changed.txt; then
+            risk=RED
+          elif grep -Eiq 'custom-studio|(^|/)(cart|shipping|admin|dtf)(/|\.|$)' /tmp/changed.txt; then
+            risk=YELLOW
+          fi
+          echo "risk=$risk" >> "$GITHUB_OUTPUT"
+          echo "### GDP FAST MODE: $risk" >> "$GITHUB_STEP_SUMMARY"
+          echo "Independent CI checks should run in parallel. On failure, diagnose and rerun the affected check first; never bypass RED safeguards." >> "$GITHUB_STEP_SUMMARY"
