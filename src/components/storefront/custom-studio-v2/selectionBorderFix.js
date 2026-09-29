@@ -121,6 +121,26 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       font-size: 0.875rem;
       line-height: 1.25rem;
     }
+
+    /* Uploaded photos can carry long camera UUID filenames. Keep those raw
+       names out of the customer-facing status strip while Photo is active. */
+    [data-gdp-bootleg-active-layer="true"]:has(> button:nth-child(2)[aria-pressed="true"])
+      + [data-gdp-bootleg-active-status="true"],
+    [data-gdp-memorial-active-layer="true"]:has(> button:nth-child(2)[aria-pressed="true"])
+      + [data-gdp-memorial-active-status="true"] {
+      font-size: 0 !important;
+      line-height: 0 !important;
+    }
+
+    [data-gdp-bootleg-active-layer="true"]:has(> button:nth-child(2)[aria-pressed="true"])
+      + [data-gdp-bootleg-active-status="true"]::after,
+    [data-gdp-memorial-active-layer="true"]:has(> button:nth-child(2)[aria-pressed="true"])
+      + [data-gdp-memorial-active-status="true"]::after {
+      content: 'Editing Photo';
+      display: block;
+      font-size: 0.72rem;
+      line-height: 1rem;
+    }
   `;
   document.head.appendChild(style);
 }
