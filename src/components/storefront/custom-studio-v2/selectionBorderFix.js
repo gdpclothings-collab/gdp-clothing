@@ -37,6 +37,8 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
        removing the dark banner so the garment preview remains unobstructed. */
     div:has(> [data-gdp-print-guide="true"])
       > div[class*="bottom-4"][class*="bg-slate-950/80"] {
+      bottom: 0.75rem !important;
+      padding: 0.6rem 0.9rem !important;
       background-color: rgb(255 255 255 / 0.82) !important;
       border: 1px solid rgb(226 232 240 / 0.95) !important;
       color: rgb(71 85 105) !important;
