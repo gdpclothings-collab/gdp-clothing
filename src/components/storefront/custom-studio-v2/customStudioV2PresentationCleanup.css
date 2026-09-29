@@ -91,3 +91,15 @@
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* Final Review only: keep the approved garment fully visible without making the page excessively tall. */
+[data-gdp-final-review-preview-card] > div:nth-child(2) {
+  max-width: 410px !important;
+  margin-inline: auto !important;
+}
+
+@media (min-width: 1024px) {
+  [data-gdp-final-review-preview-card] > div:nth-child(2) {
+    max-width: 390px !important;
+  }
+}
