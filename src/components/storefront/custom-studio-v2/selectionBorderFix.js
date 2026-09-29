@@ -45,6 +45,16 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       box-shadow: 0 2px 10px rgb(15 23 42 / 0.08) !important;
       backdrop-filter: blur(2px);
     }
+
+    /* Make the mobile interaction helper beneath Bootleg/Memorial previews
+       easier to scan without changing any editor state or gestures. */
+    div:has(> div > [data-gdp-print-guide="true"]) > p[class*="text-slate-400"] {
+      margin-top: 0.45rem !important;
+      padding-inline: 0.5rem !important;
+      color: rgb(100 116 139) !important;
+      font-size: 0.6875rem !important;
+      line-height: 1.15rem !important;
+    }
   `;
   document.head.appendChild(style);
 }
