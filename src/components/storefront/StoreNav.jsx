@@ -63,9 +63,10 @@ export default function StoreNav() {
   const active = (path) => { if (!path || /^https?:\/\//i.test(path)) return false; const [rawPathname, rawQuery = ""] = path.split("?"); const pathname = rawPathname.split("#")[0]; if (pathname === "/") return location.pathname === "/"; if (rawQuery) return location.pathname === pathname && location.search === "?" + rawQuery; return location.pathname === pathname && !location.search; };
   const NavLink = ({ item, mobile = false }) => {
     const external = /^https?:\/\//i.test(item.path || "");
-    const className = mobile ? "flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight" : "relative py-2 text-[12px] font-medium transition " + (active(item.path) ? "text-white" : "text-white/70 hover:text-white");
+    const isActive = active(item.path);
+    const className = mobile ? "flex items-center justify-between border-b border-white/10 py-5 text-3xl font-black uppercase tracking-tight" : "relative py-2 text-[12px] font-medium transition " + (isActive ? "text-white" : "text-white/70 hover:text-white");
     if (external) return <a href={item.path} className={className} onClick={mobile ? closeMobileNavigation : undefined}>{item.label}</a>;
-    return <Link to={item.path || "/"} className={className} onClick={mobile ? closeMobileNavigation : undefined}>{item.label}{!mobile && active(item.path) && <span className="absolute inset-x-0 -bottom-1 h-px bg-white" />}</Link>;
+    return <Link to={item.path || "/"} className={className} data-active={!mobile && isActive ? "true" : undefined} aria-current={isActive ? "page" : undefined} onClick={mobile ? closeMobileNavigation : undefined}>{item.label}</Link>;
   };
   const announcementEnabled = landing.announcement?.enabled && landing.announcement?.text; const branding = landing.branding || DEFAULT_LANDING_PAGE.branding;
 
