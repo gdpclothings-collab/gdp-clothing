@@ -20,6 +20,7 @@ export default function CustomStudioV2PresentationGuard() {
     if (!root || typeof MutationObserver === 'undefined') return undefined;
 
     let animationFrame = 0;
+    const reviewPreviewSnapshots = new Map();
 
     const neutralizePrintingTerms = (value) => String(value || '')
       .replace(/DTF file guidelines/gi, 'File guidelines')
@@ -32,9 +33,75 @@ export default function CustomStudioV2PresentationGuard() {
       .replace(/DTF print/gi, 'print')
       .replace(/\bDTF\b/gi, 'printing');
 
+    const snapshotLiveGarmentPreviews = () => {
+      root.querySelectorAll('[data-gdp-print-guide="true"]').forEach((guide) => {
+        if (guide.closest('[data-gdp-final-review-preview="true"]')) return;
+        const section = guide.closest('section');
+        if (!section) return;
+
+        const heading = Array.from(section.querySelectorAll('p')).find((node) => /live garment preview/i.test(node.textContent || ''));
+        if (!heading) return;
+        const sideMatch = (heading.textContent || '').match(/\b(front|back)\b/i);
+        const side = String(sideMatch?.[1] || 'front').toLowerCase();
+        const clone = section.cloneNode(true);
+
+        clone.querySelectorAll('button,input,select,textarea').forEach((node) => node.remove());
+        clone.querySelectorAll('[data-gdp-print-guide="true"]').forEach((node) => {
+          node.style.borderColor = 'transparent';
+          node.style.background = 'transparent';
+          const badge = node.querySelector(':scope > span');
+          if (badge) badge.remove();
+        });
+        clone.querySelectorAll('[data-gdp-upload-artwork-layer="true"]').forEach((node) => {
+          node.className = String(node.className || '')
+            .replace(/\bring[^\s]*/g, '')
+            .replace(/\bcursor-grab\b/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        });
+
+        const clonedHeading = Array.from(clone.querySelectorAll('p')).find((node) => /live garment preview/i.test(node.textContent || ''));
+        if (clonedHeading) clonedHeading.textContent = `Final garment preview · ${side}`;
+        const helper = Array.from(clone.querySelectorAll('p')).find((node) => /drag with|dashed fabric box|normalized geometry/i.test(node.textContent || ''));
+        if (helper) helper.remove();
+
+        clone.setAttribute('data-gdp-final-review-preview-card', side);
+        clone.className = 'overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4';
+        reviewPreviewSnapshots.set(side, clone.outerHTML);
+      });
+    };
+
+    const syncFinalReviewPreview = () => {
+      const finalHeading = Array.from(root.querySelectorAll('h1')).find((node) => /^final review$/i.test((node.textContent || '').trim()));
+      if (!finalHeading || !reviewPreviewSnapshots.size) return;
+      const reviewRoot = finalHeading.parentElement;
+      if (!reviewRoot || reviewRoot.querySelector('[data-gdp-final-review-preview="true"]')) return;
+      const reviewGrid = Array.from(reviewRoot.children).find((node) => node.classList?.contains('mt-6') && node.classList?.contains('grid'));
+      if (!reviewGrid) return;
+
+      const container = document.createElement('div');
+      container.setAttribute('data-gdp-final-review-preview', 'true');
+      container.className = 'mt-5 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-4';
+      const title = document.createElement('div');
+      title.className = 'mb-3 flex flex-wrap items-end justify-between gap-2 px-1';
+      title.innerHTML = '<div><p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Approved preview</p><h2 class="mt-1 text-lg font-black text-slate-950">Your garment with the approved artwork</h2></div><span class="rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-emerald-800">Ready for final check</span>';
+      container.appendChild(title);
+
+      const cards = document.createElement('div');
+      cards.className = reviewPreviewSnapshots.size > 1 ? 'grid gap-3 md:grid-cols-2' : 'mx-auto max-w-2xl';
+      ['front', 'back'].forEach((side) => {
+        const html = reviewPreviewSnapshots.get(side);
+        if (html) cards.insertAdjacentHTML('beforeend', html);
+      });
+      container.appendChild(cards);
+      reviewRoot.insertBefore(container, reviewGrid);
+    };
+
     const syncPresentationLabels = () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
+        snapshotLiveGarmentPreviews();
+
         root.querySelectorAll('[data-gdp-print-guide="true"]').forEach((guide) => {
           const source = guide.getAttribute('aria-label') || guide.textContent || '';
           const match = source.match(/(\d+(?:\.\d+)?\s*[×x]\s*\d+(?:\.\d+)?\s*in)/i);
@@ -80,6 +147,8 @@ export default function CustomStudioV2PresentationGuard() {
             if (nextValue !== node.nodeValue) node.nodeValue = nextValue;
           });
         });
+
+        syncFinalReviewPreview();
       });
     };
 
