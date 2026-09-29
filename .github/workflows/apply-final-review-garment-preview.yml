@@ -1,0 +1,123 @@
+name: Apply final review garment preview
+on:
+  push:
+    branches: [feat/final-review-garment-preview]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/final-review-garment-preview
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Apply targeted Final Review preview patch
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/pages/CustomStudioV2.jsx')
+          s = p.read_text()
+          start = s.index('function ReviewStepV2(')
+          end = s.index('\nfunction EditorHeading(', start)
+          replacement = r'''function ReviewStepV2({ product, state, settings, finalizing, finalizeError, onEdit, onFinalize }) {
+  const pathInfo = STUDIO_V2_DESIGN_PATHS.find((item) => item.id === state.designPath);
+  const sides = studioV2PrintableSides(state);
+  const bothSides = sides.length > 1;
+  const variant = variantFor(product, state.color, state.size);
+  const unitPrice = Number(variant?.price ?? product?.price ?? 0) + (bothSides ? Number(settings?.frontBackFee || 0) : 0);
+  const [previewSide, setPreviewSide] = useState(() => sides[0] || 'front');
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+
+  useEffect(() => {
+    if (!sides.includes(previewSide) && sides[0]) setPreviewSide(sides[0]);
+  }, [previewSide, sides.join('|')]);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = '';
+    const buildPreview = async () => {
+      if (!product || !state.designPath || !sides.includes(previewSide)) return;
+      setPreviewLoading(true);
+      setPreviewError('');
+      try {
+        const editor = state?.[state.designPath]?.sides?.[previewSide];
+        if (!editor) throw new Error('Approved artwork is unavailable for this side.');
+        let rendered;
+        if (state.designPath === 'seasonal') {
+          const snapshot = await buildSeasonalStudioV2Snapshot({ productId: product.id, size: state.size, color: state.color, layers: editor.layers });
+          rendered = await renderSeasonalStudioV2Png(snapshot, 96);
+        } else if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+          const templates = normalizeStyleTemplates(settings?.styleTemplates || {});
+          const template = templates.find((item) => item.id === editor.templateId);
+          if (!template) throw new Error('The approved template is unavailable for preview.');
+          rendered = await renderProtectedStudioV2PngAdvanced({ product, size: state.size, side: previewSide, editor, template, profile: resolveStudioV2PrintProfile, dpi: 96 });
+        } else {
+          rendered = await renderUploadStudioV2Png({ product, size: state.size, side: previewSide, editor, dpi: 96 });
+        }
+        const mockup = await renderStudioV2CustomerMockup({ garmentUrl: studioV2GarmentPreview(product, state.color, previewSide), productionBlob: rendered?.blob, product, size: state.size, side: previewSide });
+        objectUrl = URL.createObjectURL(mockup.blob);
+        if (active) setPreviewUrl(objectUrl);
+      } catch (err) {
+        if (active) setPreviewError(err?.message || 'Customer preview could not be generated.');
+      } finally {
+        if (active) setPreviewLoading(false);
+      }
+    };
+    setPreviewUrl('');
+    buildPreview();
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [product, previewSide, settings?.styleTemplates, state]);
+
+  return <div>
+    <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Final review</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Review your garment and approved artwork together before the 300-DPI production files are generated.</p>
+    <div className="mt-6 grid gap-4 xl:grid-cols-[1.1fr_.8fr]">
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="grid gap-5 lg:grid-cols-[minmax(280px,.9fr)_1fr]">
+          <div data-gdp-final-review-preview="true" className="min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Customer preview</div><div className="mt-1 text-sm font-black text-slate-900">Garment + approved artwork</div></div>{sides.length > 1 && <div className="flex rounded-xl bg-slate-100 p-1">{sides.map((side) => <button key={side} type="button" onClick={() => setPreviewSide(side)} disabled={finalizing} className={`min-h-9 rounded-lg px-3 text-[10px] font-black uppercase ${previewSide === side ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}>{side}</button>)}</div>}</div>
+            <div className="relative mt-3 aspect-[4/5] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+              {previewLoading && <div className="absolute inset-0 grid place-items-center"><div className="inline-flex items-center gap-2 text-xs font-black text-slate-500"><Loader2 size={17} className="animate-spin" /> Building preview…</div></div>}
+              {!previewLoading && previewUrl && <img src={previewUrl} alt={`${product?.name || 'Garment'} ${previewSide} customer preview`} className="h-full w-full object-contain" />}
+              {!previewLoading && !previewUrl && <img src={studioV2GarmentPreview(product, state.color, previewSide) || product?.images?.[0] || '/images/gdp-logo.webp'} alt={`${product?.name || 'Garment'} ${previewSide}`} className="h-full w-full object-contain p-4 opacity-60" />}
+            </div>
+            {previewError && <p className="mt-2 text-xs font-bold text-amber-700">{previewError} You can still edit the design before adding it to cart.</p>}
+            <p className="mt-2 text-[10px] font-bold uppercase tracking-[.08em] text-slate-400">Customer preview · not the production file</p>
+          </div>
+          <div className="min-w-0"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Garment</div><div className="mt-1 text-sm font-black text-slate-900">{product?.name}</div></div>
+            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Color / size</div><div className="mt-1 text-sm font-black text-slate-900">{displayVariantLabel(state.color)} · {state.size}</div></div>
+            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Design path</div><div className="mt-1 text-sm font-black text-slate-900">{pathInfo?.label || state.designPath}</div></div>
+            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Print sides</div><div className="mt-1 text-sm font-black capitalize text-slate-900">{sides.join(' + ')}</div></div>
+            <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Unit price</div><div className="mt-1 text-sm font-black text-slate-900">${unitPrice.toFixed(2)}</div></div>
+          </div><button type="button" onClick={onEdit} disabled={finalizing} className="mt-4 min-h-12 w-full rounded-xl border border-slate-300 px-4 text-sm font-black text-slate-800 disabled:opacity-50">Edit design</button></div>
+        </div>
+      </div>
+      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-slate-900 text-white"><ShieldCheck size={21} /></div><h2 className="mt-4 text-lg font-black text-slate-950">Approved layout ready to build</h2><p className="mt-2 text-sm font-medium leading-6 text-slate-600">Confirm the garment preview above. Production PNGs remain separate from this customer-facing mockup.</p>
+        {finalizeError && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-5 text-red-700">{finalizeError}</div>}
+        <button type="button" onClick={onFinalize} disabled={finalizing || previewLoading} className="mt-5 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">{finalizing ? <><Loader2 size={18} className="animate-spin" /> Generating & verifying print files…</> : previewLoading ? <><Loader2 size={18} className="animate-spin" /> Preparing customer preview…</> : <>Generate, Verify & Add to Cart <ArrowRight size={18} /></>}</button>
+        <p className="mt-3 text-[11px] font-semibold leading-5 text-slate-500">The cart changes only after rendering, upload, verification and secure design saving all succeed.</p>
+      </div>
+    </div>
+  </div>;
+}
+'''
+          p.write_text(s[:start] + replacement + s[end:])
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/verify-custom-studio-v2.mjs
+      - run: npm audit --audit-level=high --omit=dev
+      - name: Commit only validated product change and remove temporary workflow
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/apply-final-review-garment-preview.yml
+          git add src/pages/CustomStudioV2.jsx
+          git commit -m "feat: show approved garment artwork in final review"
+          git push origin HEAD:feat/final-review-garment-preview
