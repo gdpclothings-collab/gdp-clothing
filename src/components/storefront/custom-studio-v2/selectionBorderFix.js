@@ -18,6 +18,20 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       outline: none !important;
     }
 
+    /* Keep customer photos complete at every scale/rotation. The Photo Zone
+       and print guide are placement guides only and must not mask the image. */
+    [data-gdp-print-guide="true"],
+    [data-gdp-bootleg-free-photo-layer="true"],
+    [data-gdp-memorial-free-photo-layer="true"],
+    div:has(> img[alt="Customer photo layer"]) {
+      overflow: visible !important;
+    }
+
+    img[alt="Customer photo layer"] {
+      object-fit: contain !important;
+      overflow: visible !important;
+    }
+
     /* Keep the printable-area helper transparent so the selected garment
        remains visible beneath the dashed guide. */
     [data-gdp-print-guide="true"] {
