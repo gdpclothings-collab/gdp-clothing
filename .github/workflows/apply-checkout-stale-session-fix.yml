@@ -1,0 +1,36 @@
+name: Apply checkout stale session fix
+on:
+  push:
+    branches: [fix/checkout-stale-session-20260929]
+    paths:
+      - '.github/workflows/apply-checkout-stale-session-fix.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/checkout-stale-session-20260929
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply targeted fix
+        run: node scripts/fix-checkout-stale-session.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build regression gate
+        run: npm run build
+      - name: Verify targeted session transition
+        run: |
+          grep -F 'ensureToken(true); navigate("/checkout/payment");' src/pages/CheckoutTwoStep.jsx
+      - name: Commit targeted fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/CheckoutTwoStep.jsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix stale checkout session on first payment attempt'
+          git push origin HEAD:fix/checkout-stale-session-20260929
