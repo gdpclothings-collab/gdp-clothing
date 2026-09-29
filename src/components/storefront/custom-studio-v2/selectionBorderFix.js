@@ -80,6 +80,47 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       font-size: 0.72rem !important;
       line-height: 1rem !important;
     }
+
+    /* Replace the stale "Choose a layer first" helper with guidance that
+       matches the layer button currently marked aria-pressed=true. */
+    section:has(> [data-gdp-bootleg-active-layer="true"]),
+    section:has(> [data-gdp-memorial-active-layer="true"]) {
+      --gdp-active-layer-help: 'Select a layer to edit it directly on the garment.';
+    }
+
+    section:has(> [data-gdp-bootleg-active-layer="true"] > button:nth-child(1)[aria-pressed="true"]),
+    section:has(> [data-gdp-memorial-active-layer="true"] > button:nth-child(1)[aria-pressed="true"]) {
+      --gdp-active-layer-help: 'Template selected. Drag, resize or rotate it on the print area.';
+    }
+
+    section:has(> [data-gdp-bootleg-active-layer="true"] > button:nth-child(2)[aria-pressed="true"]),
+    section:has(> [data-gdp-memorial-active-layer="true"] > button:nth-child(2)[aria-pressed="true"]) {
+      --gdp-active-layer-help: 'Photo selected. Drag, resize or rotate it directly on the garment.';
+    }
+
+    section:has(> [data-gdp-bootleg-active-layer="true"] > button:nth-child(3)[aria-pressed="true"]),
+    section:has(> [data-gdp-memorial-active-layer="true"] > button:nth-child(3)[aria-pressed="true"]) {
+      --gdp-active-layer-help: 'Text selected. Move, resize or rotate the active text layer.';
+    }
+
+    section:has(> [data-gdp-bootleg-active-layer="true"] > button:nth-child(4)[aria-pressed="true"]),
+    section:has(> [data-gdp-memorial-active-layer="true"] > button:nth-child(4)[aria-pressed="true"]) {
+      --gdp-active-layer-help: 'Sticker selected. Move, resize or rotate the active sticker.';
+    }
+
+    section:has(> [data-gdp-bootleg-active-layer="true"]) > div:first-child > p:last-child,
+    section:has(> [data-gdp-memorial-active-layer="true"]) > div:first-child > p:last-child {
+      font-size: 0 !important;
+      line-height: 0 !important;
+    }
+
+    section:has(> [data-gdp-bootleg-active-layer="true"]) > div:first-child > p:last-child::after,
+    section:has(> [data-gdp-memorial-active-layer="true"]) > div:first-child > p:last-child::after {
+      content: var(--gdp-active-layer-help);
+      display: block;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+    }
   `;
   document.head.appendChild(style);
 }
