@@ -13,6 +13,7 @@
     "test:fresh-session": "node scripts/verify-fresh-session-state.mjs",
     "test:product-variants": "node scripts/verify-product-variants.mjs",
     "test:memorial": "node scripts/verify-memorial-tribute.mjs",
+    "test:production-smoke": "node scripts/production-smoke-v2.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
