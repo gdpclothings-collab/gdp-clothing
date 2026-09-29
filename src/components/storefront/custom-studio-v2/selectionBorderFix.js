@@ -33,6 +33,16 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       text-shadow: 0 1px 2px rgb(255 255 255 / 0.85);
     }
 
+    /* Adapt the empty Photo Zone helper to the garment below it. Difference
+       blending keeps the helper dark on light garments and light on dark
+       garments without adding a fill or hard-coding garment color names. */
+    [data-gdp-print-guide="true"] [class*="bg-slate-900/10"] {
+      color: rgb(255 255 255) !important;
+      border-color: rgb(255 255 255 / 0.72) !important;
+      mix-blend-mode: difference;
+      text-shadow: none !important;
+    }
+
     /* Bootleg/Memorial empty-template message: keep the guidance while
        removing the dark banner so the garment preview remains unobstructed. */
     div:has(> [data-gdp-print-guide="true"])
