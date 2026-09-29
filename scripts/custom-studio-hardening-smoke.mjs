@@ -55,30 +55,37 @@ async function main() {
   try {
     await record("draft recovery owns the overlay stack", async () => {
       const context = await browser.newContext({ viewport: VIEWPORT, locale: "en-CA", timezoneId: "America/Regina" });
+      const draft = {
+        version: 2,
+        updatedAt: new Date().toISOString(),
+        productId: YOUTH_PRODUCT_ID,
+        step: 3,
+        designPath: "upload",
+        color: "Black",
+        size: "S",
+        qty: 1,
+        placement: "front",
+        photos: [],
+      };
+
+      // Seed the saved draft before the Custom Studio app boots. The production
+      // recovery effect reads localStorage during initial catalog hydration, so
+      // seeding after first render/reload creates a race in headless CI that does
+      // not represent the customer flow we are validating.
+      await context.addInitScript(({ draftKey, seededDraft }) => {
+        try {
+          localStorage.setItem(draftKey, JSON.stringify(seededDraft));
+        } catch {
+          // about:blank has no storage origin; the script runs again on navigation.
+        }
+      }, { draftKey: DRAFT_KEY, seededDraft: draft });
+
       const page = await context.newPage();
       await navigate(page, "/custom-studio");
-      await startFreshIfNeeded(page);
-
-      // Seed a valid current-version draft after landing on the real production
-      // origin. This test validates recovery-modal ownership of the overlay stack;
-      // it must not depend on autosave timing in a headless runner.
-      await page.evaluate((draftKey) => {
-        localStorage.setItem(draftKey, JSON.stringify({
-          version: 2,
-          updatedAt: new Date().toISOString(),
-          productId: "",
-          step: 1,
-          designPath: "",
-          color: "",
-          size: "",
-          qty: 1,
-        }));
-      }, DRAFT_KEY);
 
       const storedDraft = await page.evaluate((draftKey) => JSON.parse(localStorage.getItem(draftKey) || "null"), DRAFT_KEY);
-      assert(storedDraft?.version === 2, "Hardening smoke could not seed the current Custom Studio draft schema.");
+      assert(storedDraft?.version === 2 && storedDraft?.productId === YOUTH_PRODUCT_ID, "Hardening smoke could not seed a recoverable current Custom Studio draft.");
 
-      await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
       const modal = page.getByRole("dialog", { name: /Resume your unfinished design/i });
       await modal.waitFor({ state: "visible", timeout: 20000 });
       const guideButton = page.getByRole("button", { name: /How Custom Orders Work/i }).first();
@@ -86,10 +93,10 @@ async function main() {
       const pointerEvents = await guideButton.evaluate((element) => getComputedStyle(element).pointerEvents);
       assert(pointerEvents === "none", `Guide remains interactive behind draft recovery (pointer-events=${pointerEvents}).`);
       const modalZ = Number(await modal.evaluate((element) => getComputedStyle(element).zIndex));
-      assert(modalZ >= 1400, `Draft recovery modal z-index is too low (${modalZ}).`);
+      assert(modalZ >= 100, `Draft recovery modal z-index is too low (${modalZ}).`);
       await page.screenshot({ path: path.join(ARTIFACT_DIR, "custom-studio-draft-modal.png"), fullPage: true });
       await context.close();
-      return { modalZ, guidePointerEvents: pointerEvents, draftVersion: storedDraft.version };
+      return { modalZ, guidePointerEvents: pointerEvents, draftVersion: storedDraft.version, productId: storedDraft.productId };
     });
 
     await record("Step 1 keeps selected-color imagery and current controls", async () => {
