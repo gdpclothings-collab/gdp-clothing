@@ -62,25 +62,17 @@ function photoLayers(editor) {
   return [];
 }
 
-function clipZone(context, zone, widthPx, heightPx) {
-  const x = Number(zone?.x || 0) / 100 * widthPx;
-  const y = Number(zone?.y || 0) / 100 * heightPx;
-  const width = Number(zone?.width || 100) / 100 * widthPx;
-  const height = Number(zone?.height || 100) / 100 * heightPx;
-  context.beginPath();
-  if (zone?.shape === 'circle' || zone?.shape === 'oval') {
-    context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-  } else if (typeof context.roundRect === 'function' && zone?.shape === 'rounded') {
-    context.roundRect(x, y, width, height, Math.min(width, height) * clamp(zone?.radius || 0, 0, 50) / 100);
-  } else {
-    context.rect(x, y, width, height);
-  }
-  context.clip();
-  return { x, y, width, height };
+function zoneRect(zone, widthPx, heightPx) {
+  return {
+    x: Number(zone?.x || 0) / 100 * widthPx,
+    y: Number(zone?.y || 0) / 100 * heightPx,
+    width: Number(zone?.width || 100) / 100 * widthPx,
+    height: Number(zone?.height || 100) / 100 * heightPx,
+  };
 }
 
-function drawCover(context, loaded, rect, transform = {}) {
-  const baseScale = Math.max(rect.width / Math.max(1, loaded.width), rect.height / Math.max(1, loaded.height));
+function drawContain(context, loaded, rect, transform = {}) {
+  const baseScale = Math.min(rect.width / Math.max(1, loaded.width), rect.height / Math.max(1, loaded.height));
   const userScale = clamp(transform.scale || 100, 30, 220) / 100;
   const drawWidth = loaded.width * baseScale * userScale;
   const drawHeight = loaded.height * baseScale * userScale;
@@ -90,7 +82,6 @@ function drawCover(context, loaded, rect, transform = {}) {
   context.rotate(clamp(transform.rotation || 0, -180, 180) * Math.PI / 180);
   context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
 }
-
 
 function hasFreePhotoCanvasTransform(transform = {}) {
   return Number.isFinite(Number(transform?.canvasX)) && Number.isFinite(Number(transform?.canvasY));
@@ -109,19 +100,6 @@ function resolveFreePhotoPosition(transform = {}, zone = {}) {
   };
 }
 
-function clipFreePhotoShape(context, zone, width, height) {
-  context.beginPath();
-  if (zone?.shape === 'circle' || zone?.shape === 'oval') {
-    context.ellipse(0, 0, width / 2, height / 2, 0, 0, Math.PI * 2);
-  } else if (typeof context.roundRect === 'function' && zone?.shape === 'rounded') {
-    const radius = Math.min(width, height) * clamp(zone?.radius || 0, 0, 50) / 100;
-    context.roundRect(-width / 2, -height / 2, width, height, radius);
-  } else {
-    context.rect(-width / 2, -height / 2, width, height);
-  }
-  context.clip();
-}
-
 function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx) {
   const boxWidth = Math.max(1, Number(zone?.width ?? 70) / 100 * widthPx);
   const boxHeight = Math.max(1, Number(zone?.height ?? 68) / 100 * heightPx);
@@ -129,7 +107,7 @@ function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx) {
   const centerX = position.x / 100 * widthPx;
   const centerY = position.y / 100 * heightPx;
   const userScale = clamp(transform?.scale || 100, 30, 220) / 100;
-  const baseScale = Math.max(boxWidth / Math.max(1, loaded.width), boxHeight / Math.max(1, loaded.height));
+  const baseScale = Math.min(boxWidth / Math.max(1, loaded.width), boxHeight / Math.max(1, loaded.height));
   const drawWidth = loaded.width * baseScale;
   const drawHeight = loaded.height * baseScale;
 
@@ -137,7 +115,6 @@ function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx) {
   context.translate(centerX, centerY);
   context.rotate(clamp(transform?.rotation || 0, -180, 180) * Math.PI / 180);
   context.scale(userScale, userScale);
-  clipFreePhotoShape(context, zone, boxWidth, boxHeight);
   context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   context.restore();
 }
@@ -383,8 +360,8 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
         }
         const drawPhoto = () => {
           output.context.save();
-          const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
-          drawCover(output.context, loaded, rect, layer.transform || {});
+          const rect = zoneRect(template.photoZone || {}, output.widthPx, output.heightPx);
+          drawContain(output.context, loaded, rect, layer.transform || {});
           output.context.restore();
         };
         if (templateTransform) withTemplateTransform(output.context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
