@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { AlertTriangle, Check, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
+import '@/components/storefront/custom-studio-v2/selectionBorderFix';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 
@@ -59,6 +60,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
               {editor.artwork?.url ? (
                 <div
                   {...gesture}
+                  data-gdp-upload-artwork-layer="true"
                   className="absolute grid cursor-grab place-items-center rounded-sm ring-2 ring-cyan-400/75 ring-offset-1 ring-offset-transparent"
                   style={{
                     ...gesture.style,
