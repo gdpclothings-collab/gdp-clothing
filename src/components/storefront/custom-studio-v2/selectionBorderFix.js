@@ -17,6 +17,21 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       box-shadow: none !important;
       outline: none !important;
     }
+
+    /* Keep the printable-area helper transparent so the selected garment
+       remains visible beneath the dashed guide. */
+    [data-gdp-print-guide="true"] {
+      background-color: transparent !important;
+    }
+
+    /* Empty Photo Zone helpers previously added a dark grey tint. Keep the
+       wording and dashed boundary, but remove the fill and use neutral text. */
+    [data-gdp-print-guide="true"] [class*="bg-slate-900/10"] {
+      background-color: transparent !important;
+      border-color: rgb(148 163 184 / 0.7) !important;
+      color: rgb(100 116 139) !important;
+      text-shadow: 0 1px 2px rgb(255 255 255 / 0.85);
+    }
   `;
   document.head.appendChild(style);
 }
