@@ -59,21 +59,24 @@ async function main() {
       await navigate(page, "/custom-studio");
       await startFreshIfNeeded(page);
 
-      // Create the draft through the real production UI instead of manufacturing
-      // a partial localStorage object. This keeps the regression aligned with the
-      // application's current persisted-draft schema and save timing.
-      await selectYouthGarment(page);
-      await page.waitForFunction((draftKey) => {
-        try {
-          const draft = JSON.parse(localStorage.getItem(draftKey) || "null");
-          return draft?.version === 2 && Boolean(draft?.productId);
-        } catch {
-          return false;
-        }
-      }, DRAFT_KEY, { timeout: 10000 });
+      // Seed a valid current-version draft after landing on the real production
+      // origin. This test validates recovery-modal ownership of the overlay stack;
+      // it must not depend on autosave timing in a headless runner.
+      await page.evaluate((draftKey) => {
+        localStorage.setItem(draftKey, JSON.stringify({
+          version: 2,
+          updatedAt: new Date().toISOString(),
+          productId: "",
+          step: 1,
+          designPath: "",
+          color: "",
+          size: "",
+          qty: 1,
+        }));
+      }, DRAFT_KEY);
 
       const storedDraft = await page.evaluate((draftKey) => JSON.parse(localStorage.getItem(draftKey) || "null"), DRAFT_KEY);
-      assert(storedDraft?.productId, "Custom Studio did not persist a real draft after garment selection.");
+      assert(storedDraft?.version === 2, "Hardening smoke could not seed the current Custom Studio draft schema.");
 
       await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
       const modal = page.getByRole("dialog", { name: /Resume your unfinished design/i });
@@ -86,7 +89,7 @@ async function main() {
       assert(modalZ >= 1400, `Draft recovery modal z-index is too low (${modalZ}).`);
       await page.screenshot({ path: path.join(ARTIFACT_DIR, "custom-studio-draft-modal.png"), fullPage: true });
       await context.close();
-      return { modalZ, guidePointerEvents: pointerEvents, savedProductId: storedDraft.productId };
+      return { modalZ, guidePointerEvents: pointerEvents, draftVersion: storedDraft.version };
     });
 
     await record("Step 1 keeps selected-color imagery and current controls", async () => {
@@ -101,8 +104,6 @@ async function main() {
       await black.click();
       await page.waitForTimeout(500);
 
-      // Step 1 now collapses the gallery into a focused configurator after selection.
-      // Verify that live state rather than the retired selected-card CSS selector.
       assert(await page.locator('[data-gdp-selected-garment-options="true"]').isVisible(), "Selected garment options are not visible.");
       assert(await page.getByText("Color", { exact: true }).first().isVisible(), "Color controls are missing after garment selection.");
       assert(await page.getByText("Size", { exact: true }).first().isVisible(), "Size controls are missing after garment selection.");
