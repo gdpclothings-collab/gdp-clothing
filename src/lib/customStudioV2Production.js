@@ -122,25 +122,17 @@ function createProductionCanvas(profile, dpi = 300) {
   return { canvas, context, widthPx, heightPx, safeDpi };
 }
 
-function clipZone(context, zone, widthPx, heightPx) {
-  const x = Number(zone.x || 0) / 100 * widthPx;
-  const y = Number(zone.y || 0) / 100 * heightPx;
-  const width = Number(zone.width || 100) / 100 * widthPx;
-  const height = Number(zone.height || 100) / 100 * heightPx;
-  context.beginPath();
-  if (zone.shape === 'circle' || zone.shape === 'oval') {
-    context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-  } else if (typeof context.roundRect === 'function' && zone.shape === 'rounded') {
-    context.roundRect(x, y, width, height, Math.min(width, height) * clamp(zone.radius || 0, 0, 50) / 100);
-  } else {
-    context.rect(x, y, width, height);
-  }
-  context.clip();
-  return { x, y, width, height };
+function zoneRect(zone, widthPx, heightPx) {
+  return {
+    x: Number(zone?.x || 0) / 100 * widthPx,
+    y: Number(zone?.y || 0) / 100 * heightPx,
+    width: Number(zone?.width || 100) / 100 * widthPx,
+    height: Number(zone?.height || 100) / 100 * heightPx,
+  };
 }
 
-function drawCoverImage(context, loaded, rect, transform = {}) {
-  const baseScale = Math.max(rect.width / Math.max(1, loaded.width), rect.height / Math.max(1, loaded.height));
+function drawContainImage(context, loaded, rect, transform = {}) {
+  const baseScale = Math.min(rect.width / Math.max(1, loaded.width), rect.height / Math.max(1, loaded.height));
   const userScale = clamp(transform.scale || 100, 55, 180) / 100;
   const drawWidth = loaded.width * baseScale * userScale;
   const drawHeight = loaded.height * baseScale * userScale;
@@ -211,10 +203,8 @@ export async function renderProtectedStudioV2Png({ product, size, side, editor, 
   const photo = await loadImage(editor.photo.url, 'The customer photo could not be reopened.');
   const artwork = await loadImage(template.assetUrl, 'The locked GDP template could not be reopened.');
   try {
-    output.context.save();
-    const rect = clipZone(output.context, template.photoZone || {}, output.widthPx, output.heightPx);
-    drawCoverImage(output.context, photo, rect, editor.transform || {});
-    output.context.restore();
+    const rect = zoneRect(template.photoZone || {}, output.widthPx, output.heightPx);
+    drawContainImage(output.context, photo, rect, editor.transform || {});
     output.context.drawImage(artwork.image, 0, 0, output.widthPx, output.heightPx);
     drawProtectedText(output.context, editor.text || {}, template.textZone || {}, output.widthPx, output.heightPx);
   } finally {
