@@ -38,18 +38,6 @@ async function navigate(page, route) {
   await page.locator("body").waitFor({ state: "visible", timeout: 15000 });
 }
 
-async function attachClickProbe(button) {
-  await button.evaluate((element) => {
-    element.dataset.gdpSmokeClickReached = "0";
-    element.addEventListener("click", () => { element.dataset.gdpSmokeClickReached = "1"; }, { once: true });
-  });
-}
-
-async function assertClickReached(button, label) {
-  const reached = await button.getAttribute("data-gdp-smoke-click-reached");
-  assert(reached === "1", `Click did not reach ${label}. A capture-phase click interceptor may be blocking Step 1.`);
-}
-
 async function main() {
   await fs.mkdir(ARTIFACT_DIR, { recursive: true });
 
@@ -81,12 +69,10 @@ async function main() {
 
       const first = cards.first();
       const firstText = normalizeText(await first.innerText());
-      await attachClickProbe(first);
       await first.click();
-      await assertClickReached(first, `garment card "${firstText}"`);
 
-      // Current Step 1 intentionally collapses the gallery after selection and shows
-      // a focused configurator. Assert that real behavior instead of an old CSS class.
+      // Selection intentionally unmounts/collapses the clicked card. Assert the resulting
+      // configurator state instead of querying the detached pre-click element.
       const configurator = page.locator('[data-gdp-selected-garment-configurator="true"]');
       await configurator.waitFor({ state: "visible", timeout: 10000 });
       assert(await page.locator('[data-gdp-selected-garment-options="true"]').isVisible(), "Selected garment options did not appear after selection.");
@@ -106,9 +92,7 @@ async function main() {
 
         const second = refreshedCards.nth(1);
         const secondText = normalizeText(await second.innerText());
-        await attachClickProbe(second);
         await second.click();
-        await assertClickReached(second, `second garment card "${secondText}"`);
         await configurator.waitFor({ state: "visible", timeout: 10000 });
         switchedTo = secondText;
       }
@@ -119,7 +103,7 @@ async function main() {
         garmentCount: count,
         selected: firstText,
         switchedTo,
-        clickReachedCard: true,
+        selectionTransitionVerified: true,
         colorControlsVisible: true,
         sizeControlsVisible: true,
         focusedConfiguratorVisible: true,
