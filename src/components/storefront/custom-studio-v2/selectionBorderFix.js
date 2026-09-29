@@ -32,6 +32,17 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       color: rgb(100 116 139) !important;
       text-shadow: 0 1px 2px rgb(255 255 255 / 0.85);
     }
+
+    /* Bootleg/Memorial empty-template message: keep the guidance while
+       removing the dark banner so the garment preview remains unobstructed. */
+    div:has(> [data-gdp-print-guide="true"])
+      > div[class*="bottom-4"][class*="bg-slate-950/80"] {
+      background-color: rgb(255 255 255 / 0.82) !important;
+      border: 1px solid rgb(226 232 240 / 0.95) !important;
+      color: rgb(71 85 105) !important;
+      box-shadow: 0 2px 10px rgb(15 23 42 / 0.08) !important;
+      backdrop-filter: blur(2px);
+    }
   `;
   document.head.appendChild(style);
 }
