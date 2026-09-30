@@ -105,7 +105,7 @@ function mergePaymentPreflight(snapshot, preflightResult) {
   ];
 
   const currentScore = Number(snapshot?.score);
-  const penalty = paymentStatus === "critical" ? 20 : paymentStatus === "warning" ? 6 : paymentStatus === "unknown" ? 2 : 0;
+  const penalty = paymentStatus === "critical" ? 20 : paymentStatus === "warning" ? 6 : 0;
   const score = Number.isFinite(currentScore) ? Math.max(0, currentScore - penalty) : Math.max(0, 100 - penalty);
 
   return {
