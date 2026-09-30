@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 
 const page = fs.readFileSync('src/pages/CustomStudioV2.jsx', 'utf8');
+const mobileRepairCss = fs.readFileSync('src/components/storefront/custom-studio-v2/customStudioV2MobileRepair.css', 'utf8');
+const presentationCleanupCss = fs.readFileSync('src/components/storefront/custom-studio-v2/customStudioV2PresentationCleanup.css', 'utf8');
 const garmentControlsStart = page.indexOf('function GarmentVariantControls');
 const garmentStepStart = page.indexOf('function GarmentStepV2');
 const designStepStart = page.indexOf('function DesignStepV2');
@@ -41,6 +43,12 @@ expect(garmentControls.includes('lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)
 expect(garmentControls.includes('h-[220px]') && garmentControls.includes('sm:h-[260px]') && garmentControls.includes('lg:h-[300px]'), 'selected garment preview has responsive phone, tablet and desktop heights');
 expect(garmentControls.includes('object-contain'), 'selected garment preview preserves garment proportions without cropping');
 expect(garmentControls.includes('state.color') && garmentControls.includes('displayVariantLabel(state.color)'), 'selected garment color remains visible with the preview');
+
+expect(mobileRepairCss.includes('[data-gdp-selected-garment-summary="true"]') && mobileRepairCss.includes('display: grid !important;'), 'phone presentation explicitly keeps the selected garment summary visible');
+expect(mobileRepairCss.includes('[data-gdp-selected-garment-preview="true"]') && mobileRepairCss.includes('display: block !important;'), 'phone presentation explicitly keeps the selected garment image visible');
+expect(!mobileRepairCss.includes('[data-gdp-selected-garment-summary="true"] {\n    display: none;'), 'phone presentation no longer hides the selected garment summary');
+expect(presentationCleanupCss.includes('[data-gdp-selected-garment-summary="true"] > div:last-child > div:last-child'), 'presentation cleanup targets only the redundant DTF status pill');
+expect(!presentationCleanupCss.includes('[data-gdp-selected-garment-options="true"] > div:first-child > div:last-child {\n  display: none !important;'), 'presentation cleanup no longer hides the selected garment details container');
 
 expect(reviewStep.includes("studioV2GarmentPreview(product, state.color, 'front')"), 'final review uses the same color-aware garment resolver');
 expect(reviewStep.includes('data-gdp-review-garment-preview="true"'), 'final review visibly confirms the selected garment');

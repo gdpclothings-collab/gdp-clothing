@@ -15,8 +15,10 @@
   display: none !important;
 }
 
-/* Remove the redundant DTF status pill from the selected-garment summary. */
-[data-gdp-selected-garment-options="true"] > div:first-child > div:last-child {
+/* Remove only the redundant DTF status pill from the selected-garment summary.
+   Do not hide the summary/details container because it also owns the responsive
+   selected garment preview and customer confirmation text. */
+[data-gdp-selected-garment-summary="true"] > div:last-child > div:last-child {
   display: none !important;
 }
 
