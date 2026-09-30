@@ -7,7 +7,7 @@ import AdminShipping from "@/pages/AdminShipping";
 import AdminPricing from "@/pages/AdminPricing";
 import SystemHealthModule from "@/components/admin/SystemHealthModule";
 import AiBusinessManagerModule from "@/components/admin/AiBusinessManagerModule";
-import ProductDeleteManager from "@/components/admin/ProductDeleteManager";
+import ProductActionsUX from "@/components/admin/ProductActionsUX";
 import { systemHealthApi } from "@/lib/systemHealthApi";
 
 function AdminShell({ title, subtitle, icon, children }) {
@@ -38,5 +38,5 @@ export default function AdminV3(){
   if(location.pathname==="/admin/shipping-delivery") return <AdminShipping/>;
   if(location.pathname==="/admin/pricing") return <AdminPricing/>;
   const onProductsPage=location.pathname==="/admin/products";
-  return <><AdminV2/>{onProductsPage&&<ProductDeleteManager/>}<PricingShortcut/><ShippingShortcut/><AiShortcut/><SalesShortcut/><HealthShortcut/></>;
+  return <><AdminV2/>{onProductsPage&&<ProductActionsUX/>}<PricingShortcut/><ShippingShortcut/><AiShortcut/><SalesShortcut/><HealthShortcut/></>;
 }
