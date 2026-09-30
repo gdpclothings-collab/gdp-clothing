@@ -97,10 +97,49 @@ export default function CustomStudioV2PresentationGuard() {
       reviewRoot.insertBefore(container, reviewGrid);
     };
 
+    const syncGarmentSizeSemantics = () => {
+      const configurator = root.querySelector('[data-gdp-selected-garment-configurator="true"]');
+      if (!configurator) return;
+
+      const sizeLabel = Array.from(configurator.querySelectorAll('div')).find((node) =>
+        node.children.length === 0 && /^size$/i.test((node.textContent || '').trim())
+      );
+      const sizePanel = sizeLabel?.parentElement?.parentElement;
+      if (!sizePanel) return;
+
+      const sizeButtons = Array.from(sizePanel.querySelectorAll('button'));
+      if (!sizeButtons.length) return;
+
+      const sizeGroup = sizeButtons[0]?.parentElement;
+      if (sizeGroup?.getAttribute('role') !== 'group') sizeGroup?.setAttribute('role', 'group');
+      if (sizeGroup?.getAttribute('aria-label') !== 'Garment size') sizeGroup?.setAttribute('aria-label', 'Garment size');
+      if (sizeGroup?.getAttribute('data-gdp-garment-size-group') !== 'true') sizeGroup?.setAttribute('data-gdp-garment-size-group', 'true');
+
+      const summaryText = configurator.querySelector('[data-gdp-selected-garment-summary="true"]')?.textContent || '';
+      const selectedMatch = summaryText.match(/\bSize\s+([A-Za-z0-9.+-]+)/i);
+      const selectedSize = String(selectedMatch?.[1] || '').trim().toLowerCase();
+
+      sizeButtons.forEach((button) => {
+        const label = String(button.textContent || '').trim();
+        if (!label) return;
+        const available = !button.disabled;
+        const selected = available && selectedSize === label.toLowerCase();
+        const ariaLabel = available ? `Select size ${label}` : `Size ${label}, unavailable`;
+
+        if (button.getAttribute('data-gdp-garment-size') !== 'true') button.setAttribute('data-gdp-garment-size', 'true');
+        const availability = available ? 'true' : 'false';
+        if (button.getAttribute('data-gdp-size-available') !== availability) button.setAttribute('data-gdp-size-available', availability);
+        const pressed = selected ? 'true' : 'false';
+        if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed);
+        if (button.getAttribute('aria-label') !== ariaLabel) button.setAttribute('aria-label', ariaLabel);
+      });
+    };
+
     const syncPresentationLabels = () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
         snapshotLiveGarmentPreviews();
+        syncGarmentSizeSemantics();
 
         root.querySelectorAll('[data-gdp-print-guide="true"]').forEach((guide) => {
           const source = guide.getAttribute('aria-label') || guide.textContent || '';
