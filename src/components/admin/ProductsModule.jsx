@@ -545,10 +545,19 @@ export default function ProductsModule() {
                   return (
                     <tr key={product.id} className="border-t border-[#eeeeee] hover:bg-[#fafafa]">
                       <Td>
-                        <button
-                          type="button"
-                          onClick={() => setEditor({ mode: "edit", product })}
-                          className="flex items-center gap-3 text-left"
+                        <a
+                          href={`/products/${product.slug}`}
+                          onClick={(event) => {
+                            // Preserve the existing in-admin editor on a normal click while
+                            // leaving the element as a real link for right-click, middle-click,
+                            // Ctrl/Cmd-click and browser "Open link in new tab/window" actions.
+                            if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                              event.preventDefault();
+                              setEditor({ mode: "edit", product });
+                            }
+                          }}
+                          className="flex items-center gap-3 text-left rounded-lg focus:outline-none focus:ring-2 focus:ring-black/15"
+                          title="Open product; right-click for new tab or window"
                         >
                           <div className="w-11 h-11 rounded-lg bg-[#f2f2f2] border border-[#e5e5e5] overflow-hidden grid place-items-center shrink-0">
                             {product.images?.[0] ? (
@@ -558,7 +567,7 @@ export default function ProductsModule() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-semibold max-w-[300px] truncate">{product.name}</div>
+                            <div className="font-semibold max-w-[300px] truncate hover:underline">{product.name}</div>
                             <div className="text-[11px] text-[#808080] mt-0.5">/{product.slug}</div>
                             {product.customDesignable && (
                               <span className="inline-flex mt-1 rounded-full bg-violet-100 text-violet-700 text-[9px] font-semibold px-2 py-0.5">
@@ -566,7 +575,7 @@ export default function ProductsModule() {
                               </span>
                             )}
                           </div>
-                        </button>
+                        </a>
                       </Td>
                       <Td><StatusPill value={product.status} /></Td>
                       <Td>
