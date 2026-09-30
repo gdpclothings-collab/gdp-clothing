@@ -68,6 +68,7 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
   const sizes = productSizes(product, state.color);
   const selectedColorAvailable = !state.color || isProductColorAvailable(product, state.color);
   const sizeRequired = !String(state.size || '').trim();
+  const selectedPreview = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
 
   useEffect(() => {
     if (state.color && !selectedColorAvailable) {
@@ -76,16 +77,28 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
   }, [dispatch, selectedColorAvailable, state.color]);
   return (
     <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-4 lg:p-5" data-gdp-selected-garment-options="true" data-gdp-selected-garment-configurator="true">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Selected garment</p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-base font-black text-slate-950">{product?.name}</span>
-            {state.color && <><span className="text-slate-300">·</span><span className="text-sm font-bold text-slate-600">{displayVariantLabel(state.color)}</span></>}
-            {state.size && <><span className="text-slate-300">·</span><span className="text-sm font-bold text-slate-600">Size {state.size}</span></>}
+      <div data-gdp-selected-garment-summary="true" className="grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+        <div data-gdp-selected-garment-preview="true" className="min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3">
+          <div className="grid h-[220px] place-items-center sm:h-[260px] lg:h-[300px]">
+            <img src={selectedPreview} alt={`${product?.name || 'Selected garment'}${state.color ? ` in ${displayVariantLabel(state.color)}` : ''}`} className="h-full w-full object-contain" />
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2">
+            <span className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Garment preview</span>
+            {state.color && <span className="text-xs font-black text-slate-700">{displayVariantLabel(state.color)}</span>}
           </div>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white"><span className="h-2 w-2 rounded-full bg-emerald-400" /> DTF Printing</div>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Selected garment</p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-base font-black text-slate-950 sm:text-lg">{product?.name}</span>
+              {state.color && <><span className="text-slate-300">·</span><span className="text-sm font-bold text-slate-600">{displayVariantLabel(state.color)}</span></>}
+              {state.size && <><span className="text-slate-300">·</span><span className="text-sm font-bold text-slate-600">Size {state.size}</span></>}
+            </div>
+            <p className="mt-2 max-w-xl text-xs font-semibold leading-5 text-slate-500">The preview follows the selected garment colour and scales automatically for phone, tablet and desktop layouts.</p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-[11px] font-black text-white"><span className="h-2 w-2 rounded-full bg-emerald-400" /> DTF Printing</div>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr_.65fr]">
@@ -189,18 +202,7 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
             </div>;
           })}
         </div>
-      ) : (
-        <div data-gdp-selected-garment-summary="true" className="flex min-w-0 items-center gap-3 rounded-3xl border-2 border-slate-900 bg-white p-3 shadow-sm sm:p-4">
-          <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-slate-50 p-2 sm:h-24 sm:w-24">
-            <img src={selectedProduct.images?.[0] || '/images/gdp-logo.webp'} alt={selectedProduct.name} className="h-full w-full object-contain" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-black text-slate-950 sm:text-base">{selectedProduct.name}</p><span className="inline-flex items-center gap-1 rounded-full bg-slate-950 px-2 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={11} /> Selected</span></div>
-            <p className="mt-1 line-clamp-2 text-xs font-medium text-slate-500">{selectedProduct.description || selectedProduct.type || 'Custom garment'}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">{state.color && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">{displayVariantLabel(state.color)}</span>}{state.size && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">Size {state.size}</span>}</div>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {selectedProduct && !browseGarments && <GarmentVariantControls product={selectedProduct} state={state} dispatch={dispatch} onContinue={onContinue} canContinue={canContinue} />}
     </div>
@@ -256,16 +258,22 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, onE
   const bothSides = sides.length > 1;
   const variant = variantFor(product, state.color, state.size);
   const unitPrice = Number(variant?.price ?? product?.price ?? 0) + (bothSides ? Number(settings?.frontBackFee || 0) : 0);
+  const garmentPreview = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
   return <div>
     <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Final review</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Review your choices before the approved 300-DPI production files and customer mockup are generated.</p>
     <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_.7fr]">
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Garment</div><div className="mt-1 text-sm font-black text-slate-900">{product?.name}</div></div>
-        <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Color / size</div><div className="mt-1 text-sm font-black text-slate-900">{state.color} · {state.size}</div></div>
-        <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Design path</div><div className="mt-1 text-sm font-black text-slate-900">{pathInfo?.label || state.designPath}</div></div>
-        <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Print sides</div><div className="mt-1 text-sm font-black capitalize text-slate-900">{sides.join(' + ')}</div></div>
-        <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Unit price</div><div className="mt-1 text-sm font-black text-slate-900">${unitPrice.toFixed(2)}</div></div>
-      </div><button type="button" onClick={onEdit} disabled={finalizing} className="mt-5 min-h-12 rounded-xl border border-slate-300 px-4 text-sm font-black text-slate-800 disabled:opacity-50">Edit design</button></div>
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div data-gdp-review-garment-preview="true" className="mb-4 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center">
+          <div className="grid h-[180px] place-items-center overflow-hidden rounded-xl bg-white p-2"><img src={garmentPreview} alt={`${product?.name || 'Selected garment'}${state.color ? ` in ${displayVariantLabel(state.color)}` : ''}`} className="h-full w-full object-contain" /></div>
+          <div className="min-w-0"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected garment</div><div className="mt-1 text-base font-black text-slate-900">{product?.name}</div><div className="mt-2 text-sm font-bold text-slate-600">{displayVariantLabel(state.color)} · Size {state.size}</div><p className="mt-2 text-xs font-medium leading-5 text-slate-500">This is the garment and colour selected for the approved design.</p></div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Garment</div><div className="mt-1 text-sm font-black text-slate-900">{product?.name}</div></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Color / size</div><div className="mt-1 text-sm font-black text-slate-900">{state.color} · {state.size}</div></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Design path</div><div className="mt-1 text-sm font-black text-slate-900">{pathInfo?.label || state.designPath}</div></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Print sides</div><div className="mt-1 text-sm font-black capitalize text-slate-900">{sides.join(' + ')}</div></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Unit price</div><div className="mt-1 text-sm font-black text-slate-900">${unitPrice.toFixed(2)}</div></div>
+        </div><button type="button" onClick={onEdit} disabled={finalizing} className="mt-5 min-h-12 rounded-xl border border-slate-300 px-4 text-sm font-black text-slate-800 disabled:opacity-50">Edit design</button></div>
       <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-slate-900 text-white"><ShieldCheck size={21} /></div><h2 className="mt-4 text-lg font-black text-slate-950">Approved layout ready to build</h2><p className="mt-2 text-sm font-medium leading-6 text-slate-600">Your approved design is ready. Production PNGs stay separate from the garment mockup shown in your cart.</p>
         {finalizeError && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-5 text-red-700">{finalizeError}</div>}
         <button type="button" onClick={onFinalize} disabled={finalizing} className="mt-5 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">{finalizing ? <><Loader2 size={18} className="animate-spin" /> Generating & verifying print files…</> : <>Generate, Verify & Add to Cart <ArrowRight size={18} /></>}</button>
