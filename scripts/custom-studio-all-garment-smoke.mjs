@@ -46,6 +46,7 @@ async function waitForImage(image, label) {
       naturalWidth: node.naturalWidth,
       naturalHeight: node.naturalHeight,
       src: node.currentSrc || node.src || "",
+      sourceAttr: node.getAttribute("src") || "",
       alt: node.getAttribute("alt") || "",
     }));
 
@@ -157,13 +158,14 @@ async function inspectViewport(page, viewport) {
         ariaPressed: true,
         previewLoaded: true,
         previewSrc: colorPreviewState.src,
+        previewSourceAttr: colorPreviewState.sourceAttr,
         previewNaturalWidth: colorPreviewState.naturalWidth,
         previewNaturalHeight: colorPreviewState.naturalHeight,
       });
     }
 
     if (/crewneck/i.test(name) && colorResults.length > 1) {
-      const crewneckSources = colorResults.map((entry) => sourceParts(entry.previewSrc));
+      const crewneckSources = colorResults.map((entry) => sourceParts(entry.previewSourceAttr || entry.previewSrc));
       const crewneckPaths = new Set(crewneckSources.map((entry) => entry.pathname));
       const crewneckFullSources = new Set(crewneckSources.map((entry) => entry.href));
       assert(crewneckPaths.size === 1, `${name} color previews no longer share the approved same-canvas asset path on ${viewport.name}.`);
