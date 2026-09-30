@@ -115,15 +115,11 @@ export default function CustomStudioV2PresentationGuard() {
       if (sizeGroup?.getAttribute('aria-label') !== 'Garment size') sizeGroup?.setAttribute('aria-label', 'Garment size');
       if (sizeGroup?.getAttribute('data-gdp-garment-size-group') !== 'true') sizeGroup?.setAttribute('data-gdp-garment-size-group', 'true');
 
-      const summaryText = configurator.querySelector('[data-gdp-selected-garment-summary="true"]')?.textContent || '';
-      const selectedMatch = summaryText.match(/\bSize\s+([A-Za-z0-9.+-]+)/i);
-      const selectedSize = String(selectedMatch?.[1] || '').trim().toLowerCase();
-
       sizeButtons.forEach((button) => {
         const label = String(button.textContent || '').trim();
         if (!label) return;
         const available = !button.disabled;
-        const selected = available && selectedSize === label.toLowerCase();
+        const selected = available && button.classList.contains('border-slate-900') && button.classList.contains('bg-slate-900');
         const ariaLabel = available ? `Select size ${label}` : `Size ${label}, unavailable`;
 
         if (button.getAttribute('data-gdp-garment-size') !== 'true') button.setAttribute('data-gdp-garment-size', 'true');
@@ -197,7 +193,7 @@ export default function CustomStudioV2PresentationGuard() {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['aria-label'],
+      attributeFilter: ['aria-label', 'class', 'disabled'],
       characterData: true,
     });
 
