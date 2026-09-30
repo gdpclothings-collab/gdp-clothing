@@ -10,49 +10,98 @@ const read = (path) => {
   return fs.readFileSync(path, "utf8");
 };
 
-const artworkFiles = [
-  "public/images/gdp-styles/memorial-eternal-light.svg",
-  "public/images/gdp-styles/memorial-heavenly-clouds.svg",
-  "public/images/gdp-styles/memorial-rose-tribute.svg",
-  "public/images/gdp-styles/memorial-guardian-wings.svg",
-  "public/images/gdp-styles/memorial-sunset-remembrance.svg",
-];
+const readBytes = (path) => {
+  if (!fs.existsSync(path)) fail(`Missing required file: ${path}`);
+  return fs.readFileSync(path);
+};
 
-for (const path of artworkFiles) {
-  const svg = read(path);
-  for (const token of ['width="4500"', 'height="5400"', 'viewBox="0 0 4500 5400"']) {
-    if (!svg.includes(token)) fail(`${path} is missing ${token}`);
-  }
-  if (/<rect[^>]+width=["']4500["'][^>]+height=["']5400["'][^>]+fill=/i.test(svg)) {
-    fail(`${path} appears to contain an opaque full-canvas background`);
-  }
-}
+const memorialTemplates = [
+  {
+    id: "memorial-eternal-light",
+    name: "Crimson Eternal",
+    asset: "/images/gdp-styles/memorial-crimson-eternal.avif",
+  },
+  {
+    id: "memorial-heavenly-clouds",
+    name: "Golden Grace",
+    asset: "/images/gdp-styles/memorial-golden-grace.avif",
+  },
+  {
+    id: "memorial-rose-tribute",
+    name: "Heaven’s Horizon",
+    asset: "/images/gdp-styles/memorial-heavens-horizon.avif",
+  },
+  {
+    id: "memorial-guardian-wings",
+    name: "Everlasting Bloom",
+    asset: "/images/gdp-styles/memorial-everlasting-bloom.avif",
+  },
+  {
+    id: "memorial-sunset-remembrance",
+    name: "Angel’s Embrace",
+    asset: "/images/gdp-styles/memorial-angels-embrace.avif",
+  },
+];
 
 const styles = read("src/lib/customStudioStyleTemplates.js");
 const memorialCategoryCount = (styles.match(/category:\s*"memorial_tribute"/g) || []).length;
-if (memorialCategoryCount !== 5) fail(`Expected 5 Memorial Tribute templates, found ${memorialCategoryCount}`);
-
-for (const id of [
-  "memorial-eternal-light",
-  "memorial-heavenly-clouds",
-  "memorial-rose-tribute",
-  "memorial-guardian-wings",
-  "memorial-sunset-remembrance",
-]) {
-  if (!styles.includes(`id: "${id}"`)) fail(`Missing template metadata for ${id}`);
+if (memorialCategoryCount !== memorialTemplates.length) {
+  fail(`Expected ${memorialTemplates.length} Memorial Tribute templates, found ${memorialCategoryCount}`);
 }
 
-const studio = read("src/pages/CustomStudio.jsx");
+for (const template of memorialTemplates) {
+  const filePath = `public${template.asset}`;
+  const bytes = readBytes(filePath);
+  const signature = bytes.subarray(0, 32).toString("ascii");
+  if (!signature.includes("ftypavif") && !signature.includes("ftypavis")) {
+    fail(`${filePath} does not have a valid AVIF file signature`);
+  }
+
+  for (const token of [
+    `id: "${template.id}"`,
+    `name: "${template.name}"`,
+    `thumbnail: "${template.asset}"`,
+    `fullAsset: "${template.asset}"`,
+    `assetUrl: "${template.asset}"`,
+  ]) {
+    if (!styles.includes(token)) {
+      fail(`Active Memorial template mapping is missing: ${token}`);
+    }
+  }
+}
+
+const v2State = read("src/lib/customStudioV2State.js");
 for (const required of [
-  'id: "memorial"',
-  'style.category === "memorial_tribute"',
-  'memorialNameConfirmed',
-  'memorialNameVerifiedAt',
-  'designPath === "bootleg" || designPath === "memorial"',
-  'I verified the memorial name is spelled exactly as it should be printed.',
-  'UPLOAD THE MEMORIAL PORTRAIT',
+  "{ id: 'memorial', label: 'Memorial Tribute Designs'",
+  "memorial: { sides: pathSides(protectedSideState) }",
+  "['bootleg', 'memorial', 'upload'].includes(path)",
 ]) {
-  if (!studio.includes(required)) fail(`Custom Studio is missing required Memorial Tribute behavior: ${required}`);
+  if (!v2State.includes(required)) {
+    fail(`Custom Studio V2 state is missing required Memorial behavior: ${required}`);
+  }
+}
+
+const studioV2 = read("src/pages/CustomStudioV2.jsx");
+for (const required of [
+  "import ProtectedTemplateEditorV2",
+  "state.designPath === 'bootleg' || state.designPath === 'memorial'",
+  "state.designPath === 'memorial' ? 'Memorial Tribute Studio'",
+  "<ProtectedTemplateEditorV2 path={state.designPath}",
+]) {
+  if (!studioV2.includes(required)) {
+    fail(`Custom Studio V2 is missing required Memorial wiring: ${required}`);
+  }
+}
+
+const protectedEditorV2 = read("src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx");
+for (const required of [
+  "normalizeStyleTemplates",
+  "resolveMemorialTextLayers",
+  "buildMemorialTextStatePatch",
+]) {
+  if (!protectedEditorV2.includes(required)) {
+    fail(`Protected Template Editor V2 is missing Memorial behavior: ${required}`);
+  }
 }
 
 const admin = read("src/components/admin/CustomStudioAdminModule.jsx");
@@ -60,4 +109,4 @@ if (!admin.includes("Protected design templates") || !admin.includes("Memorial T
   fail("Admin template management is missing Memorial Tribute controls");
 }
 
-console.log("Memorial Tribute verification passed: 5 transparent 4500×5400 masters + protected workflow + name verification + admin controls.");
+console.log("Memorial Tribute verification passed: 5 approved AVIF assets + active template mappings + protected Custom Studio V2 workflow + admin controls.");
