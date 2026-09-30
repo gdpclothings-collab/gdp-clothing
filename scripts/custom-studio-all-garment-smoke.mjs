@@ -28,14 +28,26 @@ function clean(value) {
 
 async function waitForImage(image, label) {
   await image.waitFor({ state: "visible", timeout: 15000 });
-  const state = await image.evaluate((node) => ({
-    complete: node.complete,
-    naturalWidth: node.naturalWidth,
-    naturalHeight: node.naturalHeight,
-    src: node.currentSrc || node.src || "",
-  }));
-  assert(state.complete && state.naturalWidth > 0 && state.naturalHeight > 0, `${label} did not load successfully.`);
-  return state;
+
+  const deadline = Date.now() + 15000;
+  let state = null;
+  while (Date.now() < deadline) {
+    state = await image.evaluate((node) => ({
+      complete: node.complete,
+      naturalWidth: node.naturalWidth,
+      naturalHeight: node.naturalHeight,
+      src: node.currentSrc || node.src || "",
+    }));
+
+    if (state.complete && state.naturalWidth > 0 && state.naturalHeight > 0) return state;
+    if (state.complete && state.src && state.naturalWidth === 0) {
+      throw new Error(`${label} failed to load: ${state.src}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  throw new Error(`${label} did not finish loading within 15 seconds${state?.src ? `: ${state.src}` : "."}`);
 }
 
 async function assertNoHorizontalOverflow(page, label) {
