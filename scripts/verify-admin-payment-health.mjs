@@ -15,6 +15,12 @@ function requireMatch(source, pattern, message) {
 requireMatch(admin, /import PaymentPreflightCard from "@\/components\/admin\/PaymentPreflightCard";/, "AdminV3 imports the payment health card");
 requireMatch(admin, /SystemHealthPage[\s\S]*<PaymentPreflightCard\/>[\s\S]*<SystemHealthModule\/>/, "System Health renders payment readiness above the existing health module");
 requireMatch(admin, /HealthShortcut[\s\S]*systemHealthApi\.loadSnapshot\(\)/, "Floating System Health shortcut uses the shared health API");
+requireMatch(admin, /data-gdp-admin-home-health=\{expanded\?"true":undefined\}/, "Admin home health glance exposes a stable regression marker");
+requireMatch(admin, /check\?\.key==="payment-preflight"/, "Admin home health glance reads the shared payment-preflight result");
+requireMatch(admin, /Payments ready/, "Admin home health glance shows payment readiness when healthy");
+requireMatch(admin, /Payments need attention/, "Admin home health glance shows payment attention when critical");
+requireMatch(admin, /const onAdminHome=location\.pathname==="\/admin";/, "AdminV3 detects the dashboard route explicitly");
+requireMatch(admin, /<HealthShortcut expanded=\{onAdminHome\}\/>/, "Only the Admin home expands the System Health shortcut");
 requireMatch(card, /data-gdp-payment-health="true"/, "Payment health exposes a stable regression marker");
 requireMatch(card, /supabase\.functions\.invoke\("payment-preflight"/, "Payment health uses the production preflight function");
 requireMatch(card, /body:\s*\{\s*action:\s*"preflight"\s*\}/, "Payment health requests the read-only preflight action");
@@ -38,7 +44,7 @@ const forbidden = [
   /charges?\.create/,
   /fetch\s*\([^)]*api\.stripe\.com/i,
 ];
-for (const source of [card, api]) {
+for (const source of [card, api, admin]) {
   for (const pattern of forbidden) {
     if (pattern.test(source)) {
       console.error(`FAIL Payment health contains forbidden write/payment logic: ${pattern}`);
