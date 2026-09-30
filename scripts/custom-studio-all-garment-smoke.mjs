@@ -87,19 +87,23 @@ async function waitForSizeSelection(sizeButton, selectedSummary, continueButton,
   while (Date.now() < deadline) {
     state = await Promise.all([
       sizeButton.isDisabled(),
+      sizeButton.getAttribute("data-gdp-size-available"),
+      sizeButton.getAttribute("aria-pressed"),
       selectedSummary.innerText(),
       continueButton.isDisabled(),
-    ]).then(([disabled, summaryText, continueDisabled]) => ({
+    ]).then(([disabled, available, pressed, summaryText, continueDisabled]) => ({
       disabled,
+      available,
+      pressed,
       summaryText: clean(summaryText),
       continueDisabled,
     }));
 
-    if (!state.disabled && state.summaryText.toLowerCase().includes(expected) && !state.continueDisabled) return state;
+    if (!state.disabled && state.available === "true" && state.pressed === "true" && state.summaryText.toLowerCase().includes(expected) && !state.continueDisabled) return state;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  throw new Error(`${label} did not become the active selectable variant within 5 seconds${state?.summaryText ? ` (summary: ${state.summaryText})` : "."}`);
+  throw new Error(`${label} did not become the active semantic variant within 5 seconds${state?.summaryText ? ` (summary: ${state.summaryText}, aria-pressed: ${state.pressed})` : "."}`);
 }
 
 async function assertNoHorizontalOverflow(page, label) {
@@ -159,6 +163,11 @@ async function inspectViewport(page, viewport) {
     const continueButton = configurator.locator('[data-gdp-garment-continue="true"]');
     await waitForImage(selectedPreview, `${viewport.name} selected preview for ${name}`);
 
+    const sizeGroup = configurator.locator('[data-gdp-garment-size-group="true"]');
+    await sizeGroup.waitFor({ state: "visible", timeout: 10000 });
+    assert(await sizeGroup.getAttribute("role") === "group", `${name} size controls are not exposed as a semantic group on ${viewport.name}.`);
+    assert(await sizeGroup.getAttribute("aria-label") === "Garment size", `${name} size group has no stable accessible name on ${viewport.name}.`);
+
     const enabledColors = configurator.locator('[data-gdp-garment-swatch="true"]:not([disabled])');
     const enabledColorCount = await enabledColors.count();
     assert(enabledColorCount > 0, `${name} has no enabled color on ${viewport.name}.`);
@@ -179,28 +188,30 @@ async function inspectViewport(page, viewport) {
       assert(colorPreviewState.naturalWidth > 0 && colorPreviewState.naturalHeight > 0, `${name} ${color} preview has invalid image dimensions on ${viewport.name}.`);
       await assertNoHorizontalOverflow(page, `${viewport.name} ${name} in ${color}`);
 
-      const allSizeButtons = configurator.locator('button[title]:not([data-gdp-garment-swatch])');
+      const allSizeButtons = configurator.locator('button[data-gdp-garment-size="true"]');
       const allSizeCount = await allSizeButtons.count();
-      assert(allSizeCount > 0, `${name} ${color} exposes no size choices on ${viewport.name}.`);
+      assert(allSizeCount > 0, `${name} ${color} exposes no semantic size choices on ${viewport.name}.`);
 
-      const enabledSizeButtons = configurator.locator('button[title]:not([data-gdp-garment-swatch]):not([disabled])');
+      const enabledSizeButtons = configurator.locator('button[data-gdp-garment-size="true"][data-gdp-size-available="true"]:not([disabled])');
       const enabledSizeCount = await enabledSizeButtons.count();
-      assert(enabledSizeCount > 0, `${name} ${color} has no enabled size on ${viewport.name}.`);
+      assert(enabledSizeCount > 0, `${name} ${color} has no enabled semantic size on ${viewport.name}.`);
 
       const sizes = [];
       for (let sizeIndex = 0; sizeIndex < enabledSizeCount; sizeIndex += 1) {
-        const currentEnabledSizes = configurator.locator('button[title]:not([data-gdp-garment-swatch]):not([disabled])');
+        const currentEnabledSizes = configurator.locator('button[data-gdp-garment-size="true"][data-gdp-size-available="true"]:not([disabled])');
         assert(await currentEnabledSizes.count() === enabledSizeCount, `${name} ${color} enabled size count changed while testing ${viewport.name}.`);
 
         const sizeButton = currentEnabledSizes.nth(sizeIndex);
         const size = clean(await sizeButton.getAttribute("title")) || clean(await sizeButton.innerText()) || `Size ${sizeIndex + 1}`;
+        const sizeAriaLabel = clean(await sizeButton.getAttribute("aria-label"));
+        assert(sizeAriaLabel === `Select size ${size}`, `${name} ${color} size ${size} has an unexpected accessible label on ${viewport.name}: ${sizeAriaLabel || "missing"}.`);
         await sizeButton.scrollIntoViewIfNeeded();
         await sizeButton.click();
         await waitForSizeSelection(sizeButton, selectedSummary, continueButton, size, `${viewport.name} ${name} ${color} size ${size}`);
         const variantPreviewState = await waitForImage(selectedPreview, `${viewport.name} selected preview for ${name} in ${color}, size ${size}`);
         assert(variantPreviewState.naturalWidth > 0 && variantPreviewState.naturalHeight > 0, `${name} ${color} size ${size} preview became invalid on ${viewport.name}.`);
         await assertNoHorizontalOverflow(page, `${viewport.name} ${name} in ${color}, size ${size}`);
-        sizes.push({ size, selected: true, continueEnabled: true, previewLoaded: true });
+        sizes.push({ size, selected: true, ariaPressed: true, continueEnabled: true, previewLoaded: true });
         garmentSizeCheckCount += 1;
       }
 
@@ -238,6 +249,7 @@ async function inspectViewport(page, viewport) {
       cardImageLoaded: true,
       allEnabledColorsVerified: true,
       allEnabledSizesVerified: true,
+      semanticSizeStateVerified: true,
       enabledColorCount,
       sizeCheckCount: garmentSizeCheckCount,
       colors: colorResults,
@@ -308,7 +320,7 @@ async function main() {
     `Target: ${TARGET}`,
     `Status: ${report.status.toUpperCase()}`,
     "",
-    ...report.viewports.map((entry) => `- ${entry.viewport.name}: ${entry.garmentCount} garments, ${entry.colorCheckCount} enabled colors, and ${entry.sizeCheckCount} enabled color/size variants verified`),
+    ...report.viewports.map((entry) => `- ${entry.viewport.name}: ${entry.garmentCount} garments, ${entry.colorCheckCount} enabled colors, and ${entry.sizeCheckCount} enabled color/size variants verified with semantic size state`),
     ...(report.error ? ["", `Failure: ${report.error}`] : []),
   ];
   await fs.writeFile(path.join(ARTIFACT_DIR, "custom-studio-all-garments-summary.md"), lines.join("\n"));
