@@ -91,16 +91,22 @@ async function selectPurchasableVariant(page) {
   const colourButtons = colourLabel.locator("xpath=../..").locator("button");
   const sizeButtons = sizeLabel.locator("xpath=../..").locator("button");
   const colourCount = Math.min(await colourButtons.count(), 8);
-  const sizeCount = Math.min(await sizeButtons.count(), 12);
 
   for (let colourIndex = 0; colourIndex < colourCount; colourIndex += 1) {
-    await colourButtons.nth(colourIndex).click();
+    const colourButton = colourButtons.nth(colourIndex);
+    if (!(await colourButton.isEnabled().catch(() => false))) continue;
+    await colourButton.click();
+
+    const sizeCount = Math.min(await sizeButtons.count(), 12);
     for (let sizeIndex = 0; sizeIndex < sizeCount; sizeIndex += 1) {
-      await sizeButtons.nth(sizeIndex).click();
+      const sizeButton = sizeButtons.nth(sizeIndex);
+      if (!(await sizeButton.isEnabled().catch(() => false))) continue;
+      await sizeButton.click();
+
       const addButton = page.getByRole("button", { name: /^Add to bag$/i }).first();
       if ((await addButton.count()) > 0 && await addButton.isEnabled().catch(() => false)) {
-        const colour = normalizeText(await colourButtons.nth(colourIndex).innerText());
-        const size = normalizeText(await sizeButtons.nth(sizeIndex).innerText());
+        const colour = normalizeText(await colourButton.innerText());
+        const size = normalizeText(await sizeButton.innerText());
         return { status: "purchasable", colour, size, addButton };
       }
     }
