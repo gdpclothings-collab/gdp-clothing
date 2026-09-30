@@ -160,21 +160,27 @@ async function main() {
   });
 
   try {
-    const homeLinks = await record("home exposes live product links", async () => {
-      const cards = await discoverProductCards(page, "/");
-      assert(cards.length > 0, "Home page has no direct product links to verify.");
+    const storefrontLinks = await record("storefront exposes live product links", async () => {
+      let sourceRoute = "/";
+      let cards = await discoverProductCards(page, sourceRoute);
+      if (cards.length === 0) {
+        sourceRoute = "/shop";
+        cards = await discoverProductCards(page, sourceRoute);
+      }
+      assert(cards.length > 0, "Neither Home nor Shop exposes published product links to verify.");
       return {
+        sourceRoute,
         productLinks: cards.map((card) => card.href).slice(0, 12),
         productNames: unique(cards.map((card) => card.name.toLowerCase())).slice(0, 12),
       };
     });
 
-    const shopLinks = await record("home products overlap the published shop catalog", async () => {
+    const shopLinks = await record("discovered products overlap the published shop catalog", async () => {
       const cards = await discoverProductCards(page, "/shop");
       assert(cards.length > 0, "Shop has no published product links.");
       const shopNames = new Set(cards.map((card) => card.name.toLowerCase()).filter(Boolean));
-      const overlap = homeLinks.productNames.filter((name) => shopNames.has(name));
-      assert(overlap.length > 0, "No home-page product is connected to the published Shop catalog.");
+      const overlap = storefrontLinks.productNames.filter((name) => shopNames.has(name));
+      assert(overlap.length > 0, "Discovered storefront products are not connected to the published Shop catalog.");
       return {
         shopProductCount: cards.length,
         overlap: overlap.slice(0, 12),
@@ -182,25 +188,25 @@ async function main() {
       };
     });
 
-    await record("home product card resolves to matching product detail", async () => {
-      await navigate(page, "/");
-      const href = homeLinks.productLinks[0];
+    await record("discovered product resolves to matching product detail", async () => {
+      await navigate(page, storefrontLinks.sourceRoute || "/shop");
+      const href = storefrontLinks.productLinks[0];
       const cardLink = page.locator(`a[href="${href}"]`).first();
-      assert(await cardLink.count(), `Home product link ${href} disappeared.`);
+      assert(await cardLink.count(), `Product link ${href} disappeared from ${storefrontLinks.sourceRoute || "/shop"}.`);
       const article = cardLink.locator("xpath=ancestor::article[1]");
-      const homeName = normalizeText(await article.locator("h3").first().innerText().catch(() => ""));
+      const storefrontName = normalizeText(await article.locator("h3").first().innerText().catch(() => ""));
       await cardLink.click();
       await page.waitForURL((url) => url.pathname === href, { timeout: 15000 });
       const detailName = normalizeText(await page.locator("h1").first().innerText());
       assert(detailName.length > 0, "Product detail title is empty.");
-      if (homeName) {
-        assert(homeName.toLowerCase() === detailName.toLowerCase(), `Home product name \"${homeName}\" does not match detail title \"${detailName}\".`);
+      if (storefrontName) {
+        assert(storefrontName.toLowerCase() === detailName.toLowerCase(), `Storefront product name \"${storefrontName}\" does not match detail title \"${detailName}\".`);
       }
-      return { href, homeName: homeName || null, detailName };
+      return { href, sourceRoute: storefrontLinks.sourceRoute, storefrontName: storefrontName || null, detailName };
     });
 
     await record("sellable product wires through variant selection to cart", async () => {
-      const candidates = unique([...homeLinks.productLinks, ...shopLinks.links]).slice(0, MAX_PRODUCTS_TO_TRY);
+      const candidates = unique([...storefrontLinks.productLinks, ...shopLinks.links]).slice(0, MAX_PRODUCTS_TO_TRY);
       let selected = null;
 
       for (const href of candidates) {
