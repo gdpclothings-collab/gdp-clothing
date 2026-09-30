@@ -1,9 +1,14 @@
 import fs from 'node:fs';
 
 const page = fs.readFileSync('src/pages/CustomStudioV2.jsx', 'utf8');
-const start = page.indexOf('function GarmentStepV2');
-const end = page.indexOf('function DesignStepV2');
-const garmentStep = page.slice(start, end);
+const garmentControlsStart = page.indexOf('function GarmentVariantControls');
+const garmentStepStart = page.indexOf('function GarmentStepV2');
+const designStepStart = page.indexOf('function DesignStepV2');
+const reviewStepStart = page.indexOf('function ReviewStepV2');
+const editorHeadingStart = page.indexOf('function EditorHeading');
+const garmentControls = page.slice(garmentControlsStart, garmentStepStart);
+const garmentStep = page.slice(garmentStepStart, designStepStart);
+const reviewStep = page.slice(reviewStepStart, editorHeadingStart);
 
 const expect = (condition, message) => {
   if (!condition) {
@@ -12,7 +17,9 @@ const expect = (condition, message) => {
   }
 };
 
-expect(start >= 0 && end > start, 'GarmentStepV2 is present and isolated for inspection');
+expect(garmentControlsStart >= 0 && garmentStepStart > garmentControlsStart, 'GarmentVariantControls is present and isolated for inspection');
+expect(garmentStepStart >= 0 && designStepStart > garmentStepStart, 'GarmentStepV2 is present and isolated for inspection');
+expect(reviewStepStart >= 0 && editorHeadingStart > reviewStepStart, 'ReviewStepV2 is present and isolated for inspection');
 expect(page.includes("import React, { useEffect, useMemo, useRef, useState } from 'react';"), 'focused mode uses local React state/ref only');
 expect(garmentStep.includes("const [isChoosingGarment, setIsChoosingGarment] = useState(() => !state.productId);"), 'browse/focus state is local UI state');
 expect(garmentStep.includes("const previousProductIdRef = useRef(state.productId);"), 'product changes are observed without duplicating selected product state');
@@ -23,16 +30,29 @@ expect(garmentStep.includes('data-gdp-change-garment="true"'), 'Change garment c
 expect(garmentStep.includes('onClick={() => setIsChoosingGarment(true)}'), 'Change garment changes presentation state only');
 expect(garmentStep.includes('data-gdp-keep-current-garment="true"'), 'Keep current garment control exists');
 expect(garmentStep.includes('onClick={() => setIsChoosingGarment(false)}'), 'Keep current garment changes presentation state only');
-expect(garmentStep.includes('data-gdp-selected-garment-summary="true"'), 'compact selected garment summary exists');
-expect(garmentStep.includes('h-20 w-20') && garmentStep.includes('sm:h-24 sm:w-24'), 'selected garment thumbnail has an explicit compact size cap');
+expect(!garmentStep.includes('data-gdp-selected-garment-summary="true"'), 'focused step does not render a duplicate selected garment summary');
 expect(garmentStep.includes('selectedProduct && !browseGarments && <GarmentVariantControls'), 'configurator only appears in focused mode');
+
+expect(garmentControls.includes("studioV2GarmentPreview(product, state.color, 'front')"), 'selected garment preview uses the canonical color-aware garment resolver');
+expect(garmentControls.includes('data-gdp-selected-garment-summary="true"'), 'selected garment summary is owned by the configurator');
+expect(garmentControls.includes('data-gdp-selected-garment-preview="true"'), 'selected garment has a dedicated preview surface');
+expect(garmentControls.includes('md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)]'), 'selected garment preview adapts at tablet width');
+expect(garmentControls.includes('lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]'), 'selected garment preview adapts at desktop width');
+expect(garmentControls.includes('h-[220px]') && garmentControls.includes('sm:h-[260px]') && garmentControls.includes('lg:h-[300px]'), 'selected garment preview has responsive phone, tablet and desktop heights');
+expect(garmentControls.includes('object-contain'), 'selected garment preview preserves garment proportions without cropping');
+expect(garmentControls.includes('state.color') && garmentControls.includes('displayVariantLabel(state.color)'), 'selected garment color remains visible with the preview');
+
+expect(reviewStep.includes("studioV2GarmentPreview(product, state.color, 'front')"), 'final review uses the same color-aware garment resolver');
+expect(reviewStep.includes('data-gdp-review-garment-preview="true"'), 'final review visibly confirms the selected garment');
+expect(reviewStep.includes('object-contain'), 'final review garment preview is not cropped');
+
 expect(!garmentStep.includes('document.'), 'GarmentStepV2 does not query or mutate the DOM');
 expect(!garmentStep.includes('MutationObserver'), 'GarmentStepV2 does not use MutationObserver');
 expect(!garmentStep.includes('createPortal'), 'GarmentStepV2 does not use portals');
 expect(!garmentStep.includes('customerApi'), 'GarmentStepV2 does not call APIs');
 expect(!garmentStep.includes('useCart'), 'GarmentStepV2 does not touch cart state');
-expect(!garmentStep.includes("type: 'SET_COLOR'"), 'focused UI does not duplicate color business logic');
-expect(!garmentStep.includes("type: 'SET_SIZE'"), 'focused UI does not duplicate size business logic');
-expect(!garmentStep.includes("type: 'SET_QUANTITY'"), 'focused UI does not duplicate quantity business logic');
+expect(!garmentStep.includes("type: 'SET_COLOR'"), 'focused step does not duplicate color business logic');
+expect(!garmentStep.includes("type: 'SET_SIZE'"), 'focused step does not duplicate size business logic');
+expect(!garmentStep.includes("type: 'SET_QUANTITY'"), 'focused step does not duplicate quantity business logic');
 
-console.log('PASS: safe Custom Studio V2 focused garment mode contract');
+console.log('PASS: responsive Custom Studio V2 focused garment preview contract');
