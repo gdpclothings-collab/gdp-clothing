@@ -55,6 +55,7 @@ jobs:
           node scripts/verify-custom-studio-garment-info.mjs
           node scripts/verify-custom-studio-garment-layout-refinement.mjs
           node scripts/verify-custom-studio-focused-garment-v2.mjs
+          node scripts/verify-custom-studio-final-review-preview.mjs
           node scripts/verify-custom-studio-footer.mjs
           node scripts/verify-custom-studio-garment-preview.mjs
           node scripts/verify-custom-order-guide-visibility.mjs
