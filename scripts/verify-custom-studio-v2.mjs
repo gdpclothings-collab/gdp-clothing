@@ -91,6 +91,7 @@ assert(page.includes('data-gdp-selected-garment-options="true"'), 'selected-garm
 assert(page.includes('const selectedProduct = catalog.find'), 'selected product resolver is missing from Step 1');
 assert(page.includes('selectedProduct && !browseGarments && <GarmentVariantControls'), 'color/size/quantity options must render only for the selected garment while focused');
 assert(page.includes('aria-pressed={selected}'), 'garment selection state must be exposed accessibly');
+assert(page.includes("item?.customization?.preview?.cardImageUrl || item?.customization?.cardImageUrl || item.images?.[0]"), 'garment gallery must prioritize the configured Studio card image before product photography');
 assert(page.includes('data-gdp-garment-continue="true"'), 'Step 1 Continue must live inside the selected garment configurator');
 assert(page.includes("data-gdp-color-available={available ? 'true' : 'false'}"), 'V2 color swatches must expose availability state');
 assert(page.includes('disabled={!available}'), 'V2 unavailable color swatches must be disabled');
