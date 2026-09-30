@@ -162,12 +162,19 @@ async function main() {
       const body = await page.locator("body").innerText();
       assert(/CLOTHING, COLOR & SIZE|CHOOSE YOUR DESIGN PATH|CUSTOM STUDIO/i.test(body), "Custom Studio workflow did not render.");
       assert(!/No Custom Studio garments are currently published/i.test(body), "Custom Studio has no published garment catalog.");
-      const memorialAssets = ["/images/gdp-styles/memorial-eternal-light.svg", "/images/gdp-styles/memorial-heavenly-clouds.svg", "/images/gdp-styles/memorial-rose-tribute.svg", "/images/gdp-styles/memorial-guardian-wings.svg", "/images/gdp-styles/memorial-sunset-remembrance.svg"];
+      const memorialAssets = [
+        "/images/gdp-styles/memorial-crimson-eternal.avif",
+        "/images/gdp-styles/memorial-golden-grace.avif",
+        "/images/gdp-styles/memorial-heavens-horizon.avif",
+        "/images/gdp-styles/memorial-everlasting-bloom.avif",
+        "/images/gdp-styles/memorial-angels-embrace.avif",
+      ];
       for (const assetPath of memorialAssets) {
         const response = await page.request.get(new URL(assetPath, BASE_URL).toString());
         assert(response.ok(), `Memorial production asset failed to load: ${assetPath} (${response.status()})`);
-        const svg = await response.text();
-        assert(svg.includes('viewBox="0 0 4500 5400"'), `Memorial production asset has unexpected master dimensions: ${assetPath}`);
+        const bytes = await response.body();
+        const signature = bytes.subarray(0, 32).toString("ascii");
+        assert(signature.includes("ftypavif") || signature.includes("ftypavis"), `Memorial production asset is not valid AVIF: ${assetPath}`);
       }
     });
     await runCheck(browser, "custom studio mobile layout", MOBILE, async (page) => { await navigate(page, "/custom-studio"); const body = await page.locator("body").innerText(); assert(/CUSTOM STUDIO|CLOTHING, COLOR & SIZE|CHOOSE YOUR DESIGN PATH/i.test(body), "Custom Studio did not render on mobile."); await assertNoHorizontalOverflow(page, MOBILE); });
