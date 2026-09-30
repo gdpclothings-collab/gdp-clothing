@@ -64,6 +64,9 @@ jobs:
           exit 1
       - name: Run maintenance-aware production canary
         run: node scripts/production-smoke-v2.mjs
+      - name: Run read-only payment preflight
+        if: success()
+        run: node scripts/payment-preflight-smoke.mjs
       - name: Run Custom Studio garment selection regression
         if: success()
         shell: bash
