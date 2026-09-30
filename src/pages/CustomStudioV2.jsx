@@ -18,7 +18,7 @@ import {
 } from '@/lib/customStudioV2Production';
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { refreshStudioV2DraftAssets } from '@/lib/customStudioV2Assets';
-import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
+import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { renderStudioV2CustomerMockup } from '@/lib/customStudioV2Mockup';
 import {
   createInitialStudioV2State,
@@ -68,7 +68,8 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
   const sizes = productSizes(product, state.color);
   const selectedColorAvailable = !state.color || isProductColorAvailable(product, state.color);
   const sizeRequired = !String(state.size || '').trim();
-  const selectedPreview = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
+  const selectedPreviewSource = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
+  const selectedPreview = studioV2DisplayPreviewUrl(selectedPreviewSource, { width: 720 });
 
   useEffect(() => {
     if (state.color && !selectedColorAvailable) {
@@ -80,7 +81,7 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
       <div data-gdp-selected-garment-summary="true" className="grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
         <div data-gdp-selected-garment-preview="true" className="min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3">
           <div className="grid h-[220px] place-items-center sm:h-[260px] lg:h-[300px]">
-            <img src={selectedPreview} alt={`${product?.name || 'Selected garment'}${state.color ? ` in ${displayVariantLabel(state.color)}` : ''}`} className="h-full w-full object-contain" />
+            <img src={selectedPreview} decoding="async" alt={`${product?.name || 'Selected garment'}${state.color ? ` in ${displayVariantLabel(state.color)}` : ''}`} className="h-full w-full object-contain" />
           </div>
           <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2">
             <span className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Garment preview</span>
@@ -194,9 +195,11 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
         <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3" data-gdp-garment-gallery="true">
           {catalog.map((item) => {
             const selected = String(item.id) === String(state.productId);
+            const cardPreviewSource = item?.customization?.preview?.cardImageUrl || item?.customization?.cardImageUrl || item.images?.[0] || '/images/gdp-logo.webp';
+            const cardPreview = studioV2DisplayPreviewUrl(cardPreviewSource, { width: 960 });
             return <div key={item.id} className="min-w-0">
               <button type="button" onClick={() => chooseProduct(item)} className={`group w-full overflow-hidden rounded-3xl border-2 bg-white text-left transition ${selected ? 'border-slate-900 shadow-lg ring-1 ring-slate-900/5' : 'border-slate-200 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md'}`} aria-pressed={selected}>
-                <div className="relative aspect-[5/4] bg-slate-50 p-3 xl:aspect-[3/2]"><img src={item?.customization?.preview?.cardImageUrl || item?.customization?.cardImageUrl || item.images?.[0] || '/images/gdp-logo.webp'} alt={item.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]" />{selected && <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={12} /> Selected</span>}</div>
+                <div className="relative aspect-[5/4] bg-slate-50 p-3 xl:aspect-[3/2]"><img src={cardPreview} loading="lazy" decoding="async" alt={item.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]" />{selected && <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={12} /> Selected</span>}</div>
                 <div className="p-4"><p className="text-sm font-black text-slate-900">{item.name}</p><p className="mt-1 line-clamp-2 text-xs font-medium text-slate-500">{item.description || item.type || 'Custom garment'}</p></div>
               </button>
             </div>;
@@ -258,13 +261,14 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, onE
   const bothSides = sides.length > 1;
   const variant = variantFor(product, state.color, state.size);
   const unitPrice = Number(variant?.price ?? product?.price ?? 0) + (bothSides ? Number(settings?.frontBackFee || 0) : 0);
-  const garmentPreview = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
+  const garmentPreviewSource = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
+  const garmentPreview = studioV2DisplayPreviewUrl(garmentPreviewSource, { width: 480 });
   return <div>
     <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Final review</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Review your choices before the approved 300-DPI production files and customer mockup are generated.</p>
     <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_.7fr]">
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div data-gdp-review-garment-preview="true" className="mb-4 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center">
-          <div className="grid h-[180px] place-items-center overflow-hidden rounded-xl bg-white p-2"><img src={garmentPreview} alt={`${product?.name || 'Selected garment'}${state.color ? ` in ${displayVariantLabel(state.color)}` : ''}`} className="h-full w-full object-contain" /></div>
+          <div className="grid h-[180px] place-items-center overflow-hidden rounded-xl bg-white p-2"><img src={garmentPreview} decoding="async" alt={`${product?.name || 'Selected garment'}${state.color ? ` in ${displayVariantLabel(state.color)}` : ''}`} className="h-full w-full object-contain" /></div>
           <div className="min-w-0"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected garment</div><div className="mt-1 text-base font-black text-slate-900">{product?.name}</div><div className="mt-2 text-sm font-bold text-slate-600">{displayVariantLabel(state.color)} · Size {state.size}</div><p className="mt-2 text-xs font-medium leading-5 text-slate-500">This is the garment and colour selected for the approved design.</p></div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

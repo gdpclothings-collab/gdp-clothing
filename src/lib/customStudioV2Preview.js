@@ -50,6 +50,34 @@ function metadataMockup(product, color, side) {
   return candidates[0]?.[0] || '';
 }
 
+export function studioV2DisplayPreviewUrl(url, { width = 720, quality = 82 } = {}) {
+  const source = String(url || '').trim();
+  if (!source) return '';
+
+  try {
+    const parsed = new URL(source);
+    const objectMarker = '/storage/v1/object/public/';
+    const renderMarker = '/storage/v1/render/image/public/';
+
+    if (parsed.pathname.includes(renderMarker)) return source;
+    if (!parsed.pathname.includes(objectMarker)) return source;
+
+    const objectPath = parsed.pathname.split(objectMarker)[1] || '';
+    if (!/\.(?:png|jpe?g|webp)$/i.test(objectPath)) return source;
+
+    const safeWidth = Math.max(1, Math.min(1600, Math.round(Number(width) || 720)));
+    const safeQuality = Math.max(20, Math.min(100, Math.round(Number(quality) || 82)));
+
+    parsed.pathname = parsed.pathname.replace(objectMarker, renderMarker);
+    parsed.searchParams.set('width', String(safeWidth));
+    parsed.searchParams.set('resize', 'contain');
+    parsed.searchParams.set('quality', String(safeQuality));
+    return parsed.toString();
+  } catch {
+    return source;
+  }
+}
+
 export function studioV2GarmentPreview(product, color, side = 'front') {
   const normalizedSide = side === 'back' ? 'back' : 'front';
 
