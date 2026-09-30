@@ -62,9 +62,20 @@ async function navigate(page, route) {
   return response;
 }
 
-async function discoverProductLinks(page, route) {
+async function discoverProductCards(page, route) {
   await navigate(page, route);
-  return unique(await page.locator('a[href^="/product/"]').evaluateAll((links) => links.map((link) => link.getAttribute("href"))));
+  const cards = await page.locator('a[href^="/product/"], a[href^="/products/"]').evaluateAll((links) => links.map((link) => {
+    const article = link.closest("article");
+    return {
+      href: link.getAttribute("href") || "",
+      name: (article?.querySelector("h3")?.textContent || "").replace(/\s+/g, " ").trim(),
+    };
+  }));
+  const byHref = new Map();
+  for (const card of cards) {
+    if (card.href && !byHref.has(card.href)) byHref.set(card.href, card);
+  }
+  return [...byHref.values()];
 }
 
 async function selectPurchasableVariant(page) {
@@ -144,17 +155,25 @@ async function main() {
 
   try {
     const homeLinks = await record("home exposes live product links", async () => {
-      const links = await discoverProductLinks(page, "/");
-      assert(links.length > 0, "Home page has no direct product links to verify.");
-      return { productLinks: links.slice(0, 12) };
+      const cards = await discoverProductCards(page, "/");
+      assert(cards.length > 0, "Home page has no direct product links to verify.");
+      return {
+        productLinks: cards.map((card) => card.href).slice(0, 12),
+        productNames: unique(cards.map((card) => card.name.toLowerCase())).slice(0, 12),
+      };
     });
 
     const shopLinks = await record("home products overlap the published shop catalog", async () => {
-      const links = await discoverProductLinks(page, "/shop");
-      assert(links.length > 0, "Shop has no published product links.");
-      const overlap = homeLinks.productLinks.filter((href) => links.includes(href));
+      const cards = await discoverProductCards(page, "/shop");
+      assert(cards.length > 0, "Shop has no published product links.");
+      const shopNames = new Set(cards.map((card) => card.name.toLowerCase()).filter(Boolean));
+      const overlap = homeLinks.productNames.filter((name) => shopNames.has(name));
       assert(overlap.length > 0, "No home-page product is connected to the published Shop catalog.");
-      return { shopProductCount: links.length, overlap: overlap.slice(0, 12), links };
+      return {
+        shopProductCount: cards.length,
+        overlap: overlap.slice(0, 12),
+        links: cards.map((card) => card.href),
+      };
     });
 
     await record("home product card resolves to matching product detail", async () => {
