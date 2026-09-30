@@ -38,11 +38,16 @@
     max-width: 100%;
   }
 
-  /* In focused garment mode the configurator already repeats the selected
-     garment name/color/size. Hide the extra summary card on phones so users do
-     not scroll through the same garment information twice. */
+  /* The focused configurator owns the one selected-garment summary now.
+     Keep its color-aware garment image visible on phones instead of hiding the
+     entire summary card. This is the customer confirmation surface requested
+     for Step 1 and must remain visible before Color / Size / Quantity. */
   [data-gdp-studio-v2-guard="true"] [data-gdp-garment-mode="focused"] [data-gdp-selected-garment-summary="true"] {
-    display: none;
+    display: grid !important;
+  }
+
+  [data-gdp-studio-v2-guard="true"] [data-gdp-garment-mode="focused"] [data-gdp-selected-garment-preview="true"] {
+    display: block !important;
   }
 
   /* A long uploaded filename plus the four layer-action buttons previously had
