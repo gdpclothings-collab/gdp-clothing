@@ -8,7 +8,13 @@ const VIEWPORT = { width: 1440, height: 1000 };
 const CART_KEY = "gdp_cart_v2__guest";
 const KNOWN_GARMENT_ID = "85e638f0-7fd0-4b0f-b661-c6e7b4965bf3";
 
-const report = { baseUrl: BASE_URL, generatedAt: new Date().toISOString(), status: "running", checks: [] };
+const report = {
+  suite: "custom-studio-v2-hardening",
+  baseUrl: BASE_URL,
+  generatedAt: new Date().toISOString(),
+  status: "running",
+  checks: [],
+};
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 
 async function record(name, fn) {
