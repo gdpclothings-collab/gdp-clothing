@@ -8,7 +8,6 @@ on:
       - ".github/**"
       - "docs/**"
       - "**/*.md"
-      - "scripts/*smoke*.mjs"
   schedule:
     - cron: "13 */6 * * *"
   workflow_dispatch:
