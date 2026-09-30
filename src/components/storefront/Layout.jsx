@@ -8,6 +8,7 @@ import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
 import SeasonalStudioRuntimeGuard from "./SeasonalStudioRuntimeGuard";
 import CustomStudioShellEnhancer from "./CustomStudioShellEnhancer";
 import CustomStudioNavigationDock from "./CustomStudioNavigationDock";
+import CustomStudioVariantAccessibilityGuard from "./CustomStudioVariantAccessibilityGuard";
 import "./storeNavGlow.css";
 import "./customStudioMobile.css";
 import "./customStudioDesktop.css";
@@ -38,6 +39,7 @@ export default function Layout() {
       {studioActive && <SeasonalMobileReviewEnhancer />}
       {studioActive && <SeasonalStudioRuntimeGuard />}
       {studioActive && <CustomStudioShellEnhancer />}
+      {studioActive && <CustomStudioVariantAccessibilityGuard />}
       {studioActive && <CustomStudioNavigationDock />}
       {studioActive ? (
         <div className="mt-8 sm:mt-10" data-gdp-studio-footer="true">
