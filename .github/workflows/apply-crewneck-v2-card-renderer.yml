@@ -1,0 +1,41 @@
+name: Apply Crewneck V2 card renderer
+
+on:
+  push:
+    branches:
+      - fix/crewneck-v2-card-renderer
+    paths:
+      - ".github/workflows/apply-crewneck-v2-card-renderer.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Apply targeted renderer fix
+        run: python scripts/apply_crewneck_v2_card_renderer.py
+
+      - name: Verify Custom Studio V2 contract
+        run: node scripts/verify-custom-studio-v2.mjs
+
+      - name: Verify patch cleanliness
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Commit verified change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CustomStudioV2.jsx scripts/verify-custom-studio-v2.mjs
+          git commit -m "Honor Studio garment card images in V2"
+          git push
