@@ -97,8 +97,6 @@ async function inspectViewport(page, viewport) {
     const enabledColorCount = await enabledColors.count();
     assert(enabledColorCount > 0, `${name} has no enabled color on ${viewport.name}.`);
 
-    const sizeButtons = configurator.locator('button[title]:not([data-gdp-garment-swatch="true"])');
-    const enabledSizes = sizeButtons.filter({ hasNot: page.locator('[disabled]') });
     const sizeCount = await configurator.locator('button[title]').evaluateAll((nodes) => nodes.filter((node) => !node.hasAttribute('data-gdp-garment-swatch') && !node.disabled).length);
     assert(sizeCount > 0, `${name} has no enabled size on ${viewport.name}.`);
 
@@ -187,7 +185,7 @@ async function main() {
   console.log(lines.join("\n"));
 }
 
-main().catch(async (error) => {
+main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
