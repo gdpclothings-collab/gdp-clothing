@@ -5,7 +5,7 @@ import path from "node:path";
 // Production wiring canary.
 // Safety boundary: product/cart interactions are browser-local only. Any write-like
 // request to checkout/orders/inventory/payment endpoints is blocked before it leaves
-// the browser. The script never submits the Place order button.
+// the browser. The script validates checkout Step 1 and never starts payment or submits an order.
 
 const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
 const ARTIFACT_DIR = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
@@ -229,7 +229,7 @@ async function main() {
       return selected;
     });
 
-    await record("cart reaches checkout UI without submitting a transaction", async () => {
+    await record("cart reaches checkout Step 1 without starting a transaction", async () => {
       if (new URL(page.url()).pathname !== "/cart") {
         await page.addInitScript(() => {
           window.localStorage.setItem("gdp_cart_v2__guest", JSON.stringify([
@@ -255,10 +255,12 @@ async function main() {
       await page.waitForURL((url) => url.pathname === "/checkout", { timeout: 15000 });
       await page.getByRole("heading", { name: /^CHECKOUT$/i }).waitFor();
       assert(await page.locator("#checkout-email").isVisible(), "Checkout email field is missing.");
-      assert((await page.getByRole("button", { name: /Place order/i }).count()) > 0, "Place order button is missing.");
-      assert((await page.getByText(/Stripe Secure Payment/i).count()) > 0, "Stripe secure payment surface is missing.");
+      assert((await page.getByText(/Step 1 of 2 · Information & delivery/i).count()) > 0, "Checkout did not open on Information & delivery Step 1.");
+      assert((await page.getByRole("button", { name: /Continue to payment/i }).count()) > 0, "Continue to payment button is missing from checkout Step 1.");
+      assert((await page.getByText(/Secure payment fields are provided by Stripe/i).count()) > 0, "Stripe secure-payment notice is missing from checkout Step 1.");
+      assert(new URL(page.url()).pathname === "/checkout", "Checkout canary unexpectedly advanced beyond Step 1.");
       await page.screenshot({ path: path.join(ARTIFACT_DIR, "wiring-checkout.png"), fullPage: true });
-      return { submittedOrder: false };
+      return { submittedOrder: false, startedPayment: false, step: 1 };
     });
 
     assert(pageErrors.length === 0, `Uncaught browser errors: ${pageErrors.join(" | ")}`);
@@ -295,7 +297,7 @@ async function main() {
     ...report.warnings.map((warning) => `- ${warning}`),
     "",
     `Blocked write attempts: ${report.blockedMutations.length}`,
-    "Safety boundary: this canary never presses Place order and blocks write-like requests to checkout/order/inventory/payment endpoints.",
+    "Safety boundary: this canary never starts payment, confirms payment, or submits an order; write-like checkout/order/inventory/payment requests are blocked.",
   ];
 
   await fs.writeFile(path.join(ARTIFACT_DIR, "wiring-summary.md"), lines.join("\n"));
