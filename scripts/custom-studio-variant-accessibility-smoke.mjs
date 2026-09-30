@@ -18,6 +18,12 @@ function clean(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function optionalNumber(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function waitForNumericValue(input, expected, label) {
   const deadline = Date.now() + 5000;
   let value = NaN;
@@ -94,18 +100,18 @@ async function inspectViewport(browser, viewport) {
     await incrementButton.waitFor({ state: "visible" });
 
     const initialValue = Number(await quantityInput.inputValue());
-    const minValue = Number(await quantityInput.getAttribute("min"));
-    const maxValue = Number(await quantityInput.getAttribute("max"));
+    const minValue = optionalNumber(await quantityInput.getAttribute("min"));
+    const maxValue = optionalNumber(await quantityInput.getAttribute("max"));
     assert(Number.isFinite(initialValue), `${garmentName} quantity value is invalid on ${viewport.name}.`);
 
     let interaction = "";
-    if (!Number.isFinite(maxValue) || initialValue < maxValue) {
+    if (maxValue === null || initialValue < maxValue) {
       await incrementButton.click();
       await waitForNumericValue(quantityInput, initialValue + 1, `${viewport.name} quantity increment`);
       await decrementButton.click();
       await waitForNumericValue(quantityInput, initialValue, `${viewport.name} quantity restore`);
       interaction = "increment-restore";
-    } else if (!Number.isFinite(minValue) || initialValue > minValue) {
+    } else if (minValue === null || initialValue > minValue) {
       await decrementButton.click();
       await waitForNumericValue(quantityInput, initialValue - 1, `${viewport.name} quantity decrement`);
       await incrementButton.click();
