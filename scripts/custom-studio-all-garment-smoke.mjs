@@ -26,6 +26,15 @@ function clean(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function sourceParts(src) {
+  try {
+    const url = new URL(src, BASE_URL);
+    return { href: url.href, pathname: url.pathname, hash: url.hash };
+  } catch {
+    return { href: String(src || ""), pathname: String(src || ""), hash: "" };
+  }
+}
+
 async function waitForImage(image, label) {
   await image.waitFor({ state: "visible", timeout: 15000 });
 
@@ -37,6 +46,7 @@ async function waitForImage(image, label) {
       naturalWidth: node.naturalWidth,
       naturalHeight: node.naturalHeight,
       src: node.currentSrc || node.src || "",
+      alt: node.getAttribute("alt") || "",
     }));
 
     if (state.complete && state.naturalWidth > 0 && state.naturalHeight > 0) return state;
@@ -48,6 +58,24 @@ async function waitForImage(image, label) {
   }
 
   throw new Error(`${label} did not finish loading within 15 seconds${state?.src ? `: ${state.src}` : "."}`);
+}
+
+async function waitForColorSelection(swatch, image, expectedLabel, label) {
+  const deadline = Date.now() + 10000;
+  const expected = clean(expectedLabel).toLowerCase();
+  let state = null;
+
+  while (Date.now() < deadline) {
+    state = await Promise.all([
+      swatch.getAttribute("aria-pressed"),
+      image.getAttribute("alt"),
+    ]).then(([pressed, alt]) => ({ pressed, alt: clean(alt) }));
+
+    if (state.pressed === "true" && (!expected || state.alt.toLowerCase().includes(expected))) return state;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`${label} did not become selected within 10 seconds${state?.alt ? ` (preview alt: ${state.alt})` : "."}`);
 }
 
 async function assertNoHorizontalOverflow(page, label) {
@@ -103,11 +131,44 @@ async function inspectViewport(page, viewport) {
     await configurator.waitFor({ state: "visible", timeout: 10000 });
 
     const selectedPreview = configurator.locator('[data-gdp-selected-garment-preview="true"] img');
-    const previewState = await waitForImage(selectedPreview, `${viewport.name} selected preview for ${name}`);
+    await waitForImage(selectedPreview, `${viewport.name} selected preview for ${name}`);
 
     const enabledColors = configurator.locator('[data-gdp-garment-swatch="true"]:not([disabled])');
     const enabledColorCount = await enabledColors.count();
     assert(enabledColorCount > 0, `${name} has no enabled color on ${viewport.name}.`);
+
+    const colorResults = [];
+    for (let colorIndex = 0; colorIndex < enabledColorCount; colorIndex += 1) {
+      const swatches = configurator.locator('[data-gdp-garment-swatch="true"]:not([disabled])');
+      assert(await swatches.count() === enabledColorCount, `${name} enabled color count changed while testing ${viewport.name}.`);
+
+      const swatch = swatches.nth(colorIndex);
+      const color = clean(await swatch.getAttribute("title")) || clean(await swatch.getAttribute("aria-label")) || `Color ${colorIndex + 1}`;
+      await swatch.scrollIntoViewIfNeeded();
+      await swatch.click();
+      await waitForColorSelection(swatch, selectedPreview, color, `${viewport.name} ${name} color ${color}`);
+      const colorPreviewState = await waitForImage(selectedPreview, `${viewport.name} selected preview for ${name} in ${color}`);
+      assert(colorPreviewState.src, `${name} ${color} preview source is empty on ${viewport.name}.`);
+      assert(colorPreviewState.naturalWidth > 0 && colorPreviewState.naturalHeight > 0, `${name} ${color} preview has invalid image dimensions on ${viewport.name}.`);
+      await assertNoHorizontalOverflow(page, `${viewport.name} ${name} in ${color}`);
+
+      colorResults.push({
+        color,
+        ariaPressed: true,
+        previewLoaded: true,
+        previewSrc: colorPreviewState.src,
+        previewNaturalWidth: colorPreviewState.naturalWidth,
+        previewNaturalHeight: colorPreviewState.naturalHeight,
+      });
+    }
+
+    if (/crewneck/i.test(name) && colorResults.length > 1) {
+      const crewneckSources = colorResults.map((entry) => sourceParts(entry.previewSrc));
+      const crewneckPaths = new Set(crewneckSources.map((entry) => entry.pathname));
+      const crewneckFullSources = new Set(crewneckSources.map((entry) => entry.href));
+      assert(crewneckPaths.size === 1, `${name} color previews no longer share the approved same-canvas asset path on ${viewport.name}.`);
+      assert(crewneckFullSources.size === colorResults.length, `${name} color previews are not uniquely mapped for every enabled color on ${viewport.name}.`);
+    }
 
     const sizeCount = await configurator.locator('button[title]').evaluateAll((nodes) => nodes.filter((node) => !node.hasAttribute('data-gdp-garment-swatch') && !node.disabled).length);
     assert(sizeCount > 0, `${name} has no enabled size on ${viewport.name}.`);
@@ -121,9 +182,9 @@ async function inspectViewport(page, viewport) {
     garments.push({
       name,
       cardImageLoaded: true,
-      selectedPreviewLoaded: true,
-      selectedPreviewSrc: previewState.src,
+      allEnabledColorsVerified: true,
       enabledColorCount,
+      colors: colorResults,
       enabledSizeCount: sizeCount,
       noHorizontalOverflow: true,
     });
@@ -144,6 +205,7 @@ async function inspectViewport(page, viewport) {
   return {
     viewport,
     garmentCount,
+    colorCheckCount: garments.reduce((total, garment) => total + garment.enabledColorCount, 0),
     garments,
     pageErrors,
   };
@@ -185,12 +247,12 @@ async function main() {
   );
 
   const lines = [
-    "# GDP Clothing Custom Studio All-Garment Matrix",
+    "# GDP Clothing Custom Studio All-Garment + All-Color Matrix",
     "",
     `Target: ${TARGET}`,
     `Status: ${report.status.toUpperCase()}`,
     "",
-    ...report.viewports.map((entry) => `- ${entry.viewport.name}: ${entry.garmentCount} garments verified`),
+    ...report.viewports.map((entry) => `- ${entry.viewport.name}: ${entry.garmentCount} garments and ${entry.colorCheckCount} enabled color previews verified`),
     ...(report.error ? ["", `Failure: ${report.error}`] : []),
   ];
   await fs.writeFile(path.join(ARTIFACT_DIR, "custom-studio-all-garments-summary.md"), lines.join("\n"));
