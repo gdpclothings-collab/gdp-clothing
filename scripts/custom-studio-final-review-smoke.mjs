@@ -203,8 +203,8 @@ async function inspectViewport(browser, viewport) {
     assert(guideStyle.backgroundColor === "transparent", `${viewport.name} Final Review print-guide background was not removed.`);
 
     const selectedGarment = page.locator('[data-gdp-review-garment-preview="true"]');
-    await selectedGarment.waitFor({ state: "visible", timeout: 10000 });
-    const garmentImageState = await waitForImage(selectedGarment.locator("img").first(), `${viewport.name} Final Review selected garment`);
+    await selectedGarment.waitFor({ state: "attached", timeout: 10000 });
+    assert(await selectedGarment.isHidden(), `${viewport.name} redundant plain garment preview is visible beside the approved garment+artwork preview.`);
 
     const previewBeforeSummary = await page.evaluate(() => {
       const preview = document.querySelector('[data-gdp-final-review-preview="true"]');
@@ -226,8 +226,7 @@ async function inspectViewport(browser, viewport) {
       route: new URL(page.url()).pathname,
       approvedPreviewVisible: true,
       approvedArtworkLoaded: true,
-      selectedGarmentLoaded: true,
-      garmentPreviewSrc: garmentImageState.src,
+      redundantGarmentPreviewHidden: true,
       snapshotInteractiveControls: interactionCount,
       printGuideHidden: true,
       editorSelectionChromeRemoved: true,
