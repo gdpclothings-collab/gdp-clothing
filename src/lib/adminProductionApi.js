@@ -24,6 +24,51 @@ export const PRODUCTION_CHECKS = [
   ["printFileAttached", "Production print file attached"],
 ];
 
+async function signedStorageUrl(bucket, path, expiresIn = 3600) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresIn);
+
+  if (error) return "";
+  return data?.signedUrl || "";
+}
+
+function requiredProductionSides(placement) {
+  if (placement === "front_back") return ["front", "back"];
+  if (placement === "back" || placement === "large_back") return ["back"];
+  return ["front"];
+}
+
+async function mapProductionDesign(row) {
+  const productionFiles = {};
+  await Promise.all(
+    ["front", "back"].map(async (side) => {
+      const file = row.production_files?.[side];
+      if (!file?.path) return;
+      productionFiles[side] = {
+        ...file,
+        downloadUrl: await signedStorageUrl("customer-uploads", file.path),
+      };
+    })
+  );
+
+  const mockupPath = row.customer_mockup_path || row.preview_url || "";
+  return {
+    id: row.id,
+    placement: row.placement || "front",
+    renderStatus: row.render_status || "draft",
+    lockedHash: row.locked_hash || "",
+    customerApprovedAt: row.customer_approved_at || null,
+    preflight: row.preflight || {},
+    productionFiles,
+    requiredSides: requiredProductionSides(row.placement),
+    mockupUrl: await signedStorageUrl("customer-uploads", mockupPath),
+  };
+}
+
 export const adminProductionApi = {
   async list() {
     const { data, error } = await supabase
@@ -37,7 +82,40 @@ export const adminProductionApi = {
       .limit(250);
 
     if (error) throw error;
-    return data || [];
+
+    const orders = data || [];
+    const customDesignIds = [
+      ...new Set(
+        orders
+          .flatMap((order) => order.order_items || [])
+          .filter((item) => item.is_custom && item.custom_design_id)
+          .map((item) => item.custom_design_id)
+      ),
+    ];
+
+    if (!customDesignIds.length) return orders;
+
+    const { data: designRows, error: designError } = await supabase
+      .from("custom_designs")
+      .select(
+        "id, placement, preview_url, customer_mockup_path, render_status, locked_hash, customer_approved_at, preflight, production_files"
+      )
+      .in("id", customDesignIds);
+
+    if (designError) throw designError;
+
+    const mappedDesigns = await Promise.all((designRows || []).map(mapProductionDesign));
+    const designById = new Map(mappedDesigns.map((design) => [design.id, design]));
+
+    return orders.map((order) => ({
+      ...order,
+      order_items: (order.order_items || []).map((item) => ({
+        ...item,
+        production_design: item.custom_design_id
+          ? designById.get(item.custom_design_id) || null
+          : null,
+      })),
+    }));
   },
 
   async updateChecklist(orderId, checklist) {
