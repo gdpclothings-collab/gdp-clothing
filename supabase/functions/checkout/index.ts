@@ -291,6 +291,14 @@ function normalizeCanadianPostalCode(value: unknown) {
   return `${compact.slice(0, 3)} ${compact.slice(3)}`;
 }
 
+function normalizeProductWeightGrams(weight: unknown, unit: unknown) {
+  const value = Number(weight);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const normalizedUnit = String(unit || "g").trim().toLowerCase();
+  const multiplier = normalizedUnit === "kg" ? 1000 : normalizedUnit === "lb" || normalizedUnit === "lbs" ? 453.59237 : normalizedUnit === "oz" ? 28.349523125 : 1;
+  return Math.max(0, Math.round(value * multiplier * 1000) / 1000);
+}
+
 async function getTaxRule(service: any, province: unknown) {
   const regionCode = normalizeProvinceCode(province);
   let row: any = null;
@@ -339,17 +347,36 @@ async function getTaxRule(service: any, province: unknown) {
 
 async function getShippingQuote(service: any, amount: number, province: unknown, postalCode: unknown, shippingItems: any[] = []) {
   const safeAmount = Math.max(0, roundMoney(amount));
-  const [profilesResult, ratesResult] = await Promise.all([
+  const productIds = [...new Set((shippingItems || []).map((item: any) => String(item?.productId || "")).filter((id: string) => uuidRe.test(id)))];
+  const productWeightsQuery = productIds.length
+    ? service.from("products").select("id,weight,weight_unit").in("id", productIds)
+    : Promise.resolve({ data: [], error: null });
+  const [profilesResult, ratesResult, productWeightsResult, packageResult] = await Promise.all([
     service.from("shipping_profiles").select("id,name,active,product_scope,product_ids,priority").eq("active", true),
-    service.from("shipping_rates").select("id,profile_id,name,method_code,price,min_order,max_order,min_delivery_days,max_delivery_days,zone_name,country_codes,province_codes,postal_patterns,priority,active").eq("active", true).eq("method_code", "standard"),
+    service.from("shipping_rates").select("id,profile_id,name,method_code,price,min_order,max_order,min_delivery_days,max_delivery_days,zone_name,country_codes,province_codes,postal_patterns,min_weight_grams,max_weight_grams,priority,active").eq("active", true).eq("method_code", "standard"),
+    productWeightsQuery,
+    service.from("shipping_packages").select("empty_weight_grams").eq("active", true).eq("is_default", true).limit(1).maybeSingle(),
   ]);
   if (profilesResult.error) throw profilesResult.error;
   if (ratesResult.error) throw ratesResult.error;
+  if (productWeightsResult.error) throw productWeightsResult.error;
+  if (packageResult.error) throw packageResult.error;
+  const productWeights = new Map((productWeightsResult.data || []).map((row: any) => [String(row.id), normalizeProductWeightGrams(row.weight, row.weight_unit)]));
+  const weightedItems = (shippingItems || []).map((item: any) => {
+    const unitWeight = productWeights.get(String(item?.productId || ""));
+    const quantity = Math.max(1, Math.min(99, Math.floor(Number(item?.quantity || 1))));
+    return {
+      ...item,
+      weightKnown: unitWeight != null,
+      weightGrams: unitWeight == null ? null : unitWeight * quantity,
+    };
+  });
   return calculateProfileShipping({
     profiles: profilesResult.data || [],
     rates: ratesResult.data || [],
-    items: shippingItems,
+    items: weightedItems,
     amount: safeAmount,
+    packageWeightGrams: Math.max(0, Number(packageResult.data?.empty_weight_grams || 0)),
     destination: {
       countryCode: "CA",
       provinceCode: normalizeProvinceCode(province),
@@ -785,6 +812,7 @@ Deno.serve(async (req: Request) => {
         ? body.shippingItems.slice(0, 100).map((item: any) => ({
             productId: String(item?.productId || ""),
             amount: Math.max(0, Math.min(1000000, Number(item?.amount || 0))),
+            quantity: Math.max(1, Math.min(99, Math.floor(Number(item?.quantity || 1)))),
           }))
         : [];
       const rules = await getCheckoutRules(
@@ -1452,6 +1480,7 @@ Deno.serve(async (req: Request) => {
       .map((item) => ({
         productId: String(item.product?.id || ""),
         amount: roundMoney(Number(item.unitPrice || 0) * Number(item.quantity || 1)),
+        quantity: Math.max(1, Number(item.quantity || 1)),
       }));
     const checkoutRules = await getCheckoutRules(service, customer, afterCoupon, freeShipping, shippingItems);
     const shippingMethod = checkoutRules.shippingMethod;
