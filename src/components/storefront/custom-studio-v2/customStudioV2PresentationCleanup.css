@@ -22,6 +22,45 @@
   display: none !important;
 }
 
+/*
+ * Gildan Adult Crewneck photographic sources were supplied with two very
+ * different internal crops. The browser preview uses object-contain, so the
+ * garment itself visibly jumps in size even though the preview frame is fixed.
+ * Normalize only these customer-facing display images by filename. This does
+ * not alter canonical 300-DPI sources, print geometry, production rendering,
+ * product data, variants, pricing, inventory, cart, checkout, or payments.
+ */
+[data-gdp-studio-v2-guard="true"]
+  :is([data-gdp-selected-garment-preview="true"], [data-gdp-review-garment-preview="true"])
+  img[src*="gildan-crewneck-black-front-300dpi.jpg"],
+[data-gdp-studio-v2-guard="true"]
+  :is([data-gdp-selected-garment-preview="true"], [data-gdp-review-garment-preview="true"])
+  img[src*="gildan-crewneck-gray-front-300dpi.jpg"] {
+  transform: scale(0.72) !important;
+  transform-origin: 50% 50% !important;
+  transition: transform 160ms ease !important;
+}
+
+[data-gdp-studio-v2-guard="true"]
+  :is([data-gdp-selected-garment-preview="true"], [data-gdp-review-garment-preview="true"])
+  img[src*="gildan-crewneck-white-front-300dpi.jpg"],
+[data-gdp-studio-v2-guard="true"]
+  :is([data-gdp-selected-garment-preview="true"], [data-gdp-review-garment-preview="true"])
+  img[src*="gildan-crewneck-navy-front-300dpi.jpg"],
+[data-gdp-studio-v2-guard="true"]
+  :is([data-gdp-selected-garment-preview="true"], [data-gdp-review-garment-preview="true"])
+  img[src*="gildan-crewneck-red-front-300dpi.jpg"],
+[data-gdp-studio-v2-guard="true"]
+  :is([data-gdp-selected-garment-preview="true"], [data-gdp-review-garment-preview="true"])
+  img[src*="gildan-crewneck-royal-front-300dpi.jpg"],
+[data-gdp-studio-v2-guard="true"]
+  :is([data-gdp-selected-garment-preview="true"], [data-gdp-review-garment-preview="true"])
+  img[src*="gildan-crewneck-irish-green-front-300dpi.jpg"] {
+  transform: scale(1.68) !important;
+  transform-origin: 50% 50% !important;
+  transition: transform 160ms ease !important;
+}
+
 /* Replace the browse-mode DTF wording without touching garment workflow logic. */
 [data-gdp-garment-mode="browse"] > div:first-child > p:last-child {
   font-size: 0 !important;
