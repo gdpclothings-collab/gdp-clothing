@@ -1,13 +1,37 @@
 import fs from "node:fs";
+import path from "node:path";
 
-function text(path) {
-  return fs.readFileSync(path, "utf8");
+function text(filePath) {
+  return fs.readFileSync(filePath, "utf8");
 }
 
 function requireText(source, needle, label) {
   if (!source.includes(needle)) {
     throw new Error(`Missing admin production-file control: ${label}`);
   }
+}
+
+function sourceFiles(root) {
+  const files = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) files.push(...sourceFiles(fullPath));
+    else if (/\.(?:js|jsx|ts|tsx)$/.test(entry.name)) files.push(fullPath.replaceAll("\\", "/"));
+  }
+  return files;
+}
+
+function adminUpdateOrderProductionWrites(source) {
+  const writes = [];
+  const marker = "adminApi.updateOrder";
+  let cursor = 0;
+  while ((cursor = source.indexOf(marker, cursor)) !== -1) {
+    const end = source.indexOf(");", cursor);
+    const call = source.slice(cursor, end === -1 ? cursor + 2500 : end + 2);
+    if (call.includes("productionStatus")) writes.push(call);
+    cursor += marker.length;
+  }
+  return writes;
 }
 
 const api = text("src/lib/adminProductionApi.js");
@@ -38,6 +62,23 @@ requireText(ordersApi, '!["not_started", "queued"].includes(productionStatus)', 
 requireText(ordersApi, "if(requiresProductionEntryReadiness(productionStatus))await assertProductionEntryReady(orderId)", "direct Orders production mutation is guarded");
 requireText(ordersApi, "if(requiresProductionEntryReadiness(values.productionStatus))await assertProductionEntryReady(orderId)", "Orders workflow save cannot bypass production readiness");
 
+const approvedGenericProductionWriters = new Set([
+  "src/lib/adminProductionApi.js",
+]);
+for (const filePath of sourceFiles("src")) {
+  const writes = adminUpdateOrderProductionWrites(text(filePath));
+  if (writes.length && !approvedGenericProductionWriters.has(filePath)) {
+    throw new Error(
+      `Unsafe generic production-status write detected in ${filePath}. Use the guarded production/order API instead of adminApi.updateOrder(... productionStatus ...).`
+    );
+  }
+}
+requireText(
+  api,
+  "adminApi.updateOrder(orderId, {",
+  "Production Board remains the only approved generic production-status writer"
+);
+
 requireText(module, "function systemManagedProductionDesign(design)", "system-managed production classifier");
 requireText(module, 'design.renderStatus === "locked" || Boolean(design.seasonalArtworkId)', "locked and seasonal approval compatibility");
 requireText(module, "function productionItemReady(item)", "per-item print readiness guard");
@@ -52,4 +93,4 @@ requireText(module, "Print {prettify(side)} PNG", "front/back production downloa
 requireText(module, "Missing required {missingSides.map(prettify).join", "missing-side warning");
 requireText(module, "Manual proof workflow", "legacy manual proof guidance remains available");
 
-console.log("Admin production print-file readiness verified.");
+console.log("Admin production print-file readiness and caller boundary verified.");
