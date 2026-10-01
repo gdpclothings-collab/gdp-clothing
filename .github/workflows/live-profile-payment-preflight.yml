@@ -1,0 +1,27 @@
+name: Live Profile Payment Preflight
+
+on:
+  push:
+    branches:
+      - feat/product-shipping-profiles-20261001
+    paths:
+      - ".github/workflows/live-profile-payment-preflight.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  payment-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tested profile branch
+        uses: actions/checkout@v5
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Run read-only production payment preflight
+        env:
+          PRODUCTION_BASE_URL: https://gdpclothing.ca
+          SMOKE_ARTIFACT_DIR: /tmp/gdp-profile-preflight
+        run: node scripts/payment-preflight-smoke.mjs
