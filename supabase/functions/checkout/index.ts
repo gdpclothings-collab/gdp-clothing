@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { selectShippingRate } from "./shipping-zone-rules.mjs";
+import { calculateProfileShipping } from "./shipping-profile-rules.mjs";
 
 const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -337,42 +337,25 @@ async function getTaxRule(service: any, province: unknown) {
   };
 }
 
-async function getShippingRule(service: any, amount: number, province: unknown, postalCode: unknown) {
+async function getShippingQuote(service: any, amount: number, province: unknown, postalCode: unknown, shippingItems: any[] = []) {
   const safeAmount = Math.max(0, roundMoney(amount));
-  const { data, error } = await service
-    .from("shipping_rates")
-    .select("id,name,method_code,price,min_order,max_order,min_delivery_days,max_delivery_days,zone_name,country_codes,province_codes,postal_patterns,priority")
-    .eq("active", true)
-    .eq("method_code", "standard");
-
-  if (error) throw error;
-  const matched = selectShippingRate(data || [], {
+  const [profilesResult, ratesResult] = await Promise.all([
+    service.from("shipping_profiles").select("id,name,active,product_scope,product_ids,priority").eq("active", true),
+    service.from("shipping_rates").select("id,profile_id,name,method_code,price,min_order,max_order,min_delivery_days,max_delivery_days,zone_name,country_codes,province_codes,postal_patterns,priority,active").eq("active", true).eq("method_code", "standard"),
+  ]);
+  if (profilesResult.error) throw profilesResult.error;
+  if (ratesResult.error) throw ratesResult.error;
+  return calculateProfileShipping({
+    profiles: profilesResult.data || [],
+    rates: ratesResult.data || [],
+    items: shippingItems,
     amount: safeAmount,
-    countryCode: "CA",
-    provinceCode: normalizeProvinceCode(province),
-    postalCode: normalizeCanadianPostalCode(postalCode),
+    destination: {
+      countryCode: "CA",
+      provinceCode: normalizeProvinceCode(province),
+      postalCode: normalizeCanadianPostalCode(postalCode),
+    },
   });
-  if (matched) return matched;
-
-  return safeAmount >= 150
-    ? {
-        name: "Free Standard Shipping",
-        method_code: "standard",
-        price: 0,
-        min_order: 150,
-        max_order: null,
-        min_delivery_days: 3,
-        max_delivery_days: 7,
-      }
-    : {
-        name: "Standard Shipping",
-        method_code: "standard",
-        price: 12.99,
-        min_order: 0,
-        max_order: 149.99,
-        min_delivery_days: 3,
-        max_delivery_days: 7,
-      };
 }
 
 async function getCheckoutRules(
@@ -380,14 +363,15 @@ async function getCheckoutRules(
   customer: any,
   amountAfterDiscounts: number,
   freeShipping = false,
+  shippingItems: any[] = [],
 ) {
   const amount = Math.max(0, roundMoney(amountAfterDiscounts));
   const shippingMethod = customer?.shippingMethod === "pickup" ? "pickup" : "standard";
-  const shippingRule = await getShippingRule(service, amount, customer?.province, customer?.postalCode);
+  const shippingQuote = await getShippingQuote(service, amount, customer?.province, customer?.postalCode, shippingItems);
   const shipping =
     shippingMethod === "pickup" || freeShipping
       ? 0
-      : roundMoney(Number(shippingRule?.price || 0));
+      : roundMoney(Number(shippingQuote?.shipping || 0));
 
   const taxRule = await getTaxRule(service, customer?.province);
   const taxRate = Math.max(0, Number(taxRule?.rate || 0));
@@ -398,13 +382,11 @@ async function getCheckoutRules(
   return {
     shippingMethod,
     shipping,
-    shippingName: shippingMethod === "pickup" ? "Local Pickup" : shippingRule?.name || "Standard Shipping",
-    minDeliveryDays: shippingMethod === "pickup" ? 0 : shippingRule?.min_delivery_days ?? 3,
-    maxDeliveryDays: shippingMethod === "pickup" ? 0 : shippingRule?.max_delivery_days ?? 7,
-    freeShippingThreshold:
-      shippingRule?.price === 0 && shippingRule?.min_order != null
-        ? Number(shippingRule.min_order)
-        : 150,
+    shippingName: shippingMethod === "pickup" ? "Local Pickup" : shippingQuote?.shippingName || "Standard Shipping",
+    minDeliveryDays: shippingMethod === "pickup" ? 0 : shippingQuote?.minDeliveryDays ?? 3,
+    maxDeliveryDays: shippingMethod === "pickup" ? 0 : shippingQuote?.maxDeliveryDays ?? 7,
+    freeShippingThreshold: shippingQuote?.freeShippingThreshold ?? 150,
+    shippingProfileCount: shippingQuote?.groups?.length || 1,
     tax,
     taxRate,
     taxName: taxRule?.name || "Canada GST/HST",
@@ -799,11 +781,18 @@ Deno.serve(async (req: Request) => {
         postalCode: body?.postalCode || "",
         shippingMethod: body?.shippingMethod || "standard",
       };
+      const shippingItems = Array.isArray(body?.shippingItems)
+        ? body.shippingItems.slice(0, 100).map((item: any) => ({
+            productId: String(item?.productId || ""),
+            amount: Math.max(0, Math.min(1000000, Number(item?.amount || 0))),
+          }))
+        : [];
       const rules = await getCheckoutRules(
         service,
         customer,
         amount,
         Boolean(body?.freeShipping),
+        shippingItems,
       );
       return respond(req, { configured: true, ...rules });
     }
@@ -1458,7 +1447,13 @@ Deno.serve(async (req: Request) => {
     }
 
     const afterCoupon = roundMoney(Math.max(0, discounted - couponAmount));
-    const checkoutRules = await getCheckoutRules(service, customer, afterCoupon, freeShipping);
+    const shippingItems = normalizedItems
+      .filter((item) => item.product?.requires_shipping !== false)
+      .map((item) => ({
+        productId: String(item.product?.id || ""),
+        amount: roundMoney(Number(item.unitPrice || 0) * Number(item.quantity || 1)),
+      }));
+    const checkoutRules = await getCheckoutRules(service, customer, afterCoupon, freeShipping, shippingItems);
     const shippingMethod = checkoutRules.shippingMethod;
     const shipping = checkoutRules.shipping;
     const tax = checkoutRules.tax;

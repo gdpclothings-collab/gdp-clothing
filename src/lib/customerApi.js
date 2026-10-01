@@ -451,7 +451,7 @@ export const customerApi = {
     return data;
   },
 
-  async getCheckoutConfig({ amount, province, postalCode = "", shippingMethod, freeShipping = false }) {
+  async getCheckoutConfig({ amount, province, postalCode = "", shippingMethod, freeShipping = false, shippingItems = [] }) {
     const { data, error } = await supabase.functions.invoke("checkout", {
       body: {
         action: "checkoutConfig",
@@ -460,6 +460,7 @@ export const customerApi = {
         postalCode,
         shippingMethod,
         freeShipping,
+        shippingItems,
       },
     });
     if (error) throw error;
