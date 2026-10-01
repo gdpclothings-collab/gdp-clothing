@@ -33,6 +33,7 @@ requireText(workflow, "merge_commit_sha", "post-merge smoke resolves exact merge
 requireText(workflow, "current_main_sha=\"$(gh api", "dispatch verifies main still points at the merged commit");
 requireText(workflow, "gh workflow run production-smoke.yml", "Production Smoke is explicitly dispatched after GITHUB_TOKEN merge");
 requireText(workflow, '-f expected_sha="${merged_sha}"', "dispatch pins Production Smoke to exact merged SHA");
+requireText(workflow, '-f base_url="https://gdpclothing.ca"', "dispatched smoke targets live GDP Clothing production");
 
 requireText(productionSmoke, "expected_sha:", "Production Smoke accepts an exact merged SHA");
 requireText(productionSmoke, "SMOKE_EXPECTED_SHA: ${{ github.event.inputs.expected_sha || github.sha }}", "Production Smoke records exact target SHA");
