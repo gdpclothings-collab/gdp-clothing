@@ -8,24 +8,19 @@ const throwIfError = ({ error, data }) => {
 
 export const adminApparelPricingApi = {
   async load() {
-    const row = throwIfError(
-      await supabase
-        .from("store_settings")
-        .select("apparel_pricing")
-        .eq("id", 1)
-        .single()
+    const pricing = throwIfError(
+      await supabase.rpc("get_admin_apparel_pricing")
     );
-    return normalizeApparelPricing(row?.apparel_pricing || {});
+    return normalizeApparelPricing(pricing || {});
   },
 
   async save(pricing) {
     const normalized = normalizeApparelPricing(pricing);
-    throwIfError(
-      await supabase
-        .from("store_settings")
-        .update({ apparel_pricing: normalized, updated_at: new Date().toISOString() })
-        .eq("id", 1)
+    const saved = throwIfError(
+      await supabase.rpc("save_admin_apparel_pricing", {
+        p_pricing: normalized,
+      })
     );
-    return normalized;
+    return normalizeApparelPricing(saved || normalized);
   },
 };
