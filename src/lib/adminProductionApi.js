@@ -43,6 +43,87 @@ function requiredProductionSides(placement) {
   return ["front"];
 }
 
+function systemManagedDesignRow(row) {
+  return Boolean(
+    row && (row.render_status === "locked" || Boolean(row.seasonal_artwork_id))
+  );
+}
+
+function hasProductionSide(row, side) {
+  if (row?.production_files?.[side]?.path) return true;
+  return Boolean(
+    side === "front" &&
+      row?.seasonal_artwork_id &&
+      row?.seasonal_configuration?.production_path
+  );
+}
+
+async function assertProductionEntryReady(orderId) {
+  const { data: order, error } = await supabase
+    .from("orders")
+    .select(
+      "id, production_status, production_checklist, order_items(is_custom, custom_design_id)"
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!order) throw new Error("Production order could not be found.");
+
+  // Preserve established in-progress and legacy orders. This guard only closes
+  // the boundary where an order first leaves not-started/queue production.
+  if (!["not_started", "queued"].includes(order.production_status)) return;
+
+  const missingCheck = PRODUCTION_CHECKS.find(
+    ([key]) => !order.production_checklist?.[key]
+  );
+  if (missingCheck) {
+    throw new Error(
+      `Complete the pre-production checklist before moving this order forward. Missing: ${missingCheck[1]}.`
+    );
+  }
+
+  const customDesignIds = [
+    ...new Set(
+      (order.order_items || [])
+        .filter((item) => item.is_custom && item.custom_design_id)
+        .map((item) => item.custom_design_id)
+    ),
+  ];
+
+  if (!customDesignIds.length) return;
+
+  const { data: designRows, error: designError } = await supabase
+    .from("custom_designs")
+    .select(
+      "id, placement, render_status, production_files, seasonal_artwork_id, seasonal_configuration"
+    )
+    .in("id", customDesignIds);
+
+  if (designError) throw designError;
+
+  const designById = new Map((designRows || []).map((row) => [row.id, row]));
+
+  for (const item of order.order_items || []) {
+    if (!item.is_custom || !item.custom_design_id) continue;
+    const design = designById.get(item.custom_design_id);
+
+    // Manual-proof custom work intentionally keeps its existing human-verified
+    // checklist path. Only canonical locked/seasonal files are deterministic.
+    if (!systemManagedDesignRow(design)) continue;
+
+    const missingSides = requiredProductionSides(design.placement).filter(
+      (side) => !hasProductionSide(design, side)
+    );
+
+    if (missingSides.length) {
+      throw new Error(
+        `Approved production file is missing for: ${missingSides.join(" + ")}. Verify the custom item before moving this order forward.`
+      );
+    }
+  }
+}
+
 async function mapProductionDesign(row) {
   const productionFiles = {};
   await Promise.all(
@@ -137,6 +218,10 @@ export const adminProductionApi = {
   },
 
   async setStatus(orderId, status) {
+    if (status !== "production_queue") {
+      await assertProductionEntryReady(orderId);
+    }
+
     const productionStatus =
       status === "production_queue"
         ? "queued"
