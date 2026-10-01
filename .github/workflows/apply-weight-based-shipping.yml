@@ -6,6 +6,7 @@ on:
       - feat/weight-based-shipping-20261001
     paths:
       - "scripts/apply-weight-based-shipping-patch.py"
+      - ".github/workflows/apply-weight-based-shipping.yml"
 
 permissions:
   contents: write
