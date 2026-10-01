@@ -58,7 +58,7 @@ function hasProductionSide(row, side) {
   );
 }
 
-async function assertProductionEntryReady(orderId) {
+export async function assertProductionEntryReady(orderId) {
   const { data: order, error } = await supabase
     .from("orders")
     .select(
