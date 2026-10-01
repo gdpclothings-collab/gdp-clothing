@@ -20,17 +20,17 @@ for (const check of [
 }
 
 requireText(workflow, "actions: write", "workflow can dispatch post-merge Production Smoke");
-requireText(workflow, 'mergeable="$(jq -r \' .mergeable\' '.replaceAll(" ", ""), "actual GitHub mergeable boolean is checked");
+requireText(workflow, "mergeable=\"$(jq -r '.mergeable'", "actual GitHub mergeable boolean is checked");
 requireText(workflow, '"${mergeable}" == "true"', "merge requires mergeable=true");
 requireText(workflow, '"${mergeable_state}" == "clean" || "${mergeable_state}" == "unstable"', "self-check unstable state is allowed only after required checks pass");
 requireText(workflow, '"${mergeable_state}" == "dirty"', "conflicts remain blocked");
 requireText(workflow, '"${mergeable_state}" == "blocked"', "blocked state remains rejected");
 requireText(workflow, '"${mergeable_state}" == "behind"', "behind state remains rejected");
 requireText(workflow, '--match-head-commit "${EXPECTED_SHA}"', "merge stays pinned to verified PR head");
-requireText(workflow, 'current_sha="$(jq -r \' .head.sha\' '.replaceAll(" ", ""), "head SHA is rechecked before merge");
+requireText(workflow, "current_sha=\"$(jq -r '.head.sha'", "head SHA is rechecked before merge");
 requireText(workflow, "Dispatch production smoke for merged commit", "auto-merge owns the post-merge production gate");
 requireText(workflow, "merge_commit_sha", "post-merge smoke resolves exact merge SHA");
-requireText(workflow, 'current_main_sha="$(gh api "repos/${REPOSITORY}/git/ref/heads/main" --jq \'.object.sha\')"', "dispatch is skipped when a newer main commit already owns smoke");
+requireText(workflow, "current_main_sha=\"$(gh api", "dispatch verifies main still points at the merged commit");
 requireText(workflow, "gh workflow run production-smoke.yml", "Production Smoke is explicitly dispatched after GITHUB_TOKEN merge");
 requireText(workflow, '-f expected_sha="${merged_sha}"', "dispatch pins Production Smoke to exact merged SHA");
 
