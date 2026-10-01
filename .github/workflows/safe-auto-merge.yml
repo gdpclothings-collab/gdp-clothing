@@ -77,15 +77,44 @@ jobs:
             sleep 20
           done
 
-      - name: Confirm clean merge state
+      - name: Confirm mergeable state
         shell: bash
         run: |
           set -euo pipefail
-          mergeable_state="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" --jq '.mergeable_state')"
-          if [[ "${mergeable_state}" != "clean" ]]; then
-            echo "Pull request is not in a clean merge state: ${mergeable_state}"
-            exit 1
-          fi
+
+          # This workflow itself is a check run on the pull request. While this
+          # job is running GitHub can report mergeable_state=unstable even after
+          # every required external check above has passed. Use the actual
+          # mergeable boolean for conflict safety and only allow states that are
+          # mergeable without bypassing branch/review constraints.
+          for attempt in {1..12}; do
+            pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+            current_sha="$(jq -r '.head.sha' <<<"${pr_json}")"
+            mergeable="$(jq -r '.mergeable' <<<"${pr_json}")"
+            mergeable_state="$(jq -r '.mergeable_state' <<<"${pr_json}")"
+
+            if [[ "${current_sha}" != "${EXPECTED_SHA}" ]]; then
+              echo "Pull request head changed; the synchronize event will start a fresh verification."
+              exit 0
+            fi
+
+            if [[ "${mergeable}" == "true" && ( "${mergeable_state}" == "clean" || "${mergeable_state}" == "unstable" ) ]]; then
+              echo "Pull request is mergeable with verified state: ${mergeable_state}."
+              exit 0
+            fi
+
+            if [[ "${mergeable}" == "false" || "${mergeable_state}" == "dirty" || "${mergeable_state}" == "blocked" || "${mergeable_state}" == "behind" ]]; then
+              echo "Pull request is not safely mergeable: mergeable=${mergeable}, state=${mergeable_state}"
+              exit 1
+            fi
+
+            if (( attempt == 12 )); then
+              echo "Timed out waiting for GitHub to resolve mergeability: mergeable=${mergeable}, state=${mergeable_state}"
+              exit 1
+            fi
+
+            sleep 5
+          done
 
       - name: Squash merge verified pull request
         shell: bash
