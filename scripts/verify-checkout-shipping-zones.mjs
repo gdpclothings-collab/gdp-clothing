@@ -17,11 +17,13 @@ assert.equal(postalPatternMatches("S7*", "s7k 1j5"), true, "postal wildcard matc
 assert.equal(postalPatternMatches("S7*", "S4P 3Y2"), false, "postal wildcard must not match another region");
 
 const edge = fs.readFileSync("supabase/functions/checkout/index.ts", "utf8");
+const profileRules = fs.readFileSync("supabase/functions/checkout/shipping-profile-rules.mjs", "utf8");
 const page = fs.readFileSync("src/pages/CheckoutTwoStep.jsx", "utf8");
 const api = fs.readFileSync("src/lib/customerApi.js", "utf8");
-assert(edge.includes('import { selectShippingRate } from "./shipping-zone-rules.mjs";'), "checkout must use the tested zone selector");
+assert(profileRules.includes('import { selectShippingRate } from "./shipping-zone-rules.mjs";'), "profile engine must preserve the tested zone selector");
+assert(edge.includes('import { calculateProfileShipping } from "./shipping-profile-rules.mjs";'), "checkout must use the profile-aware zone selector");
 assert(edge.includes('postalCode: body?.postalCode || ""'), "checkoutConfig must accept postal code");
-assert(edge.includes('getShippingRule(service, amount, customer?.province, customer?.postalCode)'), "authoritative checkout must pass destination into rate selection");
+assert(edge.includes('getShippingQuote(service, amount, customer?.province, customer?.postalCode, shippingItems)'), "authoritative checkout must pass destination into profile-aware rate selection");
 assert(page.includes("checkoutPostalCode = normalizePostal(form.postalCode)"), "client config key must include normalized postal code");
 assert(page.includes("postalCode:checkoutPostalCode"), "client must send postal code to checkoutConfig");
 assert(api.includes('postalCode = ""'), "customer API must accept postal code for checkoutConfig");
