@@ -68,6 +68,7 @@ jobs:
           node scripts/verify-seasonal-v2-explicit-add-artwork.mjs
           node scripts/verify-admin-payment-health.mjs
           node scripts/verify-admin-print-configuration.mjs
+          node scripts/verify-admin-production-files.mjs
           node scripts/verify-custom-studio-print-guides.mjs
           node scripts/verify-custom-studio-print-pipeline.mjs
           node scripts/verify-custom-studio-two-sided-cart-contract.mjs
