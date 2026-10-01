@@ -470,6 +470,6 @@ export const adminApi = {
       test_inventory_workflow: Boolean(data.testInventoryWorkflow),
     };
 
-    throwIfError(await supabase.from("store_settings").upsert(payload));
+    throwIfError(await supabase.from("store_settings").update(payload).eq("id", id || 1));
   },
 };
