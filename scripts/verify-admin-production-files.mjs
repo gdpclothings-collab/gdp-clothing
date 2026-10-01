@@ -21,6 +21,16 @@ requireText(api, 'signedStorageUrl(SEASONAL_BUCKET, seasonalConfiguration.produc
 requireText(api, 'requiredProductionSides(row.placement)', "front/back required-side preservation");
 requireText(api, 'production_design: item.custom_design_id', "production design attached to order item");
 requireText(api, 'mockupUrl: await signedStorageUrl("customer-uploads", mockupPath)', "approved mockup signing");
+requireText(api, "async function assertProductionEntryReady(orderId)", "API-boundary production readiness guard");
+requireText(api, '"id, production_status, production_checklist, order_items(is_custom, custom_design_id)"', "production entry reads current checklist and custom links");
+requireText(api, '["not_started", "queued"].includes(order.production_status)', "only first production entry is guarded");
+requireText(api, "PRODUCTION_CHECKS.find", "API requires every pre-production checklist item");
+requireText(api, "function systemManagedDesignRow(row)", "API classifies canonical locked or seasonal designs");
+requireText(api, "function hasProductionSide(row, side)", "API validates underlying production file paths");
+requireText(api, "if (!systemManagedDesignRow(design)) continue", "manual proof compatibility remains intact at API boundary");
+requireText(api, "requiredProductionSides(design.placement).filter", "API checks all required print sides");
+requireText(api, 'if (status !== "production_queue")', "all first transitions beyond queue use readiness guard");
+requireText(api, "await assertProductionEntryReady(orderId)", "status mutation cannot bypass readiness guard");
 
 requireText(module, "function systemManagedProductionDesign(design)", "system-managed production classifier");
 requireText(module, 'design.renderStatus === "locked" || Boolean(design.seasonalArtworkId)', "locked and seasonal approval compatibility");
