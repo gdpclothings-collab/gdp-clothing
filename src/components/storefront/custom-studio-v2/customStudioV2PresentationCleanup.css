@@ -61,6 +61,44 @@
   transition: transform 160ms ease !important;
 }
 
+/*
+ * Design Path workspaces use a taller 4:5 garment canvas around the real photo.
+ * Fill that workspace with the Crewneck instead of showing the source image's
+ * large photographic margins. The selector is limited to a canvas that directly
+ * owns a print guide, so Step 1 stays on its separate normalization above.
+ * Front/back print-guide geometry and artwork coordinates are not transformed.
+ */
+[data-gdp-studio-v2-guard="true"]
+  div:has(> [data-gdp-print-guide="true"])
+  > img[src*="gildan-crewneck-black-"],
+[data-gdp-studio-v2-guard="true"]
+  div:has(> [data-gdp-print-guide="true"])
+  > img[src*="gildan-crewneck-gray-"] {
+  transform: scale(1.16) !important;
+  transform-origin: 50% 50% !important;
+  transition: transform 160ms ease !important;
+}
+
+[data-gdp-studio-v2-guard="true"]
+  div:has(> [data-gdp-print-guide="true"])
+  > img[src*="gildan-crewneck-white-"],
+[data-gdp-studio-v2-guard="true"]
+  div:has(> [data-gdp-print-guide="true"])
+  > img[src*="gildan-crewneck-navy-"],
+[data-gdp-studio-v2-guard="true"]
+  div:has(> [data-gdp-print-guide="true"])
+  > img[src*="gildan-crewneck-red-"],
+[data-gdp-studio-v2-guard="true"]
+  div:has(> [data-gdp-print-guide="true"])
+  > img[src*="gildan-crewneck-royal-"],
+[data-gdp-studio-v2-guard="true"]
+  div:has(> [data-gdp-print-guide="true"])
+  > img[src*="gildan-crewneck-irish-green-"] {
+  transform: scale(2.7) !important;
+  transform-origin: 50% 50% !important;
+  transition: transform 160ms ease !important;
+}
+
 /* Replace the browse-mode DTF wording without touching garment workflow logic. */
 [data-gdp-garment-mode="browse"] > div:first-child > p:last-child {
   font-size: 0 !important;
