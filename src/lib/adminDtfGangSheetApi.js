@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { adminSettingsApi } from "@/lib/adminSettingsApi";
+import { calculateDtfPrice, normalizeDtfSettings } from "@/lib/dtfGangSheet";
 
 const mapDtfItem = async (order, item) => {
   const spec = item.custom_data || {};
@@ -30,8 +30,8 @@ const mapDtfItem = async (order, item) => {
 
 export const adminDtfGangSheetApi = {
   async load() {
-    const [settings, ordersResult] = await Promise.all([
-      adminSettingsApi.loadDtfSettings(),
+    const [settingsResult, ordersResult] = await Promise.all([
+      supabase.rpc("get_dtf_settings"),
       supabase
         .from("orders")
         .select("id, order_number, customer_name, customer_email, status, payment_status, production_status, created_at, order_items(*)")
@@ -39,8 +39,14 @@ export const adminDtfGangSheetApi = {
         .limit(250),
     ]);
 
+    if (settingsResult.error) throw settingsResult.error;
     if (ordersResult.error) throw ordersResult.error;
 
+    const settings = normalizeDtfSettings({
+      adminPreviewBypassEnabled: false,
+      adminProductionExportEnabled: false,
+      ...(settingsResult.data || {}),
+    });
     const queue = [];
     for (const order of ordersResult.data || []) {
       for (const item of order.order_items || []) {
@@ -53,6 +59,27 @@ export const adminDtfGangSheetApi = {
   },
 
   async saveSettings(settings) {
-    return adminSettingsApi.saveDtfSettings(settings);
+    const normalized = normalizeDtfSettings(settings);
+    const startingLength = normalized.popularLengths?.[0] || normalized.minLength;
+    const startingPrice = calculateDtfPrice(
+      normalized.defaultWidth,
+      startingLength,
+      normalized
+    ).price;
+
+    const [settingsResult, productResult] = await Promise.all([
+      supabase.rpc("save_admin_dtf_settings", { p_settings: normalized }),
+      supabase
+        .from("products")
+        .update({
+          price: startingPrice,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("slug", "dtf-gang-sheet"),
+    ]);
+
+    if (settingsResult.error) throw settingsResult.error;
+    if (productResult.error) throw productResult.error;
+    return normalizeDtfSettings(settingsResult.data || normalized);
   },
 };
