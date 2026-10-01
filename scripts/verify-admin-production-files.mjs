@@ -22,9 +22,11 @@ requireText(api, 'requiredProductionSides(row.placement)', "front/back required-
 requireText(api, 'production_design: item.custom_design_id', "production design attached to order item");
 requireText(api, 'mockupUrl: await signedStorageUrl("customer-uploads", mockupPath)', "approved mockup signing");
 
-requireText(module, "function productionItemReady(item)", "per-item print readiness guard");
+requireText(module, "function systemManagedProductionDesign(design)", "system-managed production classifier");
 requireText(module, 'design.renderStatus === "locked" || Boolean(design.seasonalArtworkId)', "locked and seasonal approval compatibility");
-requireText(module, "customItems.every(productionItemReady)", "all custom items must be production-file ready");
+requireText(module, "function productionItemReady(item)", "per-item print readiness guard");
+requireText(module, "if (!systemManagedProductionDesign(design)) return true", "legacy manual proof compatibility");
+requireText(module, "managedCustomItems.every(productionItemReady)", "all system-managed custom items must be production-file ready");
 requireText(module, 'key === "printFileAttached" && checked && !customPrintFilesReady', "print-file checklist confirmation guard");
 requireText(module, 'status === "printing" && !readyForProduction', "printing transition remains blocked until ready");
 requireText(module, "data-gdp-production-files={item.id}", "production file group marker");
@@ -32,5 +34,6 @@ requireText(module, "data-gdp-production-file-side={side}", "per-side production
 requireText(module, "design?.mockupUrl || item.image", "signed approved mockup preferred in production drawer");
 requireText(module, "Print {prettify(side)} PNG", "front/back production download controls");
 requireText(module, "Missing required {missingSides.map(prettify).join", "missing-side warning");
+requireText(module, "Manual proof workflow", "legacy manual proof guidance remains available");
 
 console.log("Admin production print-file readiness verified.");
