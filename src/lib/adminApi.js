@@ -214,7 +214,7 @@ export const adminApi = {
       supabase.from("collections").select("*").order("created_at", { ascending: false }).limit(250),
       supabase.from("discounts").select("*").order("created_at", { ascending: false }).limit(250),
       supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(250),
-      supabase.from("store_settings").select("*").eq("id", 1).maybeSingle(),
+      supabase.rpc("get_admin_store_settings"),
     ]);
 
     const designRows = throwIfError(designs) || [];
