@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { assertProductionEntryReady } from "@/lib/adminProductionApi";
 
 const throwIfError = ({ data, error, count }) => {
   if (error) throw error;
@@ -12,6 +13,8 @@ const ORDER_STATUS_GROUPS = {
 const ATTENTION_STATUSES = ["payment_failed","artwork_needed","awaiting_approval","revision_requested"];
 const ORDER_SELECT = "id, order_number, customer_name, customer_email, customer_phone, is_guest, subtotal, discount, shipping, tax, total, status, design_status, production_status, fulfillment_status, payment_status, payment_mode, tracking_number, carrier, shipping_method, need_by_date, priority, notes, created_at, updated_at, order_items(id, name, image, variant, size, color, quantity, unit_price, fulfillment_mode, is_custom, custom_design_id)";
 const cleanIds = (orderIds) => [...new Set((orderIds || []).filter(Boolean).map(String))];
+const requiresProductionEntryReadiness = (productionStatus) =>
+  Boolean(productionStatus) && !["not_started", "queued"].includes(productionStatus);
 
 export const adminOrdersApi = {
   async list({ page=1,pageSize=25,search="",status="all",paymentStatus="all",fulfillmentStatus="all",designStatus="all",productionStatus="all",customerType="all",dateFrom="",dateTo="",attentionOnly=false }={}) {
@@ -30,10 +33,10 @@ export const adminOrdersApi = {
   async updateStatus(orderId,status){const {data,error}=await supabase.from("orders").update({status}).eq("id",orderId).select("id, status, updated_at").single();if(error)throw error;return data;},
   async updateFulfillment(orderId,fulfillmentStatus){const {data,error}=await supabase.from("orders").update({fulfillment_status:fulfillmentStatus}).eq("id",orderId).select("id, fulfillment_status, updated_at").single();if(error)throw error;return data;},
   async updateDesignStatus(orderId,designStatus){const {data,error}=await supabase.from("orders").update({design_status:designStatus}).eq("id",orderId).select("id, design_status, updated_at").single();if(error)throw error;return data;},
-  async updateProductionStatus(orderId,productionStatus){const {data,error}=await supabase.from("orders").update({production_status:productionStatus}).eq("id",orderId).select("id, production_status, updated_at").single();if(error)throw error;return data;},
+  async updateProductionStatus(orderId,productionStatus){if(requiresProductionEntryReadiness(productionStatus))await assertProductionEntryReady(orderId);const {data,error}=await supabase.from("orders").update({production_status:productionStatus}).eq("id",orderId).select("id, production_status, updated_at").single();if(error)throw error;return data;},
   async updateTracking(orderId,{trackingNumber,carrier}){const {data,error}=await supabase.from("orders").update({tracking_number:trackingNumber||null,carrier:carrier||null}).eq("id",orderId).select("id, tracking_number, carrier, updated_at").single();if(error)throw error;return data;},
   async updateNotes(orderId,notes){const {data,error}=await supabase.from("orders").update({notes:notes||null}).eq("id",orderId).select("id, notes, updated_at").single();if(error)throw error;return data;},
-  async updateWorkflow(orderId,values){const payload={status:values.status,design_status:values.designStatus,production_status:values.productionStatus,fulfillment_status:values.fulfillmentStatus,tracking_number:values.trackingNumber?.trim()||null,carrier:values.carrier?.trim()||null,notes:values.notes?.trim()||null};const {data,error}=await supabase.from("orders").update(payload).eq("id",orderId).select(ORDER_SELECT).single();if(error)throw error;return data;},
+  async updateWorkflow(orderId,values){if(requiresProductionEntryReadiness(values.productionStatus))await assertProductionEntryReady(orderId);const payload={status:values.status,design_status:values.designStatus,production_status:values.productionStatus,fulfillment_status:values.fulfillmentStatus,tracking_number:values.trackingNumber?.trim()||null,carrier:values.carrier?.trim()||null,notes:values.notes?.trim()||null};const {data,error}=await supabase.from("orders").update(payload).eq("id",orderId).select(ORDER_SELECT).single();if(error)throw error;return data;},
   async bulkUpdateStatus(orderIds,status){const ids=cleanIds(orderIds);if(!ids.length)return[];const {data,error}=await supabase.from("orders").update({status}).in("id",ids).select("id, status, updated_at");if(error)throw error;return data||[];},
   async bulkUpdateFulfillment(orderIds,fulfillmentStatus){const ids=cleanIds(orderIds);if(!ids.length)return[];const {data,error}=await supabase.from("orders").update({fulfillment_status:fulfillmentStatus}).in("id",ids).select("id, fulfillment_status, updated_at");if(error)throw error;return data||[];},
   async deleteTestOrder(orderId){const {data,error}=await supabase.rpc("admin_delete_test_order",{p_order_id:orderId});if(error)throw error;return data;},
