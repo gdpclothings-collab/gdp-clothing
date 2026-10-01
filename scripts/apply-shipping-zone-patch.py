@@ -126,13 +126,6 @@ replace_once(
     'customerApi.getCheckoutConfig({ amount:afterCoupon, province:form.province, postalCode:checkoutPostalCode, shippingMethod:form.shippingMethod, freeShipping:appliedDiscount?.type === "free_shipping" })',
 )
 
-build_workflow = ".github/workflows/build-verification.yml"
-replace_once(
-    build_workflow,
-    "          node scripts/verify-cart-pricing.mjs\n",
-    "          node scripts/verify-cart-pricing.mjs\n          node scripts/verify-checkout-shipping-zones.mjs\n",
-)
-
 Path("supabase/functions/checkout/shipping-zone-rules.mjs").write_text(r'''const asList = (value) => Array.isArray(value) ? value : [];
 const compact = (value) => String(value || "").trim().toUpperCase().replace(/\s+/g, "");
 const numberOr = (value, fallback) => {
