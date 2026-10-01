@@ -1,0 +1,38 @@
+name: Apply product shipping profiles patch
+
+on:
+  push:
+    branches:
+      - feat/product-shipping-profiles-20261001
+    paths:
+      - "scripts/apply-product-shipping-profiles-patch.py"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Apply targeted patch
+        run: python scripts/apply-product-shipping-profiles-patch.py
+      - name: Verify targeted profile regression
+        run: |
+          git diff --check
+          node scripts/verify-checkout-shipping-profiles.mjs
+          node scripts/verify-checkout-shipping-zones.mjs
+          node scripts/verify-checkout-terms-hotfix.mjs
+      - name: Commit targeted patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/shippingAdminApi.js src/components/admin/ShippingDeliveryManager.jsx src/lib/customerApi.js src/pages/CheckoutTwoStep.jsx supabase/functions/checkout/index.ts supabase/functions/checkout/shipping-profile-rules.mjs scripts/verify-checkout-shipping-profiles.mjs scripts/verify-checkout-shipping-zones.mjs
+          git diff --cached --check
+          git commit -m "feat(shipping): add product-specific shipping profiles"
+          git push origin HEAD:feat/product-shipping-profiles-20261001
