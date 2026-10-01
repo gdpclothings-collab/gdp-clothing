@@ -1,0 +1,37 @@
+name: Live Shipping Zone Edge Check
+
+on:
+  push:
+    branches:
+      - fix/checkout-shipping-zones-20261001
+    paths:
+      - ".github/workflows/live-shipping-zone-edge-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  shipping-zone-live-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify production checkout shipping config
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout"
+
+          paid="$(curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H 'content-type: application/json' \
+            --data '{"action":"checkoutConfig","amount":100,"province":"Saskatchewan","postalCode":"S7K 1J5","shippingMethod":"standard","freeShipping":false}' \
+            "$endpoint")"
+          printf '%s' "$paid" | jq -e '.configured == true and (.shipping == 12.99) and (.shippingMethod == "standard")' >/dev/null
+
+          free="$(curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H 'content-type: application/json' \
+            --data '{"action":"checkoutConfig","amount":160,"province":"Saskatchewan","postalCode":"S7K 1J5","shippingMethod":"standard","freeShipping":false}' \
+            "$endpoint")"
+          printf '%s' "$free" | jq -e '.configured == true and (.shipping == 0) and (.shippingMethod == "standard")' >/dev/null
+
+          echo "Production checkout v42 returned the expected Canada-wide paid and free shipping rules."
