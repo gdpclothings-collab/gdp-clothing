@@ -78,6 +78,7 @@ jobs:
           node scripts/verify-cart-pricing.mjs
           node scripts/verify-checkout-shipping-zones.mjs
           node scripts/verify-checkout-shipping-profiles.mjs
+          node scripts/verify-checkout-shipping-weight.mjs
           node scripts/verify-seasonal-artwork.mjs
           node scripts/verify-photo-bootleg-desktop.mjs
 
