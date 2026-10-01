@@ -35,6 +35,27 @@ function MoneyInput({ value, onChange, label }) {
   );
 }
 
+function OptionalMoneyInput({ value, onChange, label, placeholder = "Not set" }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.08em] text-[#6c7078]">{label}</span>
+      <div className="flex h-11 items-center rounded-lg border border-[#d8dade] bg-white px-3 focus-within:border-[#111214]">
+        <span className="mr-1.5 text-sm font-semibold text-[#555961]">$</span>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={value ?? ""}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
+          className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:font-normal placeholder:text-[#a3a6ac]"
+          aria-label={label}
+        />
+      </div>
+    </label>
+  );
+}
+
 export default function AdminPricing() {
   const [pricing, setPricing] = useState(() => normalizeApparelPricing(DEFAULT_APPAREL_PRICING));
   const [loading, setLoading] = useState(true);
@@ -78,12 +99,29 @@ export default function AdminPricing() {
     }));
   };
 
+  const setSourcingCost = (garmentKey, field, value) => {
+    setMessage(""); setError("");
+    setPricing((current) => ({
+      ...current,
+      sourcing: {
+        ...current.sourcing,
+        garments: {
+          ...current.sourcing.garments,
+          [garmentKey]: {
+            ...current.sourcing.garments[garmentKey],
+            [field]: value,
+          },
+        },
+      },
+    }));
+  };
+
   const save = async () => {
     setSaving(true); setMessage(""); setError("");
     try {
       const saved = await adminApparelPricingApi.save(pricing);
       setPricing(saved);
-      setMessage("Pricing settings saved successfully.");
+      setMessage("Pricing and garment sourcing settings saved successfully.");
     } catch (err) {
       setError(err?.message || "Could not save pricing settings.");
     } finally {
@@ -93,7 +131,7 @@ export default function AdminPricing() {
 
   const reset = () => {
     setPricing(normalizeApparelPricing(DEFAULT_APPAREL_PRICING));
-    setMessage("Recommended GDP pricing restored in the editor. Select Save changes to apply it.");
+    setMessage("Recommended GDP pricing and sourcing defaults restored in the editor. Select Save changes to apply them.");
     setError("");
   };
 
@@ -115,7 +153,7 @@ export default function AdminPricing() {
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.14em] text-[#a70f2d]">Pricing & volume discounts</div>
             <h1 className="mt-1 text-3xl font-bold tracking-tight md:text-4xl">Custom DTF Apparel Pricing</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5c6068]">Edit bundle prices and quantity discounts without changing code. Exact 2, 5 and 10-piece bundle prices take priority over percentage tiers, so discounts never double-stack.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5c6068]">Edit bundle prices, quantity discounts and garment sourcing references without changing code. GDP customer pricing stays separate from emergency local-retail costs.</p>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={reset} disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#cfd2d7] bg-white px-4 text-sm font-semibold hover:bg-[#f8f8f9]"><RotateCcw size={16}/> Recommended defaults</button>
@@ -146,6 +184,57 @@ export default function AdminPricing() {
               </div>
             </article>
           ))}
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-[#dedfe3] bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e5e6e8] pb-5">
+            <div>
+              <h2 className="text-lg font-bold">Garment sourcing & fallback costs</h2>
+              <p className="mt-1 max-w-4xl text-sm leading-6 text-[#666b73]">T-Shirt Ideal remains the primary wholesale source. Michaels is an emergency local fallback only. These sourcing costs are kept separate from GDP customer prices, so a Michaels sale or retail price never becomes the website base price automatically.</p>
+            </div>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">Wholesale base pricing protected</span>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            {Object.entries(pricing.sourcing?.garments || {}).map(([garmentKey, garment]) => (
+              <article key={garmentKey} className="rounded-xl border border-[#e1e3e6] bg-[#fafafa] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold">{garment.label}</h3>
+                    <p className="mt-1 text-xs text-[#6c7078]">Primary: {pricing.sourcing.primarySupplierName} · Emergency: {pricing.sourcing.fallbackSupplierName}{garment.fallbackBrand ? ` (${garment.fallbackBrand})` : ""}</p>
+                  </div>
+                  <span className="rounded-md border border-[#d7d9dd] bg-white px-2 py-1 font-mono text-[11px] font-semibold">Michaels #{garment.fallbackItemNumber}</span>
+                </div>
+
+                {garment.requiresSubstitutionApproval && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Brand substitution approval required before using this Michaels fallback because it is not the same brand as the primary blank.</div>
+                )}
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <OptionalMoneyInput label="Wholesale cost" value={garment.wholesaleCost} onChange={(value) => setSourcingCost(garmentKey, "wholesaleCost", value)} />
+                  <MoneyInput label="Michaels regular" value={garment.fallbackRegularCost} onChange={(value) => setSourcingCost(garmentKey, "fallbackRegularCost", value)} />
+                  <MoneyInput label="Michaels current" value={garment.fallbackCurrentCost} onChange={(value) => setSourcingCost(garmentKey, "fallbackCurrentCost", value)} />
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#6c7078]">Michaels supported sizes</div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">{garment.supportedSizes.map((item) => <span key={item} className="rounded-md border border-[#dadce0] bg-white px-2 py-1 text-xs font-semibold">{item}</span>)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#6c7078]">Michaels observed colours</div>
+                    <div className="mt-2 text-xs leading-5 text-[#555961]">{garment.supportedColors.join(" · ")}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-[#e0e2e5] pt-3">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#6c7078]">Reference details</div>
+                  <ul className="mt-2 space-y-1 text-xs leading-5 text-[#555961]">{garment.details.map((detail) => <li key={detail}>• {detail}</li>)}</ul>
+                  <div className="mt-2 text-[10px] text-[#8a8e95]">Observed {garment.observedAt}. Update the cost fields when local pricing changes.</div>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="mt-6 rounded-2xl border border-[#dedfe3] bg-white p-5 shadow-sm">

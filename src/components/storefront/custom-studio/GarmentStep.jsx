@@ -59,6 +59,9 @@ export default function GarmentStep({ model }) {
 
   const showCatalogLoading = !product && catalog.length === 0 && !emptyCatalogSettled;
   const displayColors = uniqueColors([...(product?.colors || []), ...availableColors]);
+  const garmentDetails = Array.isArray(product?.customization?.garmentDetails)
+    ? product.customization.garmentDetails.filter(Boolean)
+    : [];
 
   return (
     <div>
@@ -193,6 +196,18 @@ export default function GarmentStep({ model }) {
             </div>
           </div>
         </div>
+
+        {(product.description || garmentDetails.length > 0) && (
+          <div data-step1-garment-details className="mt-6 rounded-2xl border border-[#ddd7ce] bg-[#faf8f4] p-4">
+            <div className="text-xs font-bold uppercase tracking-[0.08em] text-[#6f685f]">Garment details</div>
+            {product.description && <p className="mt-2 text-sm leading-6 text-[#4f4a44]">{product.description}</p>}
+            {garmentDetails.length > 0 && (
+              <ul className="mt-3 grid gap-1.5 text-xs leading-5 text-[#625c55] sm:grid-cols-2">
+                {garmentDetails.map((detail) => <li key={detail}>• {detail}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div data-step1-group className="mt-7 border-t border-border pt-5">
           <div className="flex items-center justify-between gap-4">
