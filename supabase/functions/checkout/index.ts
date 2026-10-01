@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { selectShippingRate } from "./shipping-zone-rules.mjs";
 
 const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -336,21 +337,22 @@ async function getTaxRule(service: any, province: unknown) {
   };
 }
 
-async function getShippingRule(service: any, amount: number) {
+async function getShippingRule(service: any, amount: number, province: unknown, postalCode: unknown) {
   const safeAmount = Math.max(0, roundMoney(amount));
   const { data, error } = await service
     .from("shipping_rates")
-    .select("name,method_code,price,min_order,max_order,min_delivery_days,max_delivery_days")
+    .select("id,name,method_code,price,min_order,max_order,min_delivery_days,max_delivery_days,zone_name,country_codes,province_codes,postal_patterns,priority")
     .eq("active", true)
-    .eq("method_code", "standard")
-    .lte("min_order", safeAmount)
-    .or(`max_order.is.null,max_order.gte.${safeAmount}`)
-    .order("min_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("method_code", "standard");
 
   if (error) throw error;
-  if (data) return data;
+  const matched = selectShippingRate(data || [], {
+    amount: safeAmount,
+    countryCode: "CA",
+    provinceCode: normalizeProvinceCode(province),
+    postalCode: normalizeCanadianPostalCode(postalCode),
+  });
+  if (matched) return matched;
 
   return safeAmount >= 150
     ? {
@@ -381,7 +383,7 @@ async function getCheckoutRules(
 ) {
   const amount = Math.max(0, roundMoney(amountAfterDiscounts));
   const shippingMethod = customer?.shippingMethod === "pickup" ? "pickup" : "standard";
-  const shippingRule = await getShippingRule(service, amount);
+  const shippingRule = await getShippingRule(service, amount, customer?.province, customer?.postalCode);
   const shipping =
     shippingMethod === "pickup" || freeShipping
       ? 0
@@ -794,6 +796,7 @@ Deno.serve(async (req: Request) => {
       const amount = Math.max(0, Math.min(1000000, Number(body?.amount || 0)));
       const customer = {
         province: body?.province || "Saskatchewan",
+        postalCode: body?.postalCode || "",
         shippingMethod: body?.shippingMethod || "standard",
       };
       const rules = await getCheckoutRules(
