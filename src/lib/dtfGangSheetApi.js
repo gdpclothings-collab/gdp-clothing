@@ -10,11 +10,7 @@ const safeFileName = (name = "artwork") =>
 export const dtfGangSheetApi = {
   async load() {
     const [settingsResult, productResult] = await Promise.all([
-      supabase
-        .from("store_settings")
-        .select("dtf_settings")
-        .eq("id", 1)
-        .maybeSingle(),
+      supabase.rpc("get_dtf_settings"),
       supabase
         .from("products")
         .select("*")
@@ -27,7 +23,11 @@ export const dtfGangSheetApi = {
     if (productResult.error) throw productResult.error;
 
     return {
-      settings: normalizeDtfSettings(settingsResult.data?.dtf_settings || {}),
+      settings: normalizeDtfSettings({
+        adminPreviewBypassEnabled: false,
+        adminProductionExportEnabled: false,
+        ...(settingsResult.data || {}),
+      }),
       product: productResult.data || null,
     };
   },
