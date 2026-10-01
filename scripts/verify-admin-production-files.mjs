@@ -21,14 +21,19 @@ function sourceFiles(root) {
   return files;
 }
 
-function adminUpdateOrderProductionWrites(source) {
+function unsafeAdminUpdateOrderProductionWrites(source) {
   const writes = [];
   const marker = "adminApi.updateOrder";
   let cursor = 0;
   while ((cursor = source.indexOf(marker, cursor)) !== -1) {
     const end = source.indexOf(");", cursor);
     const call = source.slice(cursor, end === -1 ? cursor + 2500 : end + 2);
-    if (call.includes("productionStatus")) writes.push(call);
+    const productionStatusMatch = call.match(/productionStatus\s*:\s*([^,}\n]+)/);
+    if (productionStatusMatch) {
+      const value = productionStatusMatch[1].trim();
+      const safeStagingLiteral = /^(?:["']queued["']|["']not_started["'])$/.test(value);
+      if (!safeStagingLiteral) writes.push(call);
+    }
     cursor += marker.length;
   }
   return writes;
@@ -66,17 +71,17 @@ const approvedGenericProductionWriters = new Set([
   "src/lib/adminProductionApi.js",
 ]);
 for (const filePath of sourceFiles("src")) {
-  const writes = adminUpdateOrderProductionWrites(text(filePath));
+  const writes = unsafeAdminUpdateOrderProductionWrites(text(filePath));
   if (writes.length && !approvedGenericProductionWriters.has(filePath)) {
     throw new Error(
-      `Unsafe generic production-status write detected in ${filePath}. Use the guarded production/order API instead of adminApi.updateOrder(... productionStatus ...).`
+      `Unsafe generic production-status write detected in ${filePath}. Only queued/not_started staging may use adminApi.updateOrder directly; production advancement must use the guarded production/order API.`
     );
   }
 }
 requireText(
   api,
   "adminApi.updateOrder(orderId, {",
-  "Production Board remains the only approved generic production-status writer"
+  "Production Board remains the only approved generic production advancement writer"
 );
 
 requireText(module, "function systemManagedProductionDesign(design)", "system-managed production classifier");
