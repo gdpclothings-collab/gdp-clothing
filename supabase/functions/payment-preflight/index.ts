@@ -27,8 +27,69 @@ function corsHeaders(req: Request) {
   };
 }
 
-function respond(req: Request, body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
+function respond(
+  req: Request,
+  body: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders(req), ...extraHeaders },
+  });
+}
+
+function clientIp(req: Request) {
+  const direct = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
+  if (direct) return direct.trim().slice(0, 128);
+  const forwarded = req.headers.get("x-forwarded-for") || "";
+  return (forwarded.split(",")[0] || "unknown").trim().slice(0, 128);
+}
+
+function bearer(req: Request) {
+  return (req.headers.get("Authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function consumeRateLimit(service: any, req: Request) {
+  const key = await sha256Hex(`payment-preflight:ip:${clientIp(req)}`);
+  const { data, error } = await service.rpc("consume_checkout_rate_limit", {
+    p_key: key,
+    p_limit: 60,
+    p_window_seconds: 600,
+  });
+  if (error) throw error;
+  return data || { allowed: false, retry_after: 60 };
+}
+
+async function isAdminRequest(
+  req: Request,
+  supabaseUrl: string,
+  anonKey: string,
+  service: any,
+) {
+  const token = bearer(req);
+  if (!token) return false;
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { data: userData, error: userError } = await userClient.auth.getUser(token);
+  const user = userData?.user || null;
+  if (userError || !user || user.is_anonymous === true) return false;
+
+  const { data: profile, error: profileError } = await service
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profileError) return false;
+  return profile?.role === "admin";
 }
 
 function normalizePaymentMode(value: unknown): "test" | "live" {
@@ -71,14 +132,28 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   if (!supabaseUrl || !anonKey || !serviceKey) {
-    return respond(req, { error: true, ready: false, message: "Production payment preflight is not configured." }, 503);
+    return respond(req, { ready: false, checkedAt: new Date().toISOString() }, 503);
   }
 
   const service = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
+  let adminAccess = false;
   try {
+    const rate = await consumeRateLimit(service, req);
+    if (!rate.allowed) {
+      const retryAfter = Math.max(1, Number(rate.retry_after || 60));
+      return respond(
+        req,
+        { ready: false, checkedAt: new Date().toISOString(), rateLimited: true },
+        429,
+        { "Retry-After": String(retryAfter) },
+      );
+    }
+
+    adminAccess = await isAdminRequest(req, supabaseUrl, anonKey, service);
+
     const { data: storeSettings, error: settingsError } = await service
       .from("store_settings")
       .select("payment_mode")
@@ -142,10 +217,15 @@ Deno.serve(async (req: Request) => {
       && checkoutGatewayReachable
       && checkoutCoreReachable
       && webhookEndpointReachable;
+    const checkedAt = new Date().toISOString();
+
+    if (!adminAccess) {
+      return respond(req, { ready, checkedAt }, ready ? 200 : 503);
+    }
 
     const payload = {
       ready,
-      checkedAt: new Date().toISOString(),
+      checkedAt,
       paymentMode,
       stripe: {
         secretModeAligned,
@@ -173,9 +253,12 @@ Deno.serve(async (req: Request) => {
     return respond(req, payload, ready ? 200 : 503);
   } catch (error) {
     console.error("payment-preflight", error);
+    const checkedAt = new Date().toISOString();
+    if (!adminAccess) return respond(req, { ready: false, checkedAt }, 503);
     return respond(req, {
       error: true,
       ready: false,
+      checkedAt,
       message: "Production payment preflight could not complete.",
       safety: {
         databaseWrites: false,
