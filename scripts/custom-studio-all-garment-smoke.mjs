@@ -233,7 +233,8 @@ async function inspectViewport(page, viewport) {
       const crewneckSources = colorResults.map((entry) => sourceParts(entry.previewSourceAttr || entry.previewSrc));
       const crewneckPaths = new Set(crewneckSources.map((entry) => entry.pathname));
       const crewneckFullSources = new Set(crewneckSources.map((entry) => entry.href));
-      assert(crewneckPaths.size === 1, `${name} color previews no longer share the approved same-canvas asset path on ${viewport.name}.`);
+      assert(crewneckPaths.size === colorResults.length, `${name} color previews are not mapped to distinct photographic asset paths for every enabled color on ${viewport.name}.`);
+      assert(crewneckSources.every((entry) => !entry.hash), `${name} color previews still rely on URL-fragment color switching on ${viewport.name}.`);
       assert(crewneckFullSources.size === colorResults.length, `${name} color previews are not uniquely mapped for every enabled color on ${viewport.name}.`);
     }
 
