@@ -16,6 +16,10 @@ on:
         description: "Production URL to test"
         required: false
         default: "https://gdpclothing.ca"
+      expected_sha:
+        description: "Exact merged commit SHA to verify"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -32,11 +36,24 @@ jobs:
     timeout-minutes: 18
     env:
       PRODUCTION_BASE_URL: ${{ github.event.inputs.base_url || 'https://gdpclothing.ca' }}
+      SMOKE_EXPECTED_SHA: ${{ github.event.inputs.expected_sha || github.sha }}
       SMOKE_ARTIFACT_DIR: production-smoke-results
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.expected_sha || github.sha }}
+      - name: Verify smoke commit identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "${checked_out_sha}" != "${SMOKE_EXPECTED_SHA}" ]]; then
+            echo "Smoke checkout mismatch: expected ${SMOKE_EXPECTED_SHA}, got ${checked_out_sha}."
+            exit 1
+          fi
+          echo "Production Smoke pinned to ${SMOKE_EXPECTED_SHA}."
       - name: Set up supported Node.js
         uses: actions/setup-node@v5
         with:
@@ -46,17 +63,17 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Wait for Cloudflare production deployment
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 48); do
-            payload="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100")"
+            payload="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SMOKE_EXPECTED_SHA}/check-runs?per_page=100")"
             status="$(printf '%s' "$payload" | jq -r '[.check_runs[] | select(.name == "Cloudflare Pages")][0].status // "missing"')"
             conclusion="$(printf '%s' "$payload" | jq -r '[.check_runs[] | select(.name == "Cloudflare Pages")][0].conclusion // ""')"
-            echo "Cloudflare Pages check: status=${status} conclusion=${conclusion:-pending}"
+            echo "Cloudflare Pages check for ${SMOKE_EXPECTED_SHA}: status=${status} conclusion=${conclusion:-pending}"
             if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then sleep 3; exit 0; fi
             if [[ "$status" == "completed" && -n "$conclusion" && "$conclusion" != "success" ]]; then exit 1; fi
             sleep 5

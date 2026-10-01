@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
+  actions: write
   checks: read
   contents: write
   pull-requests: write
@@ -121,3 +122,38 @@ jobs:
         run: |
           set -euo pipefail
           gh pr merge "${PR_NUMBER}" --repo "${REPOSITORY}" --squash --match-head-commit "${EXPECTED_SHA}"
+
+      - name: Dispatch production smoke for merged commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          merged_sha=""
+          for attempt in {1..12}; do
+            pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+            merged="$(jq -r '.merged' <<<"${pr_json}")"
+            candidate="$(jq -r '.merge_commit_sha // empty' <<<"${pr_json}")"
+            if [[ "${merged}" == "true" && -n "${candidate}" && "${candidate}" != "null" ]]; then
+              merged_sha="${candidate}"
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ -z "${merged_sha}" ]]; then
+            echo "Could not resolve the merged commit SHA for post-merge smoke."
+            exit 1
+          fi
+
+          current_main_sha="$(gh api "repos/${REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "${current_main_sha}" != "${merged_sha}" ]]; then
+            echo "main advanced to ${current_main_sha}; its newer merge will own production smoke."
+            exit 0
+          fi
+
+          echo "Dispatching Production Smoke for merged SHA ${merged_sha}."
+          gh workflow run production-smoke.yml \
+            --repo "${REPOSITORY}" \
+            --ref main \
+            -f expected_sha="${merged_sha}" \
+            -f base_url="https://gdpclothing.ca"
