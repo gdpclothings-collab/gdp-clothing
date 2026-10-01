@@ -71,6 +71,7 @@ jobs:
           node scripts/verify-custom-studio-print-guides.mjs
           node scripts/verify-custom-studio-print-pipeline.mjs
           node scripts/verify-custom-studio-two-sided-cart-contract.mjs
+          node scripts/verify-production-hardening.mjs
           node scripts/verify-cart-pricing.mjs
           node scripts/verify-seasonal-artwork.mjs
           node scripts/verify-photo-bootleg-desktop.mjs
