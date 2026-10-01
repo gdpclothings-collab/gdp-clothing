@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   RefreshCw,
   AlertTriangle,
+  Download,
+  LockKeyhole,
   X,
 } from "lucide-react";
 import {
@@ -42,6 +44,21 @@ const statusMeta = {
   delivered: { label: "Delivered", icon: CheckCircle2 },
   completed: { label: "Completed", icon: CheckCircle2 },
 };
+
+function productionItemReady(item) {
+  if (!item?.is_custom) return true;
+  const design = item.production_design;
+  if (!design) return false;
+
+  const approved = design.renderStatus === "locked" || Boolean(design.seasonalArtworkId);
+  if (!approved) return false;
+
+  const requiredSides = Array.isArray(design.requiredSides) && design.requiredSides.length
+    ? design.requiredSides
+    : ["front"];
+
+  return requiredSides.every((side) => Boolean(design.productionFiles?.[side]?.downloadUrl));
+}
 
 export default function ProductionModule() {
   const [orders, setOrders] = useState([]);
@@ -222,7 +239,15 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
     setSavedStatus(order.status);
   }, [order.id, order.status, order.production_checklist]);
 
+  const customItems = (order.order_items || []).filter((item) => item.is_custom);
+  const customPrintFilesReady = customItems.length === 0 || customItems.every(productionItemReady);
+
   const toggleCheck = async (key, checked) => {
+    if (key === "printFileAttached" && checked && !customPrintFilesReady) {
+      requestNotification("Approved production print files are missing. Open the custom item and verify every required print side first.");
+      return;
+    }
+
     const next = { ...checklist, [key]: checked };
     setChecklist(next);
     setSavingCheck(key);
@@ -238,12 +263,12 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
     }
   };
 
-  const readyForProduction = PRODUCTION_CHECKS.every(([key]) => checklist[key]);
+  const readyForProduction = PRODUCTION_CHECKS.every(([key]) => checklist[key]) && customPrintFilesReady;
 
   const saveStatus = async () => {
     if (status === savedStatus) return true;
     if (status === "printing" && !readyForProduction) {
-      requestNotification("Complete every production check before moving this order to printing.");
+      requestNotification("Complete every production check and verify the approved production print files before moving this order to printing.");
       return false;
     }
     const ok = await onStatus(order, status);
@@ -305,7 +330,7 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
                   <input
                     type="checkbox"
                     checked={Boolean(checklist[key])}
-                    disabled={savingCheck === key}
+                    disabled={savingCheck === key || (key === "printFileAttached" && !checklist[key] && !customPrintFilesReady)}
                     onChange={(event) => toggleCheck(key, event.target.checked)}
                   />
                   <span className="flex-1">{label}</span>
@@ -313,6 +338,12 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
                 </label>
               ))}
             </div>
+            {customItems.length > 0 && !customPrintFilesReady && (
+              <div className="p-3 border-t border-red-200 bg-red-50 text-xs text-red-800 flex gap-2">
+                <AlertTriangle size={14} className="shrink-0" />
+                One or more custom items are missing an approved production print side. Printing stays blocked until the required file links are available.
+              </div>
+            )}
             {!readyForProduction && (
               <div className="p-3 border-t border-amber-200 bg-amber-50 text-xs text-amber-800 flex gap-2">
                 <AlertTriangle size={14} className="shrink-0" />
@@ -323,19 +354,70 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
 
           <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-[#eaeaea] text-sm font-semibold">Items</div>
-            <div className="p-4 space-y-2">
-              {(order.order_items || []).map((item) => (
-                <div key={item.id} className="rounded-lg border border-[#e5e5e5] p-3 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#f2f2f2] overflow-hidden grid place-items-center">
-                    {item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> : <Factory size={15} />}
+            <div className="p-4 space-y-3">
+              {(order.order_items || []).map((item) => {
+                const design = item.production_design;
+                const imageSrc = design?.mockupUrl || item.image;
+                const printFiles = Object.entries(design?.productionFiles || {}).filter(([, file]) => file?.downloadUrl);
+                const requiredSides = Array.isArray(design?.requiredSides) ? design.requiredSides : [];
+                const missingSides = requiredSides.filter((side) => !design?.productionFiles?.[side]?.downloadUrl);
+                const approved = design?.renderStatus === "locked" || Boolean(design?.seasonalArtworkId);
+
+                return (
+                  <div key={item.id} className="rounded-lg border border-[#e5e5e5] overflow-hidden bg-white">
+                    <div className="p-3 flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-lg bg-[#f2f2f2] overflow-hidden grid place-items-center shrink-0">
+                        {imageSrc ? <img src={imageSrc} alt="" className="w-full h-full object-contain" /> : <Factory size={15} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium">{item.name}</div>
+                        <div className="text-[11px] text-[#777]">{[item.color, item.size, item.variant].filter(Boolean).join(" · ") || "Default"}</div>
+                      </div>
+                      <div className="text-sm font-semibold">×{item.quantity}</div>
+                    </div>
+
+                    {item.is_custom && (
+                      <div data-gdp-production-files={item.id} className="border-t border-[#ececec] bg-[#fafafa] p-3">
+                        {approved && printFiles.length > 0 ? (
+                          <>
+                            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-semibold text-emerald-800">
+                              <LockKeyhole size={12} /> Approved production files
+                            </div>
+                            <div className="mt-1 text-[11px] text-[#666]">
+                              {design?.customerApprovedAt ? `Approved ${formatDate(design.customerApprovedAt)}` : "Approved artwork"}
+                              {design?.preflight?.status ? ` · preflight ${prettify(design.preflight.status)}` : ""}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {printFiles.map(([side, file]) => (
+                                <a
+                                  key={side}
+                                  data-gdp-production-file-side={side}
+                                  href={file.downloadUrl}
+                                  download
+                                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-800 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-900"
+                                >
+                                  <Download size={13} /> Print {prettify(side)} PNG
+                                  {file.dpi ? <span className="font-normal text-white/75">· {file.dpi} DPI</span> : null}
+                                </a>
+                              ))}
+                            </div>
+                            {missingSides.length > 0 && (
+                              <div className="mt-2 text-xs text-red-700">
+                                Missing required {missingSides.map(prettify).join(" + ")} print file.
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-xs text-red-700 flex gap-2">
+                            <AlertTriangle size={14} className="shrink-0" />
+                            Approved production file is not available for this custom item yet.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">{item.name}</div>
-                    <div className="text-[11px] text-[#777]">{[item.color, item.size, item.variant].filter(Boolean).join(" · ") || "Default"}</div>
-                  </div>
-                  <div className="text-sm font-semibold">×{item.quantity}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         </div>
