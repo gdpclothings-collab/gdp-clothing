@@ -1,3 +1,119 @@
+export const DEFAULT_GARMENT_SOURCING = {
+  strategy: "wholesale_primary_local_fallback",
+  primarySupplierName: "T-Shirt Ideal",
+  fallbackSupplierName: "Michaels",
+  useFallbackRetailAsBasePrice: false,
+  automaticPriceAdjustment: false,
+  localSourcingFee: 0,
+  garments: {
+    adultTshirt: {
+      label: "Gildan® Short Sleeve Adult T-Shirt",
+      productSlug: "gildan-short-sleeve-adult-custom",
+      wholesaleCost: null,
+      fallbackBrand: "Gildan",
+      fallbackItemNumber: "10532473",
+      fallbackRegularCost: 6.99,
+      fallbackCurrentCost: 4.99,
+      observedAt: "2026-10-01",
+      supportedSizes: ["S", "M", "L", "XL", "2XL", "3XL"],
+      supportedColors: ["Black", "White", "Sport Grey", "Navy", "Red", "Royal", "Safety Pink", "Gold", "Irish Green", "Purple", "Orange", "Sand", "Light Pink", "Light Blue"],
+      details: [
+        "Classic adult short-sleeve tee available in multiple colours and sizes.",
+        "Most solid colours are 100% cotton.",
+        "Sport Grey and selected heathers use cotton/polyester blends.",
+        "Selected safety colours and heathers use a 50/50 cotton/polyester blend.",
+        "Tear-away tag on the referenced Michaels Gildan blank.",
+      ],
+    },
+    longSleeve: {
+      label: "Gildan® Long Sleeve Crew Neck Adult T-Shirt",
+      productSlug: "gildan-long-sleeve-adult-custom",
+      wholesaleCost: null,
+      fallbackBrand: "Gildan",
+      fallbackItemNumber: "10643769",
+      fallbackRegularCost: 16.99,
+      fallbackCurrentCost: 16.99,
+      observedAt: "2026-10-01",
+      supportedSizes: ["S", "M", "L", "XL", "2XL"],
+      supportedColors: ["White", "Red", "Royal", "Black", "Sport Grey", "Irish Green"],
+      details: [
+        "Adult crew-neck tee with long sleeves and elastic cuffs.",
+        "Most solid colours are 100% cotton.",
+        "Sport Grey is a cotton/polyester blend.",
+      ],
+    },
+    toddlerTshirt: {
+      label: "Gildan® Short Sleeve Toddler T-Shirt",
+      productSlug: "gildan-short-sleeve-toddler-custom",
+      wholesaleCost: null,
+      fallbackBrand: "Gildan",
+      fallbackItemNumber: "10620900",
+      fallbackRegularCost: 6.99,
+      fallbackCurrentCost: 4.99,
+      observedAt: "2026-10-01",
+      supportedSizes: ["2T", "3T", "4T"],
+      supportedColors: ["White", "Red", "Royal", "Black", "Gold", "Sport Grey", "Light Pink"],
+      details: [
+        "Toddler short-sleeve tee available in multiple colours and sizes.",
+        "Most solid colours are 100% cotton.",
+        "Sport Grey uses a cotton/polyester blend.",
+      ],
+    },
+    youthTshirt: {
+      label: "Gildan® Short Sleeve Youth T-Shirt",
+      productSlug: "gildan-short-sleeve-youth-custom",
+      wholesaleCost: null,
+      fallbackBrand: "Gildan",
+      fallbackItemNumber: "10267611",
+      fallbackRegularCost: 6.99,
+      fallbackCurrentCost: 4.99,
+      observedAt: "2026-10-01",
+      supportedSizes: ["XS", "S", "M", "L", "XL"],
+      supportedColors: ["Black", "White", "Sport Grey", "Navy", "Red", "Royal", "Safety Pink", "Irish Green", "Purple", "Maroon", "Gold", "Light Blue", "Orange", "Sand", "Light Pink"],
+      details: [
+        "Youth short-sleeve tee with a classic fit and ribbed collar.",
+        "Most solid colours are 100% cotton.",
+        "Sport Grey and safety colours use cotton/polyester blends.",
+      ],
+    },
+    crewneck: {
+      label: "Gildan® Crewneck Adult Sweatshirt",
+      productSlug: "gildan-adult-crewneck-sweatshirt-custom",
+      wholesaleCost: null,
+      fallbackBrand: "Gildan",
+      fallbackItemNumber: "10619430",
+      fallbackRegularCost: 24.99,
+      fallbackCurrentCost: 24.99,
+      observedAt: "2026-10-01",
+      supportedSizes: ["S", "M", "L", "XL"],
+      supportedColors: ["Gray", "Red", "Royal", "Irish Green", "White", "Black"],
+      details: [
+        "Adult crewneck sweatshirt with a soft 50/50 cotton-polyester fleece blend.",
+        "Designed for a softer feel with reduced pilling.",
+        "Double-needle cuffs and reinforced stitching on the referenced blank.",
+      ],
+    },
+    hoodie: {
+      label: "Adult Pullover Hoodie",
+      productSlug: "gildan-adult-fleece-hoodie-custom",
+      wholesaleCost: null,
+      fallbackBrand: "Make Market",
+      fallbackItemNumber: "10728168",
+      fallbackRegularCost: 34.99,
+      fallbackCurrentCost: 34.99,
+      observedAt: "2026-10-01",
+      supportedSizes: ["S", "M", "L", "XL"],
+      supportedColors: ["Gray", "Royal", "Red", "Black", "White", "Light Blue", "Pink", "Cream"],
+      requiresSubstitutionApproval: true,
+      details: [
+        "Adult unisex pullover hoodie with drawstring hood.",
+        "The Michaels fallback is a 60/40 cotton-polyester fleece blank.",
+        "Because the fallback brand is Make Market rather than Gildan, substitution should be confirmed before fulfillment.",
+      ],
+    },
+  },
+};
+
 export const DEFAULT_APPAREL_PRICING = {
   enabled: true,
   currency: "CAD",
@@ -23,12 +139,56 @@ export const DEFAULT_APPAREL_PRICING = {
     { min: 10, max: 19, percent: 15 },
     { min: 20, max: 49, percent: 20 },
   ],
+  sourcing: DEFAULT_GARMENT_SOURCING,
 };
 
 const money = (value, fallback) => {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) / 100 : fallback;
 };
+
+const optionalMoney = (value, fallback = null) => {
+  if (value === "" || value === null || value === undefined) return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) / 100 : fallback;
+};
+
+const stringList = (value, fallback) => {
+  if (!Array.isArray(value)) return fallback;
+  return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean))];
+};
+
+export function normalizeGarmentSourcing(raw = {}) {
+  const incoming = raw || {};
+  const next = {
+    ...DEFAULT_GARMENT_SOURCING,
+    ...incoming,
+    strategy: "wholesale_primary_local_fallback",
+    primarySupplierName: String(incoming.primarySupplierName || DEFAULT_GARMENT_SOURCING.primarySupplierName),
+    fallbackSupplierName: String(incoming.fallbackSupplierName || DEFAULT_GARMENT_SOURCING.fallbackSupplierName),
+    useFallbackRetailAsBasePrice: false,
+    automaticPriceAdjustment: incoming.automaticPriceAdjustment === true,
+    localSourcingFee: money(incoming.localSourcingFee, 0),
+    garments: {},
+  };
+
+  for (const [key, fallback] of Object.entries(DEFAULT_GARMENT_SOURCING.garments)) {
+    const row = incoming?.garments?.[key] || {};
+    next.garments[key] = {
+      ...fallback,
+      ...row,
+      wholesaleCost: optionalMoney(row.wholesaleCost, fallback.wholesaleCost),
+      fallbackRegularCost: money(row.fallbackRegularCost, fallback.fallbackRegularCost),
+      fallbackCurrentCost: money(row.fallbackCurrentCost, fallback.fallbackCurrentCost),
+      supportedSizes: stringList(row.supportedSizes, fallback.supportedSizes),
+      supportedColors: stringList(row.supportedColors, fallback.supportedColors),
+      details: stringList(row.details, fallback.details),
+      requiresSubstitutionApproval: row.requiresSubstitutionApproval === true || fallback.requiresSubstitutionApproval === true,
+    };
+  }
+
+  return next;
+}
 
 export function normalizeApparelPricing(raw = {}) {
   const next = {
@@ -67,6 +227,7 @@ export function normalizeApparelPricing(raw = {}) {
   next.enabled = raw?.enabled !== false;
   next.allowCouponStacking = raw?.allowCouponStacking !== false;
   next.currency = "CAD";
+  next.sourcing = normalizeGarmentSourcing(raw?.sourcing || {});
   return next;
 }
 
