@@ -30,22 +30,15 @@ async function main() {
     status = response.status;
     payload = await response.json().catch(() => null);
 
-    assert(response.ok, `Payment preflight returned HTTP ${response.status}.`);
-    assert(payload?.ready === true, "Payment preflight did not report ready=true.");
-    assert(["live", "test"].includes(payload?.paymentMode), "Payment preflight returned an invalid payment mode.");
-    assert(payload?.stripe?.secretModeAligned === true, "Stripe secret key does not match configured payment mode.");
-    assert(payload?.stripe?.publishableModeAligned === true, "Stripe publishable key does not match configured payment mode.");
-    assert(payload?.stripe?.connected === true, "Stripe API connectivity check failed.");
-    assert(payload?.stripe?.chargesEnabled === true, "Stripe charge readiness check failed.");
-    assert(payload?.checkout?.gatewayReachable === true, "Checkout gateway is not reachable.");
-    assert(payload?.checkout?.coreReachable === true, "Checkout core function is not reachable.");
-    assert(payload?.webhook?.configured === true, "Stripe webhook secret is not configured for the active payment mode.");
-    assert(payload?.webhook?.endpointReachable === true, "Stripe webhook endpoint is not reachable.");
-    assert(payload?.safety?.databaseWrites === false, "Preflight unexpectedly reported database writes.");
-    assert(payload?.safety?.orderCreated === false, "Preflight unexpectedly reported an order creation.");
-    assert(payload?.safety?.stripeSessionCreated === false, "Preflight unexpectedly reported a Stripe Session creation.");
-    assert(payload?.safety?.paymentIntentCreated === false, "Preflight unexpectedly reported a PaymentIntent creation.");
-    assert(payload?.safety?.chargeAttempted === false, "Preflight unexpectedly reported a charge attempt.");
+    assert(response.ok, `Payment readiness check returned HTTP ${response.status}.`);
+    assert(payload?.ready === true, "Payment readiness did not report ready=true.");
+    assert(Boolean(payload?.checkedAt), "Payment readiness did not return a checkedAt timestamp.");
+
+    // Anonymous production checks intentionally receive only a coarse readiness signal.
+    // Detailed Stripe/checkout/webhook diagnostics are reserved for authenticated admins.
+    for (const privateField of ["paymentMode", "stripe", "checkout", "webhook", "safety"]) {
+      assert(!(privateField in (payload || {})), `Public payment readiness exposed ${privateField}.`);
+    }
 
     const report = {
       status: "passed",
@@ -57,22 +50,17 @@ async function main() {
     await fs.writeFile(
       path.join(ARTIFACT_DIR, "payment-preflight-summary.md"),
       [
-        "# GDP Clothing Payment Preflight",
+        "# GDP Clothing Payment Readiness",
         "",
-        `Status: PASS`,
-        `Payment mode: ${payload.paymentMode.toUpperCase()}`,
-        `Stripe connected: YES`,
-        `Charges enabled: YES`,
-        `Checkout gateway: REACHABLE`,
-        `Checkout core: REACHABLE`,
-        `Webhook configured: YES`,
-        `Webhook endpoint: REACHABLE`,
+        "Status: PASS",
+        "Payment readiness: READY",
+        "Public diagnostics: SANITIZED",
         "",
-        "Safety: no order, Stripe Checkout Session, PaymentIntent, or charge was created.",
+        "Detailed Stripe, checkout, webhook, and payment-mode diagnostics remain admin-only.",
       ].join("\n"),
     );
 
-    console.log(`PASS payment preflight (${payload.paymentMode.toUpperCase()} mode)`);
+    console.log("PASS sanitized public payment readiness");
   } catch (error) {
     const report = {
       status: "failed",
@@ -82,7 +70,7 @@ async function main() {
       payload,
     };
     await fs.writeFile(path.join(ARTIFACT_DIR, "payment-preflight.json"), JSON.stringify(report, null, 2));
-    console.error(`FAIL payment preflight: ${report.error}`);
+    console.error(`FAIL payment readiness: ${report.error}`);
     process.exitCode = 1;
   }
 }
