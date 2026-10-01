@@ -33,7 +33,7 @@ const mapSettings = (row) =>
 export const adminSettingsApi = {
   async load() {
     const [settingsResult, profilesResult] = await Promise.all([
-      supabase.from("store_settings").select("*").eq("id", 1).maybeSingle(),
+      supabase.rpc("get_admin_store_settings"),
       supabase.from("profiles").select("id, display_name, role, phone, created_at").order("created_at", { ascending: true }),
     ]);
 
