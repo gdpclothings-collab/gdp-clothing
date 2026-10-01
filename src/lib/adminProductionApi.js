@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { adminApi } from "@/lib/adminApi";
+import { SEASONAL_BUCKET } from "@/lib/seasonalArtwork";
 
 export const PRODUCTION_STATUSES = [
   "production_queue",
@@ -55,6 +56,18 @@ async function mapProductionDesign(row) {
     })
   );
 
+  const seasonalConfiguration = row.seasonal_configuration || {};
+  if (!productionFiles.front && seasonalConfiguration.production_path) {
+    productionFiles.front = {
+      path: seasonalConfiguration.production_path,
+      width_in: Number(seasonalConfiguration.width || 0) || null,
+      height_in: Number(seasonalConfiguration.height || 0) || null,
+      mime_type: "image/png",
+      seasonal: true,
+      downloadUrl: await signedStorageUrl(SEASONAL_BUCKET, seasonalConfiguration.production_path),
+    };
+  }
+
   const mockupPath = row.customer_mockup_path || row.preview_url || "";
   return {
     id: row.id,
@@ -63,6 +76,7 @@ async function mapProductionDesign(row) {
     lockedHash: row.locked_hash || "",
     customerApprovedAt: row.customer_approved_at || null,
     preflight: row.preflight || {},
+    seasonalArtworkId: row.seasonal_artwork_id || null,
     productionFiles,
     requiredSides: requiredProductionSides(row.placement),
     mockupUrl: await signedStorageUrl("customer-uploads", mockupPath),
@@ -98,7 +112,7 @@ export const adminProductionApi = {
     const { data: designRows, error: designError } = await supabase
       .from("custom_designs")
       .select(
-        "id, placement, preview_url, customer_mockup_path, render_status, locked_hash, customer_approved_at, preflight, production_files"
+        "id, placement, preview_url, customer_mockup_path, render_status, locked_hash, customer_approved_at, preflight, production_files, seasonal_artwork_id, seasonal_configuration"
       )
       .in("id", customDesignIds);
 
