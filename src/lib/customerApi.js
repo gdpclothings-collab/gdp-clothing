@@ -451,12 +451,13 @@ export const customerApi = {
     return data;
   },
 
-  async getCheckoutConfig({ amount, province, shippingMethod, freeShipping = false }) {
+  async getCheckoutConfig({ amount, province, postalCode = "", shippingMethod, freeShipping = false }) {
     const { data, error } = await supabase.functions.invoke("checkout", {
       body: {
         action: "checkoutConfig",
         amount,
         province,
+        postalCode,
         shippingMethod,
         freeShipping,
       },
