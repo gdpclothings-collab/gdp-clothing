@@ -33,7 +33,6 @@ const Cart = lazy(() => import('@/pages/CartV2'));
 const Checkout = lazy(() => import('@/pages/CheckoutTwoStep'));
 const OrderConfirmation = lazy(() => import('@/pages/OrderConfirmation'));
 const Account = lazy(() => import('@/pages/AccountRefined'));
-const Admin = lazy(() => loadAdminPage(() => import('@/pages/Admin')));
 const AdminV3 = lazy(() => loadAdminPage(() => import('@/pages/AdminV3')));
 const AdminMediaOptimizer = lazy(() => import('@/pages/AdminMediaOptimizer'));
 const TemplateManager = lazy(() => import('@/pages/TemplateManager'));
@@ -114,7 +113,7 @@ const AuthenticatedApp = () => {
 
           <Route element={<ProtectedRoute requiredRole="admin" unauthenticatedElement={<Navigate to="/login" replace />} forbiddenElement={<Navigate to="/" replace />} />}>
             <Route element={<AdminMfaGate />}>
-              <Route path="/admin/legacy" element={<Admin />} />
+              <Route path="/admin/legacy" element={<Navigate to="/admin" replace />} />
               <Route path="/admin/custom-studio/templates" element={<TemplateManager />} />
               <Route path="/admin/media-optimizer" element={<AdminMediaOptimizer />} />
               <Route path="/admin/*" element={<AdminV3 />} />
