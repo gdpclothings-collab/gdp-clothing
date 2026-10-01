@@ -45,13 +45,21 @@ const statusMeta = {
   completed: { label: "Completed", icon: CheckCircle2 },
 };
 
+function systemManagedProductionDesign(design) {
+  return Boolean(
+    design &&
+      (design.renderStatus === "locked" || Boolean(design.seasonalArtworkId))
+  );
+}
+
 function productionItemReady(item) {
   if (!item?.is_custom) return true;
   const design = item.production_design;
-  if (!design) return false;
 
-  const approved = design.renderStatus === "locked" || Boolean(design.seasonalArtworkId);
-  if (!approved) return false;
+  // Legacy/manual proof orders keep their existing manual checklist workflow.
+  // The automatic file gate only applies when GDP owns a canonical locked or
+  // seasonal production file that can be verified deterministically here.
+  if (!systemManagedProductionDesign(design)) return true;
 
   const requiredSides = Array.isArray(design.requiredSides) && design.requiredSides.length
     ? design.requiredSides
@@ -240,7 +248,10 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
   }, [order.id, order.status, order.production_checklist]);
 
   const customItems = (order.order_items || []).filter((item) => item.is_custom);
-  const customPrintFilesReady = customItems.length === 0 || customItems.every(productionItemReady);
+  const managedCustomItems = customItems.filter((item) =>
+    systemManagedProductionDesign(item.production_design)
+  );
+  const customPrintFilesReady = managedCustomItems.every(productionItemReady);
 
   const toggleCheck = async (key, checked) => {
     if (key === "printFileAttached" && checked && !customPrintFilesReady) {
@@ -338,10 +349,10 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
                 </label>
               ))}
             </div>
-            {customItems.length > 0 && !customPrintFilesReady && (
+            {managedCustomItems.length > 0 && !customPrintFilesReady && (
               <div className="p-3 border-t border-red-200 bg-red-50 text-xs text-red-800 flex gap-2">
                 <AlertTriangle size={14} className="shrink-0" />
-                One or more custom items are missing an approved production print side. Printing stays blocked until the required file links are available.
+                One or more system-managed custom items are missing an approved production print side. Printing stays blocked until the required file links are available.
               </div>
             )}
             {!readyForProduction && (
@@ -361,7 +372,7 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
                 const printFiles = Object.entries(design?.productionFiles || {}).filter(([, file]) => file?.downloadUrl);
                 const requiredSides = Array.isArray(design?.requiredSides) ? design.requiredSides : [];
                 const missingSides = requiredSides.filter((side) => !design?.productionFiles?.[side]?.downloadUrl);
-                const approved = design?.renderStatus === "locked" || Boolean(design?.seasonalArtworkId);
+                const managed = systemManagedProductionDesign(design);
 
                 return (
                   <div key={item.id} className="rounded-lg border border-[#e5e5e5] overflow-hidden bg-white">
@@ -378,7 +389,7 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
 
                     {item.is_custom && (
                       <div data-gdp-production-files={item.id} className="border-t border-[#ececec] bg-[#fafafa] p-3">
-                        {approved && printFiles.length > 0 ? (
+                        {managed && printFiles.length > 0 ? (
                           <>
                             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-semibold text-emerald-800">
                               <LockKeyhole size={12} /> Approved production files
@@ -407,10 +418,14 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
                               </div>
                             )}
                           </>
-                        ) : (
+                        ) : managed ? (
                           <div className="text-xs text-red-700 flex gap-2">
                             <AlertTriangle size={14} className="shrink-0" />
                             Approved production file is not available for this custom item yet.
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[#666]">
+                            Manual proof workflow · verify the approved attachment before confirming the production print-file checklist.
                           </div>
                         )}
                       </div>
