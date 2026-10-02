@@ -164,21 +164,29 @@ export function readEmbeddedArtworkDensity(arrayBuffer, mimeType = '') {
 async function imageDimensionsAndContentBounds(file) {
   let image = null;
   let objectUrl = '';
+  let pixelWidth = 1;
+  let pixelHeight = 1;
+  let closeImage = () => {};
   try {
     if (typeof createImageBitmap === 'function') {
-      image = await createImageBitmap(file);
+      const bitmap = await createImageBitmap(file);
+      image = bitmap;
+      pixelWidth = Math.max(1, Number(bitmap.width || 1));
+      pixelHeight = Math.max(1, Number(bitmap.height || 1));
+      closeImage = () => bitmap.close();
     } else {
       objectUrl = URL.createObjectURL(file);
-      image = new Image();
-      image.decoding = 'async';
-      image.src = objectUrl;
+      const htmlImage = new Image();
+      htmlImage.decoding = 'async';
+      htmlImage.src = objectUrl;
       await new Promise((resolve, reject) => {
-        image.addEventListener('load', resolve, { once: true });
-        image.addEventListener('error', () => reject(new Error('Artwork image could not be read.')), { once: true });
+        htmlImage.addEventListener('load', resolve, { once: true });
+        htmlImage.addEventListener('error', () => reject(new Error('Artwork image could not be read.')), { once: true });
       });
+      image = htmlImage;
+      pixelWidth = Math.max(1, Number(htmlImage.naturalWidth || 1));
+      pixelHeight = Math.max(1, Number(htmlImage.naturalHeight || 1));
     }
-    const pixelWidth = Math.max(1, Number(image.width || image.naturalWidth || 1));
-    const pixelHeight = Math.max(1, Number(image.height || image.naturalHeight || 1));
     const maxSample = 1024;
     const sampleScale = Math.min(1, maxSample / Math.max(pixelWidth, pixelHeight));
     const sampleWidth = Math.max(1, Math.round(pixelWidth * sampleScale));
@@ -214,7 +222,7 @@ async function imageDimensionsAndContentBounds(file) {
         };
     return { pixelWidth, pixelHeight, contentBounds };
   } finally {
-    image?.close?.();
+    closeImage();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
@@ -224,9 +232,9 @@ export async function analyzeStudioV2ArtworkFile(file) {
     imageDimensionsAndContentBounds(file),
     file.arrayBuffer(),
   ]);
-  const density = readEmbeddedArtworkDensity(buffer, file.type) || {};
-  const dpiX = normalizeDpi(density.dpiX);
-  const dpiY = normalizeDpi(density.dpiY);
+  const density = readEmbeddedArtworkDensity(buffer, file.type);
+  const dpiX = normalizeDpi(density?.dpiX);
+  const dpiY = normalizeDpi(density?.dpiY);
   const hasPhysicalSize = Boolean(dpiX && dpiY);
   return {
     pixelWidth,
@@ -236,7 +244,7 @@ export async function analyzeStudioV2ArtworkFile(file) {
     sourceDpi: dpiX && dpiY ? round(Math.min(dpiX, dpiY), 1) : 0,
     sourceWidthIn: hasPhysicalSize ? round(pixelWidth / dpiX, 4) : 0,
     sourceHeightIn: hasPhysicalSize ? round(pixelHeight / dpiY, 4) : 0,
-    physicalSizeSource: hasPhysicalSize ? density.source : 'not-embedded',
+    physicalSizeSource: hasPhysicalSize ? (density?.source || 'embedded') : 'not-embedded',
     contentBounds,
   };
 }
