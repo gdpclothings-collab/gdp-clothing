@@ -5,7 +5,8 @@ import path from "node:path";
 // Production wiring canary.
 // Safety boundary: product/cart interactions are browser-local only. Any write-like
 // request to checkout/orders/inventory/payment endpoints is blocked before it leaves
-// the browser. The script validates checkout Step 1 and never starts payment or submits an order.
+// the browser. The script validates checkout Steps 1 and 2 without accepting policies,
+// creating an order, mounting a PaymentElement, confirming payment, or submitting a charge.
 
 const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
 const ARTIFACT_DIR = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
@@ -131,7 +132,7 @@ async function main() {
     const url = request.url();
     const writeMethod = !["GET", "HEAD", "OPTIONS"].includes(method);
     const protectedTarget =
-      /\/functions\/v1\/checkout(?:\?|$|\/)/i.test(url) ||
+      /\/functions\/v1\/checkout(?:-gateway)?(?:\?|$|\/)/i.test(url) ||
       /\/rest\/v1\/(orders|order_items|inventory|inventory_reservations|payments)(?:\?|$|\/)/i.test(url);
 
     if (writeMethod && protectedTarget) {
@@ -269,6 +270,55 @@ async function main() {
       return { submittedOrder: false, startedPayment: false, step: 1 };
     });
 
+    await record("checkout reaches guarded Payment Step 2 without creating an order", async () => {
+      assert(new URL(page.url()).pathname === "/checkout", "Payment-shell check did not start from checkout Step 1.");
+      await page.locator("#checkout-email").fill("gdp-production-smoke@example.com");
+      await page.locator("#checkout-first-name").fill("GDP");
+      await page.locator("#checkout-last-name").fill("Smoke");
+      await page.locator("#checkout-address").fill("123 Test Avenue");
+      await page.locator("#checkout-city").fill("Saskatoon");
+      await page.locator("#checkout-postal-code").fill("S7K 0J5");
+
+      const continueButton = page.getByRole("button", { name: /Continue to payment/i }).first();
+      await continueButton.waitFor({ state: "visible" });
+      assert(await continueButton.isEnabled(), "Continue to payment did not enable after completing required checkout fields.");
+      await continueButton.click();
+      await page.waitForURL((url) => url.pathname === "/checkout/payment", { timeout: 15000 });
+
+      assert((await page.getByText(/Step 2 of 2 · Payment & review/i).count()) > 0, "Checkout did not reach Payment Step 2.");
+      assert((await page.getByText(/Stripe Secure Payment/i).count()) > 0, "Stripe Secure Payment panel is missing from Payment Step 2.");
+      assert((await page.getByText(/Accept the policies above to load secure payment/i).count()) > 0, "Pre-payment policy lock is missing.");
+
+      const terms = page.locator('label:has-text("I agree to the") input[type="checkbox"]').first();
+      await terms.waitFor({ state: "visible" });
+      assert(!(await terms.isChecked()), "Terms checkbox must start unchecked on Payment Step 2.");
+
+      const payButton = page.getByRole("button", { name: /^Pay · \$/i }).first();
+      await payButton.waitFor({ state: "visible" });
+      assert(await payButton.isDisabled(), "Pay button must remain disabled before policies are accepted and payment fields are ready.");
+
+      const stripeScript = await page.addScriptTag({ url: "https://js.stripe.com/v3/" });
+      assert(await page.evaluate(() => typeof window.Stripe === "function"), "Stripe.js loaded but did not expose the Stripe browser API.");
+      await stripeScript.evaluate((node) => node.remove());
+
+      await page.waitForTimeout(400);
+      assert(new URL(page.url()).pathname === "/checkout/payment", "Checkout unexpectedly left Payment Step 2 during the safe browser probe.");
+      await page.screenshot({ path: path.join(ARTIFACT_DIR, "wiring-checkout-payment-locked.png"), fullPage: true });
+
+      const gatewayBlocks = report.blockedMutations.filter((entry) => /\/functions\/v1\/checkout-gateway(?:\?|$|\/)/i.test(entry.url));
+      assert(gatewayBlocks.length > 0, "Payment Step 2 did not exercise the checkout-gateway mutation block as expected.");
+
+      return {
+        step: 2,
+        stripeJsBrowserLoaded: true,
+        termsAccepted: false,
+        payEnabled: false,
+        submittedOrder: false,
+        mountedPaymentElement: false,
+        checkoutGatewayWritesBlocked: gatewayBlocks.length,
+      };
+    });
+
     assert(pageErrors.length === 0, `Uncaught browser errors: ${pageErrors.join(" | ")}`);
     assert(serverFailures.length === 0, `Production returned server errors: ${serverFailures.join(" | ")}`);
 
@@ -303,7 +353,7 @@ async function main() {
     ...report.warnings.map((warning) => `- ${warning}`),
     "",
     `Blocked write attempts: ${report.blockedMutations.length}`,
-    "Safety boundary: this canary never starts payment, confirms payment, or submits an order; write-like checkout/order/inventory/payment requests are blocked.",
+    "Safety boundary: this canary never accepts payment policies, creates an order, mounts/confirms a PaymentElement, or submits a charge; write-like checkout/order/inventory/payment requests are blocked.",
   ];
 
   await fs.writeFile(path.join(ARTIFACT_DIR, "wiring-summary.md"), lines.join("\n"));
