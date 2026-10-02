@@ -1,5 +1,6 @@
 const LEGACY_BOX_RATIO = 0.72;
 const SAFE_TOLERANCE_IN = 0.03;
+const TRUSTED_PHYSICAL_DPI_MIN = 150;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -258,13 +259,21 @@ function normalizedContentBounds(artwork) {
   return { left, top, right, bottom };
 }
 
-function legacyBaseSize(artwork, profile) {
+function containedBaseSize(artwork, profile, ratio = 1) {
   const pixelWidth = finitePositive(artwork?.pixelWidth) || 1;
   const pixelHeight = finitePositive(artwork?.pixelHeight) || 1;
-  const boxWidth = finitePositive(profile?.widthIn) * LEGACY_BOX_RATIO;
-  const boxHeight = finitePositive(profile?.heightIn) * LEGACY_BOX_RATIO;
+  const boxWidth = finitePositive(profile?.widthIn) * ratio;
+  const boxHeight = finitePositive(profile?.heightIn) * ratio;
   const containScale = Math.min(boxWidth / pixelWidth, boxHeight / pixelHeight);
   return { widthIn: pixelWidth * containScale, heightIn: pixelHeight * containScale };
+}
+
+function legacyBaseSize(artwork, profile) {
+  return containedBaseSize(artwork, profile, LEGACY_BOX_RATIO);
+}
+
+function lowConfidenceDpiBaseSize(artwork, profile) {
+  return containedBaseSize(artwork, profile, 1);
 }
 
 export function resolveUploadArtworkPlacement(artwork, profile, transform = {}) {
@@ -272,9 +281,15 @@ export function resolveUploadArtworkPlacement(artwork, profile, transform = {}) 
   const profileHeight = Math.max(0.01, finitePositive(profile?.heightIn));
   const physicalWidth = finitePositive(artwork?.sourceWidthIn);
   const physicalHeight = finitePositive(artwork?.sourceHeightIn);
-  const base = physicalWidth && physicalHeight
+  const sourceDpi = finitePositive(artwork?.sourceDpi);
+  const embeddedPhysicalSize = Boolean(physicalWidth && physicalHeight);
+  const lowConfidenceEmbeddedDpi = Boolean(sourceDpi && sourceDpi < TRUSTED_PHYSICAL_DPI_MIN);
+  const trustedPhysicalSize = embeddedPhysicalSize && !lowConfidenceEmbeddedDpi;
+  const base = trustedPhysicalSize
     ? { widthIn: physicalWidth, heightIn: physicalHeight, source: 'embedded-physical-size' }
-    : { ...legacyBaseSize(artwork, profile), source: 'legacy-fit' };
+    : lowConfidenceEmbeddedDpi
+      ? { ...lowConfidenceDpiBaseSize(artwork, profile), source: 'low-confidence-dpi-fit' }
+      : { ...legacyBaseSize(artwork, profile), source: 'legacy-fit' };
   const scale = clamp(transform?.scale ?? 100, 30, 180) / 100;
   const widthIn = base.widthIn * scale;
   const heightIn = base.heightIn * scale;

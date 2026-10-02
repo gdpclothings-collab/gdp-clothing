@@ -30,6 +30,7 @@ const paddedTwelveInchArtwork = {
 
 const original = resolveUploadArtworkPlacement(paddedTwelveInchArtwork, profile, { scale: 100, x: 0, y: 0, rotation: 0 });
 assert(near(original.widthIn, 12) && near(original.heightIn, 12), '12 × 12 in artwork must remain 12 × 12 in at 100%');
+assert(original.sizeSource === 'embedded-physical-size', '300-DPI physical sizing must remain authoritative');
 assert(near(original.effectiveDpi, 300), '12 in / 3600 px artwork must report 300 effective DPI');
 assert(original.outsideRecommendedArea === false, 'transparent padding must not create a false outside-area warning');
 
@@ -40,6 +41,31 @@ assert(near(fullCanvas.overflow.left, 0.375) && near(fullCanvas.overflow.right, 
 const enlarged = resolveUploadArtworkPlacement(paddedTwelveInchArtwork, profile, { scale: 125, x: 0, y: 0, rotation: 0 });
 assert(near(enlarged.widthIn, 15) && near(enlarged.effectiveDpi, 240), 'effective DPI must update as customer resizing changes print size');
 assert(studioV2ArtworkQuality(enlarged.effectiveDpi).label === 'Acceptable', '200–299 DPI must be classified as acceptable');
+
+const mobile72DpiArtwork = {
+  pixelWidth: 1254,
+  pixelHeight: 1254,
+  sourceDpi: 72,
+  sourceDpiX: 72,
+  sourceDpiY: 72,
+  sourceWidthIn: 17.4167,
+  sourceHeightIn: 17.4167,
+  contentBounds: { left: 0, top: 0, right: 1, bottom: 1 },
+};
+const mobileFit = resolveUploadArtworkPlacement(mobile72DpiArtwork, profile, { scale: 100, x: 0, y: 0, rotation: 0 });
+assert(mobileFit.sizeSource === 'low-confidence-dpi-fit', '72-DPI mobile metadata must not control physical print size');
+assert(near(mobileFit.widthIn, 11.25) && near(mobileFit.heightIn, 11.25), 'square 72-DPI mobile artwork must auto-fit proportionally to the garment print area');
+assert(near(mobileFit.effectiveDpi, 111.5, 0.1), 'effective DPI must be calculated from the fitted print size');
+assert(mobileFit.outsideRecommendedArea === false, 'auto-fitted low-DPI mobile artwork must not start outside the print area');
+
+const mobile96DpiArtwork = { ...mobile72DpiArtwork, sourceDpi: 96, sourceDpiX: 96, sourceDpiY: 96, sourceWidthIn: 13.0625, sourceHeightIn: 13.0625 };
+const mobile96Fit = resolveUploadArtworkPlacement(mobile96DpiArtwork, profile, { scale: 100, x: 0, y: 0, rotation: 0 });
+assert(mobile96Fit.sizeSource === 'low-confidence-dpi-fit', '96-DPI screen metadata must use safe proportional auto-fit');
+assert(near(mobile96Fit.widthIn, 11.25) && near(mobile96Fit.heightIn, 11.25), '96-DPI screen artwork must keep its aspect ratio while fitting');
+
+const minimumTrustedArtwork = { ...paddedTwelveInchArtwork, sourceDpi: 150, sourceDpiX: 150, sourceDpiY: 150, sourceWidthIn: 10, sourceHeightIn: 10 };
+const minimumTrusted = resolveUploadArtworkPlacement(minimumTrustedArtwork, profile, { scale: 100, x: 0, y: 0, rotation: 0 });
+assert(minimumTrusted.sizeSource === 'embedded-physical-size' && near(minimumTrusted.widthIn, 10), '150-DPI physical metadata must remain trusted');
 
 const legacy = resolveUploadArtworkPlacement({ pixelWidth: 3600, pixelHeight: 3600 }, profile, { scale: 100, x: 0, y: 0, rotation: 0 });
 assert(near(legacy.widthIn, 8.1), 'artwork without embedded DPI must preserve the previous 72% contain behavior');
