@@ -62,7 +62,12 @@ for (const token of [
   'Effective DPI',
   'Transparent padding is ignored',
   'Reset to original size & position',
+  'setLegacyArtworkDimensions',
+  'artworkForPlacement',
 ]) assert(editor.includes(token), `upload editor contract is missing: ${token}`);
+
+assert(!editor.includes('onPatch({ artwork: { ...editor.artwork, pixelWidth, pixelHeight } })'), 'legacy dimension hydration must not invalidate an already confirmed restored design');
+assert(editor.includes('setLegacyArtworkDimensions({ url: editor.artwork.url, pixelWidth, pixelHeight })'), 'legacy dimensions must stay local to the preview instead of mutating the approved draft');
 
 assert(production.includes("import { resolveUploadArtworkPlacement } from '@/lib/customStudioV2ArtworkMetrics';"), 'production renderer must share the exact placement math');
 assert(production.includes('const placement = resolveUploadArtworkPlacement({'), 'upload production rendering must use shared physical placement');
