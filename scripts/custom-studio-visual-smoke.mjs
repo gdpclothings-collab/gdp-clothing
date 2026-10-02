@@ -6,12 +6,14 @@ const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").r
 const ARTIFACT_DIR = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
 const CART_KEY = "gdp_cart_v2__guest";
 const KNOWN_GARMENT_ID = "85e638f0-7fd0-4b0f-b661-c6e7b4965bf3";
-const SAFE_ARTWORK_IN = 8;
-const SAFE_ARTWORK_PX = 2400;
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 1000 },
   { name: "tablet", width: 834, height: 1112 },
   { name: "mobile", width: 390, height: 844 },
+];
+const SCENARIOS = [
+  { name: "inside", artworkIn: 8, artworkPx: 2400, expectedOverflow: "inside", expectWarning: false },
+  { name: "outside", artworkIn: 10, artworkPx: 3000, expectedOverflow: "outside", expectWarning: true },
 ];
 
 const report = {
@@ -19,14 +21,14 @@ const report = {
   baseUrl: BASE_URL,
   generatedAt: new Date().toISOString(),
   status: "running",
-  viewports: [],
+  scenarios: [],
 };
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function visualUploadDraftState() {
+function visualUploadDraftState(scenario) {
   const protectedSide = () => ({
     templateId: "",
     photo: null,
@@ -70,15 +72,15 @@ function visualUploadDraftState() {
           artwork: {
             url: artworkUrl,
             path: artworkUrl,
-            name: "gdp-responsive-visual-smoke.webp",
+            name: `gdp-responsive-visual-${scenario.name}.webp`,
             type: "image/webp",
-            pixelWidth: SAFE_ARTWORK_PX,
-            pixelHeight: SAFE_ARTWORK_PX,
+            pixelWidth: scenario.artworkPx,
+            pixelHeight: scenario.artworkPx,
             sourceDpi: 300,
             sourceDpiX: 300,
             sourceDpiY: 300,
-            sourceWidthIn: SAFE_ARTWORK_IN,
-            sourceHeightIn: SAFE_ARTWORK_IN,
+            sourceWidthIn: scenario.artworkIn,
+            sourceHeightIn: scenario.artworkIn,
             physicalSizeSource: "embedded",
             contentBounds: { left: 0, top: 0, right: 1, bottom: 1 },
           },
@@ -118,15 +120,15 @@ async function assertNoHorizontalOverflow(page, label) {
   return metrics;
 }
 
-async function inspectViewport(browser, viewport) {
+async function inspectScenario(browser, viewport, scenario) {
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     locale: "en-CA",
     timezoneId: "America/Regina",
     colorScheme: "light",
   });
-  const cartItemKey = `custom_v2_visual_smoke_${viewport.name}`;
-  const draft = { version: 1, state: visualUploadDraftState() };
+  const cartItemKey = `custom_v2_visual_smoke_${viewport.name}_${scenario.name}`;
+  const draft = { version: 1, state: visualUploadDraftState(scenario) };
 
   await context.addInitScript(({ storageKey, cartKey, cartItem }) => {
     localStorage.setItem(storageKey, JSON.stringify([{ ...cartItem, key: cartKey }]));
@@ -154,11 +156,11 @@ async function inspectViewport(browser, viewport) {
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await fs.mkdir(ARTIFACT_DIR, { recursive: true });
-  const screenshotPath = path.join(ARTIFACT_DIR, `custom-studio-visual-${viewport.name}.png`);
+  const screenshotPath = path.join(ARTIFACT_DIR, `custom-studio-visual-${viewport.name}-${scenario.name}.png`);
 
   try {
     const cartResponse = await page.goto(`${BASE_URL}/cart`, { waitUntil: "domcontentloaded", timeout: 30000 });
-    assert(cartResponse && cartResponse.status() < 400, `Cart failed to load on ${viewport.name}.`);
+    assert(cartResponse && cartResponse.status() < 400, `Cart failed to load on ${viewport.name}/${scenario.name}.`);
 
     const edit = page.getByRole("button", { name: /^Edit design$/i }).first();
     await edit.waitFor({ state: "visible", timeout: 15000 });
@@ -169,12 +171,13 @@ async function inspectViewport(browser, viewport) {
     const printGuide = page.locator('[data-gdp-print-guide="true"]').first();
     const artworkLayer = page.locator('[data-gdp-upload-artwork-layer="true"]').first();
     const metricsPanel = page.locator('[data-gdp-artwork-metrics="true"]').first();
+    const warning = page.locator('[role="status"]').filter({ hasText: /extends outside the front print area/i }).first();
 
     await guard.waitFor({ state: "visible", timeout: 20000 });
     await printGuide.waitFor({ state: "visible", timeout: 15000 });
     await artworkLayer.waitFor({ state: "visible", timeout: 15000 });
     await metricsPanel.waitFor({ state: "visible", timeout: 15000 });
-    await waitForImage(artworkLayer.locator('img[alt="Uploaded artwork preview"]'), `${viewport.name} visual artwork`);
+    await waitForImage(artworkLayer.locator('img[alt="Uploaded artwork preview"]'), `${viewport.name}/${scenario.name} visual artwork`);
 
     const geometry = await page.evaluate(() => {
       const rect = (selector) => {
@@ -200,38 +203,55 @@ async function inspectViewport(browser, viewport) {
       };
     });
 
-    assert(geometry.guard && geometry.guard.width > 0, `${viewport.name} Studio guard has invalid geometry.`);
-    assert(geometry.guide && geometry.guide.width > 0 && geometry.guide.height > 0, `${viewport.name} print guide has invalid geometry.`);
-    assert(geometry.artwork && geometry.artwork.width > 0 && geometry.artwork.height > 0, `${viewport.name} artwork layer has invalid geometry.`);
-    assert(geometry.guide.left >= -3 && geometry.guide.right <= viewport.width + 3, `${viewport.name} print guide escapes the viewport horizontally.`);
-    assert(geometry.artwork.left >= geometry.guide.left - 3 && geometry.artwork.right <= geometry.guide.right + 3, `${viewport.name} safe 8 × 8 in artwork escapes the print guide horizontally.`);
-    assert(geometry.artwork.top >= geometry.guide.top - 3 && geometry.artwork.bottom <= geometry.guide.bottom + 3, `${viewport.name} safe 8 × 8 in artwork escapes the print guide vertically.`);
-    assert(geometry.guideOverflow === "visible", `${viewport.name} print guide no longer exposes real artwork overhang (overflow=${geometry.guideOverflow}).`);
-    assert(geometry.overflowState === "inside", `${viewport.name} safe artwork unexpectedly reports overflow state ${geometry.overflowState}.`);
+    assert(geometry.guard && geometry.guard.width > 0, `${viewport.name}/${scenario.name} Studio guard has invalid geometry.`);
+    assert(geometry.guide && geometry.guide.width > 0 && geometry.guide.height > 0, `${viewport.name}/${scenario.name} print guide has invalid geometry.`);
+    assert(geometry.artwork && geometry.artwork.width > 0 && geometry.artwork.height > 0, `${viewport.name}/${scenario.name} artwork layer has invalid geometry.`);
+    assert(geometry.guide.left >= -3 && geometry.guide.right <= viewport.width + 3, `${viewport.name}/${scenario.name} print guide escapes the viewport horizontally.`);
+    assert(geometry.guideOverflow === "visible", `${viewport.name}/${scenario.name} print guide no longer exposes real artwork overhang (overflow=${geometry.guideOverflow}).`);
+    assert(geometry.overflowState === scenario.expectedOverflow, `${viewport.name}/${scenario.name} expected overflow state ${scenario.expectedOverflow}, received ${geometry.overflowState}.`);
+
+    const escapesGuide = geometry.artwork.left < geometry.guide.left - 3
+      || geometry.artwork.right > geometry.guide.right + 3
+      || geometry.artwork.top < geometry.guide.top - 3
+      || geometry.artwork.bottom > geometry.guide.bottom + 3;
+
+    if (scenario.expectWarning) {
+      assert(escapesGuide, `${viewport.name}/${scenario.name} oversized ${scenario.artworkIn} × ${scenario.artworkIn} in artwork does not visibly cross the print guide.`);
+      await warning.waitFor({ state: "visible", timeout: 5000 });
+      const warningText = (await warning.innerText()).replace(/\s+/g, " ");
+      assert(new RegExp(`${scenario.artworkIn}\\s*[×x]\\s*${scenario.artworkIn}\\s*in`, "i").test(warningText), `${viewport.name}/${scenario.name} overflow warning lost the ${scenario.artworkIn} × ${scenario.artworkIn} in artwork size.`);
+      assert(/Move or resize it before approval/i.test(warningText), `${viewport.name}/${scenario.name} overflow warning lost its production guidance.`);
+    } else {
+      assert(!escapesGuide, `${viewport.name}/${scenario.name} safe ${scenario.artworkIn} × ${scenario.artworkIn} in artwork escapes the print guide.`);
+      assert(await warning.count() === 0, `${viewport.name}/${scenario.name} safe artwork incorrectly shows an overflow warning.`);
+    }
 
     const metricsText = (await metricsPanel.innerText()).replace(/\s+/g, " ");
-    assert(/300\s*DPI/i.test(metricsText), `${viewport.name} artwork metrics lost the 300 DPI value.`);
-    assert(/8\s*[×x]\s*8\s*in/i.test(metricsText), `${viewport.name} artwork metrics lost the 8 × 8 in physical size.`);
+    assert(/300\s*DPI/i.test(metricsText), `${viewport.name}/${scenario.name} artwork metrics lost the 300 DPI value.`);
+    assert(new RegExp(`${scenario.artworkIn}\\s*[×x]\\s*${scenario.artworkIn}\\s*in`, "i").test(metricsText), `${viewport.name}/${scenario.name} artwork metrics lost the ${scenario.artworkIn} × ${scenario.artworkIn} in physical size.`);
 
-    const layout = await assertNoHorizontalOverflow(page, `${viewport.name} Custom Studio visual editor`);
-    assert(pageErrors.length === 0, `${viewport.name} uncaught browser errors: ${pageErrors.join(" | ")}`);
+    const layout = await assertNoHorizontalOverflow(page, `${viewport.name}/${scenario.name} Custom Studio visual editor`);
+    assert(pageErrors.length === 0, `${viewport.name}/${scenario.name} uncaught browser errors: ${pageErrors.join(" | ")}`);
 
     await page.screenshot({ path: screenshotPath, fullPage: true });
 
     return {
       viewport,
+      scenario: scenario.name,
+      artworkIn: scenario.artworkIn,
       route: new URL(page.url()).pathname,
       screenshot: screenshotPath,
       metricsVerified: true,
-      printGuideOverflowVisible: true,
-      artworkInsideGuide: true,
+      expectedOverflow: scenario.expectedOverflow,
+      warningExpected: scenario.expectWarning,
+      warningVerified: scenario.expectWarning ? true : (await warning.count() === 0),
       noHorizontalOverflow: layout.scrollWidth <= layout.clientWidth + 3,
       geometry,
       pageErrors,
     };
   } catch (error) {
     await page.screenshot({
-      path: path.join(ARTIFACT_DIR, `custom-studio-visual-${viewport.name}-failure.png`),
+      path: path.join(ARTIFACT_DIR, `custom-studio-visual-${viewport.name}-${scenario.name}-failure.png`),
       fullPage: true,
     }).catch(() => {});
     throw error;
@@ -245,11 +265,13 @@ const browser = await chromium.launch({ headless: true });
 
 try {
   for (const viewport of VIEWPORTS) {
-    report.viewports.push(await inspectViewport(browser, viewport));
+    for (const scenario of SCENARIOS) {
+      report.scenarios.push(await inspectScenario(browser, viewport, scenario));
+    }
   }
   report.status = "passed";
   await fs.writeFile(path.join(ARTIFACT_DIR, "custom-studio-visual-report.json"), JSON.stringify(report, null, 2));
-  console.log("Custom Studio responsive visual smoke passed for desktop, tablet and mobile.");
+  console.log("Custom Studio responsive visual smoke passed inside/outside print-area states for desktop, tablet and mobile.");
 } catch (error) {
   report.status = "failed";
   report.error = error?.message || String(error);
