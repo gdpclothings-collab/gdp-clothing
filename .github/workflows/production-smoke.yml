@@ -117,6 +117,15 @@ jobs:
         run: |
           if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then exit 0; fi
           node scripts/custom-studio-hardening-smoke.mjs
+      - name: Run Custom Studio responsive visual smoke
+        if: success()
+        shell: bash
+        run: |
+          if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then
+            echo "::notice title=Custom Studio visual smoke skipped::Maintenance mode is active."
+            exit 0
+          fi
+          node scripts/custom-studio-visual-smoke.mjs
       - name: Run Custom Studio Final Review live smoke
         if: success()
         shell: bash
