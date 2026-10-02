@@ -264,16 +264,14 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     onConfirmedChange(false);
   };
 
-  const centeredPosition = (layout, offsetIndex = 0) => {
+  const topAlignedPosition = (layout, offsetIndex = 0) => {
     const baseX = Math.max(0, (area.width - layout.width) / 2);
-    const baseY = Math.max(0, (area.height - layout.height) / 2);
-    if (!offsetIndex) return { x: baseX, y: baseY };
+    if (!offsetIndex) return { x: baseX, y: 0 };
     const step = Math.min(0.6, Math.max(0.2, Number(area.width || 1) * 0.035));
     const horizontal = offsetIndex % 2 === 0 ? -step : step;
-    const vertical = offsetIndex % 3 === 0 ? step : -step;
     return {
       x: clamp(baseX + horizontal, 0, Math.max(0, area.width - layout.width)),
-      y: clamp(baseY + vertical, 0, Math.max(0, area.height - layout.height)),
+      y: 0,
     };
   };
 
@@ -294,7 +292,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
       if (!currentLayers.length || addingArtwork) {
         if (currentLayers.length >= MAX_LAYERS) return;
         const id = newLayerId();
-        const position = centeredPosition(initial, currentLayers.length);
+        const position = topAlignedPosition(initial, currentLayers.length);
         commit([
           ...currentLayers,
           {
@@ -323,7 +321,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         return;
       }
 
-      const position = centeredPosition(initial, 0);
+      const position = topAlignedPosition(initial, 0);
       const next = currentLayers.map((layer) => layer.id === targetId ? {
         ...layer,
         artworkId: artwork.id,
@@ -360,10 +358,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     patchLayer(id, {
       requested: 0,
       rotation: 0,
-      position: {
-        x: Math.max(0, (area.width - initial.width) / 2),
-        y: Math.max(0, (area.height - initial.height) / 2),
-      },
+      position: topAlignedPosition(initial, 0),
     });
   };
 
@@ -389,7 +384,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black">{addingArtwork ? `Adding Artwork ${nextArtworkNumber}` : 'Replace mode'}</p>
-                <p className={`mt-1 text-xs font-medium leading-5 ${addingArtwork ? 'text-slate-300' : 'text-slate-500'}`}>{addingArtwork ? 'Choose one design below. It will be added as a separate artwork and placed slightly away from the current design.' : 'Choosing a design below replaces the selected artwork. It will not create another layer.'}</p>
+                <p className={`mt-1 text-xs font-medium leading-5 ${addingArtwork ? 'text-slate-300' : 'text-slate-500'}`}>{addingArtwork ? 'Choose one design below. It will be added as a separate artwork at the top of the print area with a small horizontal offset.' : 'Choosing a design below replaces the selected artwork. It will not create another layer.'}</p>
               </div>
               {addingArtwork && <button data-seasonal-v2-cancel-add type="button" onClick={() => setAddingArtwork(false)} className="shrink-0 rounded-lg border border-white/30 px-2.5 py-1.5 text-xs font-black text-white">Cancel</button>}
             </div>

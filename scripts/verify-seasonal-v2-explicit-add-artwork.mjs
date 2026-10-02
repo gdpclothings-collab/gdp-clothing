@@ -17,7 +17,13 @@ assert(seasonal.includes('if (!currentLayers.length || addingArtwork)'), 'new la
 assert(seasonal.includes('const targetId = currentLayers.some((layer) => layer.id === activeLayerId)'), 'replacement must target the selected canonical layer');
 assert(seasonal.includes('const next = currentLayers.map((layer) => layer.id === targetId ? {'), 'replacement must update an existing layer instead of appending');
 assert(seasonal.includes('setAddingArtwork(false);'), 'add mode must close after a successful append or side change');
-assert(seasonal.includes('centeredPosition(initial, currentLayers.length)'), 'intentional extra artwork must start with an offset placement');
+assert(seasonal.includes('const topAlignedPosition = (layout, offsetIndex = 0) => {'), 'Seasonal artwork top-alignment helper is missing');
+assert(seasonal.includes('const position = topAlignedPosition(initial, currentLayers.length);'), 'intentional extra artwork must start top-aligned with a safe horizontal offset');
+assert(seasonal.includes('const position = topAlignedPosition(initial, 0);'), 'replacement artwork must restart at the top of the print area');
+assert(seasonal.includes('position: topAlignedPosition(initial, 0),'), 'Reset must return Seasonal artwork to the top-aligned default');
+assert(seasonal.includes("y: 0,"), 'top-aligned Seasonal placement must anchor at the print-area top');
+assert(seasonal.includes('at the top of the print area with a small horizontal offset'), 'Seasonal add-mode guidance must explain the top-aligned default');
+assert(!seasonal.includes('centeredPosition('), 'Seasonal default placement must no longer center artwork vertically');
 assert(seasonal.includes('data-seasonal-v2-artwork-list="true"'), 'visible artwork list is missing');
 assert(seasonal.includes('Artwork {index + 1}'), 'artwork list must number layers clearly');
 assert(!seasonal.includes('duplicateLayer'), 'Duplicate shortcut must not bypass explicit Add Artwork mode');

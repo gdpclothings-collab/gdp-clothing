@@ -87,9 +87,13 @@ for (const token of [
   'Current print size',
   'Effective DPI',
   'Transparent padding is ignored',
-  'Reset to original size & position',
+  'Reset to original size & top position',
   'setLegacyArtworkDimensions',
   'artworkForPlacement',
+  'topAlignedArtworkTransform',
+  'placement?.printableBounds?.minY',
+  'transform: topAlignedArtworkTransform(artwork, printGuide)',
+  'New artwork starts at the top of the printable area',
 ]) assert(editor.includes(token), `upload editor contract is missing: ${token}`);
 
 assert(!editor.includes('onPatch({ artwork: { ...editor.artwork, pixelWidth, pixelHeight } })'), 'legacy dimension hydration must not invalidate an already confirmed restored design');

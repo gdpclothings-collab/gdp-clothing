@@ -13,6 +13,8 @@ import {
   studioV2ArtworkQuality,
 } from '@/lib/customStudioV2ArtworkMetrics';
 
+const MOVE_BOX_RATIO = 0.72;
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
 }
@@ -20,6 +22,18 @@ function clamp(value, min, max) {
 function formatDpi(value) {
   const number = Number(value || 0);
   return number > 0 ? `${Math.round(number)} DPI` : 'Not embedded';
+}
+
+function topAlignedArtworkTransform(artwork, printGuide) {
+  const initial = { scale: 100, rotation: 0, x: 0, y: 0 };
+  if (!artwork) return initial;
+  const placement = resolveUploadArtworkPlacement(artwork, printGuide, initial);
+  const profileHeight = Number(printGuide?.heightIn || 0);
+  const movementHeight = profileHeight * MOVE_BOX_RATIO;
+  const printableTop = Number(placement?.printableBounds?.minY);
+  if (!Number.isFinite(printableTop) || !Number.isFinite(movementHeight) || movementHeight <= 0) return initial;
+  const y = clamp((-printableTop / movementHeight) * 100, -42, 42);
+  return { ...initial, y: Math.round(y * 10) / 10 };
 }
 
 function RangeControl({ label, value, min, max, suffix = '', onChange }) {
@@ -55,15 +69,16 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
         customerApi.uploadArtwork(file),
         analyzeStudioV2ArtworkFile(file),
       ]);
+      const artwork = {
+        url: uploaded.file_url,
+        path: uploaded.storage_path,
+        name: file.name || 'customer-artwork',
+        type: file.type || 'image/png',
+        ...metrics,
+      };
       onPatch({
-        artwork: {
-          url: uploaded.file_url,
-          path: uploaded.storage_path,
-          name: file.name || 'customer-artwork',
-          type: file.type || 'image/png',
-          ...metrics,
-        },
-        transform: { scale: 100, rotation: 0, x: 0, y: 0 },
+        artwork,
+        transform: topAlignedArtworkTransform(artwork, printGuide),
       });
     } catch (uploadError) {
       setError(uploadError?.message || 'Artwork upload failed. Please retry.');
@@ -116,7 +131,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. Embedded artwork size is preserved at 100% scale.</p>
+        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. New artwork starts at the top of the printable area while keeping its original proportions and 100% size rule.</p>
       </section>
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -138,7 +153,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </div>
             {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
           </div>
-          <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} /><RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} /><RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} /><RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} /><button type="button" onClick={() => onPatch({ transform: { scale: 100, rotation: 0, x: 0, y: 0 } })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & position</button></div>
+          <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} /><RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} /><RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} /><RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} /><button type="button" onClick={() => onPatch({ transform: topAlignedArtworkTransform(artworkForPlacement, printGuide) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button></div>
           <button type="button" onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done positioning my {side} artwork</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm the current size, rotation and placement before review.</span></span></button></> : null}
       </section>
     </div>
