@@ -94,10 +94,19 @@ for (const token of [
   'placement?.printableBounds?.minY',
   'transform: topAlignedArtworkTransform(artwork, printGuide)',
   'New artwork starts at the top of the printable area',
+  'fitArtworkToPrintAreaTransform',
+  'data-gdp-fit-artwork="true"',
+  'Fit to print area',
+  'Math.min(1, profileWidth / printableWidth, profileHeight / printableHeight)',
+  'currentScale * fitRatio',
+  'keeps the aspect ratio and rotation',
 ]) assert(editor.includes(token), `upload editor contract is missing: ${token}`);
 
 assert(!editor.includes('onPatch({ artwork: { ...editor.artwork, pixelWidth, pixelHeight } })'), 'legacy dimension hydration must not invalidate an already confirmed restored design');
 assert(editor.includes('setLegacyArtworkDimensions({ url: editor.artwork.url, pixelWidth, pixelHeight })'), 'legacy dimensions must stay local to the preview instead of mutating the approved draft');
+assert(editor.includes('const fitRatio = Math.min(1,'), 'Fit to print area must never enlarge smaller artwork');
+assert(editor.includes('rotation,'), 'Fit to print area must preserve the customer rotation');
+assert(editor.includes('Number(fitted?.printableBounds?.minY)'), 'Fit to print area must top-align actual printable pixels, not transparent padding');
 
 assert(production.includes("import { resolveUploadArtworkPlacement } from '@/lib/customStudioV2ArtworkMetrics';"), 'production renderer must share the exact placement math');
 assert(production.includes('const placement = resolveUploadArtworkPlacement({'), 'upload production rendering must use shared physical placement');
