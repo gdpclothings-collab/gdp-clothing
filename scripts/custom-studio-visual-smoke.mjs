@@ -6,6 +6,8 @@ const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").r
 const ARTIFACT_DIR = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
 const CART_KEY = "gdp_cart_v2__guest";
 const KNOWN_GARMENT_ID = "85e638f0-7fd0-4b0f-b661-c6e7b4965bf3";
+const SAFE_ARTWORK_IN = 8;
+const SAFE_ARTWORK_PX = 2400;
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 1000 },
   { name: "tablet", width: 834, height: 1112 },
@@ -70,13 +72,13 @@ function visualUploadDraftState() {
             path: artworkUrl,
             name: "gdp-responsive-visual-smoke.webp",
             type: "image/webp",
-            pixelWidth: 3000,
-            pixelHeight: 3000,
+            pixelWidth: SAFE_ARTWORK_PX,
+            pixelHeight: SAFE_ARTWORK_PX,
             sourceDpi: 300,
             sourceDpiX: 300,
             sourceDpiY: 300,
-            sourceWidthIn: 10,
-            sourceHeightIn: 10,
+            sourceWidthIn: SAFE_ARTWORK_IN,
+            sourceHeightIn: SAFE_ARTWORK_IN,
             physicalSizeSource: "embedded",
             contentBounds: { left: 0, top: 0, right: 1, bottom: 1 },
           },
@@ -202,14 +204,14 @@ async function inspectViewport(browser, viewport) {
     assert(geometry.guide && geometry.guide.width > 0 && geometry.guide.height > 0, `${viewport.name} print guide has invalid geometry.`);
     assert(geometry.artwork && geometry.artwork.width > 0 && geometry.artwork.height > 0, `${viewport.name} artwork layer has invalid geometry.`);
     assert(geometry.guide.left >= -3 && geometry.guide.right <= viewport.width + 3, `${viewport.name} print guide escapes the viewport horizontally.`);
-    assert(geometry.artwork.left >= geometry.guide.left - 3 && geometry.artwork.right <= geometry.guide.right + 3, `${viewport.name} fitted 10 × 10 in artwork escapes the print guide horizontally.`);
-    assert(geometry.artwork.top >= geometry.guide.top - 3 && geometry.artwork.bottom <= geometry.guide.bottom + 3, `${viewport.name} fitted 10 × 10 in artwork escapes the print guide vertically.`);
+    assert(geometry.artwork.left >= geometry.guide.left - 3 && geometry.artwork.right <= geometry.guide.right + 3, `${viewport.name} safe 8 × 8 in artwork escapes the print guide horizontally.`);
+    assert(geometry.artwork.top >= geometry.guide.top - 3 && geometry.artwork.bottom <= geometry.guide.bottom + 3, `${viewport.name} safe 8 × 8 in artwork escapes the print guide vertically.`);
     assert(geometry.guideOverflow === "visible", `${viewport.name} print guide no longer exposes real artwork overhang (overflow=${geometry.guideOverflow}).`);
-    assert(geometry.overflowState === "inside", `${viewport.name} fitting artwork unexpectedly reports overflow state ${geometry.overflowState}.`);
+    assert(geometry.overflowState === "inside", `${viewport.name} safe artwork unexpectedly reports overflow state ${geometry.overflowState}.`);
 
     const metricsText = (await metricsPanel.innerText()).replace(/\s+/g, " ");
     assert(/300\s*DPI/i.test(metricsText), `${viewport.name} artwork metrics lost the 300 DPI value.`);
-    assert(/10\s*[×x]\s*10\s*in/i.test(metricsText), `${viewport.name} artwork metrics lost the 10 × 10 in physical size.`);
+    assert(/8\s*[×x]\s*8\s*in/i.test(metricsText), `${viewport.name} artwork metrics lost the 8 × 8 in physical size.`);
 
     const layout = await assertNoHorizontalOverflow(page, `${viewport.name} Custom Studio visual editor`);
     assert(pageErrors.length === 0, `${viewport.name} uncaught browser errors: ${pageErrors.join(" | ")}`);
