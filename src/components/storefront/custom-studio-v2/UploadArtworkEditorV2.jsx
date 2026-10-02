@@ -5,23 +5,25 @@ import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTou
 import '@/components/storefront/custom-studio-v2/selectionBorderFix';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
+import {
+  analyzeStudioV2ArtworkFile,
+  describeArtworkOverflow,
+  formatArtworkInches,
+  resolveUploadArtworkPlacement,
+  studioV2ArtworkQuality,
+} from '@/lib/customStudioV2ArtworkMetrics';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
 }
 
-function RangeControl({ label, value, min, max, suffix = '', onChange }) {
-  return <label className="block"><div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>{label}</span><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
+function formatDpi(value) {
+  const number = Number(value || 0);
+  return number > 0 ? `${Math.round(number)} DPI` : 'Not embedded';
 }
 
-function isOutsideRecommendedArea(transform) {
-  const scale = clamp(transform?.scale ?? 100, 30, 180) / 100;
-  const radians = Math.abs(clamp(transform?.rotation ?? 0, -180, 180)) * Math.PI / 180;
-  const rotatedSquareFactor = Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians));
-  const halfExtent = 36 * scale * rotatedSquareFactor;
-  const centerX = Math.abs(clamp(transform?.x ?? 0, -42, 42) * 0.72);
-  const centerY = Math.abs(clamp(transform?.y ?? 0, -42, 42) * 0.72);
-  return centerX + halfExtent > 50 || centerY + halfExtent > 50;
+function RangeControl({ label, value, min, max, suffix = '', onChange }) {
+  return <label className="block"><div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>{label}</span><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
 }
 
 export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onConfirmedChange }) {
@@ -32,7 +34,10 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const transform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = resolveStudioV2PrintGuide(product, size, side);
-  const outsideRecommendedArea = Boolean(editor.artwork) && isOutsideRecommendedArea(transform);
+  const placement = resolveUploadArtworkPlacement(editor.artwork, printGuide, transform);
+  const outsideRecommendedArea = Boolean(editor.artwork) && placement.outsideRecommendedArea;
+  const quality = studioV2ArtworkQuality(placement.effectiveDpi);
+  const overflowDescription = describeArtworkOverflow(placement.overflow);
   const patchTransform = (patch) => onPatch({ transform: { ...transform, ...patch } });
   const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: next }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 30, maxScale: 180, minX: -42, maxX: 42, minY: -42, maxY: 42 });
 
@@ -40,12 +45,32 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
     if (!file || !String(file.type || '').startsWith('image/')) { setError('Please choose a JPG, PNG or WebP artwork file.'); return; }
     setUploading(true); setError('');
     try {
-      const uploaded = await customerApi.uploadArtwork(file);
-      onPatch({ artwork: { url: uploaded.file_url, path: uploaded.storage_path, name: file.name || 'customer-artwork', type: file.type || 'image/png' }, transform: { scale: 100, rotation: 0, x: 0, y: 0 } });
+      const [uploaded, metrics] = await Promise.all([
+        customerApi.uploadArtwork(file),
+        analyzeStudioV2ArtworkFile(file),
+      ]);
+      onPatch({
+        artwork: {
+          url: uploaded.file_url,
+          path: uploaded.storage_path,
+          name: file.name || 'customer-artwork',
+          type: file.type || 'image/png',
+          ...metrics,
+        },
+        transform: { scale: 100, rotation: 0, x: 0, y: 0 },
+      });
     } catch (uploadError) {
       setError(uploadError?.message || 'Artwork upload failed. Please retry.');
     } finally { setUploading(false); }
   };
+
+  const qualityClass = quality.tone === 'emerald'
+    ? 'bg-emerald-100 text-emerald-800'
+    : quality.tone === 'amber'
+      ? 'bg-amber-100 text-amber-800'
+      : quality.tone === 'red'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-slate-100 text-slate-700';
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
@@ -64,20 +89,20 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
                   className="absolute grid cursor-grab place-items-center rounded-sm ring-2 ring-cyan-400/75 ring-offset-1 ring-offset-transparent"
                   style={{
                     ...gesture.style,
-                    left: `${50 + clamp(transform.x, -42, 42) * 0.72}%`,
-                    top: `${50 + clamp(transform.y, -42, 42) * 0.72}%`,
-                    width: '72%',
-                    height: '72%',
+                    left: `${placement.centerXPercent}%`,
+                    top: `${placement.centerYPercent}%`,
+                    width: `${placement.widthPercent}%`,
+                    height: `${placement.heightPercent}%`,
                     transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 180) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
                   }}
                 >
-                  <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" className="h-full w-full select-none object-contain" />
+                  <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" className="h-full w-full select-none object-fill" />
                 </div>
               ) : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box and 72% artwork box use the same normalized geometry as the production renderer.</p>
+        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. Embedded artwork size is preserved at 100% scale.</p>
       </section>
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -85,8 +110,21 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => uploadArtwork(event.target.files?.[0])} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-50">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />}{editor.artwork ? 'Replace artwork' : 'Upload artwork'}</button>
         {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
-        {outsideRecommendedArea ? <div role="status" className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>Part of your design is outside the recommended print area. Reposition or resize it before approval for the safest production result.</span></div> : null}
-        {editor.artwork ? <><div className="space-y-3 rounded-2xl bg-slate-50 p-3"><RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} /><RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} /><RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} /><RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} /><button type="button" onClick={() => onPatch({ transform: { scale: 100, rotation: 0, x: 0, y: 0 } })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset position</button></div>
+        {outsideRecommendedArea ? <div role="status" className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>Printable artwork extends outside the recommended print area{overflowDescription ? ` (${overflowDescription})` : ''}. Move or resize it before approval. Transparent padding is ignored.</span></div> : null}
+        {editor.artwork ? <>
+          <div data-gdp-artwork-metrics="true" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Artwork information</p><span className={`rounded-full px-2 py-1 text-[10px] font-black ${qualityClass}`}>{quality.label}</span></div>
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              <span className="font-semibold text-slate-500">Resolution</span><span className="text-right font-black text-slate-800">{editor.artwork.pixelWidth || '—'} × {editor.artwork.pixelHeight || '—'} px</span>
+              <span className="font-semibold text-slate-500">Source DPI</span><span className="text-right font-black text-slate-800">{formatDpi(editor.artwork.sourceDpi)}</span>
+              <span className="font-semibold text-slate-500">Original size</span><span className="text-right font-black text-slate-800">{editor.artwork.sourceWidthIn && editor.artwork.sourceHeightIn ? `${formatArtworkInches(editor.artwork.sourceWidthIn)} × ${formatArtworkInches(editor.artwork.sourceHeightIn)} in` : 'DPI not embedded'}</span>
+              <span className="font-semibold text-slate-500">Current print size</span><span className="text-right font-black text-slate-800">{formatArtworkInches(placement.widthIn)} × {formatArtworkInches(placement.heightIn)} in</span>
+              <span className="font-semibold text-slate-500">Effective DPI</span><span className="text-right font-black text-slate-800">{placement.effectiveDpi ? `${Math.round(placement.effectiveDpi)} DPI` : '—'}</span>
+              <span className="font-semibold text-slate-500">Garment max area</span><span className="text-right font-black text-slate-800">{printGuide.dimensionsLabel}</span>
+            </div>
+            {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
+          </div>
+          <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} /><RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} /><RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} /><RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} /><button type="button" onClick={() => onPatch({ transform: { scale: 100, rotation: 0, x: 0, y: 0 } })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & position</button></div>
           <button type="button" onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done positioning my {side} artwork</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm the current size, rotation and placement before review.</span></span></button></> : null}
       </section>
     </div>
