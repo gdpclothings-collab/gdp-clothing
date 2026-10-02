@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork } from '@/lib/seasonalArtwork';
 import { renderSeasonalProductionPng } from '@/lib/seasonalProductionRender';
+import { resolveUploadArtworkPlacement } from '@/lib/customStudioV2ArtworkMetrics';
 
 function normalizeToken(value) {
   return String(value || '').toLowerCase().replace(/grey/g, 'gray').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -229,14 +230,15 @@ export async function renderUploadStudioV2Png({ product, size, side, editor, dpi
   const output = createProductionCanvas(profile, dpi);
   const loaded = await loadImage(editor.artwork.url, 'The uploaded artwork could not be reopened.');
   try {
-    const boxWidth = output.widthPx * 0.72;
-    const boxHeight = output.heightPx * 0.72;
-    const containScale = Math.min(boxWidth / Math.max(1, loaded.width), boxHeight / Math.max(1, loaded.height));
-    const userScale = clamp(editor.transform?.scale || 100, 30, 180) / 100;
-    const drawWidth = loaded.width * containScale * userScale;
-    const drawHeight = loaded.height * containScale * userScale;
-    const centerX = output.widthPx / 2 + clamp(editor.transform?.x || 0, -42, 42) / 100 * boxWidth;
-    const centerY = output.heightPx / 2 + clamp(editor.transform?.y || 0, -42, 42) / 100 * boxHeight;
+    const placement = resolveUploadArtworkPlacement({
+      ...editor.artwork,
+      pixelWidth: Number(editor.artwork.pixelWidth || loaded.width),
+      pixelHeight: Number(editor.artwork.pixelHeight || loaded.height),
+    }, profile, editor.transform || {});
+    const drawWidth = placement.widthIn * output.safeDpi;
+    const drawHeight = placement.heightIn * output.safeDpi;
+    const centerX = placement.centerXIn * output.safeDpi;
+    const centerY = placement.centerYIn * output.safeDpi;
     output.context.save();
     output.context.translate(centerX, centerY);
     output.context.rotate(clamp(editor.transform?.rotation || 0, -180, 180) * Math.PI / 180);
