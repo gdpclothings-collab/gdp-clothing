@@ -31,10 +31,16 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const referenceBoxRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [legacyArtworkDimensions, setLegacyArtworkDimensions] = useState(null);
   const transform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = resolveStudioV2PrintGuide(product, size, side);
-  const placement = resolveUploadArtworkPlacement(editor.artwork, printGuide, transform);
+  const artworkForPlacement = editor.artwork
+    && !(Number(editor.artwork.pixelWidth) > 0 && Number(editor.artwork.pixelHeight) > 0)
+    && legacyArtworkDimensions?.url === editor.artwork.url
+      ? { ...editor.artwork, pixelWidth: legacyArtworkDimensions.pixelWidth, pixelHeight: legacyArtworkDimensions.pixelHeight }
+      : editor.artwork;
+  const placement = resolveUploadArtworkPlacement(artworkForPlacement, printGuide, transform);
   const outsideRecommendedArea = Boolean(editor.artwork) && placement.outsideRecommendedArea;
   const quality = studioV2ArtworkQuality(placement.effectiveDpi);
   const overflowDescription = describeArtworkOverflow(placement.overflow);
@@ -69,7 +75,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
     const pixelWidth = Number(event.currentTarget?.naturalWidth || 0);
     const pixelHeight = Number(event.currentTarget?.naturalHeight || 0);
     if (!pixelWidth || !pixelHeight) return;
-    onPatch({ artwork: { ...editor.artwork, pixelWidth, pixelHeight } });
+    setLegacyArtworkDimensions({ url: editor.artwork.url, pixelWidth, pixelHeight });
   };
 
   const qualityClass = quality.tone === 'emerald'
@@ -104,7 +110,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
                     transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 180) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
                   }}
                 >
-                  <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" onLoad={hydrateLegacyArtworkDimensions} className={`h-full w-full select-none ${editor.artwork.pixelWidth && editor.artwork.pixelHeight ? 'object-fill' : 'object-contain'}`} />
+                  <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" onLoad={hydrateLegacyArtworkDimensions} className={`h-full w-full select-none ${artworkForPlacement?.pixelWidth && artworkForPlacement?.pixelHeight ? 'object-fill' : 'object-contain'}`} />
                 </div>
               ) : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
             </div>
@@ -123,7 +129,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
           <div data-gdp-artwork-metrics="true" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Artwork information</p><span className={`rounded-full px-2 py-1 text-[10px] font-black ${qualityClass}`}>{quality.label}</span></div>
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-              <span className="font-semibold text-slate-500">Resolution</span><span className="text-right font-black text-slate-800">{editor.artwork.pixelWidth || '—'} × {editor.artwork.pixelHeight || '—'} px</span>
+              <span className="font-semibold text-slate-500">Resolution</span><span className="text-right font-black text-slate-800">{artworkForPlacement?.pixelWidth || '—'} × {artworkForPlacement?.pixelHeight || '—'} px</span>
               <span className="font-semibold text-slate-500">Source DPI</span><span className="text-right font-black text-slate-800">{formatDpi(editor.artwork.sourceDpi)}</span>
               <span className="font-semibold text-slate-500">Original size</span><span className="text-right font-black text-slate-800">{editor.artwork.sourceWidthIn && editor.artwork.sourceHeightIn ? `${formatArtworkInches(editor.artwork.sourceWidthIn)} × ${formatArtworkInches(editor.artwork.sourceHeightIn)} in` : 'DPI not embedded'}</span>
               <span className="font-semibold text-slate-500">Current print size</span><span className="text-right font-black text-slate-800">{formatArtworkInches(placement.widthIn)} × {formatArtworkInches(placement.heightIn)} in</span>
