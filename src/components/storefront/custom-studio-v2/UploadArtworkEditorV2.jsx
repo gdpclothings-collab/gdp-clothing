@@ -64,6 +64,14 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
     } finally { setUploading(false); }
   };
 
+  const hydrateLegacyArtworkDimensions = (event) => {
+    if (!editor.artwork || (Number(editor.artwork.pixelWidth) > 0 && Number(editor.artwork.pixelHeight) > 0)) return;
+    const pixelWidth = Number(event.currentTarget?.naturalWidth || 0);
+    const pixelHeight = Number(event.currentTarget?.naturalHeight || 0);
+    if (!pixelWidth || !pixelHeight) return;
+    onPatch({ artwork: { ...editor.artwork, pixelWidth, pixelHeight } });
+  };
+
   const qualityClass = quality.tone === 'emerald'
     ? 'bg-emerald-100 text-emerald-800'
     : quality.tone === 'amber'
@@ -96,7 +104,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
                     transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 180) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
                   }}
                 >
-                  <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" className="h-full w-full select-none object-fill" />
+                  <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" onLoad={hydrateLegacyArtworkDimensions} className={`h-full w-full select-none ${editor.artwork.pixelWidth && editor.artwork.pixelHeight ? 'object-fill' : 'object-contain'}`} />
                 </div>
               ) : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
             </div>
