@@ -1,4 +1,5 @@
 const STYLE_ID = 'gdp-custom-studio-v2-selection-border-fix';
+const PROTECTED_LAYER_GUARD_FLAG = '__gdpProtectedTemplateLayerStateGuard';
 
 if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
   const style = document.createElement('style');
@@ -155,6 +156,176 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       font-size: 0.72rem;
       line-height: 1rem;
     }
+
+    /* Protected-template state guard. Before a Bootleg/Memorial template is
+       selected there is no valid editable layer, so do not present Photo as
+       active, do not expose the Photo Zone, and do not show layer controls. */
+    [data-gdp-protected-layer-awaiting-template="true"] > button {
+      background-color: rgb(255 255 255) !important;
+      color: rgb(100 116 139) !important;
+      box-shadow: none !important;
+    }
+
+    [data-gdp-protected-layer-awaiting-template="true"] > button:not(:first-child) {
+      cursor: not-allowed !important;
+      opacity: 0.35 !important;
+    }
+
+    section:has(> [data-gdp-protected-layer-awaiting-template="true"]) {
+      --gdp-active-layer-help: 'Choose a template first. Layer editing will unlock after a layout is selected.';
+    }
+
+    [data-gdp-protected-status-awaiting-template="true"] {
+      font-size: 0 !important;
+      line-height: 0 !important;
+    }
+
+    [data-gdp-protected-status-awaiting-template="true"]::after {
+      content: 'Choose a template to begin';
+      display: block;
+      font-size: 0.72rem;
+      line-height: 1rem;
+    }
+
+    [data-gdp-protected-preview-awaiting-template="true"] [data-gdp-bootleg-free-photo-canvas="true"],
+    [data-gdp-protected-preview-awaiting-template="true"] [data-gdp-memorial-free-photo-zone="true"] {
+      display: none !important;
+    }
+
+    [data-gdp-protected-preview-awaiting-template="true"] > div:last-child > p:last-child {
+      font-size: 0 !important;
+      line-height: 0 !important;
+    }
+
+    [data-gdp-protected-preview-awaiting-template="true"] > div:last-child > p:last-child::after {
+      content: 'Choose a template first · then select the layer you want to edit';
+      display: block;
+      font-size: 0.6875rem;
+      line-height: 1.15rem;
+    }
+
+    [data-gdp-protected-inspector-awaiting-template="true"] > :not(:first-child) {
+      display: none !important;
+    }
+
+    [data-gdp-protected-inspector-awaiting-template="true"]::after {
+      content: 'Choose a Bootleg or Memorial template first. Photo, text and sticker controls will unlock after the layout is selected.';
+      display: block;
+      margin-top: 0.75rem;
+      border: 1px solid rgb(226 232 240);
+      border-radius: 0.75rem;
+      background: rgb(248 250 252);
+      padding: 0.75rem;
+      color: rgb(71 85 105);
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1.15rem;
+    }
   `;
   document.head.appendChild(style);
+}
+
+if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window[PROTECTED_LAYER_GUARD_FLAG]) {
+  window[PROTECTED_LAYER_GUARD_FLAG] = true;
+  const guardedControls = new WeakMap();
+  let scheduled = false;
+
+  const setAttributeIfNeeded = (element, name, value) => {
+    if (!element) return;
+    if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+  };
+
+  const removeAttributeIfPresent = (element, name) => {
+    if (element?.hasAttribute(name)) element.removeAttribute(name);
+  };
+
+  const reconcileProtectedLayerControls = (controls) => {
+    const buttons = Array.from(controls.querySelectorAll(':scope > button'));
+    const templateButton = buttons[0];
+    if (!templateButton) return;
+
+    const scope = controls.hasAttribute('data-gdp-bootleg-active-layer') ? 'bootleg' : 'memorial';
+    const previewSection = controls.closest('section');
+    const editorRoot = previewSection?.parentElement || null;
+    const inspectorSection = previewSection?.nextElementSibling?.tagName === 'SECTION'
+      ? previewSection.nextElementSibling
+      : null;
+    const status = controls.nextElementSibling?.matches?.('[data-gdp-bootleg-active-status="true"], [data-gdp-memorial-active-status="true"]')
+      ? controls.nextElementSibling
+      : null;
+    const hasTemplate = !templateButton.disabled;
+    const previous = guardedControls.get(controls);
+    const scopeChanged = Boolean(previous && previous.scope !== scope);
+    const firstScan = !previous;
+
+    if (!hasTemplate) {
+      setAttributeIfNeeded(controls, 'data-gdp-protected-layer-awaiting-template', 'true');
+      setAttributeIfNeeded(previewSection, 'data-gdp-protected-preview-awaiting-template', 'true');
+      setAttributeIfNeeded(status, 'data-gdp-protected-status-awaiting-template', 'true');
+      setAttributeIfNeeded(inspectorSection, 'data-gdp-protected-inspector-awaiting-template', 'true');
+
+      buttons.forEach((button, index) => {
+        if (button.getAttribute('aria-pressed') !== 'false') button.setAttribute('aria-pressed', 'false');
+        if (index > 0 && !button.disabled) {
+          button.disabled = true;
+          button.setAttribute('data-gdp-protected-state-guard-disabled', 'true');
+        }
+      });
+
+      guardedControls.set(controls, { scope, hasTemplate: false });
+      return;
+    }
+
+    removeAttributeIfPresent(controls, 'data-gdp-protected-layer-awaiting-template');
+    removeAttributeIfPresent(previewSection, 'data-gdp-protected-preview-awaiting-template');
+    removeAttributeIfPresent(status, 'data-gdp-protected-status-awaiting-template');
+    removeAttributeIfPresent(inspectorSection, 'data-gdp-protected-inspector-awaiting-template');
+
+    buttons.forEach((button) => {
+      if (button.hasAttribute('data-gdp-protected-state-guard-disabled')) {
+        button.disabled = false;
+        button.removeAttribute('data-gdp-protected-state-guard-disabled');
+      }
+    });
+
+    const activeIndex = buttons.findIndex((button) => button.getAttribute('aria-pressed') === 'true');
+    const hasPhoto = Boolean(editorRoot?.querySelector('[data-gdp-bootleg-photo-layer-list="true"]'));
+    const templateBecameAvailable = previous?.hasTemplate === false;
+
+    /* React keeps the protected editor mounted when paths change. Reset only
+       the invalid default/stale Photo selection; after the customer explicitly
+       opens Photo, Text or Sticker controls we preserve that choice. */
+    const shouldSelectTemplate = scopeChanged
+      || templateBecameAvailable && activeIndex < 0
+      || firstScan && activeIndex === 1 && !hasPhoto;
+
+    if (shouldSelectTemplate && templateButton.getAttribute('aria-pressed') !== 'true') {
+      templateButton.click();
+    }
+
+    guardedControls.set(controls, { scope, hasTemplate: true });
+  };
+
+  const reconcileProtectedLayerState = () => {
+    document
+      .querySelectorAll('[data-gdp-bootleg-active-layer="true"], [data-gdp-memorial-active-layer="true"]')
+      .forEach(reconcileProtectedLayerControls);
+  };
+
+  const scheduleReconcile = () => {
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      reconcileProtectedLayerState();
+    });
+  };
+
+  reconcileProtectedLayerState();
+  new MutationObserver(scheduleReconcile).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['aria-pressed', 'disabled', 'data-gdp-bootleg-active-layer', 'data-gdp-memorial-active-layer'],
+  });
 }
