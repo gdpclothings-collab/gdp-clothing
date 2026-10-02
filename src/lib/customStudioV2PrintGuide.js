@@ -177,6 +177,7 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
   const widthPercent = configuredArea?.widthPercent ?? fallbackWidthPercent;
   const topPercent = configuredArea?.topPercent ?? geometry.topPercent;
   const dimensions = `${formatInches(profile.widthIn)} × ${formatInches(profile.heightIn)} in`;
+  const sideLabel = normalizedSide.toUpperCase();
   const configuredReference = product?.customization?.preview?.printGuide?.reference || null;
   const reference = configuredReference || {
     provider: 'Printful',
@@ -194,9 +195,9 @@ export function resolveStudioV2PrintGuide(product, size, side = 'front') {
     ...profile,
     printMethod: 'DTF',
     printfulTechnique: 'DTFlex',
-    label: `DTF MAX ${dimensions}`,
+    label: `${sideLabel} DTF MAX ${dimensions}`,
     dimensionsLabel: dimensions,
-    recommendationLabel: `DTF maximum print area: ${dimensions}`,
+    recommendationLabel: `DTF maximum ${normalizedSide} print area: ${dimensions}`,
     reference,
     displayCalibration: {
       garmentKind: geometry.kind,

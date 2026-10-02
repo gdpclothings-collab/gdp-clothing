@@ -19,6 +19,9 @@ for (const kind of ['baby', 'toddler', 'youth', 'hoodie', 'crewneck', 'adult']) 
   if (!helper.includes(`${kind}:`)) fail(`Missing ${kind} display calibration.`);
 }
 if (!helper.includes('recommendationLabel')) fail('Recommended print area label is missing.');
+if (!helper.includes('const sideLabel = normalizedSide.toUpperCase()')) fail('Print-guide label is not side-aware.');
+if (!helper.includes('label: `${sideLabel} DTF MAX ${dimensions}`')) fail('Visible print-guide label does not identify FRONT/BACK.');
+if (!helper.includes('recommendationLabel: `DTF maximum ${normalizedSide} print area: ${dimensions}`')) fail('Recommended print-area text does not identify the active side.');
 if (!helper.includes('sizeGuideBodyWidthIn')) fail('Print-guide preview does not use garment size-guide body width.');
 if (!helper.includes('configuredBodyWidthIn')) fail('Product-specific garment-width override support is missing.');
 if (!helper.includes('bodyVisualWidthPercent')) fail('Garment-body visual calibration is missing.');
