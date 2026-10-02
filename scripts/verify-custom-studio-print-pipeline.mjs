@@ -84,12 +84,15 @@ for (const token of [
 ]) expect(seasonal.includes(token), `Seasonal RPC wiring is not size/side aware: ${token}`);
 
 for (const token of [
-  "width: '72%'",
-  "height: '72%'",
-  'object-contain',
-  'Part of your design is outside the recommended print area.',
-  'isOutsideRecommendedArea',
+  'resolveUploadArtworkPlacement',
+  'placement.widthPercent',
+  'placement.heightPercent',
+  'object-fill',
+  'Transparent padding is ignored.',
+  'data-gdp-artwork-metrics="true"',
 ]) expect(upload.includes(token), `Upload safe-area behavior missing: ${token}`);
+expect(!upload.includes("width: '72%'"), 'Upload artwork width must no longer be hard-coded to 72%.');
+expect(!upload.includes("height: '72%'"), 'Upload artwork height must no longer be hard-coded to 72%.');
 
 for (const token of [
   "['front', 'back'].map",
