@@ -47,8 +47,8 @@ for (const token of [
 for (const token of [
   'resolveStudioV2PrintProfile(product, size, normalizedSide)',
   'aspectRatio: `${Number(profile.widthIn)} / ${Number(profile.heightIn)}`',
-  'DTF maximum print area:',
-  'label: `DTF MAX ${dimensions}`',
+  'DTF maximum ${normalizedSide} print area:',
+  'label: `${sideLabel} DTF MAX ${dimensions}`',
   "printMethod: 'DTF'",
   "printfulTechnique: 'DTFlex'",
   "acceptedFormats: ['PNG', 'JPG']",
