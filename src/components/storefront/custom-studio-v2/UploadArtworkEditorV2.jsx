@@ -87,6 +87,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
       ? { ...editor.artwork, pixelWidth: legacyArtworkDimensions.pixelWidth, pixelHeight: legacyArtworkDimensions.pixelHeight }
       : editor.artwork;
   const placement = resolveUploadArtworkPlacement(artworkForPlacement, printGuide, transform);
+  const lowConfidenceDpi = placement.sizeSource === 'low-confidence-dpi-fit';
   const outsideRecommendedArea = Boolean(editor.artwork) && placement.outsideRecommendedArea;
   const quality = studioV2ArtworkQuality(placement.effectiveDpi);
   const overflowDescription = describeArtworkOverflow(placement.overflow);
@@ -163,7 +164,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. New artwork starts at the top of the printable area while keeping its original proportions and 100% size rule.</p>
+        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. New artwork starts at the top of the printable area while keeping its original proportions. Reliable print DPI keeps true physical size; mobile/screen DPI files use a safe fitted base size.</p>
       </section>
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -176,17 +177,19 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
           <div data-gdp-artwork-metrics="true" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Artwork information</p><span className={`rounded-full px-2 py-1 text-[10px] font-black ${qualityClass}`}>{quality.label}</span></div>
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-              <span className="font-semibold text-slate-500">Resolution</span><span className="text-right font-black text-slate-800">{artworkForPlacement?.pixelWidth || '—'} × {artworkForPlacement?.pixelHeight || '—'} px</span>
-              <span className="font-semibold text-slate-500">Source DPI</span><span className="text-right font-black text-slate-800">{formatDpi(editor.artwork.sourceDpi)}</span>
-              <span className="font-semibold text-slate-500">Original size</span><span className="text-right font-black text-slate-800">{editor.artwork.sourceWidthIn && editor.artwork.sourceHeightIn ? `${formatArtworkInches(editor.artwork.sourceWidthIn)} × ${formatArtworkInches(editor.artwork.sourceHeightIn)} in` : 'DPI not embedded'}</span>
+              <span className="font-semibold text-slate-500">File resolution</span><span className="text-right font-black text-slate-800">{artworkForPlacement?.pixelWidth || '—'} × {artworkForPlacement?.pixelHeight || '—'} px</span>
+              <span className="font-semibold text-slate-500">Embedded DPI</span><span className="text-right font-black text-slate-800">{formatDpi(editor.artwork.sourceDpi)}</span>
+              <span className="font-semibold text-slate-500">{lowConfidenceDpi ? 'Embedded size' : 'Original size'}</span><span className="text-right font-black text-slate-800">{editor.artwork.sourceWidthIn && editor.artwork.sourceHeightIn ? `${formatArtworkInches(editor.artwork.sourceWidthIn)} × ${formatArtworkInches(editor.artwork.sourceHeightIn)} in` : 'DPI not embedded'}</span>
               <span className="font-semibold text-slate-500">Current print size</span><span className="text-right font-black text-slate-800">{formatArtworkInches(placement.widthIn)} × {formatArtworkInches(placement.heightIn)} in</span>
               <span className="font-semibold text-slate-500">Effective DPI</span><span className="text-right font-black text-slate-800">{placement.effectiveDpi ? `${Math.round(placement.effectiveDpi)} DPI` : '—'}</span>
-              <span className="font-semibold text-slate-500">Garment max area</span><span className="text-right font-black text-slate-800">{printGuide.dimensionsLabel}</span>
+              <span className="font-semibold text-slate-500">Garment print area</span><span className="text-right font-black text-slate-800">{printGuide.dimensionsLabel}</span>
             </div>
+            {lowConfidenceDpi ? <p data-gdp-low-confidence-dpi-note="true" className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-600">The embedded {Math.round(Number(editor.artwork.sourceDpi || 0))} DPI is treated as mobile/screen metadata. The embedded inch size is informational only. 100% artwork scale means 100% of the safely fitted print size.</p> : null}
             {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
           </div>
           <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
-            <RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
+            <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
+            {lowConfidenceDpi ? <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">At 100%, this file prints at {formatArtworkInches(placement.baseWidthIn)} × {formatArtworkInches(placement.baseHeightIn)} in before any manual scaling.</p> : null}
             <RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} />
             <RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} />
             <RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} />
