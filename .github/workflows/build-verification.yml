@@ -64,6 +64,7 @@ jobs:
           node scripts/verify-custom-studio-canonical-flow.mjs
           node scripts/verify-custom-studio-v2.mjs
           node scripts/verify-custom-studio-v2-approval-refinement.mjs
+          node scripts/verify-custom-studio-upload-artwork-metrics.mjs
           node scripts/verify-seasonal-v2-loading-stability.mjs
           node scripts/verify-seasonal-v2-explicit-add-artwork.mjs
           node scripts/verify-admin-payment-health.mjs
