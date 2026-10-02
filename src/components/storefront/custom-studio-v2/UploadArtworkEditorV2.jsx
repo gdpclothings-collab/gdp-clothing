@@ -141,14 +141,14 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
         <div className="mx-auto w-full max-w-[680px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
             {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
-            <div data-gdp-print-guide="true" aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-slate-500/50 bg-white/5" style={printGuide.style}>
+            <div data-gdp-print-guide="true" data-gdp-upload-overflow-preview={outsideRecommendedArea ? 'outside' : 'inside'} aria-label={`Recommended ${side} print area ${printGuide.label}`} className={`absolute left-1/2 -translate-x-1/2 overflow-visible rounded-lg border-2 border-dashed ${outsideRecommendedArea ? 'border-amber-500 bg-amber-50/10' : 'border-slate-500/50 bg-white/5'}`} style={printGuide.style}>
               <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
               <div ref={referenceBoxRef} className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2" />
               {editor.artwork?.url ? (
                 <div
                   {...gesture}
                   data-gdp-upload-artwork-layer="true"
-                  className="absolute grid cursor-grab place-items-center rounded-sm ring-2 ring-cyan-400/75 ring-offset-1 ring-offset-transparent"
+                  className={`absolute grid cursor-grab place-items-center rounded-sm ring-2 ring-offset-1 ring-offset-transparent ${outsideRecommendedArea ? 'ring-amber-500/90' : 'ring-cyan-400/75'}`}
                   style={{
                     ...gesture.style,
                     left: `${placement.centerXPercent}%`,
@@ -164,7 +164,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. New artwork starts at the top of the printable area while keeping its original proportions. Reliable print DPI keeps true physical size; mobile/screen DPI files use a safe fitted base size.</p>
+        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. Artwork that crosses the dashed boundary stays visible so the warning matches what you see. Reliable print DPI keeps true physical size; mobile/screen DPI files use a safe fitted base size.</p>
       </section>
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -172,7 +172,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => uploadArtwork(event.target.files?.[0])} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-50">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />}{editor.artwork ? 'Replace artwork' : 'Upload artwork'}</button>
         {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
-        {outsideRecommendedArea ? <div role="status" className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>Printable artwork extends outside the recommended print area{overflowDescription ? ` (${overflowDescription})` : ''}. Move or resize it before approval. Transparent padding is ignored.</span></div> : null}
+        {outsideRecommendedArea ? <div role="status" className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>Printable artwork at {formatArtworkInches(placement.widthIn)} × {formatArtworkInches(placement.heightIn)} in extends outside the {side} print area ({printGuide.dimensionsLabel}){overflowDescription ? `: ${overflowDescription}` : ''}. Move or resize it before approval. Transparent padding is ignored.</span></div> : null}
         {editor.artwork ? <>
           <div data-gdp-artwork-metrics="true" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Artwork information</p><span className={`rounded-full px-2 py-1 text-[10px] font-black ${qualityClass}`}>{quality.label}</span></div>

@@ -93,13 +93,18 @@ for (const token of [
   'topAlignedArtworkTransform',
   'placement?.printableBounds?.minY',
   'transform: topAlignedArtworkTransform(artwork, printGuide)',
-  'New artwork starts at the top of the printable area',
+  'Fit to print area',
   'fitArtworkToPrintAreaTransform',
   'data-gdp-fit-artwork="true"',
-  'Fit to print area',
   'Math.min(1, profileWidth / printableWidth, profileHeight / printableHeight)',
   'currentScale * fitRatio',
   'keeps the aspect ratio and rotation',
+  'data-gdp-upload-overflow-preview',
+  'overflow-visible',
+  'border-amber-500',
+  'ring-amber-500/90',
+  'Artwork that crosses the dashed boundary stays visible',
+  'extends outside the {side} print area',
 ]) assert(editor.includes(token), `upload editor contract is missing: ${token}`);
 
 assert(!editor.includes('onPatch({ artwork: { ...editor.artwork, pixelWidth, pixelHeight } })'), 'legacy dimension hydration must not invalidate an already confirmed restored design');
