@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { AlertTriangle, Check, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RotateCcw } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import '@/components/storefront/custom-studio-v2/selectionBorderFix';
@@ -34,6 +34,38 @@ function topAlignedArtworkTransform(artwork, printGuide) {
   if (!Number.isFinite(printableTop) || !Number.isFinite(movementHeight) || movementHeight <= 0) return initial;
   const y = clamp((-printableTop / movementHeight) * 100, -42, 42);
   return { ...initial, y: Math.round(y * 10) / 10 };
+}
+
+function fitArtworkToPrintAreaTransform(artwork, printGuide, currentTransform = {}) {
+  const profileWidth = Number(printGuide?.widthIn || 0);
+  const profileHeight = Number(printGuide?.heightIn || 0);
+  const movementWidth = profileWidth * MOVE_BOX_RATIO;
+  const movementHeight = profileHeight * MOVE_BOX_RATIO;
+  const currentScale = clamp(currentTransform?.scale ?? 100, 30, 180);
+  const rotation = clamp(currentTransform?.rotation ?? 0, -180, 180);
+  const neutral = { scale: currentScale, rotation, x: 0, y: 0 };
+  const placement = resolveUploadArtworkPlacement(artwork, printGuide, neutral);
+  const printableWidth = Number(placement?.printableBounds?.maxX) - Number(placement?.printableBounds?.minX);
+  const printableHeight = Number(placement?.printableBounds?.maxY) - Number(placement?.printableBounds?.minY);
+
+  if (![profileWidth, profileHeight, movementWidth, movementHeight, printableWidth, printableHeight].every((value) => Number.isFinite(value) && value > 0)) {
+    return topAlignedArtworkTransform(artwork, printGuide);
+  }
+
+  const fitRatio = Math.min(1, profileWidth / printableWidth, profileHeight / printableHeight);
+  const fittedScale = Math.floor(clamp(currentScale * fitRatio, 30, 180) * 10) / 10;
+  const fitted = resolveUploadArtworkPlacement(artwork, printGuide, { scale: fittedScale, rotation, x: 0, y: 0 });
+  const printableCenterX = (Number(fitted?.printableBounds?.minX) + Number(fitted?.printableBounds?.maxX)) / 2;
+  const printableTop = Number(fitted?.printableBounds?.minY);
+  const x = clamp(((profileWidth / 2 - printableCenterX) / movementWidth) * 100, -42, 42);
+  const y = clamp((-printableTop / movementHeight) * 100, -42, 42);
+
+  return {
+    scale: fittedScale,
+    rotation,
+    x: Math.round(x * 10) / 10,
+    y: Math.round(y * 10) / 10,
+  };
 }
 
 function RangeControl({ label, value, min, max, suffix = '', onChange }) {
@@ -153,7 +185,15 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </div>
             {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
           </div>
-          <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} /><RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} /><RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} /><RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} /><button type="button" onClick={() => onPatch({ transform: topAlignedArtworkTransform(artworkForPlacement, printGuide) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button></div>
+          <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
+            <RangeControl label="Artwork size" value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
+            <RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} />
+            <RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} />
+            <RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} />
+            <button data-gdp-fit-artwork="true" type="button" onClick={() => onPatch({ transform: fitArtworkToPrintAreaTransform(artworkForPlacement, printGuide, transform) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800"><Maximize2 size={14} /> Fit to print area</button>
+            <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">Fit only shrinks oversized printable artwork when needed, keeps the aspect ratio and rotation, ignores transparent padding, and returns it to a safe top-aligned position.</p>
+            <button type="button" onClick={() => onPatch({ transform: topAlignedArtworkTransform(artworkForPlacement, printGuide) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button>
+          </div>
           <button type="button" onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done positioning my {side} artwork</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm the current size, rotation and placement before review.</span></span></button></> : null}
       </section>
     </div>
