@@ -6,6 +6,7 @@ import SalesLeads from "@/pages/SalesLeads";
 import AdminShipping from "@/pages/AdminShipping";
 import AdminPricing from "@/pages/AdminPricing";
 import FinanceReports from "@/pages/FinanceReports";
+import FinanceTax from "@/pages/FinanceTax";
 import SystemHealthModule from "@/components/admin/SystemHealthModule";
 import PaymentPreflightCard from "@/components/admin/PaymentPreflightCard";
 import AiBusinessManagerModule from "@/components/admin/AiBusinessManagerModule";
@@ -41,6 +42,7 @@ export default function AdminV3(){
   if(location.pathname==="/admin/shipping-delivery") return <AdminShipping/>;
   if(location.pathname==="/admin/pricing") return <AdminPricing/>;
   if(location.pathname==="/admin/finance/reports") return <FinanceReports/>;
+  if(location.pathname==="/admin/finance/tax") return <FinanceTax/>;
   const onProductsPage=location.pathname==="/admin/products";
   const onFinancePage=location.pathname==="/admin/finance";
   const onAdminHome=location.pathname==="/admin";
