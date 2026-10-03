@@ -28,6 +28,7 @@ export const adminFinanceApi = {
     };
   },
 
+  // Only the four editable production-cost columns are sent; snapshot identity and audit fields stay database-controlled.
   async updateCogs(orderItemId, costs) {
     if (!orderItemId) throw new Error("Order item is required.");
 
