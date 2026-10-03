@@ -25,7 +25,7 @@ const money = (value) => Number(value || 0).toLocaleString("en-CA", { style: "cu
 const shortHash = (value) => value ? `${String(value).slice(0, 10)}…${String(value).slice(-6)}` : "—";
 
 function rowReady(row) {
-  if (!row?.valid || row?.duplicate) return false;
+  if (!row?.valid || row?.duplicate || row?.locked) return false;
   if (row.sourceType === "stripe_payout" && !row.sourceReference) return false;
   return true;
 }
@@ -116,12 +116,23 @@ export default function FinanceBankImport() {
       const analyzed = mapped.map((row) => {
         const match = duplicateMap.get(row.clientKey);
         const duplicate = Boolean(match?.duplicate);
-        return { ...row, duplicate, fingerprint: match?.fingerprint || "", selected: row.valid && !duplicate };
+        const locked = Boolean(match?.locked);
+        return {
+          ...row,
+          duplicate,
+          locked,
+          lockedPeriodStart: match?.lockedPeriodStart || "",
+          lockedPeriodEnd: match?.lockedPeriodEnd || "",
+          fingerprint: match?.fingerprint || "",
+          selected: row.valid && !duplicate && !locked,
+        };
       });
       setRows(analyzed);
       const duplicateCount = analyzed.filter((row) => row.duplicate).length;
+      const lockedCount = analyzed.filter((row) => row.locked).length;
       const invalidCount = analyzed.filter((row) => !row.valid).length;
-      setNotice(`Preview ready: ${analyzed.length - duplicateCount - invalidCount} ready, ${duplicateCount} duplicate, ${invalidCount} invalid.`);
+      const readyCount = analyzed.filter(rowReady).length;
+      setNotice(`Preview ready: ${readyCount} ready, ${duplicateCount} duplicate, ${lockedCount} locked, ${invalidCount} invalid.`);
     } catch (err) {
       setError(err?.message || "Could not build the bank statement preview.");
     } finally {
@@ -138,7 +149,7 @@ export default function FinanceBankImport() {
       updateRow(row.clientKey, { sourceType, sourceReference: "", expectedAmount: "", direction: "credit", selected: false });
       return;
     }
-    updateRow(row.clientKey, { sourceType, sourceReference: "", expectedAmount: "", selected: row.valid && !row.duplicate });
+    updateRow(row.clientKey, { sourceType, sourceReference: "", expectedAmount: "", selected: row.valid && !row.duplicate && !row.locked });
   };
 
   const setStripePayout = (row, payoutId) => {
@@ -146,7 +157,7 @@ export default function FinanceBankImport() {
     updateRow(row.clientKey, {
       sourceReference: payoutId,
       expectedAmount: payout ? String(payout.amount) : "",
-      selected: Boolean(payoutId) && row.valid && !row.duplicate,
+      selected: Boolean(payoutId) && row.valid && !row.duplicate && !row.locked,
     });
   };
 
@@ -154,6 +165,7 @@ export default function FinanceBankImport() {
   const selectedRows = rows.filter((row) => row.selected && rowReady(row));
   const readyCount = rows.filter(rowReady).length;
   const duplicateCount = rows.filter((row) => row.duplicate).length;
+  const lockedCount = rows.filter((row) => row.locked).length;
   const invalidCount = rows.filter((row) => !row.valid).length;
   const selectedTotal = selectedRows.reduce((sum, row) => sum + (row.direction === "credit" ? Number(row.amount || 0) : -Number(row.amount || 0)), 0);
 
@@ -198,8 +210,8 @@ export default function FinanceBankImport() {
       <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-7">
         <div className="text-xs uppercase tracking-[0.14em] font-bold text-[#a70f2d]">Finance Phase 12</div>
         <div className="mt-1 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><h1 className="text-[28px] md:text-[32px] font-bold tracking-tight">Bank Statement CSV Import</h1><p className="text-base leading-6 text-[#555961] mt-1 max-w-3xl">Upload a CSV exported from your business bank, map its transaction columns, preview the normalized entries, and import only what you approve. Duplicate statement rows are blocked server-side.</p></div>
-          <div className="flex items-center gap-2"><button type="button" onClick={loadServerData} disabled={loading} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2 disabled:opacity-60"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Refresh</button>{fileInfo && <button type="button" onClick={resetFile} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm">Clear file</button>}</div>
+          <div><h1 className="text-[28px] md:text-[32px] font-bold tracking-tight">Bank Statement CSV Import</h1><p className="text-base leading-6 text-[#555961] mt-1 max-w-3xl">Upload a CSV exported from your business bank, map its transaction columns, preview the normalized entries, and import only what you approve. Duplicate statement rows and Phase 13 closed periods are blocked server-side.</p></div>
+          <div className="flex items-center gap-2"><Link to="/admin/finance/bank-statements" className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center">Bank Close</Link><button type="button" onClick={loadServerData} disabled={loading} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2 disabled:opacity-60"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Refresh</button>{fileInfo && <button type="button" onClick={resetFile} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm">Clear file</button>}</div>
         </div>
       </div>
     </div>
@@ -233,25 +245,26 @@ export default function FinanceBankImport() {
             {mapping.mode === "signed" ? <><SelectField label="Amount column" value={mapping.amount} onChange={(value) => setMapping((current) => ({ ...current, amount: value }))} headers={parsed.headers}/><Field label="Positive amount means"><select value={positiveDirection} onChange={(e) => setPositiveDirection(e.target.value)} className="input-control"><option value="credit">Money in / credit</option><option value="debit">Money out / debit</option></select></Field><div/></> : <><SelectField label="Debit column" value={mapping.debit} onChange={(value) => setMapping((current) => ({ ...current, debit: value }))} headers={parsed.headers}/><SelectField label="Credit column" value={mapping.credit} onChange={(value) => setMapping((current) => ({ ...current, credit: value }))} headers={parsed.headers}/><div/></>}
           </div>
 
-          <div className="flex justify-end"><button type="button" onClick={buildPreview} disabled={analyzing} className="h-10 px-4 rounded-lg bg-[#171717] text-white text-sm font-semibold disabled:opacity-60">{analyzing ? "Analyzing duplicates…" : "Build secure preview"}</button></div>
+          <div className="flex justify-end"><button type="button" onClick={buildPreview} disabled={analyzing} className="h-10 px-4 rounded-lg bg-[#171717] text-white text-sm font-semibold disabled:opacity-60">{analyzing ? "Analyzing…" : "Build secure preview"}</button></div>
         </div>
       </section>}
 
       {rows.length > 0 && <>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <Metric label="Ready rows" value={String(readyCount)} />
           <Metric label="Selected" value={String(selectedRows.length)} strong />
           <Metric label="Duplicate" value={String(duplicateCount)} />
+          <Metric label="Locked" value={String(lockedCount)} />
           <Metric label="Invalid" value={String(invalidCount)} />
           <Metric label="Selected net movement" value={money(selectedTotal)} />
         </div>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#ededed] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><div className="text-sm font-semibold">3. Review and classify</div><div className="text-xs text-[#777] mt-0.5">Duplicates are automatically unselected. Stripe payout classification is available only for credit rows and requires choosing an unmatched payout.</div></div><div className="flex gap-2"><button type="button" onClick={selectReady} className="h-8 px-3 rounded-md border border-[#d5d5d5] bg-white text-xs font-semibold">Select ready</button><button type="button" onClick={clearSelection} className="h-8 px-3 rounded-md border border-[#d5d5d5] bg-white text-xs font-semibold">Clear</button></div></div>
+          <div className="px-4 py-3 border-b border-[#ededed] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><div className="text-sm font-semibold">3. Review and classify</div><div className="text-xs text-[#777] mt-0.5">Duplicates and rows inside a Phase 13 closed bank period are automatically unselected. Stripe payout classification is available only for credit rows and requires choosing an unmatched payout.</div></div><div className="flex gap-2"><button type="button" onClick={selectReady} className="h-8 px-3 rounded-md border border-[#d5d5d5] bg-white text-xs font-semibold">Select ready</button><button type="button" onClick={clearSelection} className="h-8 px-3 rounded-md border border-[#d5d5d5] bg-white text-xs font-semibold">Clear</button></div></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[1450px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Select</Th><Th>CSV row</Th><Th>Date</Th><Th>Direction</Th><Th>Description</Th><Th right>Amount</Th><Th>Reference</Th><Th>Classification</Th><Th>Status</Th></tr></thead><tbody>
             {rows.map((row) => {
               const availablePayouts = payouts.filter((payout) => payout.stripe_payout_id === row.sourceReference || !usedPayoutIds.has(payout.stripe_payout_id));
-              return <tr key={row.clientKey} className={`border-t border-[#eeeeee] ${row.duplicate || !row.valid ? "bg-[#fafafa] text-[#777]" : ""}`}>
+              return <tr key={row.clientKey} className={`border-t border-[#eeeeee] ${row.duplicate || row.locked || !row.valid ? "bg-[#fafafa] text-[#777]" : ""}`}>
                 <Td><input type="checkbox" checked={Boolean(row.selected)} disabled={!rowReady(row)} onChange={(e) => updateRow(row.clientKey, { selected: e.target.checked })}/></Td>
                 <Td>{row.sourceRowNumber}</Td>
                 <Td>{row.occurredOn || "—"}</Td>
@@ -259,12 +272,12 @@ export default function FinanceBankImport() {
                 <Td><div className="max-w-[320px] font-medium">{row.description || "—"}</div></Td>
                 <Td right strong>{row.amount ? money(row.amount) : "—"}</Td>
                 <Td>{row.reference || "—"}</Td>
-                <Td><div className="min-w-[250px] space-y-2"><select value={row.sourceType} disabled={!row.valid || row.duplicate} onChange={(e) => setSourceType(row, e.target.value)} className="h-8 w-full rounded-md border border-[#d8d8d8] bg-white px-2 text-xs">{SOURCE_OPTIONS.filter(([id]) => row.direction === "credit" || id !== "stripe_payout").map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>{row.sourceType === "stripe_payout" && <select value={row.sourceReference} onChange={(e) => setStripePayout(row, e.target.value)} className="h-8 w-full rounded-md border border-[#d8d8d8] bg-white px-2 text-xs"><option value="">Choose unmatched payout</option>{availablePayouts.map((payout) => <option key={payout.stripe_payout_id} value={payout.stripe_payout_id}>{payout.stripe_payout_id} · {money(payout.amount)}</option>)}</select>}</div></Td>
-                <Td>{row.duplicate ? <Badge tone="amber">Duplicate</Badge> : !row.valid ? <span className="inline-flex items-start gap-1 text-xs text-red-700"><AlertTriangle size={13} className="mt-0.5 shrink-0"/>{row.error || "Invalid"}</span> : row.sourceType === "stripe_payout" && !row.sourceReference ? <Badge tone="amber">Choose payout</Badge> : <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold"><CheckCircle2 size={13}/>Ready</span>}</Td>
+                <Td><div className="min-w-[250px] space-y-2"><select value={row.sourceType} disabled={!row.valid || row.duplicate || row.locked} onChange={(e) => setSourceType(row, e.target.value)} className="h-8 w-full rounded-md border border-[#d8d8d8] bg-white px-2 text-xs">{SOURCE_OPTIONS.filter(([id]) => row.direction === "credit" || id !== "stripe_payout").map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>{row.sourceType === "stripe_payout" && <select value={row.sourceReference} disabled={row.locked} onChange={(e) => setStripePayout(row, e.target.value)} className="h-8 w-full rounded-md border border-[#d8d8d8] bg-white px-2 text-xs"><option value="">Choose unmatched payout</option>{availablePayouts.map((payout) => <option key={payout.stripe_payout_id} value={payout.stripe_payout_id}>{payout.stripe_payout_id} · {money(payout.amount)}</option>)}</select>}</div></Td>
+                <Td>{row.duplicate ? <Badge tone="amber">Duplicate</Badge> : row.locked ? <span className="inline-flex items-start gap-1 text-xs text-amber-800"><AlertTriangle size={13} className="mt-0.5 shrink-0"/>Locked {row.lockedPeriodStart} – {row.lockedPeriodEnd}</span> : !row.valid ? <span className="inline-flex items-start gap-1 text-xs text-red-700"><AlertTriangle size={13} className="mt-0.5 shrink-0"/>{row.error || "Invalid"}</span> : row.sourceType === "stripe_payout" && !row.sourceReference ? <Badge tone="amber">Choose payout</Badge> : <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold"><CheckCircle2 size={13}/>Ready</span>}</Td>
               </tr>;
             })}
           </tbody></table></div>
-          <div className="px-4 py-4 border-t border-[#ededed] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div className="text-xs text-[#777]">The server re-checks duplicates during import, so a race cannot silently create a second copy.</div><button type="button" onClick={importRows} disabled={saving || selectedRows.length === 0} className="h-10 px-4 rounded-lg bg-[#171717] text-white text-sm font-semibold disabled:opacity-50">{saving ? "Importing…" : `Import ${selectedRows.length} selected row${selectedRows.length === 1 ? "" : "s"}`}</button></div>
+          <div className="px-4 py-4 border-t border-[#ededed] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div className="text-xs text-[#777]">The server re-checks duplicates and closed-period locks during import, so the preview cannot bypass either control.</div><button type="button" onClick={importRows} disabled={saving || selectedRows.length === 0} className="h-10 px-4 rounded-lg bg-[#171717] text-white text-sm font-semibold disabled:opacity-50">{saving ? "Importing…" : `Import ${selectedRows.length} selected row${selectedRows.length === 1 ? "" : "s"}`}</button></div>
         </section>
       </>}
 
