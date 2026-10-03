@@ -140,9 +140,16 @@ Deno.serve(async (req: Request) => {
   });
 
   try {
-    if (event.type === "checkout.session.completed") {
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       const session = event.data.object;
       const orderId = session?.metadata?.order_id;
+
+      // Some payment methods complete the Checkout flow before funds are
+      // actually confirmed. Only a Stripe session whose payment_status is
+      // explicitly paid may release production/inventory/coupon workflows.
+      if (session?.payment_status !== "paid") {
+        return respond({ received: true, payment_pending: true });
+      }
 
       if (orderId) {
         const { data: orderRecord, error: orderRecordError } = await service
