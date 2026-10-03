@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { calculateProfileShipping } from "./shipping-profile-rules.mjs";
+import { calculateTaxBreakdown } from "./tax-rules.mjs";
 
 const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -306,7 +307,7 @@ async function getTaxRule(service: any, province: unknown) {
   if (regionCode) {
     const { data, error } = await service
       .from("tax_rules")
-      .select("name,rate,tax_shipping,region_code,priority")
+      .select("name,rate,tax_shipping,region_code,priority,config")
       .eq("country_code", "CA")
       .eq("region_code", regionCode)
       .eq("active", true)
@@ -321,7 +322,7 @@ async function getTaxRule(service: any, province: unknown) {
   if (!row) {
     const { data, error } = await service
       .from("tax_rules")
-      .select("name,rate,tax_shipping,region_code,priority")
+      .select("name,rate,tax_shipping,region_code,priority,config")
       .eq("country_code", "CA")
       .is("region_code", null)
       .eq("active", true)
@@ -400,11 +401,9 @@ async function getCheckoutRules(
       ? 0
       : roundMoney(Number(shippingQuote?.shipping || 0));
 
+  const regionCode = normalizeProvinceCode(customer?.province);
   const taxRule = await getTaxRule(service, customer?.province);
-  const taxRate = Math.max(0, Number(taxRule?.rate || 0));
-  const taxShipping = taxRule?.tax_shipping !== false;
-  const taxBase = amount + (taxShipping ? shipping : 0);
-  const tax = roundMoney(taxBase * taxRate);
+  const taxBreakdown = calculateTaxBreakdown(taxRule, regionCode, amount, shipping);
 
   return {
     shippingMethod,
@@ -414,11 +413,14 @@ async function getCheckoutRules(
     maxDeliveryDays: shippingMethod === "pickup" ? 0 : shippingQuote?.maxDeliveryDays ?? 7,
     freeShippingThreshold: shippingQuote?.freeShippingThreshold ?? 150,
     shippingProfileCount: shippingQuote?.groups?.length || 1,
-    tax,
-    taxRate,
+    tax: taxBreakdown.tax,
+    taxRate: taxBreakdown.effectiveRate,
     taxName: taxRule?.name || "Canada GST/HST",
-    taxShipping,
-    regionCode: normalizeProvinceCode(customer?.province),
+    taxShipping: taxBreakdown.clientTaxShipping,
+    regionCode,
+    gstHstTax: taxBreakdown.gstHstTax,
+    pstTax: taxBreakdown.pstTax,
+    taxBreakdown: { jurisdiction: regionCode, components: taxBreakdown.components },
   };
 }
 
@@ -1513,6 +1515,10 @@ Deno.serve(async (req: Request) => {
         discount: roundMoney(quantityDiscount + couponAmount),
         shipping,
         tax,
+        gst_hst_tax: checkoutRules.gstHstTax,
+        pst_tax: checkoutRules.pstTax,
+        tax_jurisdiction: checkoutRules.regionCode,
+        tax_breakdown: checkoutRules.taxBreakdown,
         total,
         status: "pending_payment",
         design_status: normalizedItems.some((item) => item.design) ? "design_in_progress" : "not_required",
@@ -1733,6 +1739,9 @@ Deno.serve(async (req: Request) => {
           total,
           taxRate: checkoutRules.taxRate,
           taxName: checkoutRules.taxName,
+          gstHstTax: checkoutRules.gstHstTax,
+          pstTax: checkoutRules.pstTax,
+          taxBreakdown: checkoutRules.taxBreakdown,
         },
       });
     }
@@ -1839,6 +1848,9 @@ Deno.serve(async (req: Request) => {
         total,
         taxRate: checkoutRules.taxRate,
         taxName: checkoutRules.taxName,
+        gstHstTax: checkoutRules.gstHstTax,
+        pstTax: checkoutRules.pstTax,
+        taxBreakdown: checkoutRules.taxBreakdown,
       },
     });
   } catch (error) {
