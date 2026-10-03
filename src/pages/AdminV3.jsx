@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Activity, ArrowLeft, Bot, DollarSign, ExternalLink, HeartPulse, Truck, UsersRound } from "lucide-react";
+import { Activity, ArrowLeft, BarChart3, Bot, DollarSign, ExternalLink, HeartPulse, Truck, UsersRound } from "lucide-react";
 import AdminV2 from "@/pages/AdminV2";
 import SalesLeads from "@/pages/SalesLeads";
 import AdminShipping from "@/pages/AdminShipping";
 import AdminPricing from "@/pages/AdminPricing";
+import FinanceReports from "@/pages/FinanceReports";
 import SystemHealthModule from "@/components/admin/SystemHealthModule";
 import PaymentPreflightCard from "@/components/admin/PaymentPreflightCard";
 import AiBusinessManagerModule from "@/components/admin/AiBusinessManagerModule";
@@ -30,6 +31,7 @@ function SalesShortcut(){return <Link to="/admin/sales-leads" className="fixed b
 function AiShortcut(){return <Link to="/admin/ai-manager" className="fixed bottom-[8.75rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]"><Bot size={17}/><span>AI Manager</span></Link>;}
 function ShippingShortcut(){return <Link to="/admin/shipping-delivery" className="fixed bottom-[12.5rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Shipping & Delivery"><Truck size={17}/><span>Shipping & Delivery</span></Link>;}
 function PricingShortcut(){return <Link to="/admin/pricing" className="fixed bottom-[16.25rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Apparel Pricing"><DollarSign size={17}/><span>Apparel Pricing</span></Link>;}
+function ReportsShortcut(){return <Link to="/admin/finance/reports" className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Finance Reports"><BarChart3 size={17}/><span>Finance Reports</span></Link>;}
 
 export default function AdminV3(){
   const location=useLocation();
@@ -38,7 +40,9 @@ export default function AdminV3(){
   if(location.pathname==="/admin/ai-manager") return <BusinessManagerPage/>;
   if(location.pathname==="/admin/shipping-delivery") return <AdminShipping/>;
   if(location.pathname==="/admin/pricing") return <AdminPricing/>;
+  if(location.pathname==="/admin/finance/reports") return <FinanceReports/>;
   const onProductsPage=location.pathname==="/admin/products";
+  const onFinancePage=location.pathname==="/admin/finance";
   const onAdminHome=location.pathname==="/admin";
-  return <><AdminV2/>{onProductsPage&&<ProductActionsUX/>}<PricingShortcut/><ShippingShortcut/><AiShortcut/><SalesShortcut/><HealthShortcut expanded={onAdminHome}/></>;
+  return <><AdminV2/>{onProductsPage&&<ProductActionsUX/>}{onFinancePage&&<ReportsShortcut/>}<PricingShortcut/><ShippingShortcut/><AiShortcut/><SalesShortcut/><HealthShortcut expanded={onAdminHome}/></>;
 }
