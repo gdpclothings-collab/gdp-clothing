@@ -107,14 +107,14 @@ export async function handleStripeDispute(
   if (disputeError) throw disputeError;
 
   // Never auto-refund, auto-submit evidence, or rewrite order/payment states here.
-  // A dispute needs human review. Raising priority is intentionally one-way so
-  // this handler never clears another legitimate rush/due-soon condition.
+  // A dispute needs human review. Only standard priority is raised so an
+  // existing rush order is never downgraded by the dispute handler.
   if (status !== "won" && status !== "warning_closed") {
     const { error: priorityError } = await service
       .from("orders")
       .update({ priority: "due_soon" })
       .eq("id", order.id)
-      .neq("priority", "due_soon");
+      .eq("priority", "standard");
     if (priorityError) throw priorityError;
   }
 
