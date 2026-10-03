@@ -50,6 +50,17 @@ function bearer(req: Request) {
   return (req.headers.get("Authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
 }
 
+function readJwtPayload(token: string): Record<string, unknown> {
+  try {
+    const payload = token.split(".")[1] || "";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return {};
+  }
+}
+
 async function sha256Hex(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -82,6 +93,11 @@ async function isAdminRequest(
   const { data: userData, error: userError } = await userClient.auth.getUser(token);
   const user = userData?.user || null;
   if (userError || !user || user.is_anonymous === true) return false;
+
+  // The JWT has been validated by auth.getUser above. Detailed payment
+  // diagnostics are privileged data, so an admin role alone is not enough.
+  const payload = readJwtPayload(token);
+  if (payload.aal !== "aal2") return false;
 
   const { data: profile, error: profileError } = await service
     .from("profiles")
