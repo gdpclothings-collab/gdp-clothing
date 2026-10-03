@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { handleStripeDispute } from "./disputes.ts";
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
@@ -363,6 +364,16 @@ Deno.serve(async (req: Request) => {
           .eq("id", orderId)
           .eq("payment_status", "pending");
       }
+    }
+
+    if (
+      event.type === "charge.dispute.created" ||
+      event.type === "charge.dispute.updated" ||
+      event.type === "charge.dispute.closed" ||
+      event.type === "charge.dispute.funds_withdrawn" ||
+      event.type === "charge.dispute.funds_reinstated"
+    ) {
+      await handleStripeDispute(service, event, matchedMode);
     }
 
     if (event.type === "charge.refunded") {
