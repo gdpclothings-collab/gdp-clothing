@@ -8,29 +8,31 @@ const nonNegativeMoney = (value, label) => {
   return Math.round(amount * 100) / 100;
 };
 
+async function syncStripeSettlements({ from = null, to = null } = {}) {
+  try {
+    const { data: syncData, error: syncError } = await supabase.functions.invoke("stripe-finance-sync", {
+      body: { from: from || null, to: to || null },
+    });
+    if (syncError) throw syncError;
+    if (syncData?.error) throw new Error(syncData.message || "Stripe settlement sync failed.");
+    return {
+      ok: true,
+      syncedAt: syncData?.syncedAt || null,
+      message: syncData?.truncated ? "Stripe returned more settlement rows than the safe sync window; narrow the Finance date range." : "",
+    };
+  } catch (err) {
+    console.warn("Stripe finance sync unavailable; using stored settlement data:", err);
+    return {
+      ok: false,
+      syncedAt: null,
+      message: err?.message || "Stripe settlement sync is temporarily unavailable.",
+    };
+  }
+}
+
 export const adminFinanceApi = {
   async load({ from = null, to = null, limit = 250 } = {}) {
-    let stripeSync = { ok: true, syncedAt: null, message: "" };
-
-    try {
-      const { data: syncData, error: syncError } = await supabase.functions.invoke("stripe-finance-sync", {
-        body: { from: from || null, to: to || null },
-      });
-      if (syncError) throw syncError;
-      if (syncData?.error) throw new Error(syncData.message || "Stripe settlement sync failed.");
-      stripeSync = {
-        ok: true,
-        syncedAt: syncData?.syncedAt || null,
-        message: syncData?.truncated ? "Stripe returned more settlement rows than the safe sync window; narrow the Finance date range." : "",
-      };
-    } catch (err) {
-      console.warn("Stripe finance sync unavailable; using stored settlement data:", err);
-      stripeSync = {
-        ok: false,
-        syncedAt: null,
-        message: err?.message || "Stripe settlement sync is temporarily unavailable.",
-      };
-    }
+    const stripeSync = await syncStripeSettlements({ from, to });
 
     const args = {
       p_from: from || null,
@@ -74,6 +76,39 @@ export const adminFinanceApi = {
       expenses: Array.isArray(data.expenses) ? data.expenses : [],
       balanceTransactions: Array.isArray(stripe.balanceTransactions) ? stripe.balanceTransactions : [],
       payouts: Array.isArray(stripe.payouts) ? stripe.payouts : [],
+      stripeSync,
+    };
+  },
+
+  async loadReport({
+    from = null,
+    to = null,
+    previousFrom = null,
+    previousTo = null,
+    months = 12,
+    syncFrom = null,
+    syncTo = null,
+  } = {}) {
+    const stripeSync = await syncStripeSettlements({ from: syncFrom || from, to: syncTo || to });
+    const safeMonths = Math.max(1, Math.min(24, Number(months) || 12));
+
+    const { data, error } = await supabase.rpc("get_admin_finance_reports", {
+      p_from: from || null,
+      p_to: to || null,
+      p_prev_from: previousFrom || null,
+      p_prev_to: previousTo || null,
+      p_months: safeMonths,
+    });
+
+    if (error) throw error;
+
+    return {
+      generatedAt: data?.generatedAt || null,
+      current: data?.current || null,
+      previous: data?.previous || null,
+      monthlyPnl: Array.isArray(data?.monthlyPnl) ? data.monthlyPnl : [],
+      expenseBreakdown: Array.isArray(data?.expenseBreakdown) ? data.expenseBreakdown : [],
+      taxSummary: data?.taxSummary || null,
       stripeSync,
     };
   },
