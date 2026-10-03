@@ -1,0 +1,57 @@
+name: Finance tax filing UI patch
+
+on:
+  push:
+    branches:
+      - feature/finance-tax-filing-controls
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'finance tax: wire filing controls into Tax Center'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/finance-tax-filing-controls
+          fetch-depth: 0
+      - name: Patch Tax Center
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/pages/FinanceTax.jsx')
+          text = path.read_text()
+
+          def replace_exact(old, new, expected=1):
+              global text
+              actual = text.count(old)
+              if actual != expected:
+                  raise SystemExit(f'Expected {expected} occurrence(s), found {actual}: {old[:120]!r}')
+              text = text.replace(old, new)
+
+          replace_exact(
+              'import { adminTaxApi } from "@/lib/adminTaxApi";\n',
+              'import { adminTaxApi } from "@/lib/adminTaxApi";\nimport TaxFilingControls from "@/components/admin/TaxFilingControls";\n',
+          )
+          replace_exact(
+              '          <div className="mt-1 text-xs">GST/HST ITCs are deducted from the estimate only when you explicitly mark an expense ITC eligible. Saskatchewan PST paid on business expenses is shown separately and is not treated as an ITC. Registration numbers, filing-period close controls and accountant review are not configured yet.</div>',
+              '          <div className="mt-1 text-xs">GST/HST ITCs are deducted from the estimate only when you explicitly mark an expense ITC eligible. Saskatchewan PST paid on business expenses is shown separately and is not treated as an ITC. Registration and filing-period controls are available below; GDP records filing status but does not submit returns to CRA or Saskatchewan.</div>',
+          )
+          marker = '        {unclassified > 0 && !loading && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3">'
+          if text.count(marker) != 1:
+              raise SystemExit(f'Expected filing controls insertion marker once, found {text.count(marker)}')
+          text = text.replace(marker, '        <TaxFilingControls />\n\n' + marker)
+          path.write_text(text)
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/finance-tax-filing-ui-patch.yml
+          git add src/pages/FinanceTax.jsx
+          git commit -m "finance tax: wire filing controls into Tax Center"
+          git push origin HEAD:feature/finance-tax-filing-controls
