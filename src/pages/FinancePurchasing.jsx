@@ -159,4 +159,4 @@ function Metric({ label, value, strong=false }) { return <div className="rounded
 function Field({ label, children }) { return <label><div className="text-xs font-medium text-[#666] mb-1">{label}</div>{children}</label>; }
 function Th({ children, right=false }) { return <th className={`px-3 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>; }
 function Td({ children, right=false, strong=false }) { return <td className={`px-3 py-3 ${right ? "text-right tabular-nums" : ""} ${strong ? "font-semibold" : ""}`}>{children}</td>; }
-function Empty({ cols, children }) { return <tr><td colSpan={cols} className="px-4 py-10 text-center text-sm text-[#777]">{children}</td></tr>;
+function Empty({ cols, children }) { return <tr><td colSpan={cols} className="px-4 py-10 text-center text-sm text-[#777]">{children}</td></tr>; }
