@@ -1,0 +1,40 @@
+name: Fix finance tax typecheck
+
+on:
+  push:
+    branches:
+      - feature/finance-tax-breakdown
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/finance-tax-breakdown
+          fetch-depth: 0
+      - name: Apply exact type fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/pages/FinanceTax.jsx')
+          text = path.read_text()
+          old = 'function Th({ children, right = false })'
+          new = 'function Th({ children = null, right = false })'
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one Th signature, found {text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
+      - name: Commit exact fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-finance-tax-typecheck.yml
+          git add src/pages/FinanceTax.jsx
+          git commit -m "finance tax: fix empty table header typing"
+          git push origin HEAD:feature/finance-tax-breakdown
