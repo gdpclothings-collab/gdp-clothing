@@ -293,7 +293,7 @@ function MoneyField({ label, value, onChange, required = false }) {
   return <Field label={`${label}${required ? " *" : ""}`}><input type="number" min="0" step="0.01" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} className="input-control text-right" /></Field>;
 }
 
-function Metric({ label, value, sub, strong = false }) {
+function Metric({ label, value, sub = null, strong = false }) {
   return <div className="rounded-xl border border-[#dedede] bg-white p-4"><div className="text-xs font-medium text-[#777]">{label}</div><div className={`mt-1 text-xl tabular-nums ${strong ? "font-bold" : "font-semibold"}`}>{value}</div>{sub && <div className="mt-1 text-xs text-[#888]">{sub}</div>}</div>;
 }
 
