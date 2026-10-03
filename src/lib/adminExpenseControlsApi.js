@@ -19,19 +19,25 @@ function expenseArgs(expense) {
   if (!expense.occurredOn) throw new Error("Expense date is required.");
   if (!description) throw new Error("Expense description is required.");
 
+  const gstHstTax = expense.gstHstTax === "" || expense.gstHstTax == null
+    ? null
+    : nonNegativeMoney(expense.gstHstTax, "GST/HST");
+  const pstTax = expense.pstTax === "" || expense.pstTax == null
+    ? null
+    : nonNegativeMoney(expense.pstTax, "PST");
+  const tax = gstHstTax !== null || pstTax !== null
+    ? Math.round(((gstHstTax || 0) + (pstTax || 0)) * 100) / 100
+    : nonNegativeMoney(expense.tax, "Expense tax");
+
   return {
     p_occurred_on: expense.occurredOn,
     p_vendor: clean(expense.vendor) || null,
     p_category: clean(expense.category) || "miscellaneous",
     p_description: description,
     p_amount: positiveMoney(expense.amount, "Expense amount"),
-    p_tax: nonNegativeMoney(expense.tax, "Expense tax"),
-    p_gst_hst_tax: expense.gstHstTax === "" || expense.gstHstTax == null
-      ? null
-      : nonNegativeMoney(expense.gstHstTax, "GST/HST"),
-    p_pst_tax: expense.pstTax === "" || expense.pstTax == null
-      ? null
-      : nonNegativeMoney(expense.pstTax, "PST"),
+    p_tax: tax,
+    p_gst_hst_tax: gstHstTax,
+    p_pst_tax: pstTax,
     p_itc_eligible: Boolean(expense.itcEligible),
     p_payment_method: clean(expense.paymentMethod) || null,
     p_receipt_reference: clean(expense.receiptReference) || null,
