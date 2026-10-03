@@ -1,0 +1,90 @@
+name: Finance tax source patch
+
+on:
+  push:
+    branches:
+      - feature/finance-tax-breakdown
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'finance tax: apply checkout split patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/finance-tax-breakdown
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch checkout tax calculation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/checkout/index.ts')
+          text = path.read_text()
+
+          def replace_exact(old, new, expected=1):
+              global text
+              actual = text.count(old)
+              if actual != expected:
+                  raise SystemExit(f'Expected {expected} occurrence(s), found {actual}: {old[:100]!r}')
+              text = text.replace(old, new)
+
+          replace_exact(
+              'import { calculateProfileShipping } from "./shipping-profile-rules.mjs";\n',
+              'import { calculateProfileShipping } from "./shipping-profile-rules.mjs";\nimport { calculateTaxBreakdown } from "./tax-rules.mjs";\n',
+          )
+          replace_exact(
+              '.select("name,rate,tax_shipping,region_code,priority")',
+              '.select("name,rate,tax_shipping,region_code,priority,config")',
+              expected=2,
+          )
+          replace_exact(
+              '''  const taxRule = await getTaxRule(service, customer?.province);\n  const taxRate = Math.max(0, Number(taxRule?.rate || 0));\n  const taxShipping = taxRule?.tax_shipping !== false;\n  const taxBase = amount + (taxShipping ? shipping : 0);\n  const tax = roundMoney(taxBase * taxRate);\n''',
+              '''  const regionCode = normalizeProvinceCode(customer?.province);\n  const taxRule = await getTaxRule(service, customer?.province);\n  const taxBreakdown = calculateTaxBreakdown(taxRule, regionCode, amount, shipping);\n''',
+          )
+          replace_exact(
+              '''    tax,\n    taxRate,\n    taxName: taxRule?.name || "Canada GST/HST",\n    taxShipping,\n    regionCode: normalizeProvinceCode(customer?.province),\n''',
+              '''    tax: taxBreakdown.tax,\n    taxRate: taxBreakdown.effectiveRate,\n    taxName: taxRule?.name || "Canada GST/HST",\n    taxShipping: taxBreakdown.clientTaxShipping,\n    regionCode,\n    gstHstTax: taxBreakdown.gstHstTax,\n    pstTax: taxBreakdown.pstTax,\n    taxBreakdown: { jurisdiction: regionCode, components: taxBreakdown.components },\n''',
+          )
+          replace_exact(
+              '''        shipping,\n        tax,\n        total,\n        status: "pending_payment",\n''',
+              '''        shipping,\n        tax,\n        gst_hst_tax: checkoutRules.gstHstTax,\n        pst_tax: checkoutRules.pstTax,\n        tax_jurisdiction: checkoutRules.regionCode,\n        tax_breakdown: checkoutRules.taxBreakdown,\n        total,\n        status: "pending_payment",\n''',
+          )
+          replace_exact(
+              '''          taxRate: checkoutRules.taxRate,\n          taxName: checkoutRules.taxName,\n''',
+              '''          taxRate: checkoutRules.taxRate,\n          taxName: checkoutRules.taxName,\n          gstHstTax: checkoutRules.gstHstTax,\n          pstTax: checkoutRules.pstTax,\n          taxBreakdown: checkoutRules.taxBreakdown,\n''',
+              expected=1,
+          )
+          replace_exact(
+              '''        taxRate: checkoutRules.taxRate,\n        taxName: checkoutRules.taxName,\n''',
+              '''        taxRate: checkoutRules.taxRate,\n        taxName: checkoutRules.taxName,\n        gstHstTax: checkoutRules.gstHstTax,\n        pstTax: checkoutRules.pstTax,\n        taxBreakdown: checkoutRules.taxBreakdown,\n''',
+              expected=1,
+          )
+          path.write_text(text)
+
+          checkout = Path('src/pages/CheckoutTwoStep.jsx')
+          ui = checkout.read_text()
+          old = 'const tax = (afterCoupon + ((activeConfig?.taxShipping ?? true) ? shipping : 0)) * taxRate;'
+          new = 'const tax = activeConfig ? (afterCoupon + ((activeConfig?.taxShipping ?? true) ? shipping : 0)) * taxRate : form.province === "Saskatchewan" ? (afterCoupon + shipping) * 0.05 + afterCoupon * 0.06 : (afterCoupon + shipping) * taxRate;'
+          if ui.count(old) != 1:
+              raise SystemExit(f'Checkout UI tax fallback patch expected once, found {ui.count(old)}')
+          checkout.write_text(ui.replace(old, new))
+          PY
+      - name: Verify tax examples
+        run: node scripts/check-tax-breakdown.mjs
+      - name: Commit deterministic patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/finance-tax-source-patch.yml
+          git add supabase/functions/checkout/index.ts src/pages/CheckoutTwoStep.jsx
+          git commit -m "finance tax: apply checkout split patch"
+          git push origin HEAD:feature/finance-tax-breakdown
