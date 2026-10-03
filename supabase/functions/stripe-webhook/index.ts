@@ -116,21 +116,26 @@ Deno.serve(async (req: Request) => {
   const rawBody = await req.text();
   const signature = req.headers.get("stripe-signature") || "";
 
-  const matchedMode = liveWebhookSecret && await verifyStripeSignature(rawBody, signature, liveWebhookSecret)
-    ? "live"
-    : testWebhookSecret && await verifyStripeSignature(rawBody, signature, testWebhookSecret)
-      ? "test"
-      : null;
-
-  if (!matchedMode) {
-    return respond({ error: "Invalid Stripe signature." }, 400);
-  }
-
   let event: any;
   try {
     event = JSON.parse(rawBody);
   } catch {
     return respond({ error: "Invalid JSON." }, 400);
+  }
+
+  if (typeof event?.livemode !== "boolean") {
+    return respond({ error: "Stripe event mode is missing." }, 400);
+  }
+
+  const matchedMode: "live" | "test" = event.livemode ? "live" : "test";
+  const webhookSecret = matchedMode === "live" ? liveWebhookSecret : testWebhookSecret;
+  if (!webhookSecret) {
+    return respond({ error: `Stripe ${matchedMode} webhook is not configured.` }, 503);
+  }
+
+  const signatureValid = await verifyStripeSignature(rawBody, signature, webhookSecret);
+  if (!signatureValid) {
+    return respond({ error: "Invalid Stripe signature." }, 400);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
