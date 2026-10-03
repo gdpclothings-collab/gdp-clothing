@@ -16,6 +16,9 @@ dist
 dist-ssr
 *.local
 
+# Local backup exports (may contain customer/order/artwork data)
+/backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
