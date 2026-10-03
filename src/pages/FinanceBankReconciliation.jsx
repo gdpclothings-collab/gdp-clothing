@@ -126,7 +126,7 @@ export default function FinanceBankReconciliation() {
     if (ok) setVoidReasons((current) => ({ ...current, [row.id]: "" }));
   };
 
-  const usePayout = (payout) => {
+  const selectPayoutForMatch = (payout) => {
     setForm({
       occurredOn: payout.arrival_date || localDateValue(),
       direction: "credit",
@@ -228,7 +228,7 @@ export default function FinanceBankReconciliation() {
 
       <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
         <div className="px-4 py-3 border-b border-[#ededed] flex items-center justify-between gap-3"><div><div className="text-sm font-semibold">Unmatched paid Stripe payouts</div><div className="text-xs text-[#777] mt-0.5">Synced live payouts that do not yet have an active bank match in the selected period.</div></div><Badge tone={payouts.length ? "amber" : "green"}>{payouts.length} open</Badge></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Arrival</Th><Th>Payout ID</Th><Th right>Expected</Th><Th>Method</Th><Th>Action</Th></tr></thead><tbody>{loading ? <Empty cols={5}>Loading payouts…</Empty> : payouts.length ? payouts.map((payout) => <tr key={payout.stripe_payout_id} className="border-t border-[#eeeeee]"><Td>{displayDate(payout.arrival_date)}</Td><Td><code className="text-xs">{payout.stripe_payout_id}</code></Td><Td right strong>{money(payout.amount)}</Td><Td>{payout.method || "—"}</Td><Td><button type="button" onClick={() => usePayout(payout)} className="h-8 px-3 rounded-md border border-[#d8d8d8] bg-white text-xs font-semibold">Match bank entry</button></Td></tr>) : <Empty cols={5}>No unmatched paid Stripe payouts in this period.</Empty>}</tbody></table></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Arrival</Th><Th>Payout ID</Th><Th right>Expected</Th><Th>Method</Th><Th>Action</Th></tr></thead><tbody>{loading ? <Empty cols={5}>Loading payouts…</Empty> : payouts.length ? payouts.map((payout) => <tr key={payout.stripe_payout_id} className="border-t border-[#eeeeee]"><Td>{displayDate(payout.arrival_date)}</Td><Td><code className="text-xs">{payout.stripe_payout_id}</code></Td><Td right strong>{money(payout.amount)}</Td><Td>{payout.method || "—"}</Td><Td><button type="button" onClick={() => selectPayoutForMatch(payout)} className="h-8 px-3 rounded-md border border-[#d8d8d8] bg-white text-xs font-semibold">Match bank entry</button></Td></tr>) : <Empty cols={5}>No unmatched paid Stripe payouts in this period.</Empty>}</tbody></table></div>
       </section>
 
       <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
