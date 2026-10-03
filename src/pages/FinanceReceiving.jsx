@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Boxes, CheckCircle2, FileText, Link2, RefreshCw, ShieldCheck, Undo2 } from "lucide-react";
+import { ArrowLeft, Boxes, FileText, Link2, RefreshCw, ShieldCheck, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { adminReceivingApi } from "@/lib/adminReceivingApi";
 
