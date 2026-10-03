@@ -10,21 +10,71 @@ const nonNegativeMoney = (value, label) => {
 
 export const adminFinanceApi = {
   async load({ from = null, to = null, limit = 250 } = {}) {
-    const { data, error } = await supabase.rpc("get_admin_finance_snapshot", {
+    let stripeSync = { ok: true, syncedAt: null, message: "" };
+
+    try {
+      const { data: syncData, error: syncError } = await supabase.functions.invoke("stripe-finance-sync", {
+        body: { from: from || null, to: to || null },
+      });
+      if (syncError) throw syncError;
+      if (syncData?.error) throw new Error(syncData.message || "Stripe settlement sync failed.");
+      stripeSync = {
+        ok: true,
+        syncedAt: syncData?.syncedAt || null,
+        message: syncData?.truncated ? "Stripe returned more settlement rows than the safe sync window; narrow the Finance date range." : "",
+      };
+    } catch (err) {
+      console.warn("Stripe finance sync unavailable; using stored settlement data:", err);
+      stripeSync = {
+        ok: false,
+        syncedAt: null,
+        message: err?.message || "Stripe settlement sync is temporarily unavailable.",
+      };
+    }
+
+    const args = {
       p_from: from || null,
       p_to: to || null,
       p_limit: clampLimit(limit),
+    };
+
+    const [financeResult, stripeResult] = await Promise.all([
+      supabase.rpc("get_admin_finance_snapshot", args),
+      supabase.rpc("get_admin_stripe_finance_snapshot", args),
+    ]);
+
+    if (financeResult.error) throw financeResult.error;
+    if (stripeResult.error) throw stripeResult.error;
+
+    const data = financeResult.data || {};
+    const stripe = stripeResult.data || {};
+    const feeByOrder = new Map(
+      (Array.isArray(stripe.feesByOrder) ? stripe.feesByOrder : [])
+        .map((row) => [row.order_id, row]),
+    );
+
+    const transactions = (Array.isArray(data.transactions) ? data.transactions : []).map((order) => {
+      const settlement = feeByOrder.get(order.id);
+      return {
+        ...order,
+        stripe_fee: Number(settlement?.stripe_fee || 0),
+        stripe_gross: Number(settlement?.stripe_gross || 0),
+        stripe_net: Number(settlement?.stripe_net || 0),
+        stripe_fee_captured: Boolean(settlement?.fee_captured),
+        stripe_last_transaction_at: settlement?.last_stripe_transaction_at || null,
+      };
     });
 
-    if (error) throw error;
-
     return {
-      metrics: data?.metrics || {},
-      transactions: Array.isArray(data?.transactions) ? data.transactions : [],
-      costItems: Array.isArray(data?.costItems) ? data.costItems : [],
-      refunds: Array.isArray(data?.refunds) ? data.refunds : [],
-      disputes: Array.isArray(data?.disputes) ? data.disputes : [],
-      expenses: Array.isArray(data?.expenses) ? data.expenses : [],
+      metrics: { ...(data.metrics || {}), ...(stripe.metrics || {}) },
+      transactions,
+      costItems: Array.isArray(data.costItems) ? data.costItems : [],
+      refunds: Array.isArray(data.refunds) ? data.refunds : [],
+      disputes: Array.isArray(data.disputes) ? data.disputes : [],
+      expenses: Array.isArray(data.expenses) ? data.expenses : [],
+      balanceTransactions: Array.isArray(stripe.balanceTransactions) ? stripe.balanceTransactions : [],
+      payouts: Array.isArray(stripe.payouts) ? stripe.payouts : [],
+      stripeSync,
     };
   },
 
