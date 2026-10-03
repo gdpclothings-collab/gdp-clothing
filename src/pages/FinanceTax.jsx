@@ -175,5 +175,5 @@ function Rule({ title, value, text }) { return <div className="rounded-lg bg-[#f
 function Badge({ ok, children }) { return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${ok ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{children}</span>; }
 function TableShell({ title, subtitle, children }) { return <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden"><div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">{title}</div><div className="text-xs text-[#777] mt-0.5">{subtitle}</div></div><div className="overflow-x-auto">{children}</div></section>; }
 function Empty({ cols, children }) { return <tr><td colSpan={cols} className="py-12 text-center text-[#777]">{children}</td></tr>; }
-function Th({ children, right = false }) { return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>; }
+function Th({ children = null, right = false }) { return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>; }
 function Td({ children, right = false, strong = false }) { return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"} ${strong ? "font-semibold" : ""}`}>{children}</td>; }
