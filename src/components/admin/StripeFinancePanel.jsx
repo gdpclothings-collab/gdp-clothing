@@ -41,6 +41,15 @@ function Empty({ cols, children }) {
   return <tr><td colSpan={cols} className="py-12 text-center text-[#777]">{children}</td></tr>;
 }
 
+/**
+ * @param {{
+ *   loading?: boolean,
+ *   balanceTransactions?: any[],
+ *   payouts?: any[],
+ *   sync?: Record<string, any>,
+ *   metrics?: Record<string, any>
+ * }} props
+ */
 export default function StripeFinancePanel({ loading, balanceTransactions = [], payouts = [], sync = {}, metrics = {} }) {
   return (
     <div className="pt-5 space-y-5">
