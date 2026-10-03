@@ -102,7 +102,7 @@ export const adminExpenseReceiptApi = {
 
     const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(objectPath, 60);
     if (error) throw error;
-    const signedUrl = data?.signedUrl || data?.signedURL;
+    const signedUrl = data?.signedUrl;
     if (!signedUrl) throw new Error("Could not create a secure receipt link.");
     return signedUrl;
   },
