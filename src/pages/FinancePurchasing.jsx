@@ -4,8 +4,12 @@ import { Link } from "react-router-dom";
 import { adminPurchasingApi } from "@/lib/adminPurchasingApi";
 
 const money = (value) => Number(value || 0).toLocaleString("en-CA", { style: "currency", currency: "CAD" });
-const todayValue = () => new Date().toISOString().slice(0, 10);
-const dateLabel = (value) => value ? new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "short", day: "numeric" }).format(new Date(`${String(value).slice(0, 10)}T12:00:00`)) : "—";
+const todayValue = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Regina", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+const dateLabel = (value) => value ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Regina", year: "numeric", month: "short", day: "numeric" }).format(new Date(`${String(value).slice(0, 10)}T12:00:00-06:00`)) : "—";
 const blankSupplier = () => ({ name: "", contactName: "", email: "", phone: "", website: "", accountNumber: "", paymentTermsDays: "0", notes: "" });
 const blankItem = () => ({ sku: "", description: "", quantity: "1", unitCost: "0", gstHstTax: "0", pstTax: "0" });
 const blankPo = () => ({ supplierId: "", orderDate: todayValue(), expectedDate: "", notes: "", items: [blankItem()] });
