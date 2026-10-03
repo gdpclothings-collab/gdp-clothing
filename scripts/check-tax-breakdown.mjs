@@ -16,6 +16,10 @@ const skShipping = calculateTaxBreakdown(skRule, "SK", 100, 12.99);
 assert.equal(skShipping.gstHstTax, 5.65, "SK GST must include separately stated shipping");
 assert.equal(skShipping.pstTax, 6, "SK PST must exclude Saskatchewan-origin separately stated shipping");
 assert.equal(skShipping.tax, 11.65, "SK total tax must be the sum of GST and PST components");
+assert.ok(
+  Math.abs((100 + 12.99) * skShipping.effectiveRate - skShipping.tax) < 0.000001,
+  "Effective checkout rate must reproduce the exact server tax total",
+);
 
 const skPickup = calculateTaxBreakdown(skRule, "SK", 100, 0);
 assert.equal(skPickup.gstHstTax, 5);
