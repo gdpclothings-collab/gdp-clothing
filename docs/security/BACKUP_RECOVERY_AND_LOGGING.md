@@ -16,6 +16,17 @@
 - `product-images` is public content but should still be included when a full media recovery copy is made.
 - A Storage backup must preserve object paths so database references remain recoverable.
 
+### Storage backup execution
+Use `scripts/backup-supabase-storage.mjs` from a trusted operator machine. Supply `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` only through local environment variables or a secure secret manager; never paste them into source files.
+
+The script exports the configured buckets into a gitignored `backups/` directory by default, preserves bucket/object paths, rejects path traversal, and writes a SHA-256 checksum for every downloaded object to `manifest.json`.
+
+After each export:
+1. Keep the local copy on encrypted storage or copy it to an encrypted/offsite location you control.
+2. Confirm `manifest.json` exists and lists the expected private buckets.
+3. Never commit the backup directory or manifest to GitHub.
+4. Periodically restore a sample object and compare its SHA-256 value with the manifest.
+
 ### Restore drill checklist
 1. Restore or clone the database into a non-production Supabase project/environment.
 2. Confirm critical tables, order counts and Auth relationships are present and internally consistent.
