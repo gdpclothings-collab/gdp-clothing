@@ -48,6 +48,17 @@ function bearer(req: Request) {
   return (req.headers.get("Authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
 }
 
+function readJwtPayload(token: string): Record<string, unknown> {
+  try {
+    const payload = token.split(".")[1] || "";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return {};
+  }
+}
+
 async function timedFetch(url: string, init: RequestInit = {}) {
   const started = performance.now();
   try {
@@ -126,6 +137,12 @@ Deno.serve(async (req: Request) => {
   const { data: userData, error: userError } = await userClient.auth.getUser(token);
   const user = userData?.user || null;
   if (userError || !user) return respond(req, { error: true, message: "Authentication required." }, 401);
+
+  // The token was cryptographically validated above. System Health reads
+  // service-role operational data, so admin role alone is not sufficient.
+  if (readJwtPayload(token).aal !== "aal2") {
+    return respond(req, { error: true, message: "MFA verification required." }, 403);
+  }
 
   const { data: profile, error: profileError } = await service
     .from("profiles")
