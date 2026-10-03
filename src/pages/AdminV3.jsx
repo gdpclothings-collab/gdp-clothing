@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Activity, ArrowLeft, Banknote, BarChart3, Bot, DollarSign, ExternalLink, HeartPulse, Truck, UsersRound } from "lucide-react";
+import { Activity, ArrowLeft, Banknote, BarChart3, Bot, DollarSign, ExternalLink, FileText, HeartPulse, Truck, UsersRound } from "lucide-react";
 import AdminV2 from "@/pages/AdminV2";
 import SalesLeads from "@/pages/SalesLeads";
 import AdminShipping from "@/pages/AdminShipping";
@@ -9,6 +9,7 @@ import FinanceReports from "@/pages/FinanceReports";
 import FinanceTax from "@/pages/FinanceTax";
 import FinanceLocalSales from "@/pages/FinanceLocalSales";
 import FinanceCashReconciliation from "@/pages/FinanceCashReconciliation";
+import FinanceExpenses from "@/pages/FinanceExpenses";
 import SystemHealthModule from "@/components/admin/SystemHealthModule";
 import PaymentPreflightCard from "@/components/admin/PaymentPreflightCard";
 import AiBusinessManagerModule from "@/components/admin/AiBusinessManagerModule";
@@ -34,7 +35,7 @@ function SalesShortcut(){return <Link to="/admin/sales-leads" className="fixed b
 function AiShortcut(){return <Link to="/admin/ai-manager" className="fixed bottom-[8.75rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]"><Bot size={17}/><span>AI Manager</span></Link>;}
 function ShippingShortcut(){return <Link to="/admin/shipping-delivery" className="fixed bottom-[12.5rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Shipping & Delivery"><Truck size={17}/><span>Shipping & Delivery</span></Link>;}
 function PricingShortcut(){return <Link to="/admin/pricing" className="fixed bottom-[16.25rem] right-5 z-40 inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Apparel Pricing"><DollarSign size={17}/><span>Apparel Pricing</span></Link>;}
-function FinanceShortcuts(){return <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 flex flex-wrap justify-center items-center gap-2 max-w-[calc(100vw-2rem)]"><Link to="/admin/finance/reports" className="inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Finance Reports"><BarChart3 size={17}/><span>Finance Reports</span></Link><Link to="/admin/finance/local-sales" className="inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Local Sales"><Banknote size={17}/><span>Local Sales</span></Link><Link to="/admin/finance/cash-reconciliation" className="inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Cash Reconciliation"><Banknote size={17}/><span>Cash Close</span></Link></div>;}
+function FinanceShortcuts(){return <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 flex flex-wrap justify-center items-center gap-2 max-w-[calc(100vw-2rem)]"><Link to="/admin/finance/reports" className="inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Finance Reports"><BarChart3 size={17}/><span>Finance Reports</span></Link><Link to="/admin/finance/local-sales" className="inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Local Sales"><Banknote size={17}/><span>Local Sales</span></Link><Link to="/admin/finance/expenses" className="inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Expense Controls"><FileText size={17}/><span>Expenses</span></Link><Link to="/admin/finance/cash-reconciliation" className="inline-flex items-center gap-2 rounded-xl border border-[#d6d8dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#25272b] shadow-lg shadow-black/10 hover:bg-[#f7f7f8]" aria-label="Open Cash Reconciliation"><Banknote size={17}/><span>Cash Close</span></Link></div>;}
 
 export default function AdminV3(){
   const location=useLocation();
@@ -46,6 +47,7 @@ export default function AdminV3(){
   if(location.pathname==="/admin/finance/reports") return <FinanceReports/>;
   if(location.pathname==="/admin/finance/tax") return <FinanceTax/>;
   if(location.pathname==="/admin/finance/local-sales") return <FinanceLocalSales/>;
+  if(location.pathname==="/admin/finance/expenses") return <FinanceExpenses/>;
   if(location.pathname==="/admin/finance/cash-reconciliation") return <FinanceCashReconciliation/>;
   const onProductsPage=location.pathname==="/admin/products";
   const onFinancePage=location.pathname==="/admin/finance";
