@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { isLandingDraftPreview, storefrontContentApi } from "@/lib/storefrontContentApi";
 
 const SITE_ORIGIN = "https://gdpclothing.ca";
 const DEFAULT_IMAGE = `${SITE_ORIGIN}/images/gdp-hero-approved.webp`;
+const DEFAULT_FAVICON = "/favicon.svg";
 
 const CANONICAL_ALIASES = new Map([
   ["/design", "/custom-studio"],
@@ -108,8 +110,73 @@ function ensureCanonical(href) {
   canonical.setAttribute("href", href);
 }
 
+function resolveFaviconHref(value) {
+  const candidate = String(value || "").trim();
+  if (!candidate) return DEFAULT_FAVICON;
+  if (candidate.startsWith("/")) return candidate;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol === "https:" || url.protocol === "http:") return url.toString();
+  } catch {
+    // Fall through to the bundled site icon.
+  }
+
+  return DEFAULT_FAVICON;
+}
+
+function ensureFavicon(href) {
+  const targetHref = resolveFaviconHref(href);
+  let favicon = document.head.querySelector('link[rel~="icon"]');
+  if (!favicon) {
+    favicon = document.createElement("link");
+    favicon.setAttribute("rel", "icon");
+    document.head.appendChild(favicon);
+  }
+
+  if (favicon.getAttribute("href") !== targetHref) favicon.setAttribute("href", targetHref);
+
+  const svgIcon = /\.svg(?:$|[?#])/i.test(targetHref);
+  const currentType = favicon.getAttribute("type") || "";
+  if (svgIcon && currentType !== "image/svg+xml") favicon.setAttribute("type", "image/svg+xml");
+  if (!svgIcon && currentType) favicon.removeAttribute("type");
+}
+
 export default function SeoRouteManager() {
   const { pathname } = useLocation();
+
+  useEffect(() => {
+    let active = true;
+    let globalFavicon = DEFAULT_FAVICON;
+
+    const applyGlobalFavicon = () => {
+      if (active) ensureFavicon(globalFavicon);
+    };
+
+    const observer = new MutationObserver(applyGlobalFavicon);
+    observer.observe(document.head, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["href", "rel", "type"],
+    });
+
+    applyGlobalFavicon();
+
+    storefrontContentApi
+      .getHomepage({ previewDraft: isLandingDraftPreview() })
+      .then((homepage) => {
+        if (!active) return;
+        globalFavicon = resolveFaviconHref(homepage?.branding?.faviconUrl);
+        applyGlobalFavicon();
+      })
+      .catch(() => applyGlobalFavicon());
+
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const normalizedPath = normalizePath(pathname);
