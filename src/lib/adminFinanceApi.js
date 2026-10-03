@@ -135,38 +135,41 @@ export const adminFinanceApi = {
   },
 
   async createExpense(expense) {
-    const payload = {
-      occurred_on: expense.occurredOn,
-      vendor: String(expense.vendor || "").trim() || null,
-      category: expense.category || "miscellaneous",
-      description: String(expense.description || "").trim(),
-      amount: Number(expense.amount || 0),
-      tax: Number(expense.tax || 0),
-      currency: "CAD",
-      payment_method: String(expense.paymentMethod || "").trim() || null,
-      notes: String(expense.notes || "").trim() || null,
-    };
+    const description = String(expense.description || "").trim();
+    const amount = Number(expense.amount || 0);
+    const tax = Number(expense.tax || 0);
 
-    if (!payload.description) throw new Error("Expense description is required.");
-    if (!Number.isFinite(payload.amount) || payload.amount <= 0) throw new Error("Expense amount must be greater than zero.");
-    if (!Number.isFinite(payload.tax) || payload.tax < 0) throw new Error("Expense tax cannot be negative.");
+    if (!expense.occurredOn) throw new Error("Expense date is required.");
+    if (!description) throw new Error("Expense description is required.");
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Expense amount must be greater than zero.");
+    if (!Number.isFinite(tax) || tax < 0) throw new Error("Expense tax cannot be negative.");
 
-    const { data, error } = await supabase
-      .from("finance_expenses")
-      .insert(payload)
-      .select("*")
-      .single();
+    const { data, error } = await supabase.rpc("create_admin_finance_expense", {
+      p_occurred_on: expense.occurredOn,
+      p_vendor: String(expense.vendor || "").trim() || null,
+      p_category: expense.category || "miscellaneous",
+      p_description: description,
+      p_amount: Math.round(amount * 100) / 100,
+      p_tax: Math.round(tax * 100) / 100,
+      p_gst_hst_tax: null,
+      p_pst_tax: null,
+      p_itc_eligible: false,
+      p_payment_method: String(expense.paymentMethod || "").trim() || null,
+      p_receipt_reference: null,
+      p_notes: String(expense.notes || "").trim() || null,
+    });
 
     if (error) throw error;
     return data;
   },
 
   async deleteExpense(id) {
-    const { error } = await supabase
-      .from("finance_expenses")
-      .delete()
-      .eq("id", id);
-
+    if (!id) throw new Error("Expense is required.");
+    const { data, error } = await supabase.rpc("void_admin_finance_expense", {
+      p_expense_id: id,
+      p_reason: "Voided from the Finance dashboard legacy expense action.",
+    });
     if (error) throw error;
+    return data;
   },
 };
