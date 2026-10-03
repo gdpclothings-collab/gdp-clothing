@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Edit3, FileText, Plus, RefreshCw, ShieldCheck, Undo2 } from "lucide-react";
+import { ArrowLeft, Edit3, Eye, FileText, Paperclip, Plus, RefreshCw, ShieldCheck, Trash2, Undo2, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { adminExpenseControlsApi } from "@/lib/adminExpenseControlsApi";
+import { adminExpenseReceiptApi } from "@/lib/adminExpenseReceiptApi";
 
 const RANGE_OPTIONS = [
   ["today", "Today"],
@@ -21,6 +22,7 @@ const CATEGORIES = [
 ];
 
 const PAYMENT_METHODS = ["Cash", "Debit", "Credit card", "e-Transfer", "Bank", "Other"];
+const RECEIPT_ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
 
 function localDateValue(date = new Date()) {
   const offset = date.getTimezoneOffset();
@@ -40,6 +42,14 @@ function rangeDates(range) {
 
 function money(value) {
   return Number(value || 0).toLocaleString("en-CA", { style: "currency", currency: "CAD" });
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function categoryLabel(value) {
@@ -66,7 +76,7 @@ function expenseToForm(expense) {
     pstTax: String(expense.pst_tax ?? 0),
     itcEligible: Boolean(expense.gst_hst_itc_eligible),
     paymentMethod: expense.payment_method || "",
-    receiptReference: expense.receipt_reference || expense.receipt_path || "",
+    receiptReference: expense.receipt_reference || "",
     notes: expense.notes || "",
   };
 }
@@ -126,9 +136,26 @@ export default function FinanceExpenses() {
     }
   };
 
+  const runReceiptAction = async (key, action, message) => {
+    setSaving(key);
+    setError("");
+    setNotice("");
+    try {
+      const result = await action();
+      setNotice(`${message}${result?.cleanupWarning ? ` ${result.cleanupWarning}` : ""}`);
+      await load();
+      return true;
+    } catch (err) {
+      setError(err?.message || "Receipt action failed.");
+      return false;
+    } finally {
+      setSaving("");
+    }
+  };
+
   const createExpense = async (event) => {
     event.preventDefault();
-    const ok = await run("create", () => adminExpenseControlsApi.create(createForm), "Expense recorded with an audit entry.");
+    const ok = await run("create", () => adminExpenseControlsApi.create(createForm), "Expense recorded with an audit entry. You can now attach its receipt from the expense row.");
     if (ok) {
       setCreateForm(blankExpense());
       setShowCreate(false);
@@ -163,6 +190,41 @@ export default function FinanceExpenses() {
     if (ok) setVoidReasons((current) => ({ ...current, [expense.id]: "" }));
   };
 
+  const uploadReceipt = async (expense, file) => {
+    if (!file) return;
+    await runReceiptAction(
+      `receipt-upload-${expense.id}`,
+      () => adminExpenseReceiptApi.upload(expense.id, file),
+      expense.receipt_path ? "Receipt file replaced and audited." : "Receipt file attached and audited.",
+    );
+  };
+
+  const openReceipt = async (expense) => {
+    if (!expense.receipt_path) return;
+    setSaving(`receipt-view-${expense.id}`);
+    setError("");
+    try {
+      const url = await adminExpenseReceiptApi.createViewUrl(expense.receipt_path);
+      const opened = window.open(url, "_blank");
+      if (opened) opened.opener = null;
+      else window.location.assign(url);
+    } catch (err) {
+      setError(err?.message || "Could not open receipt file.");
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const removeReceipt = async (expense) => {
+    if (!expense.receipt_path) return;
+    if (!window.confirm(`Remove the private receipt file “${expense.receipt_file_name || "receipt"}” from this expense? The removal will remain in the audit log.`)) return;
+    await runReceiptAction(
+      `receipt-remove-${expense.id}`,
+      () => adminExpenseReceiptApi.remove(expense.id),
+      "Receipt file removed from the expense and audited.",
+    );
+  };
+
   return (
     <div className="gdp-admin min-h-screen bg-[#f4f5f7] text-[#171717]">
       <header className="sticky top-0 z-40 h-16 bg-[#111214] text-white border-b border-white/10 shadow-sm">
@@ -175,11 +237,11 @@ export default function FinanceExpenses() {
 
       <div className="border-b border-[#dedfe3] bg-white">
         <div className="max-w-[1450px] mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-7">
-          <div className="text-xs uppercase tracking-[0.14em] font-bold text-[#a70f2d]">Finance Phase 9</div>
+          <div className="text-xs uppercase tracking-[0.14em] font-bold text-[#a70f2d]">Finance Phase 10</div>
           <div className="mt-1 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="text-[28px] md:text-[32px] font-bold tracking-tight">Expenses & Receipt Controls</h1>
-              <p className="text-base leading-6 text-[#555961] mt-1 max-w-3xl">Record operating expenses with explicit GST/HST and PST, preserve receipt or invoice references, correct mistakes with a reason, and void entries without deleting financial history.</p>
+              <p className="text-base leading-6 text-[#555961] mt-1 max-w-3xl">Record expenses, taxes and receipt references, then securely attach the supporting receipt or invoice in GDP’s private Finance storage.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap rounded-lg border border-[#d9d9d9] bg-white p-1">{RANGE_OPTIONS.map(([id, label]) => <button key={id} type="button" onClick={() => setRange(id)} className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${range === id ? "bg-[#171717] text-white" : "text-[#666] hover:bg-[#f2f2f2]"}`}>{label}</button>)}</div>
@@ -194,39 +256,54 @@ export default function FinanceExpenses() {
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
         {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
 
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 flex gap-3"><ShieldCheck size={18} className="shrink-0 mt-0.5" /><div><div className="font-semibold">Audit-safe expense ledger</div><div className="mt-1 text-xs">Expenses are never hard-deleted. A voided entry stays in history but is excluded from live Finance, tax calculations, reports and open cash reconciliation. Actual receipt-file upload is intentionally not enabled in this phase; use the receipt/invoice reference field.</div></div></div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 flex gap-3"><ShieldCheck size={18} className="shrink-0 mt-0.5" /><div><div className="font-semibold">Private, audit-safe receipt storage</div><div className="mt-1 text-xs">Receipt files are stored in a private bucket and require Admin + MFA access. Accepted files: PDF, JPG, PNG or WebP up to 10 MB. View links expire after 60 seconds. Replacements and removals are audited; expenses are never hard-deleted.</div></div></div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <Metric label="Active expenses" value={loading ? "—" : String(summary.activeCount || 0)} />
           <Metric label="Active total" value={loading ? "—" : money(summary.activeTotal)} strong />
+          <Metric label="Receipt files" value={loading ? "—" : String(summary.receiptFiles || 0)} />
           <Metric label="GST/HST" value={loading ? "—" : money(summary.gstHstTax)} />
           <Metric label="PST" value={loading ? "—" : money(summary.pstTax)} />
           <Metric label="Voided" value={loading ? "—" : String(summary.voidedCount || 0)} />
         </div>
 
-        {showCreate && <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden"><div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Record expense</div><div className="text-xs text-[#777] mt-0.5">Enter pre-tax amount and the tax components shown on the receipt or invoice.</div></div><ExpenseForm value={createForm} onChange={setCreateForm} onSubmit={createExpense} submitLabel={saving === "create" ? "Saving…" : "Save expense"} disabled={saving === "create"} onCancel={() => setShowCreate(false)} /></section>}
+        {showCreate && <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden"><div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Record expense</div><div className="text-xs text-[#777] mt-0.5">Enter the bookkeeping details first. After the expense is saved, attach the receipt or invoice from its row below.</div></div><ExpenseForm value={createForm} onChange={setCreateForm} onSubmit={createExpense} submitLabel={saving === "create" ? "Saving…" : "Save expense"} disabled={saving === "create"} onCancel={() => setShowCreate(false)} /></section>}
 
-        {editing && <section className="rounded-xl border border-amber-200 bg-white overflow-hidden"><div className="px-4 py-3 border-b border-amber-100 bg-amber-50"><div className="text-sm font-semibold">Correct expense · {editing.description}</div><div className="text-xs text-amber-900/70 mt-0.5">A correction keeps the same ledger ID and records the previous snapshot plus your reason.</div></div><ExpenseForm value={editForm} onChange={setEditForm} onSubmit={correctExpense} submitLabel={saving === `edit-${editing.id}` ? "Saving…" : "Save correction"} disabled={saving === `edit-${editing.id}`} onCancel={() => setEditing(null)} correctionReason={correctionReason} onCorrectionReason={setCorrectionReason} /></section>}
+        {editing && <section className="rounded-xl border border-amber-200 bg-white overflow-hidden"><div className="px-4 py-3 border-b border-amber-100 bg-amber-50"><div className="text-sm font-semibold">Correct expense · {editing.description}</div><div className="text-xs text-amber-900/70 mt-0.5">A correction keeps the same ledger ID and records the previous snapshot plus your reason. Receipt file changes are handled separately and have their own audit events.</div></div><ExpenseForm value={editForm} onChange={setEditForm} onSubmit={correctExpense} submitLabel={saving === `edit-${editing.id}` ? "Saving…" : "Save correction"} disabled={saving === `edit-${editing.id}`} onCancel={() => setEditing(null)} correctionReason={correctionReason} onCorrectionReason={setCorrectionReason} /></section>}
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Active expenses</div><div className="text-xs text-[#777] mt-0.5">These entries are included in GDP Finance totals for the selected period.</div></div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[1380px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Date</Th><Th>Category</Th><Th>Vendor / description</Th><Th>Payment</Th><Th>Receipt / invoice</Th><Th right>Amount</Th><Th right>GST/HST</Th><Th right>PST</Th><Th right>Total</Th><Th>Audit action</Th></tr></thead><tbody>
-            {loading ? <Empty cols={10}>Loading expenses…</Empty> : active.length ? active.map((expense) => <tr key={expense.id} className="border-t border-[#eeeeee]"><Td strong>{expense.occurred_on}</Td><Td>{categoryLabel(expense.category)}</Td><Td><div className="font-medium">{expense.vendor || "—"}</div><div className="text-xs text-[#777] mt-0.5 max-w-[270px]">{expense.description}</div>{expense.correction_count > 0 && <div className="text-[11px] text-amber-700 mt-1">Corrected {expense.correction_count}×</div>}</Td><Td>{expense.payment_method || "—"}</Td><Td>{expense.receipt_reference || "—"}</Td><Td right>{money(expense.amount)}</Td><Td right>{money(expense.gst_hst_tax)}{expense.gst_hst_itc_eligible && <div className="text-[10px] text-emerald-700">ITC eligible</div>}</Td><Td right>{money(expense.pst_tax)}</Td><Td right strong>{money(Number(expense.amount || 0) + Number(expense.tax || 0))}</Td><Td><div className="flex flex-col gap-2 min-w-[260px]"><button type="button" onClick={() => beginEdit(expense)} className="h-8 px-2.5 rounded-md border border-[#d8d8d8] bg-white text-xs font-semibold inline-flex items-center justify-center gap-1.5"><Edit3 size={12} /> Correct</button><div className="flex gap-2"><input value={voidReasons[expense.id] || ""} maxLength={500} onChange={(e) => setVoidReasons((current) => ({ ...current, [expense.id]: e.target.value }))} placeholder="Reason to void" className="h-8 flex-1 rounded-md border border-[#d8d8d8] px-2 text-xs" /><button type="button" onClick={() => voidExpense(expense)} disabled={saving === `void-${expense.id}` || !String(voidReasons[expense.id] || "").trim()} className="h-8 px-2.5 rounded-md border border-red-200 bg-red-50 text-red-700 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"><Undo2 size={12} /> {saving === `void-${expense.id}` ? "Voiding…" : "Void"}</button></div></div></Td></tr>) : <Empty cols={10}>No active expenses in this period.</Empty>}
+          <div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Active expenses</div><div className="text-xs text-[#777] mt-0.5">Attach or replace one private supporting receipt/invoice per expense.</div></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[1520px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Date</Th><Th>Category</Th><Th>Vendor / description</Th><Th>Payment</Th><Th>Receipt / invoice</Th><Th right>Amount</Th><Th right>GST/HST</Th><Th right>PST</Th><Th right>Total</Th><Th>Audit action</Th></tr></thead><tbody>
+            {loading ? <Empty cols={10}>Loading expenses…</Empty> : active.length ? active.map((expense) => <tr key={expense.id} className="border-t border-[#eeeeee]"><Td strong>{expense.occurred_on}</Td><Td>{categoryLabel(expense.category)}</Td><Td><div className="font-medium">{expense.vendor || "—"}</div><div className="text-xs text-[#777] mt-0.5 max-w-[270px]">{expense.description}</div>{expense.correction_count > 0 && <div className="text-[11px] text-amber-700 mt-1">Corrected {expense.correction_count}×</div>}</Td><Td>{expense.payment_method || "—"}</Td><Td><ReceiptControls expense={expense} saving={saving} onUpload={uploadReceipt} onView={openReceipt} onRemove={removeReceipt} readOnly={false} /></Td><Td right>{money(expense.amount)}</Td><Td right>{money(expense.gst_hst_tax)}{expense.gst_hst_itc_eligible && <div className="text-[10px] text-emerald-700">ITC eligible</div>}</Td><Td right>{money(expense.pst_tax)}</Td><Td right strong>{money(Number(expense.amount || 0) + Number(expense.tax || 0))}</Td><Td><div className="flex flex-col gap-2 min-w-[260px]"><button type="button" onClick={() => beginEdit(expense)} className="h-8 px-2.5 rounded-md border border-[#d8d8d8] bg-white text-xs font-semibold inline-flex items-center justify-center gap-1.5"><Edit3 size={12} /> Correct</button><div className="flex gap-2"><input value={voidReasons[expense.id] || ""} maxLength={500} onChange={(e) => setVoidReasons((current) => ({ ...current, [expense.id]: e.target.value }))} placeholder="Reason to void" className="h-8 flex-1 rounded-md border border-[#d8d8d8] px-2 text-xs" /><button type="button" onClick={() => voidExpense(expense)} disabled={saving === `void-${expense.id}` || !String(voidReasons[expense.id] || "").trim()} className="h-8 px-2.5 rounded-md border border-red-200 bg-red-50 text-red-700 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"><Undo2 size={12} /> {saving === `void-${expense.id}` ? "Voiding…" : "Void"}</button></div></div></Td></tr>) : <Empty cols={10}>No active expenses in this period.</Empty>}
           </tbody></table></div>
         </section>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Voided expense history</div><div className="text-xs text-[#777] mt-0.5">Preserved for audit only; these amounts no longer affect live Finance totals.</div></div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Date</Th><Th>Vendor / description</Th><Th right>Original total</Th><Th>Voided</Th><Th>Reason</Th></tr></thead><tbody>{loading ? <Empty cols={5}>Loading history…</Empty> : voided.length ? voided.map((expense) => <tr key={expense.id} className="border-t border-[#eeeeee] text-[#666]"><Td>{expense.occurred_on}</Td><Td><div>{expense.vendor || "—"}</div><div className="text-xs mt-0.5">{expense.description}</div></Td><Td right>{money(Number(expense.amount || 0) + Number(expense.tax || 0))}</Td><Td>{expense.voided_at ? new Date(expense.voided_at).toLocaleString("en-CA") : "—"}</Td><Td>{expense.void_reason || "—"}</Td></tr>) : <Empty cols={5}>No voided expenses in this period.</Empty>}</tbody></table></div>
+          <div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Voided expense history</div><div className="text-xs text-[#777] mt-0.5">Voided records remain read-only for audit, including any receipt that was attached before the void.</div></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[1180px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Date</Th><Th>Vendor / description</Th><Th>Receipt</Th><Th right>Original total</Th><Th>Voided</Th><Th>Reason</Th></tr></thead><tbody>{loading ? <Empty cols={6}>Loading history…</Empty> : voided.length ? voided.map((expense) => <tr key={expense.id} className="border-t border-[#eeeeee] text-[#666]"><Td>{expense.occurred_on}</Td><Td><div>{expense.vendor || "—"}</div><div className="text-xs mt-0.5">{expense.description}</div></Td><Td><ReceiptControls expense={expense} saving={saving} onUpload={uploadReceipt} onView={openReceipt} onRemove={removeReceipt} readOnly /></Td><Td right>{money(Number(expense.amount || 0) + Number(expense.tax || 0))}</Td><Td>{expense.voided_at ? new Date(expense.voided_at).toLocaleString("en-CA") : "—"}</Td><Td>{expense.void_reason || "—"}</Td></tr>) : <Empty cols={6}>No voided expenses in this period.</Empty>}</tbody></table></div>
         </section>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Recent expense audit events</div><div className="text-xs text-[#777] mt-0.5">Created, corrected and voided actions are append-only.</div></div>
-          <div className="divide-y divide-[#eeeeee]">{events.length ? events.slice(0, 25).map((event) => <div key={event.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm"><span className="font-semibold capitalize min-w-20">{event.event_type}</span><span className="text-[#555] flex-1">{event.reason || "Expense recorded"}</span><span className="text-xs text-[#888]">{event.created_at ? new Date(event.created_at).toLocaleString("en-CA") : ""}</span></div>) : <div className="px-4 py-8 text-center text-sm text-[#777]">No expense audit events in this period.</div>}</div>
+          <div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold">Recent expense audit events</div><div className="text-xs text-[#777] mt-0.5">Created, corrected, receipt attachment/replacement/removal and void actions are append-only.</div></div>
+          <div className="divide-y divide-[#eeeeee]">{events.length ? events.slice(0, 25).map((event) => <div key={event.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm"><span className="font-semibold capitalize min-w-24">{String(event.event_type || "").replaceAll("_", " ")}</span><span className="text-[#555] flex-1">{event.reason || "Expense recorded"}</span><span className="text-xs text-[#888]">{event.created_at ? new Date(event.created_at).toLocaleString("en-CA") : ""}</span></div>) : <div className="px-4 py-8 text-center text-sm text-[#777]">No expense audit events in this period.</div>}</div>
         </section>
       </main>
     </div>
   );
+}
+
+function ReceiptControls({ expense, saving, onUpload, onView, onRemove, readOnly = false }) {
+  const hasFile = Boolean(expense.receipt_path);
+  const busy = saving === `receipt-upload-${expense.id}` || saving === `receipt-view-${expense.id}` || saving === `receipt-remove-${expense.id}`;
+  const reference = expense.receipt_reference || "";
+
+  return <div className="min-w-[245px] space-y-1.5">
+    {reference && <div className="text-xs"><span className="text-[#888]">Ref:</span> {reference}</div>}
+    {hasFile ? <div className="rounded-md border border-[#e2e2e2] bg-[#fafafa] p-2">
+      <div className="flex items-start gap-1.5"><Paperclip size={13} className="mt-0.5 shrink-0" /><div className="min-w-0"><div className="font-medium text-xs truncate max-w-[190px]" title={expense.receipt_file_name || "Receipt file"}>{expense.receipt_file_name || "Receipt file"}</div><div className="text-[10px] text-[#888] mt-0.5">{formatBytes(expense.receipt_size_bytes)}{expense.receipt_mime_type ? ` · ${expense.receipt_mime_type === "application/pdf" ? "PDF" : "Image"}` : ""}</div></div></div>
+      <div className="mt-2 flex flex-wrap gap-1.5"><button type="button" onClick={() => onView(expense)} disabled={busy} className="h-7 px-2 rounded border border-[#d6d6d6] bg-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"><Eye size={11} /> {saving === `receipt-view-${expense.id}` ? "Opening…" : "View"}</button>{!readOnly && <><label className={`h-7 px-2 rounded border border-[#d6d6d6] bg-white text-[11px] font-semibold inline-flex items-center gap-1 ${busy ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}><Upload size={11} /> {saving === `receipt-upload-${expense.id}` ? "Uploading…" : "Replace"}<input type="file" accept={RECEIPT_ACCEPT} disabled={busy} className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) onUpload(expense, file); }} /></label><button type="button" onClick={() => onRemove(expense)} disabled={busy} className="h-7 px-2 rounded border border-red-200 bg-red-50 text-red-700 text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"><Trash2 size={11} /> {saving === `receipt-remove-${expense.id}` ? "Removing…" : "Remove"}</button></>}</div>
+    </div> : readOnly ? <div className="text-xs text-[#999]">{reference || "No receipt file"}</div> : <label className={`h-8 px-2.5 rounded-md border border-[#d6d6d6] bg-white text-xs font-semibold inline-flex items-center gap-1.5 ${busy ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-[#f7f7f7]"}`}><Upload size={12} /> {saving === `receipt-upload-${expense.id}` ? "Uploading…" : "Attach file"}<input type="file" accept={RECEIPT_ACCEPT} disabled={busy} className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) onUpload(expense, file); }} /></label>}
+  </div>;
 }
 
 function ExpenseForm({ value, onChange, onSubmit, submitLabel, disabled, onCancel, correctionReason = null, onCorrectionReason = null }) {
@@ -248,7 +325,7 @@ function ExpenseForm({ value, onChange, onSubmit, submitLabel, disabled, onCance
       <div><div className="text-xs font-medium text-[#555] mb-1.5">Expense total</div><div className="h-10 rounded-lg border border-[#d8d8d8] bg-[#fafafa] px-3 grid items-center text-right text-sm font-bold tabular-nums">{Number.isFinite(total) ? money(total) : "—"}</div></div>
     </div>
     <div className="grid lg:grid-cols-2 gap-3">
-      <Field label="Receipt / invoice reference"><input value={value.receiptReference} maxLength={200} onChange={(e) => set("receiptReference", e.target.value)} placeholder="Receipt #, invoice #, order #, or file reference" className="input-control" /></Field>
+      <Field label="Receipt / invoice reference"><input value={value.receiptReference} maxLength={200} onChange={(e) => set("receiptReference", e.target.value)} placeholder="Receipt #, invoice #, or order #" className="input-control" /></Field>
       <Field label="Notes"><input value={value.notes} maxLength={1000} onChange={(e) => set("notes", e.target.value)} placeholder="Optional bookkeeping note" className="input-control" /></Field>
     </div>
     <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={value.itcEligible} onChange={(e) => set("itcEligible", e.target.checked)} className="rounded border-[#bbb]" /><span>GST/HST amount is potentially ITC eligible</span></label>
