@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { AlertTriangle, ArrowLeft, RefreshCw, ReceiptText, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import { adminTaxApi } from "@/lib/adminTaxApi";
+import TaxFilingControls from "@/components/admin/TaxFilingControls";
 
 const RANGE_OPTIONS = [
   ["today", "Today"],
@@ -113,8 +114,10 @@ export default function FinanceTax() {
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
           <div className="font-semibold">Operational bookkeeping aid — not a filed tax return</div>
-          <div className="mt-1 text-xs">GST/HST ITCs are deducted from the estimate only when you explicitly mark an expense ITC eligible. Saskatchewan PST paid on business expenses is shown separately and is not treated as an ITC. Registration numbers, filing-period close controls and accountant review are not configured yet.</div>
+          <div className="mt-1 text-xs">GST/HST ITCs are deducted from the estimate only when you explicitly mark an expense ITC eligible. Saskatchewan PST paid on business expenses is shown separately and is not treated as an ITC. Registration and filing-period controls are available below; GDP records filing status but does not submit returns to CRA or Saskatchewan.</div>
         </div>
+
+        <TaxFilingControls />
 
         {unclassified > 0 && !loading && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3"><AlertTriangle size={18} className="shrink-0 mt-0.5" /><div><span className="font-semibold">Tax classification incomplete:</span> {money(unclassified)} is still combined/unclassified. Review the affected records before relying on a filing estimate.</div></div>}
         {Number(summary.estimatedRefundAllocations || 0) > 0 && !loading && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><span className="font-semibold">Refund review:</span> {summary.estimatedRefundAllocations} partial refund tax allocation(s) use a proportional estimate and should be reviewed against the actual credit/refund document.</div>}
