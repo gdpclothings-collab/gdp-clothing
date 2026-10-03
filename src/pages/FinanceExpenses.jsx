@@ -329,7 +329,7 @@ function ExpenseForm({ value, onChange, onSubmit, submitLabel, disabled, onCance
       <Field label="Notes"><input value={value.notes} maxLength={1000} onChange={(e) => set("notes", e.target.value)} placeholder="Optional bookkeeping note" className="input-control" /></Field>
     </div>
     <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={value.itcEligible} onChange={(e) => set("itcEligible", e.target.checked)} className="rounded border-[#bbb]" /><span>GST/HST amount is potentially ITC eligible</span></label>
-    {correctionReason !== null && <Field label="Correction reason (required)"><input required value={correctionReason} maxLength={500} onChange={(e) => onCorrectionReason(e.target.value)} placeholder="Explain what was wrong and why this correction is needed" className="input-control" /></Field>}
+    {correctionReason !== null && onCorrectionReason && <Field label="Correction reason (required)"><input required value={correctionReason} maxLength={500} onChange={(e) => onCorrectionReason(e.target.value)} placeholder="Explain what was wrong and why this correction is needed" className="input-control" /></Field>}
     <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={onCancel} className="h-9 px-3 rounded-lg border border-[#d8d8d8] bg-white text-sm">Cancel</button><button type="submit" disabled={disabled} className="h-9 px-4 rounded-lg bg-[#171717] text-white text-sm font-semibold disabled:opacity-60">{submitLabel}</button></div>
   </form>;
 }
