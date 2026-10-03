@@ -165,7 +165,6 @@ export default function FinanceModule() {
       await load();
     } catch (err) {
       setError(err?.message || "Could not save COGS.");
-      throw err;
     } finally {
       setSavingCostId("");
     }
