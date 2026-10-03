@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   AlertTriangle,
   BadgePercent,
+  Boxes,
   CircleDollarSign,
   FileWarning,
   Plus,
@@ -91,6 +92,7 @@ export default function FinanceModule() {
   const [tab, setTab] = useState("overview");
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [savingExpense, setSavingExpense] = useState(false);
+  const [savingCostId, setSavingCostId] = useState("");
   const [expenseForm, setExpenseForm] = useState({
     occurredOn: localDateInputValue(),
     vendor: "",
@@ -124,6 +126,10 @@ export default function FinanceModule() {
   const metrics = data?.metrics || {};
   const recordedRefunds = Number(metrics.recordedRefunds || 0);
   const netCollected = Number(metrics.paidRevenue || 0) - recordedRefunds;
+  const cogsTotalItems = Number(metrics.cogsTotalItems || 0);
+  const cogsConfiguredItems = Number(metrics.cogsConfiguredItems || 0);
+  const cogsComplete = cogsTotalItems === cogsConfiguredItems;
+  const grossProfitAvailable = metrics.grossProfit !== null && metrics.grossProfit !== undefined;
 
   const saveExpense = async (event) => {
     event.preventDefault();
@@ -151,6 +157,20 @@ export default function FinanceModule() {
     }
   };
 
+  const saveCogs = async (orderItemId, values) => {
+    setSavingCostId(orderItemId);
+    setError("");
+    try {
+      await adminFinanceApi.updateCogs(orderItemId, values);
+      await load();
+    } catch (err) {
+      setError(err?.message || "Could not save COGS.");
+      throw err;
+    } finally {
+      setSavingCostId("");
+    }
+  };
+
   const removeExpense = async (expense) => {
     if (!window.confirm(`Delete expense “${expense.description}”?`)) return;
     setError("");
@@ -168,7 +188,7 @@ export default function FinanceModule() {
         <div>
           <div className="text-sm font-semibold text-[#282828]">Live-mode financial reporting</div>
           <div className="mt-1 text-xs text-[#777]">
-            Stripe test payments are excluded. Profit stays unlabelled until COGS and actual processor-fee capture are complete.
+            Stripe test payments are excluded. COGS is frozen per sold item; Gross Profit appears only when every sold item in the selected period has configured costs.
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -205,6 +225,16 @@ export default function FinanceModule() {
         </div>
       )}
 
+      {!loading && cogsTotalItems > 0 && !cogsComplete && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <span className="font-semibold">COGS incomplete:</span>{" "}
+            {cogsConfiguredItems} of {cogsTotalItems} sold line items are costed ({Number(metrics.cogsCoveragePercent || 0).toFixed(1)}%). Open the COGS tab to complete the missing item costs.
+          </div>
+        </div>
+      )}
+
       {showExpenseForm && (
         <ExpenseForm
           value={expenseForm}
@@ -215,9 +245,11 @@ export default function FinanceModule() {
         />
       )}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         <MetricCard label="Gross sales" value={loading ? "—" : money(metrics.grossSales)} icon={WalletCards} />
         <MetricCard label="Discounts" value={loading ? "—" : money(metrics.discounts)} icon={BadgePercent} />
+        <MetricCard label="COGS" value={loading ? "—" : money(metrics.cogs)} icon={Boxes} sub={`${Number(metrics.cogsCoveragePercent || 0).toFixed(1)}% coverage`} warning={!cogsComplete && cogsTotalItems > 0} />
+        <MetricCard label="Gross profit" value={loading ? "—" : grossProfitAvailable ? money(metrics.grossProfit) : "—"} icon={CircleDollarSign} sub={grossProfitAvailable ? `${Number(metrics.grossMarginPercent || 0).toFixed(1)}% merchandise margin` : "Complete COGS first"} warning={!grossProfitAvailable && cogsTotalItems > 0} />
         <MetricCard label="Paid collected" value={loading ? "—" : money(metrics.paidRevenue)} icon={CircleDollarSign} sub={`${metrics.paidOrders || 0} paid live orders`} />
         <MetricCard label="Recorded refunds" value={loading ? "—" : money(recordedRefunds)} icon={RotateCcw} sub={Number(metrics.pendingRefunds || 0) > 0 ? `${money(metrics.pendingRefunds)} pending` : "No pending amount"} />
         <MetricCard label="Net collected" value={loading ? "—" : money(netCollected)} icon={CircleDollarSign} sub="Paid collected − processed refunds" />
@@ -232,6 +264,7 @@ export default function FinanceModule() {
         {[
           ["overview", "Overview"],
           ["transactions", "Transactions"],
+          ["cogs", "COGS"],
           ["expenses", "Expenses"],
           ["refunds", "Refunds & disputes"],
         ].map(([id, label]) => (
@@ -251,6 +284,8 @@ export default function FinanceModule() {
           <SummaryCard title="Sales flow">
             <SummaryRow label="Gross merchandise sales" value={money(metrics.grossSales)} />
             <SummaryRow label="Discounts" value={`−${money(metrics.discounts)}`} />
+            <SummaryRow label="COGS" value={`−${money(metrics.cogs)}`} />
+            <SummaryRow label="Gross profit before refunds" value={grossProfitAvailable ? money(metrics.grossProfit) : "Incomplete COGS"} strong />
             <SummaryRow label="Shipping charged" value={money(metrics.shippingCollected)} />
             <SummaryRow label="Tax collected" value={money(metrics.taxCollected)} />
             <SummaryRow label="Processed refunds recorded" value={`−${money(recordedRefunds)}`} />
@@ -260,14 +295,15 @@ export default function FinanceModule() {
             <CompletenessRow ok label="Live/test payment separation" text="Test-mode paid orders are excluded from financial totals." />
             <CompletenessRow ok label="Refund records" text="Existing GDP refund records are included without creating duplicates." />
             <CompletenessRow ok label="Stripe disputes" text="Existing secured dispute records are surfaced through an admin-only snapshot." />
-            <CompletenessRow ok label="Operating expenses" text="Manual business expenses can now be recorded securely." />
-            <CompletenessRow label="COGS / item cost snapshots" text="Not included yet; profit is intentionally not shown." />
-            <CompletenessRow label="Actual Stripe fees / payouts" text="Not included yet; these need processor-led settlement capture." />
+            <CompletenessRow ok label="Operating expenses" text="Manual business expenses can be recorded securely." />
+            <CompletenessRow ok={cogsComplete} label="COGS / item cost snapshots" text={cogsTotalItems ? `${cogsConfiguredItems} of ${cogsTotalItems} sold line items configured. Historical snapshots do not change when catalog costs change.` : "COGS snapshot system is active; no sold line items are in this period."} />
+            <CompletenessRow label="Actual Stripe fees / payouts" text="Not included yet; these need processor-led settlement capture before Net Profit is shown." />
           </SummaryCard>
         </div>
       )}
 
       {tab === "transactions" && <TransactionTable loading={loading} transactions={data?.transactions || []} />}
+      {tab === "cogs" && <CogsTable loading={loading} items={data?.costItems || []} savingCostId={savingCostId} onSave={saveCogs} />}
       {tab === "expenses" && <ExpenseTable loading={loading} expenses={data?.expenses || []} onDelete={removeExpense} />}
       {tab === "refunds" && <RefundDisputeTables loading={loading} refunds={data?.refunds || []} disputes={data?.disputes || []} />}
     </div>
@@ -332,21 +368,84 @@ function CompletenessRow({ ok = false, label, text }) {
 function TransactionTable({ loading, transactions }) {
   return (
     <TableShell title="Transactions" subtitle="Live-mode GDP orders only; test-mode orders are excluded.">
-      <table className="w-full min-w-[1100px] text-sm">
-        <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Customer</Th><Th>Payment</Th><Th right>Subtotal</Th><Th right>Discount</Th><Th right>Shipping</Th><Th right>Tax</Th><Th right>Total</Th><Th>Date</Th></tr></thead>
+      <table className="w-full min-w-[1280px] text-sm">
+        <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Customer</Th><Th>Payment</Th><Th right>Subtotal</Th><Th right>Discount</Th><Th right>COGS</Th><Th right>Gross profit</Th><Th right>Shipping</Th><Th right>Tax</Th><Th right>Total</Th><Th>Date</Th></tr></thead>
         <tbody>
-          {loading ? <EmptyRow cols={9}>Loading transactions…</EmptyRow> : transactions.length ? transactions.map((order) => (
-            <tr key={order.id} className="border-t border-[#eeeeee]">
-              <Td><span className="font-semibold">{order.order_number}</span></Td>
-              <Td><div>{order.customer_name || "Guest"}</div><div className="text-[11px] text-[#777]">{order.customer_email}</div></Td>
-              <Td><Status value={order.payment_status} /></Td>
-              <Td right>{money(order.subtotal)}</Td><Td right>{money(order.discount)}</Td><Td right>{money(order.shipping)}</Td><Td right>{money(order.tax)}</Td>
-              <Td right><span className="font-semibold">{money(order.total)}</span></Td><Td>{formatDate(order.created_at)}</Td>
-            </tr>
-          )) : <EmptyRow cols={9}>No live-mode transactions in this period.</EmptyRow>}
+          {loading ? <EmptyRow cols={11}>Loading transactions…</EmptyRow> : transactions.length ? transactions.map((order) => {
+            const itemCount = Number(order.cogs_item_count || 0);
+            const configuredCount = Number(order.cogs_configured_item_count || 0);
+            const orderCogsComplete = itemCount > 0 && itemCount === configuredCount;
+            return (
+              <tr key={order.id} className="border-t border-[#eeeeee]">
+                <Td><span className="font-semibold">{order.order_number}</span></Td>
+                <Td><div>{order.customer_name || "Guest"}</div><div className="text-[11px] text-[#777]">{order.customer_email}</div></Td>
+                <Td><Status value={order.payment_status} /></Td>
+                <Td right>{money(order.subtotal)}</Td><Td right>{money(order.discount)}</Td>
+                <Td right>{orderCogsComplete ? money(order.cogs) : <span className="text-amber-700">Incomplete</span>}</Td>
+                <Td right>{order.gross_profit !== null && order.gross_profit !== undefined ? <span className="font-semibold">{money(order.gross_profit)}</span> : "—"}</Td>
+                <Td right>{money(order.shipping)}</Td><Td right>{money(order.tax)}</Td>
+                <Td right><span className="font-semibold">{money(order.total)}</span></Td><Td>{formatDate(order.created_at)}</Td>
+              </tr>
+            );
+          }) : <EmptyRow cols={11}>No live-mode transactions in this period.</EmptyRow>}
         </tbody>
       </table>
     </TableShell>
+  );
+}
+
+function CogsTable({ loading, items, savingCostId, onSave }) {
+  return (
+    <TableShell title="Cost of goods sold (COGS)" subtitle="Product/variant Cost per item auto-seeds garment cost when an order item is created. Add DTF/print, packaging, or other production cost here; historical snapshots stay frozen unless you edit this row.">
+      <table className="w-full min-w-[1500px] text-sm">
+        <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order / item</Th><Th>Variant</Th><Th right>Qty</Th><Th right>Sale / unit</Th><Th right>Garment</Th><Th right>DTF / print</Th><Th right>Packaging</Th><Th right>Other</Th><Th right>Total COGS</Th><Th>Source</Th><Th /></tr></thead>
+        <tbody>
+          {loading ? <EmptyRow cols={11}>Loading COGS…</EmptyRow> : items.length ? items.map((item) => (
+            <CogsRow key={item.order_item_id} item={item} saving={savingCostId === item.order_item_id} onSave={onSave} />
+          )) : <EmptyRow cols={11}>No sold live-mode items in this period.</EmptyRow>}
+        </tbody>
+      </table>
+    </TableShell>
+  );
+}
+
+function CogsRow({ item, saving, onSave }) {
+  const [costs, setCosts] = useState({
+    garmentUnitCost: String(item.garment_unit_cost ?? 0),
+    printUnitCost: String(item.print_unit_cost ?? 0),
+    packagingUnitCost: String(item.packaging_unit_cost ?? 0),
+    otherUnitCost: String(item.other_unit_cost ?? 0),
+  });
+
+  useEffect(() => {
+    setCosts({
+      garmentUnitCost: String(item.garment_unit_cost ?? 0),
+      printUnitCost: String(item.print_unit_cost ?? 0),
+      packagingUnitCost: String(item.packaging_unit_cost ?? 0),
+      otherUnitCost: String(item.other_unit_cost ?? 0),
+    });
+  }, [item.garment_unit_cost, item.print_unit_cost, item.packaging_unit_cost, item.other_unit_cost]);
+
+  const quantity = Number(item.quantity_snapshot || item.quantity || 1);
+  const unitCogs = Number(costs.garmentUnitCost || 0) + Number(costs.printUnitCost || 0) + Number(costs.packagingUnitCost || 0) + Number(costs.otherUnitCost || 0);
+  const totalCogs = unitCogs * quantity;
+  const inputClass = "h-8 w-24 rounded-md border border-[#d8d8d8] px-2 text-right text-xs outline-none focus:ring-2 focus:ring-black/10";
+  const update = (key, value) => setCosts((current) => ({ ...current, [key]: value }));
+
+  return (
+    <tr className={`border-t border-[#eeeeee] ${item.is_configured ? "" : "bg-amber-50/40"}`}>
+      <Td><div className="font-semibold">{item.order_number}</div><div className="text-xs mt-0.5">{item.name}</div><div className="text-[11px] text-[#777] mt-0.5">{formatDate(item.order_created_at)}</div></Td>
+      <Td><div>{item.variant || [item.color, item.size].filter(Boolean).join(" / ") || "—"}</div>{item.is_custom && <div className="text-[11px] text-[#777] mt-0.5">Custom Studio</div>}</Td>
+      <Td right>{quantity}</Td>
+      <Td right>{money(item.unit_price, item.currency || "CAD")}</Td>
+      <Td right><input aria-label={`Garment cost for ${item.name}`} type="number" min="0" step="0.01" value={costs.garmentUnitCost} onChange={(event) => update("garmentUnitCost", event.target.value)} className={inputClass} /></Td>
+      <Td right><input aria-label={`DTF or print cost for ${item.name}`} type="number" min="0" step="0.01" value={costs.printUnitCost} onChange={(event) => update("printUnitCost", event.target.value)} className={inputClass} /></Td>
+      <Td right><input aria-label={`Packaging cost for ${item.name}`} type="number" min="0" step="0.01" value={costs.packagingUnitCost} onChange={(event) => update("packagingUnitCost", event.target.value)} className={inputClass} /></Td>
+      <Td right><input aria-label={`Other cost for ${item.name}`} type="number" min="0" step="0.01" value={costs.otherUnitCost} onChange={(event) => update("otherUnitCost", event.target.value)} className={inputClass} /></Td>
+      <Td right><span className="font-semibold">{money(totalCogs, item.currency || "CAD")}</span></Td>
+      <Td><div className="capitalize">{String(item.cost_source || "unconfigured").replaceAll("_", " ")}</div><div className={`text-[11px] mt-0.5 ${item.is_configured ? "text-emerald-700" : "text-amber-700"}`}>{item.is_configured ? "Configured" : "Needs cost"}</div></Td>
+      <Td right><button type="button" disabled={saving} onClick={() => onSave(item.order_item_id, costs)} className="h-8 px-3 rounded-md bg-[#171717] text-white text-xs font-semibold disabled:opacity-60">{saving ? "Saving…" : "Save"}</button></Td>
+    </tr>
   );
 }
 
