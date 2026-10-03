@@ -14,6 +14,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { adminFinanceApi } from "@/lib/adminFinanceApi";
+import StripeFinancePanel from "@/components/admin/StripeFinancePanel";
 
 const RANGE_OPTIONS = [
   ["today", "Today"],
@@ -130,6 +131,23 @@ export default function FinanceModule() {
   const cogsConfiguredItems = Number(metrics.cogsConfiguredItems || 0);
   const cogsComplete = cogsTotalItems === cogsConfiguredItems;
   const grossProfitAvailable = metrics.grossProfit !== null && metrics.grossProfit !== undefined;
+  const stripeExpectedOrders = Number(metrics.stripeFeeExpectedOrders || 0);
+  const stripeCapturedOrders = Number(metrics.stripeFeeCapturedOrders || 0);
+  const stripeFeesComplete = stripeExpectedOrders === stripeCapturedOrders;
+  const netProfitAvailable = grossProfitAvailable && stripeFeesComplete;
+  const netProfit = netProfitAvailable
+    ? Number(metrics.grossProfit || 0)
+      + Number(metrics.shippingCollected || 0)
+      - recordedRefunds
+      - Number(metrics.expenses || 0)
+      - Number(metrics.processorFees || 0)
+    : null;
+  const netProfitRevenueBase = Number(metrics.grossSales || 0)
+    - Number(metrics.discounts || 0)
+    + Number(metrics.shippingCollected || 0);
+  const netMarginPercent = netProfitAvailable && netProfitRevenueBase > 0
+    ? (Number(netProfit || 0) / netProfitRevenueBase) * 100
+    : null;
 
   const saveExpense = async (event) => {
     event.preventDefault();
@@ -187,7 +205,7 @@ export default function FinanceModule() {
         <div>
           <div className="text-sm font-semibold text-[#282828]">Live-mode financial reporting</div>
           <div className="mt-1 text-xs text-[#777]">
-            Stripe test payments are excluded. COGS is frozen per sold item; Gross Profit appears only when every sold item in the selected period has configured costs.
+            Stripe test payments are excluded. Actual Stripe fees and payouts sync from Stripe; Net Profit appears only when COGS and processor-fee coverage are complete.
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -214,6 +232,13 @@ export default function FinanceModule() {
 
       {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
+      {data?.stripeSync?.ok === false && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div><span className="font-semibold">Stripe settlement sync unavailable:</span> {data.stripeSync.message || "Stored settlement data is being shown."} Checkout and payment processing are unaffected.</div>
+        </div>
+      )}
+
       {Number(metrics.testPaidOrdersExcluded || 0) > 0 && (
         <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex gap-3">
           <AlertTriangle size={18} className="mt-0.5 shrink-0" />
@@ -234,6 +259,16 @@ export default function FinanceModule() {
         </div>
       )}
 
+      {!loading && stripeExpectedOrders > stripeCapturedOrders && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <span className="font-semibold">Stripe fee coverage incomplete:</span>{" "}
+            {stripeCapturedOrders} of {stripeExpectedOrders} paid live order{stripeExpectedOrders === 1 ? "" : "s"} have captured processor fees. Refresh Finance to resync Stripe before relying on Net Profit.
+          </div>
+        </div>
+      )}
+
       {showExpenseForm && (
         <ExpenseForm
           value={expenseForm}
@@ -249,12 +284,15 @@ export default function FinanceModule() {
         <MetricCard label="Discounts" value={loading ? "—" : money(metrics.discounts)} icon={BadgePercent} />
         <MetricCard label="COGS" value={loading ? "—" : money(metrics.cogs)} icon={Boxes} sub={`${Number(metrics.cogsCoveragePercent || 0).toFixed(1)}% coverage`} warning={!cogsComplete && cogsTotalItems > 0} />
         <MetricCard label="Gross profit" value={loading ? "—" : grossProfitAvailable ? money(metrics.grossProfit) : "—"} icon={CircleDollarSign} sub={grossProfitAvailable ? `${Number(metrics.grossMarginPercent || 0).toFixed(1)}% merchandise margin` : "Complete COGS first"} warning={!grossProfitAvailable && cogsTotalItems > 0} />
+        <MetricCard label="Stripe fees" value={loading ? "—" : money(metrics.processorFees)} icon={ReceiptText} sub={`${Number(metrics.stripeFeeCoveragePercent || 0).toFixed(1)}% fee coverage`} warning={!stripeFeesComplete && stripeExpectedOrders > 0} />
+        <MetricCard label="Net profit" value={loading ? "—" : netProfitAvailable ? money(netProfit) : "—"} icon={CircleDollarSign} sub={netProfitAvailable ? `${Number(netMarginPercent || 0).toFixed(1)}% margin · before income tax` : "Complete COGS + Stripe fees"} warning={!netProfitAvailable && (cogsTotalItems > 0 || stripeExpectedOrders > 0)} />
         <MetricCard label="Paid collected" value={loading ? "—" : money(metrics.paidRevenue)} icon={CircleDollarSign} sub={`${metrics.paidOrders || 0} paid live orders`} />
         <MetricCard label="Recorded refunds" value={loading ? "—" : money(recordedRefunds)} icon={RotateCcw} sub={Number(metrics.pendingRefunds || 0) > 0 ? `${money(metrics.pendingRefunds)} pending` : "No pending amount"} />
         <MetricCard label="Net collected" value={loading ? "—" : money(netCollected)} icon={CircleDollarSign} sub="Paid collected − processed refunds" />
         <MetricCard label="Tax collected" value={loading ? "—" : money(metrics.taxCollected)} icon={ReceiptText} />
         <MetricCard label="Shipping revenue" value={loading ? "—" : money(metrics.shippingCollected)} icon={Truck} />
         <MetricCard label="Recorded expenses" value={loading ? "—" : money(metrics.expenses)} icon={ReceiptText} sub="Amount + expense tax" />
+        <MetricCard label="Stripe payouts" value={loading ? "—" : money(metrics.paidPayoutAmount)} icon={WalletCards} sub={`${metrics.paidPayoutCount || 0} paid payout(s) · cash transfer`} />
         <MetricCard label="Open disputes" value={loading ? "—" : String(metrics.openDisputeCount || 0)} icon={FileWarning} sub={money(metrics.openDisputeAmount)} warning={Number(metrics.openDisputeCount || 0) > 0} />
         <MetricCard label="Refunded orders" value={loading ? "—" : String(metrics.refundOrders || 0)} icon={RotateCcw} />
       </div>
@@ -264,6 +302,7 @@ export default function FinanceModule() {
           ["overview", "Overview"],
           ["transactions", "Transactions"],
           ["cogs", "COGS"],
+          ["stripe", "Stripe fees & payouts"],
           ["expenses", "Expenses"],
           ["refunds", "Refunds & disputes"],
         ].map(([id, label]) => (
@@ -286,9 +325,12 @@ export default function FinanceModule() {
             <SummaryRow label="COGS" value={`−${money(metrics.cogs)}`} />
             <SummaryRow label="Gross profit before refunds" value={grossProfitAvailable ? money(metrics.grossProfit) : "Incomplete COGS"} strong />
             <SummaryRow label="Shipping charged" value={money(metrics.shippingCollected)} />
-            <SummaryRow label="Tax collected" value={money(metrics.taxCollected)} />
             <SummaryRow label="Processed refunds recorded" value={`−${money(recordedRefunds)}`} />
-            <SummaryRow label="Net collected" value={money(netCollected)} strong />
+            <SummaryRow label="Recorded expenses" value={`−${money(metrics.expenses)}`} />
+            <SummaryRow label="Actual Stripe fees" value={`−${money(metrics.processorFees)}`} />
+            <SummaryRow label="Net profit before income tax" value={netProfitAvailable ? money(netProfit) : "Incomplete COGS / Stripe fees"} strong />
+            <SummaryRow label="Tax collected (excluded from profit)" value={money(metrics.taxCollected)} />
+            <SummaryRow label="Net collected cash" value={money(netCollected)} />
           </SummaryCard>
           <SummaryCard title="Accounting completeness">
             <CompletenessRow ok label="Live/test payment separation" text="Test-mode paid orders are excluded from financial totals." />
@@ -296,13 +338,15 @@ export default function FinanceModule() {
             <CompletenessRow ok label="Stripe disputes" text="Existing secured dispute records are surfaced through an admin-only snapshot." />
             <CompletenessRow ok label="Operating expenses" text="Manual business expenses can be recorded securely." />
             <CompletenessRow ok={cogsComplete} label="COGS / item cost snapshots" text={cogsTotalItems ? `${cogsConfiguredItems} of ${cogsTotalItems} sold line items configured. Historical snapshots do not change when catalog costs change.` : "COGS snapshot system is active; no sold line items are in this period."} />
-            <CompletenessRow label="Actual Stripe fees / payouts" text="Not included yet; these need processor-led settlement capture before Net Profit is shown." />
+            <CompletenessRow ok={stripeFeesComplete} label="Actual Stripe fees" text={stripeExpectedOrders ? `${stripeCapturedOrders} of ${stripeExpectedOrders} paid live orders have processor-fee capture from Stripe's balance ledger.` : "Stripe processor-fee capture is active; no paid live orders require matching in this period."} />
+            <CompletenessRow ok label="Stripe payouts" text="Payouts are synchronized for bank reconciliation and are not subtracted from profit because they are cash transfers." />
           </SummaryCard>
         </div>
       )}
 
       {tab === "transactions" && <TransactionTable loading={loading} transactions={data?.transactions || []} />}
       {tab === "cogs" && <CogsTable loading={loading} items={data?.costItems || []} savingCostId={savingCostId} onSave={saveCogs} />}
+      {tab === "stripe" && <StripeFinancePanel loading={loading} balanceTransactions={data?.balanceTransactions || []} payouts={data?.payouts || []} sync={data?.stripeSync || {}} metrics={metrics} />}
       {tab === "expenses" && <ExpenseTable loading={loading} expenses={data?.expenses || []} onDelete={removeExpense} />}
       {tab === "refunds" && <RefundDisputeTables loading={loading} refunds={data?.refunds || []} disputes={data?.disputes || []} />}
     </div>
@@ -367,10 +411,10 @@ function CompletenessRow({ ok = false, label, text }) {
 function TransactionTable({ loading, transactions }) {
   return (
     <TableShell title="Transactions" subtitle="Live-mode GDP orders only; test-mode orders are excluded.">
-      <table className="w-full min-w-[1280px] text-sm">
-        <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Customer</Th><Th>Payment</Th><Th right>Subtotal</Th><Th right>Discount</Th><Th right>COGS</Th><Th right>Gross profit</Th><Th right>Shipping</Th><Th right>Tax</Th><Th right>Total</Th><Th>Date</Th></tr></thead>
+      <table className="w-full min-w-[1400px] text-sm">
+        <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Customer</Th><Th>Payment</Th><Th right>Subtotal</Th><Th right>Discount</Th><Th right>COGS</Th><Th right>Gross profit</Th><Th right>Stripe fee</Th><Th right>Shipping</Th><Th right>Tax</Th><Th right>Total</Th><Th>Date</Th></tr></thead>
         <tbody>
-          {loading ? <EmptyRow cols={11}>Loading transactions…</EmptyRow> : transactions.length ? transactions.map((order) => {
+          {loading ? <EmptyRow cols={12}>Loading transactions…</EmptyRow> : transactions.length ? transactions.map((order) => {
             const itemCount = Number(order.cogs_item_count || 0);
             const configuredCount = Number(order.cogs_configured_item_count || 0);
             const orderCogsComplete = itemCount > 0 && itemCount === configuredCount;
@@ -382,11 +426,12 @@ function TransactionTable({ loading, transactions }) {
                 <Td right>{money(order.subtotal)}</Td><Td right>{money(order.discount)}</Td>
                 <Td right>{orderCogsComplete ? money(order.cogs) : <span className="text-amber-700">Incomplete</span>}</Td>
                 <Td right>{order.gross_profit !== null && order.gross_profit !== undefined ? <span className="font-semibold">{money(order.gross_profit)}</span> : "—"}</Td>
+                <Td right>{order.stripe_fee_captured ? money(order.stripe_fee) : order.stripe_payment_intent_id ? <span className="text-amber-700">Pending</span> : "—"}</Td>
                 <Td right>{money(order.shipping)}</Td><Td right>{money(order.tax)}</Td>
                 <Td right><span className="font-semibold">{money(order.total)}</span></Td><Td>{formatDate(order.created_at)}</Td>
               </tr>
             );
-          }) : <EmptyRow cols={11}>No live-mode transactions in this period.</EmptyRow>}
+          }) : <EmptyRow cols={12}>No live-mode transactions in this period.</EmptyRow>}
         </tbody>
       </table>
     </TableShell>
