@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AlertTriangle,
   BadgePercent,
@@ -15,12 +15,12 @@ import {
 import { adminFinanceApi } from "@/lib/adminFinanceApi";
 
 const RANGE_OPTIONS = [
-  { id: "today", label: "Today" },
-  { id: "7d", label: "7 days" },
-  { id: "30d", label: "30 days" },
-  { id: "month", label: "This month" },
-  { id: "year", label: "This year" },
-  { id: "all", label: "All time" },
+  ["today", "Today"],
+  ["7d", "7 days"],
+  ["30d", "30 days"],
+  ["month", "This month"],
+  ["year", "This year"],
+  ["all", "All time"],
 ];
 
 const EXPENSE_CATEGORIES = [
@@ -66,24 +66,21 @@ function localDateInputValue() {
 function rangeDates(range) {
   if (range === "all") return { from: null, to: null };
 
-  const now = new Date();
-  const start = new Date(now);
+  const start = new Date();
   start.setHours(0, 0, 0, 0);
-
   if (range === "7d") start.setDate(start.getDate() - 6);
   if (range === "30d") start.setDate(start.getDate() - 29);
   if (range === "month") start.setDate(1);
-  if (range === "year") {
-    start.setMonth(0, 1);
-  }
+  if (range === "year") start.setMonth(0, 1);
 
-  const end = new Date(now);
+  const end = new Date();
   end.setHours(24, 0, 0, 0);
   return { from: start.toISOString(), to: end.toISOString() };
 }
 
 function categoryLabel(value) {
-  return EXPENSE_CATEGORIES.find(([id]) => id === value)?.[1] || String(value || "Miscellaneous").replaceAll("_", " ");
+  return EXPENSE_CATEGORIES.find(([id]) => id === value)?.[1]
+    || String(value || "Miscellaneous").replaceAll("_", " ");
 }
 
 export default function FinanceModule() {
@@ -105,13 +102,11 @@ export default function FinanceModule() {
     notes: "",
   });
 
-  const dates = useMemo(() => rangeDates(range), [range]);
-
-  const load = async () => {
+  const load = async (selectedRange = range) => {
     setLoading(true);
     setError("");
     try {
-      setData(await adminFinanceApi.load({ ...dates, limit: 500 }));
+      setData(await adminFinanceApi.load({ ...rangeDates(selectedRange), limit: 500 }));
     } catch (err) {
       console.error("Finance module load failed:", err);
       setError(err?.message || "Could not load finance data.");
@@ -121,10 +116,10 @@ export default function FinanceModule() {
   };
 
   useEffect(() => {
-    load();
-    // dates is memoized from the selected range and intentionally reloads the snapshot.
+    load(range);
+    // Range is the only trigger; load is intentionally called with the explicit value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dates.from, dates.to]);
+  }, [range]);
 
   const metrics = data?.metrics || {};
   const recordedRefunds = Number(metrics.recordedRefunds || 0);
@@ -147,8 +142,8 @@ export default function FinanceModule() {
         notes: "",
       }));
       setShowExpenseForm(false);
-      await load();
       setTab("expenses");
+      await load();
     } catch (err) {
       setError(err?.message || "Could not save expense.");
     } finally {
@@ -178,18 +173,18 @@ export default function FinanceModule() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap rounded-lg border border-[#d9d9d9] bg-white p-1">
-            {RANGE_OPTIONS.map((option) => (
+            {RANGE_OPTIONS.map(([id, label]) => (
               <button
-                key={option.id}
+                key={id}
                 type="button"
-                onClick={() => setRange(option.id)}
-                className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${range === option.id ? "bg-[#171717] text-white" : "text-[#666] hover:bg-[#f2f2f2]"}`}
+                onClick={() => setRange(id)}
+                className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${range === id ? "bg-[#171717] text-white" : "text-[#666] hover:bg-[#f2f2f2]"}`}
               >
-                {option.label}
+                {label}
               </button>
             ))}
           </div>
-          <button type="button" onClick={load} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
+          <button type="button" onClick={() => load()} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
             <RefreshCw size={14} /> Refresh
           </button>
           <button type="button" onClick={() => setShowExpenseForm((value) => !value)} className="h-9 px-3 rounded-lg bg-[#171717] text-white text-sm font-semibold inline-flex items-center gap-2">
@@ -272,17 +267,9 @@ export default function FinanceModule() {
         </div>
       )}
 
-      {tab === "transactions" && (
-        <TransactionTable loading={loading} transactions={data?.transactions || []} />
-      )}
-
-      {tab === "expenses" && (
-        <ExpenseTable loading={loading} expenses={data?.expenses || []} onDelete={removeExpense} />
-      )}
-
-      {tab === "refunds" && (
-        <RefundDisputeTables loading={loading} refunds={data?.refunds || []} disputes={data?.disputes || []} />
-      )}
+      {tab === "transactions" && <TransactionTable loading={loading} transactions={data?.transactions || []} />}
+      {tab === "expenses" && <ExpenseTable loading={loading} expenses={data?.expenses || []} onDelete={removeExpense} />}
+      {tab === "refunds" && <RefundDisputeTables loading={loading} refunds={data?.refunds || []} disputes={data?.disputes || []} />}
     </div>
   );
 }
@@ -291,27 +278,24 @@ function ExpenseForm({ value, onChange, onSubmit, onCancel, saving }) {
   const update = (key, next) => onChange((current) => ({ ...current, [key]: next }));
   return (
     <form onSubmit={onSubmit} className="mb-5 rounded-xl border border-[#dcdcdc] bg-white p-4 md:p-5">
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div>
-          <div className="font-semibold">Record an expense</div>
-          <div className="text-xs text-[#777] mt-1">For GDP operating costs. Sales totals remain automatic from orders.</div>
-        </div>
+      <div className="mb-4">
+        <div className="font-semibold">Record an expense</div>
+        <div className="text-xs text-[#777] mt-1">For GDP operating costs. Sales totals remain automatic from orders.</div>
       </div>
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
-        <Field label="Date"><input type="date" required value={value.occurredOn} onChange={(e) => update("occurredOn", e.target.value)} className="input" /></Field>
-        <Field label="Category"><select value={value.category} onChange={(e) => update("category", e.target.value)} className="input">{EXPENSE_CATEGORIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field>
-        <Field label="Vendor"><input value={value.vendor} onChange={(e) => update("vendor", e.target.value)} placeholder="Supplier or store" className="input" /></Field>
-        <Field label="Description"><input required value={value.description} onChange={(e) => update("description", e.target.value)} placeholder="What was purchased?" className="input" /></Field>
-        <Field label="Amount before tax"><input type="number" required min="0.01" step="0.01" value={value.amount} onChange={(e) => update("amount", e.target.value)} placeholder="0.00" className="input" /></Field>
-        <Field label="Tax"><input type="number" min="0" step="0.01" value={value.tax} onChange={(e) => update("tax", e.target.value)} placeholder="0.00" className="input" /></Field>
-        <Field label="Payment method"><input value={value.paymentMethod} onChange={(e) => update("paymentMethod", e.target.value)} placeholder="Card, cash, bank…" className="input" /></Field>
-        <Field label="Notes"><input value={value.notes} onChange={(e) => update("notes", e.target.value)} placeholder="Optional" className="input" /></Field>
+        <Field label="Date"><input type="date" required value={value.occurredOn} onChange={(e) => update("occurredOn", e.target.value)} className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm" /></Field>
+        <Field label="Category"><select value={value.category} onChange={(e) => update("category", e.target.value)} className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm bg-white">{EXPENSE_CATEGORIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field>
+        <Field label="Vendor"><input value={value.vendor} onChange={(e) => update("vendor", e.target.value)} placeholder="Supplier or store" className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm" /></Field>
+        <Field label="Description"><input required value={value.description} onChange={(e) => update("description", e.target.value)} placeholder="What was purchased?" className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm" /></Field>
+        <Field label="Amount before tax"><input type="number" required min="0.01" step="0.01" value={value.amount} onChange={(e) => update("amount", e.target.value)} placeholder="0.00" className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm" /></Field>
+        <Field label="Tax"><input type="number" min="0" step="0.01" value={value.tax} onChange={(e) => update("tax", e.target.value)} placeholder="0.00" className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm" /></Field>
+        <Field label="Payment method"><input value={value.paymentMethod} onChange={(e) => update("paymentMethod", e.target.value)} placeholder="Card, cash, bank…" className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm" /></Field>
+        <Field label="Notes"><input value={value.notes} onChange={(e) => update("notes", e.target.value)} placeholder="Optional" className="h-10 w-full rounded-lg border border-[#d8d8d8] px-3 text-sm" /></Field>
       </div>
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="h-9 px-4 rounded-lg border border-[#d8d8d8] text-sm font-medium">Cancel</button>
         <button disabled={saving} type="submit" className="h-9 px-4 rounded-lg bg-[#171717] text-white text-sm font-semibold disabled:opacity-60">{saving ? "Saving…" : "Save expense"}</button>
       </div>
-      <style>{`.gdp-admin .input{width:100%;height:38px;border:1px solid #d8d8d8;border-radius:8px;padding:0 10px;background:#fff;font-size:14px;outline:none}.gdp-admin .input:focus{border-color:#8b8b8b;box-shadow:0 0 0 2px rgba(0,0,0,.05)}`}</style>
     </form>
   );
 }
@@ -320,7 +304,7 @@ function Field({ label, children }) {
   return <label className="block"><span className="block text-xs font-medium text-[#666] mb-1.5">{label}</span>{children}</label>;
 }
 
-function MetricCard({ label, value, icon: Icon, sub, warning = false }) {
+function MetricCard({ label, value, icon: Icon, sub = "", warning = false }) {
   return (
     <div className={`rounded-xl border bg-white p-4 ${warning ? "border-amber-300" : "border-[#dedede]"}`}>
       <div className="flex items-center justify-between gap-3">
@@ -347,40 +331,72 @@ function CompletenessRow({ ok = false, label, text }) {
 
 function TransactionTable({ loading, transactions }) {
   return (
-    <section className="mt-5 rounded-xl border border-[#dedede] bg-white overflow-hidden">
-      <TableHeader title="Transactions" subtitle="Live-mode GDP orders only; test-mode orders are excluded." />
-      <div className="overflow-x-auto"><table className="w-full min-w-[1100px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Customer</Th><Th>Payment</Th><Th right>Subtotal</Th><Th right>Discount</Th><Th right>Shipping</Th><Th right>Tax</Th><Th right>Total</Th><Th>Date</Th></tr></thead><tbody>
-        {loading ? <EmptyRow cols={9}>Loading transactions…</EmptyRow> : transactions.length ? transactions.map((order) => <tr key={order.id} className="border-t border-[#eeeeee]"><Td><span className="font-semibold">{order.order_number}</span></Td><Td><div>{order.customer_name || "Guest"}</div><div className="text-[11px] text-[#777]">{order.customer_email}</div></Td><Td><Status value={order.payment_status} /></Td><Td right>{money(order.subtotal)}</Td><Td right>{money(order.discount)}</Td><Td right>{money(order.shipping)}</Td><Td right>{money(order.tax)}</Td><Td right><span className="font-semibold">{money(order.total)}</span></Td><Td>{formatDate(order.created_at)}</Td></tr>) : <EmptyRow cols={9}>No live-mode transactions in this period.</EmptyRow>}
-      </tbody></table></div>
-    </section>
+    <TableShell title="Transactions" subtitle="Live-mode GDP orders only; test-mode orders are excluded.">
+      <table className="w-full min-w-[1100px] text-sm">
+        <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Customer</Th><Th>Payment</Th><Th right>Subtotal</Th><Th right>Discount</Th><Th right>Shipping</Th><Th right>Tax</Th><Th right>Total</Th><Th>Date</Th></tr></thead>
+        <tbody>
+          {loading ? <EmptyRow cols={9}>Loading transactions…</EmptyRow> : transactions.length ? transactions.map((order) => (
+            <tr key={order.id} className="border-t border-[#eeeeee]">
+              <Td><span className="font-semibold">{order.order_number}</span></Td>
+              <Td><div>{order.customer_name || "Guest"}</div><div className="text-[11px] text-[#777]">{order.customer_email}</div></Td>
+              <Td><Status value={order.payment_status} /></Td>
+              <Td right>{money(order.subtotal)}</Td><Td right>{money(order.discount)}</Td><Td right>{money(order.shipping)}</Td><Td right>{money(order.tax)}</Td>
+              <Td right><span className="font-semibold">{money(order.total)}</span></Td><Td>{formatDate(order.created_at)}</Td>
+            </tr>
+          )) : <EmptyRow cols={9}>No live-mode transactions in this period.</EmptyRow>}
+        </tbody>
+      </table>
+    </TableShell>
   );
 }
 
 function ExpenseTable({ loading, expenses, onDelete }) {
   return (
-    <section className="mt-5 rounded-xl border border-[#dedede] bg-white overflow-hidden">
-      <TableHeader title="Expenses" subtitle="Admin-recorded GDP operating expenses for the selected period." />
-      <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Date</Th><Th>Category</Th><Th>Vendor</Th><Th>Description</Th><Th right>Amount</Th><Th right>Tax</Th><Th right>Total</Th><Th /></tr></thead><tbody>
-        {loading ? <EmptyRow cols={8}>Loading expenses…</EmptyRow> : expenses.length ? expenses.map((expense) => <tr key={expense.id} className="border-t border-[#eeeeee]"><Td>{formatDate(`${expense.occurred_on}T12:00:00`, false)}</Td><Td><span className="capitalize">{categoryLabel(expense.category)}</span></Td><Td>{expense.vendor || "—"}</Td><Td><div className="font-medium">{expense.description}</div>{expense.notes && <div className="text-[11px] text-[#777] mt-0.5">{expense.notes}</div>}</Td><Td right>{money(expense.amount, expense.currency)}</Td><Td right>{money(expense.tax, expense.currency)}</Td><Td right><span className="font-semibold">{money(Number(expense.amount || 0) + Number(expense.tax || 0), expense.currency)}</span></Td><Td right><button type="button" onClick={() => onDelete(expense)} className="h-8 w-8 inline-grid place-items-center rounded-lg border border-[#e1e1e1] text-[#777] hover:text-red-600 hover:border-red-200" aria-label={`Delete ${expense.description}`}><Trash2 size={14} /></button></Td></tr>) : <EmptyRow cols={8}>No expenses recorded in this period.</EmptyRow>}
-      </tbody></table></div>
-    </section>
+    <TableShell title="Expenses" subtitle="Admin-recorded GDP operating expenses for the selected period.">
+      <table className="w-full min-w-[900px] text-sm">
+        <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Date</Th><Th>Category</Th><Th>Vendor</Th><Th>Description</Th><Th right>Amount</Th><Th right>Tax</Th><Th right>Total</Th><Th /></tr></thead>
+        <tbody>
+          {loading ? <EmptyRow cols={8}>Loading expenses…</EmptyRow> : expenses.length ? expenses.map((expense) => (
+            <tr key={expense.id} className="border-t border-[#eeeeee]">
+              <Td>{formatDate(`${expense.occurred_on}T12:00:00`, false)}</Td><Td>{categoryLabel(expense.category)}</Td><Td>{expense.vendor || "—"}</Td>
+              <Td><div className="font-medium">{expense.description}</div>{expense.notes && <div className="text-[11px] text-[#777] mt-0.5">{expense.notes}</div>}</Td>
+              <Td right>{money(expense.amount, expense.currency)}</Td><Td right>{money(expense.tax, expense.currency)}</Td>
+              <Td right><span className="font-semibold">{money(Number(expense.amount || 0) + Number(expense.tax || 0), expense.currency)}</span></Td>
+              <Td right><button type="button" onClick={() => onDelete(expense)} className="h-8 w-8 inline-grid place-items-center rounded-lg border border-[#e1e1e1] text-[#777] hover:text-red-600" aria-label={`Delete ${expense.description}`}><Trash2 size={14} /></button></Td>
+            </tr>
+          )) : <EmptyRow cols={8}>No expenses recorded in this period.</EmptyRow>}
+        </tbody>
+      </table>
+    </TableShell>
   );
 }
 
 function RefundDisputeTables({ loading, refunds, disputes }) {
-  return <div className="space-y-5 pt-5">
-    <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden"><TableHeader title="Refund records" subtitle="GDP refund ledger. Pending refunds are shown separately from processed refund totals." /><div className="overflow-x-auto"><table className="w-full min-w-[800px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Status</Th><Th>Reason</Th><Th right>Amount</Th><Th>Date</Th></tr></thead><tbody>{loading ? <EmptyRow cols={5}>Loading refunds…</EmptyRow> : refunds.length ? refunds.map((refund) => <tr key={refund.id} className="border-t border-[#eeeeee]"><Td><span className="font-semibold">{refund.order_number || "—"}</span></Td><Td><Status value={refund.status} /></Td><Td>{refund.reason || "—"}</Td><Td right>{money(refund.amount)}</Td><Td>{formatDate(refund.processed_at || refund.created_at)}</Td></tr>) : <EmptyRow cols={5}>No refund records in this period.</EmptyRow>}</tbody></table></div></section>
-    <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden"><TableHeader title="Stripe disputes" subtitle="Live-mode charge disputes from the protected Stripe dispute ledger." /><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Status</Th><Th>Reason</Th><Th right>Amount</Th><Th>Evidence due</Th><Th>Updated</Th></tr></thead><tbody>{loading ? <EmptyRow cols={6}>Loading disputes…</EmptyRow> : disputes.length ? disputes.map((dispute) => <tr key={dispute.stripe_dispute_id} className="border-t border-[#eeeeee]"><Td><span className="font-semibold">{dispute.order_number || "Unmatched"}</span></Td><Td><Status value={dispute.status} /></Td><Td><span className="capitalize">{String(dispute.reason || "—").replaceAll("_", " ")}</span></Td><Td right>{money(dispute.amount, dispute.currency || "CAD")}</Td><Td>{dispute.evidence_due_by ? formatDate(dispute.evidence_due_by) : "—"}{dispute.evidence_past_due && <div className="text-[11px] text-red-600 font-semibold">Past due</div>}</Td><Td>{formatDate(dispute.updated_at)}</Td></tr>) : <EmptyRow cols={6}>No live Stripe disputes in this period.</EmptyRow>}</tbody></table></div></section>
-  </div>;
+  return (
+    <div className="space-y-5 pt-5">
+      <TableShell title="Refund records" subtitle="Pending refunds are separate from processed refund totals.">
+        <table className="w-full min-w-[800px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Status</Th><Th>Reason</Th><Th right>Amount</Th><Th>Date</Th></tr></thead><tbody>
+          {loading ? <EmptyRow cols={5}>Loading refunds…</EmptyRow> : refunds.length ? refunds.map((refund) => <tr key={refund.id} className="border-t border-[#eeeeee]"><Td><span className="font-semibold">{refund.order_number || "—"}</span></Td><Td><Status value={refund.status} /></Td><Td>{refund.reason || "—"}</Td><Td right>{money(refund.amount)}</Td><Td>{formatDate(refund.processed_at || refund.created_at)}</Td></tr>) : <EmptyRow cols={5}>No refund records in this period.</EmptyRow>}
+        </tbody></table>
+      </TableShell>
+      <TableShell title="Stripe disputes" subtitle="Live-mode charge disputes from the protected Stripe dispute ledger.">
+        <table className="w-full min-w-[900px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Order</Th><Th>Status</Th><Th>Reason</Th><Th right>Amount</Th><Th>Evidence due</Th><Th>Updated</Th></tr></thead><tbody>
+          {loading ? <EmptyRow cols={6}>Loading disputes…</EmptyRow> : disputes.length ? disputes.map((dispute) => <tr key={dispute.stripe_dispute_id} className="border-t border-[#eeeeee]"><Td><span className="font-semibold">{dispute.order_number || "Unmatched"}</span></Td><Td><Status value={dispute.status} /></Td><Td><span className="capitalize">{String(dispute.reason || "—").replaceAll("_", " ")}</span></Td><Td right>{money(dispute.amount, dispute.currency || "CAD")}</Td><Td>{dispute.evidence_due_by ? formatDate(dispute.evidence_due_by) : "—"}{dispute.evidence_past_due && <div className="text-[11px] text-red-600 font-semibold">Past due</div>}</Td><Td>{formatDate(dispute.updated_at)}</Td></tr>) : <EmptyRow cols={6}>No live Stripe disputes in this period.</EmptyRow>}
+        </tbody></table>
+      </TableShell>
+    </div>
+  );
 }
 
-function TableHeader({ title, subtitle }) {
-  return <div className="px-4 py-3 border-b border-[#e8e8e8]"><div className="text-sm font-semibold">{title}</div><div className="text-xs text-[#777] mt-0.5">{subtitle}</div></div>;
+function TableShell({ title, subtitle, children }) {
+  return <section className="mt-5 rounded-xl border border-[#dedede] bg-white overflow-hidden"><div className="px-4 py-3 border-b border-[#e8e8e8]"><div className="text-sm font-semibold">{title}</div><div className="text-xs text-[#777] mt-0.5">{subtitle}</div></div><div className="overflow-x-auto">{children}</div></section>;
 }
 
 function Status({ value }) {
   const normalized = String(value || "pending").toLowerCase();
-  const cls = normalized === "paid" || normalized === "won" || normalized === "completed" || normalized === "processed" || normalized === "succeeded" ? "bg-emerald-100 text-emerald-800" : normalized.includes("refund") || normalized === "pending" || normalized === "needs_response" || normalized === "under_review" ? "bg-amber-100 text-amber-800" : normalized === "failed" || normalized === "lost" ? "bg-red-100 text-red-700" : "bg-[#eeeeee] text-[#555]";
+  const good = ["paid", "won", "completed", "processed", "succeeded"].includes(normalized);
+  const bad = ["failed", "lost"].includes(normalized);
+  const cls = good ? "bg-emerald-100 text-emerald-800" : bad ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800";
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${cls}`}>{normalized.replaceAll("_", " ")}</span>;
 }
 
@@ -388,10 +404,10 @@ function EmptyRow({ cols, children }) {
   return <tr><td colSpan={cols} className="py-12 text-center text-[#777]">{children}</td></tr>;
 }
 
-function Th({ children, right = false }) {
+function Th({ children = null, right = false }) {
   return <th className={`px-4 py-2.5 font-medium ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
-function Td({ children, right = false }) {
+function Td({ children = null, right = false }) {
   return <td className={`px-4 py-3 align-top ${right ? "text-right" : "text-left"}`}>{children}</td>;
 }
