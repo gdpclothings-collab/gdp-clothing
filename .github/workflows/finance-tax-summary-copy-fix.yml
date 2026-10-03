@@ -1,0 +1,44 @@
+name: Finance tax summary copy fix
+
+on:
+  push:
+    branches:
+      - fix/finance-tax-summary-copy
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/finance-tax-summary-copy
+          fetch-depth: 0
+      - name: Update legacy finance tax summary copy
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/admin/FinanceReportsPanel.jsx')
+          text = path.read_text()
+          replacements = {
+            'row(["Filing ready", "No - combined tax ledger does not separate GST/PST"]);': 'row(["Filing ready", "No - use Tax Center for separate GST/HST and PST filing review"]);',
+            'sub="Current ledger combines tax and does not separate GST/PST."': 'sub="Use Tax Center for separate GST/HST and PST ledgers and filing review."',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one match for: {old}')
+              text = text.replace(old, new)
+          path.write_text(text)
+          PY
+      - name: Commit exact wording fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/finance-tax-summary-copy-fix.yml
+          git add src/components/admin/FinanceReportsPanel.jsx
+          git commit -m "finance tax: align legacy summary with Tax Center"
+          git push origin HEAD:fix/finance-tax-summary-copy
