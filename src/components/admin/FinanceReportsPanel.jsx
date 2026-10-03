@@ -105,7 +105,7 @@ function buildCsv(report, rangeLabel) {
   row(["Sales tax collected", report?.taxSummary?.salesTaxCollected ?? 0]);
   row(["Expense tax recorded", report?.taxSummary?.expenseTaxRecorded ?? 0]);
   row(["Difference - informational only", report?.taxSummary?.differenceInformational ?? 0]);
-  row(["Filing ready", "No - combined tax ledger does not separate GST/PST"]);
+  row(["Filing ready", "No - use Tax Center for separate GST/HST and PST filing review"]);
 
   return lines.join("\r\n");
 }
@@ -215,7 +215,7 @@ export default function FinanceReportsPanel(props) {
             <TaxCard label="Sales tax collected" value={money(tax?.salesTaxCollected)} />
             <TaxCard label="Expense tax recorded" value={money(tax?.expenseTaxRecorded)} />
             <TaxCard label="Difference" value={money(tax?.differenceInformational)} sub="Informational only" />
-            <TaxCard label="Filing status" value="Not filing-ready" sub="Current ledger combines tax and does not separate GST/PST." warning />
+            <TaxCard label="Filing status" value="Not filing-ready" sub="Use Tax Center for separate GST/HST and PST ledgers and filing review." warning />
           </div>
         </section>
       </div>
