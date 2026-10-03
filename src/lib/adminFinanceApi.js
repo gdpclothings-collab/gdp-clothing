@@ -2,6 +2,12 @@ import { supabase } from "@/lib/supabaseClient";
 
 const clampLimit = (value) => Math.max(25, Math.min(1000, Number(value) || 250));
 
+const nonNegativeMoney = (value, label) => {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount < 0) throw new Error(`${label} cannot be negative.`);
+  return Math.round(amount * 100) / 100;
+};
+
 export const adminFinanceApi = {
   async load({ from = null, to = null, limit = 250 } = {}) {
     const { data, error } = await supabase.rpc("get_admin_finance_snapshot", {
@@ -15,10 +21,32 @@ export const adminFinanceApi = {
     return {
       metrics: data?.metrics || {},
       transactions: Array.isArray(data?.transactions) ? data.transactions : [],
+      costItems: Array.isArray(data?.costItems) ? data.costItems : [],
       refunds: Array.isArray(data?.refunds) ? data.refunds : [],
       disputes: Array.isArray(data?.disputes) ? data.disputes : [],
       expenses: Array.isArray(data?.expenses) ? data.expenses : [],
     };
+  },
+
+  async updateCogs(orderItemId, costs) {
+    if (!orderItemId) throw new Error("Order item is required.");
+
+    const payload = {
+      garment_unit_cost: nonNegativeMoney(costs.garmentUnitCost, "Garment cost"),
+      print_unit_cost: nonNegativeMoney(costs.printUnitCost, "DTF / print cost"),
+      packaging_unit_cost: nonNegativeMoney(costs.packagingUnitCost, "Packaging cost"),
+      other_unit_cost: nonNegativeMoney(costs.otherUnitCost, "Other cost"),
+    };
+
+    const { data, error } = await supabase
+      .from("finance_order_item_costs")
+      .update(payload)
+      .eq("order_item_id", orderItemId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   async createExpense(expense) {
