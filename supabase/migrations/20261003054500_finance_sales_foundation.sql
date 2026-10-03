@@ -35,7 +35,7 @@ create table if not exists public.finance_expenses (
 );
 
 comment on table public.finance_expenses is
-  'Admin-only operating expense ledger for GDP Clothing finance reporting. Amounts are stored in currency units (for example CAD dollars), consistent with orders and refunds.';
+  'Admin-only operating expense ledger for GDP Clothing finance reporting. Amounts use currency units consistent with orders and refunds.';
 
 create index if not exists finance_expenses_occurred_on_idx
   on public.finance_expenses (occurred_on desc, created_at desc);
@@ -98,103 +98,79 @@ begin
     raise exception 'admin step-up access required' using errcode = '42501';
   end if;
 
+  with
+  filtered_orders as (
+    select o.*
+    from public.orders o
+    where coalesce(o.payment_mode, 'live') = 'live'
+      and (p_from is null or o.created_at >= p_from)
+      and (p_to is null or o.created_at < p_to)
+  ),
+  sales_orders as (
+    select o.*
+    from filtered_orders o
+    where o.payment_status in ('paid', 'refunded', 'partially_refunded')
+  ),
+  filtered_refunds as (
+    select
+      r.*,
+      o.order_number
+    from public.refunds r
+    join public.orders o on o.id = r.order_id
+    where coalesce(o.payment_mode, 'live') = 'live'
+      and (p_from is null or coalesce(r.processed_at, r.created_at) >= p_from)
+      and (p_to is null or coalesce(r.processed_at, r.created_at) < p_to)
+  ),
+  filtered_expenses as (
+    select e.*
+    from public.finance_expenses e
+    where (p_from is null or e.occurred_on >= (p_from at time zone 'America/Regina')::date)
+      and (p_to is null or e.occurred_on < (p_to at time zone 'America/Regina')::date)
+  ),
+  filtered_disputes as (
+    select
+      d.*,
+      o.order_number
+    from public.payment_disputes d
+    left join public.orders o on o.id = d.order_id
+    where d.payment_mode = 'live'
+      and (p_from is null or d.created_at >= p_from)
+      and (p_to is null or d.created_at < p_to)
+  )
   select jsonb_build_object(
     'metrics', jsonb_build_object(
-      'grossSales', coalesce((
-        select sum(o.subtotal)
-        from public.orders o
-        where o.payment_status = 'paid'
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
-      ), 0),
-      'discounts', coalesce((
-        select sum(o.discount)
-        from public.orders o
-        where o.payment_status = 'paid'
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
-      ), 0),
-      'shippingCollected', coalesce((
-        select sum(o.shipping)
-        from public.orders o
-        where o.payment_status = 'paid'
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
-      ), 0),
-      'taxCollected', coalesce((
-        select sum(o.tax)
-        from public.orders o
-        where o.payment_status = 'paid'
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
-      ), 0),
-      'paidRevenue', coalesce((
-        select sum(o.total)
-        from public.orders o
-        where o.payment_status = 'paid'
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
-      ), 0),
-      'paidOrders', coalesce((
-        select count(*)
-        from public.orders o
-        where o.payment_status = 'paid'
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
-      ), 0),
+      'grossSales', coalesce((select sum(subtotal) from sales_orders), 0),
+      'discounts', coalesce((select sum(discount) from sales_orders), 0),
+      'shippingCollected', coalesce((select sum(shipping) from sales_orders), 0),
+      'taxCollected', coalesce((select sum(tax) from sales_orders), 0),
+      'paidRevenue', coalesce((select sum(total) from sales_orders), 0),
+      'paidOrders', coalesce((select count(*) from sales_orders), 0),
       'recordedRefunds', coalesce((
-        select sum(r.amount)
-        from public.refunds r
-        join public.orders o on o.id = r.order_id
-        where lower(coalesce(r.status, '')) in ('processed', 'succeeded', 'completed', 'paid', 'refunded')
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or coalesce(r.processed_at, r.created_at) >= p_from)
-          and (p_to is null or coalesce(r.processed_at, r.created_at) < p_to)
+        select sum(amount)
+        from filtered_refunds
+        where lower(coalesce(status, '')) in ('processed', 'succeeded', 'completed', 'paid', 'refunded')
       ), 0),
       'pendingRefunds', coalesce((
-        select sum(r.amount)
-        from public.refunds r
-        join public.orders o on o.id = r.order_id
-        where lower(coalesce(r.status, 'pending')) in ('pending', 'requested', 'processing')
-          and coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or r.created_at >= p_from)
-          and (p_to is null or r.created_at < p_to)
+        select sum(amount)
+        from filtered_refunds
+        where lower(coalesce(status, 'pending')) in ('pending', 'requested', 'processing')
       ), 0),
       'refundOrders', coalesce((
-        select count(distinct o.id)
-        from public.orders o
-        where coalesce(o.payment_mode, 'live') = 'live'
-          and (o.payment_status in ('refunded', 'partially_refunded') or o.status in ('refunded', 'partially_refunded'))
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
+        select count(*)
+        from filtered_orders
+        where payment_status in ('refunded', 'partially_refunded')
+          or status in ('refunded', 'partially_refunded')
       ), 0),
-      'expenses', coalesce((
-        select sum(e.amount + e.tax)
-        from public.finance_expenses e
-        where (p_from is null or e.occurred_on >= (p_from at time zone 'America/Regina')::date)
-          and (p_to is null or e.occurred_on < (p_to at time zone 'America/Regina')::date)
-      ), 0),
+      'expenses', coalesce((select sum(amount + tax) from filtered_expenses), 0),
       'openDisputeCount', coalesce((
         select count(*)
-        from public.payment_disputes d
-        where d.payment_mode = 'live'
-          and lower(coalesce(d.status, '')) not in ('won', 'lost', 'warning_closed')
-          and (p_from is null or d.created_at >= p_from)
-          and (p_to is null or d.created_at < p_to)
+        from filtered_disputes
+        where lower(coalesce(status, '')) not in ('won', 'lost', 'warning_closed')
       ), 0),
       'openDisputeAmount', coalesce((
-        select sum(d.amount)::numeric / 100
-        from public.payment_disputes d
-        where d.payment_mode = 'live'
-          and lower(coalesce(d.status, '')) not in ('won', 'lost', 'warning_closed')
-          and (p_from is null or d.created_at >= p_from)
-          and (p_to is null or d.created_at < p_to)
+        select sum(amount)::numeric / 100
+        from filtered_disputes
+        where lower(coalesce(status, '')) not in ('won', 'lost', 'warning_closed')
       ), 0),
       'testPaidOrdersExcluded', coalesce((
         select count(*)
@@ -217,25 +193,22 @@ begin
       select jsonb_agg(to_jsonb(t) order by t.created_at desc)
       from (
         select
-          o.id,
-          o.order_number,
-          o.customer_name,
-          o.customer_email,
-          o.subtotal,
-          o.discount,
-          o.shipping,
-          o.tax,
-          o.total,
-          o.payment_status,
-          o.status,
-          o.payment_mode,
-          o.stripe_payment_intent_id,
-          o.created_at
-        from public.orders o
-        where coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or o.created_at >= p_from)
-          and (p_to is null or o.created_at < p_to)
-        order by o.created_at desc
+          id,
+          order_number,
+          customer_name,
+          customer_email,
+          subtotal,
+          discount,
+          shipping,
+          tax,
+          total,
+          payment_status,
+          status,
+          payment_mode,
+          stripe_payment_intent_id,
+          created_at
+        from filtered_orders
+        order by created_at desc
         limit v_limit
       ) t
     ), '[]'::jsonb),
@@ -243,22 +216,18 @@ begin
       select jsonb_agg(to_jsonb(rf) order by rf.created_at desc)
       from (
         select
-          r.id,
-          r.order_id,
-          o.order_number,
-          r.amount,
-          r.status,
-          r.provider,
-          r.provider_refund_id,
-          r.reason,
-          r.processed_at,
-          r.created_at
-        from public.refunds r
-        join public.orders o on o.id = r.order_id
-        where coalesce(o.payment_mode, 'live') = 'live'
-          and (p_from is null or r.created_at >= p_from)
-          and (p_to is null or r.created_at < p_to)
-        order by r.created_at desc
+          id,
+          order_id,
+          order_number,
+          amount,
+          status,
+          provider,
+          provider_refund_id,
+          reason,
+          processed_at,
+          created_at
+        from filtered_refunds
+        order by created_at desc
         limit v_limit
       ) rf
     ), '[]'::jsonb),
@@ -266,23 +235,19 @@ begin
       select jsonb_agg(to_jsonb(ds) order by ds.created_at desc)
       from (
         select
-          d.stripe_dispute_id,
-          d.order_id,
-          o.order_number,
-          d.status,
-          d.reason,
-          (d.amount::numeric / 100) as amount,
-          upper(d.currency) as currency,
-          d.evidence_due_by,
-          d.evidence_past_due,
-          d.created_at,
-          d.updated_at
-        from public.payment_disputes d
-        left join public.orders o on o.id = d.order_id
-        where d.payment_mode = 'live'
-          and (p_from is null or d.created_at >= p_from)
-          and (p_to is null or d.created_at < p_to)
-        order by d.created_at desc
+          stripe_dispute_id,
+          order_id,
+          order_number,
+          status,
+          reason,
+          (amount::numeric / 100) as amount,
+          upper(currency) as currency,
+          evidence_due_by,
+          evidence_past_due,
+          created_at,
+          updated_at
+        from filtered_disputes
+        order by created_at desc
         limit v_limit
       ) ds
     ), '[]'::jsonb),
@@ -290,23 +255,21 @@ begin
       select jsonb_agg(to_jsonb(ex) order by ex.occurred_on desc, ex.created_at desc)
       from (
         select
-          e.id,
-          e.occurred_on,
-          e.vendor,
-          e.category,
-          e.description,
-          e.amount,
-          e.tax,
-          e.currency,
-          e.payment_method,
-          e.receipt_path,
-          e.notes,
-          e.created_at,
-          e.updated_at
-        from public.finance_expenses e
-        where (p_from is null or e.occurred_on >= (p_from at time zone 'America/Regina')::date)
-          and (p_to is null or e.occurred_on < (p_to at time zone 'America/Regina')::date)
-        order by e.occurred_on desc, e.created_at desc
+          id,
+          occurred_on,
+          vendor,
+          category,
+          description,
+          amount,
+          tax,
+          currency,
+          payment_method,
+          receipt_path,
+          notes,
+          created_at,
+          updated_at
+        from filtered_expenses
+        order by occurred_on desc, created_at desc
         limit v_limit
       ) ex
     ), '[]'::jsonb)
@@ -320,6 +283,6 @@ revoke all on function public.get_admin_finance_snapshot(timestamptz, timestampt
 grant execute on function public.get_admin_finance_snapshot(timestamptz, timestamptz, integer) to authenticated;
 
 comment on function public.get_admin_finance_snapshot(timestamptz, timestamptz, integer) is
-  'AAL2/admin-only finance snapshot. Excludes Stripe test-mode orders from live reporting and exposes disputes without granting direct table access.';
+  'AAL2/admin-only finance snapshot. Excludes Stripe test-mode orders from live reporting, preserves refunded orders in historical sales, and exposes disputes without granting direct table access.';
 
 commit;
