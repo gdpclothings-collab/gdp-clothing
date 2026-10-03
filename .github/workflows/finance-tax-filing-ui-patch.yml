@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message != 'finance tax: wire filing controls into Tax Center'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
