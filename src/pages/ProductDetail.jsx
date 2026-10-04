@@ -326,8 +326,10 @@ export default function ProductDetail() {
               {outOfStock && <span className="bg-[#e11d2e] px-2 py-1 font-mono text-[8px] font-black uppercase tracking-[0.13em] text-white">Out of stock</span>}
             </div>
 
-            <h1 className="mt-4 max-w-3xl font-display text-[clamp(2.8rem,5.4vw,5.15rem)] leading-[0.9] tracking-wide">{titleParts.title}</h1>
-            {titleParts.subtitle && <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.15em] text-black/48 sm:text-xs">{titleParts.subtitle}</p>}
+            <h1 className="mt-4 max-w-3xl font-display text-[clamp(2.8rem,5.4vw,5.15rem)] leading-[0.9] tracking-wide">
+              <span className="block">{titleParts.title}</span>
+              {titleParts.subtitle && <span className="mt-3 block font-mono text-[10px] font-black uppercase leading-normal tracking-[0.15em] text-black/48 sm:text-xs">{" — "}{titleParts.subtitle}</span>}
+            </h1>
 
             <div className="mt-5 border-b border-black/15 pb-5">
               <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
