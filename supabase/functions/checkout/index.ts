@@ -54,6 +54,14 @@ const defaultApparelPricing = {
   currency: "CAD",
   customQuoteMinQty: 50,
   allowCouponStacking: true,
+  readyToWear: {
+    enabled: false,
+    allowSaleStacking: true,
+    tiers: [
+      { min: 2, max: 2, percent: 10 },
+      { min: 3, max: 999, percent: 15 },
+    ],
+  },
   products: {
     tshirt: { front: { 1: 34.99, 2: 64.99, 5: 149.99, 10: 279.99 }, front_back: { 1: 44.99, 2: 84.99, 5: 199.99, 10: 369.99 } },
     crewneck: { front: { 1: 59.99, 2: 109.99, 5: 259.99, 10: 489.99 }, front_back: { 1: 69.99, 2: 129.99, 5: 309.99, 10: 579.99 } },
@@ -74,6 +82,24 @@ function normalizeApparelPricing(raw: any = {}) {
   next.customQuoteMinQty = Math.max(1, Math.floor(Number(raw?.customQuoteMinQty || 50)));
   next.enabled = raw?.enabled !== false;
   next.allowCouponStacking = raw?.allowCouponStacking !== false;
+  const rawReadyToWear = raw?.readyToWear || {};
+  const readyToWearTiers = Array.isArray(rawReadyToWear?.tiers) && rawReadyToWear.tiers.length
+    ? rawReadyToWear.tiers
+    : defaultApparelPricing.readyToWear.tiers;
+  next.readyToWear = {
+    enabled: rawReadyToWear.enabled === true,
+    allowSaleStacking: rawReadyToWear.allowSaleStacking !== false,
+    tiers: readyToWearTiers
+      .map((tier: any) => {
+        const min = Math.max(1, Math.floor(Number(tier?.min || 1)));
+        return {
+          min,
+          max: Math.max(min, Math.floor(Number(tier?.max || tier?.min || min))),
+          percent: Math.min(95, Math.max(0, Number(tier?.percent || 0))),
+        };
+      })
+      .sort((a: any, b: any) => a.min - b.min),
+  };
   return next;
 }
 
@@ -91,6 +117,12 @@ function apparelPlacementKey(design: any) {
 
 function apparelVolumePercent(settings: any, quantity: number) {
   const tier = (settings?.tiers || []).find((row: any) => quantity >= Number(row?.min || 0) && quantity <= Number(row?.max || 0));
+  return Math.min(95, Math.max(0, Number(tier?.percent || 0)));
+}
+
+function readyToWearVolumePercent(settings: any, quantity: number) {
+  if (settings?.enabled !== true || settings?.readyToWear?.enabled !== true) return 0;
+  const tier = (settings.readyToWear.tiers || []).find((row: any) => quantity >= Number(row?.min || 0) && quantity <= Number(row?.max || 0));
   return Math.min(95, Math.max(0, Number(tier?.percent || 0)));
 }
 
@@ -1396,6 +1428,12 @@ Deno.serve(async (req: Request) => {
             };
           }
         }
+      } else if (apparelPricing.enabled && apparelPricing.readyToWear?.enabled && product.custom_designable !== true) {
+        const compareAtPrice = Number(product.compare_at_price || 0);
+        const saleActive = Number.isFinite(compareAtPrice) && compareAtPrice > unitPrice;
+        if (!saleActive || apparelPricing.readyToWear.allowSaleStacking !== false) {
+          customData = { ...customData, readyToWearPricingEligible: true };
+        }
       }
 
       unitPrice = roundMoney(unitPrice);
@@ -1433,6 +1471,14 @@ Deno.serve(async (req: Request) => {
     let eligibleDiscounted = 0;
     for (const item of normalizedItems) {
       if (item.discountExempt) continue;
+      const readyToWearEligible = (item.customData as any)?.readyToWearPricingEligible === true;
+      if (readyToWearEligible) {
+        const quantity = Number(item.quantity || 1);
+        const percent = readyToWearVolumePercent(apparelPricing, quantity);
+        eligibleDiscounted += Number(item.unitPrice || 0) * quantity * (1 - percent / 100);
+        continue;
+      }
+
       const apparelKey = String((item.customData as any)?.apparelPricingKey || "");
       if (!apparelKey) {
         eligibleDiscounted += Number(item.unitPrice || 0) * Number(item.quantity || 1);

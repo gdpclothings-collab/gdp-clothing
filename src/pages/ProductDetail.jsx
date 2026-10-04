@@ -9,6 +9,7 @@ import { Image } from "@/components/ui/image";
 import { findProductVariant, isProductColorAvailable, isProductOutOfStock, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
 import { PRODUCT_SELLING_MODES, onlineStoreEnabled, resolveProductSellingMode } from "@/lib/productSelling";
+import { normalizeApparelPricing } from "@/lib/apparelPricing";
 
 const uniqueValues = (values = []) => [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 const sameOption = (left, right) => String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
@@ -70,6 +71,7 @@ export default function ProductDetail() {
   const [color, setColor] = useState("");
   const [qty, setQty] = useState(1);
   const [reviews, setReviews] = useState([]);
+  const [apparelPricing, setApparelPricing] = useState(() => normalizeApparelPricing({}));
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
@@ -116,6 +118,22 @@ export default function ProductDetail() {
     });
     return () => { active = false; };
   }, [id, slug]);
+
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from("store_settings")
+      .select("apparel_pricing")
+      .eq("id", 1)
+      .maybeSingle()
+      .then(
+        ({ data }) => {
+          if (active && data?.apparel_pricing) setApparelPricing(normalizeApparelPricing(data.apparel_pricing));
+        },
+        () => {},
+      );
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (product?.slug === "dtf-gang-sheet") {
@@ -174,6 +192,17 @@ export default function ProductDetail() {
   const sellingMode = resolveProductSellingMode(product);
   const isReadyToWear = sellingMode === PRODUCT_SELLING_MODES.READY_TO_WEAR;
   const isCustom = sellingMode === PRODUCT_SELLING_MODES.CUSTOM;
+  const readyToWearPricing = apparelPricing.readyToWear || {};
+  const readyToWearOfferEnabled = Boolean(isReadyToWear && apparelPricing.enabled && readyToWearPricing.enabled);
+  const readyToWearTiers = readyToWearOfferEnabled ? (readyToWearPricing.tiers || []).map((tier) => ({ ...tier })) : [];
+  const readyToWearCanStackWithSale = !hasSale || readyToWearPricing.allowSaleStacking !== false;
+  const activeReadyToWearTier = readyToWearTiers.find((tier) => qty >= Number(tier?.min || 0) && qty <= Number(tier?.max || 0));
+  const readyToWearPercent = readyToWearOfferEnabled && readyToWearCanStackWithSale
+    ? Number(activeReadyToWearTier?.percent || 0)
+    : 0;
+  const quantityRegularTotal = displayPrice * qty;
+  const quantityDiscountedTotal = quantityRegularTotal * (1 - readyToWearPercent / 100);
+  const quantitySavings = Math.max(0, quantityRegularTotal - quantityDiscountedTotal);
   const canAddToCart = isReadyToWear && selectionComplete && validCombination && inStock;
   const inventoryLimited = product.trackInventory !== false && product.sellWhenOutOfStock !== true;
   const maxQty = inventoryLimited && selectedVariant ? Math.max(0, Number(selectedVariant.stock || 0)) : 99;
@@ -221,6 +250,7 @@ export default function ProductDetail() {
       quantity,
       maxQuantity: inventoryLimited ? maxQty : null,
       price: displayPrice,
+      compareAtPrice: compareAtPrice || null,
       fulfillmentMode: product.fulfillmentMode,
       sellingMode,
       isCustom: false,
@@ -281,7 +311,7 @@ export default function ProductDetail() {
         ? "Unavailable combination"
         : !inStock
           ? "Out of stock"
-          : `Add to bag · ${formatCad(displayPrice)}`;
+          : `Add to bag · ${formatCad(qty > 1 ? quantityDiscountedTotal : displayPrice)}`;
 
   return (
     <div className="bg-[#f7f6f1] text-black">
@@ -348,6 +378,28 @@ export default function ProductDetail() {
                 <button type="button" onClick={openReviewForm} className="font-semibold underline decoration-black/25 underline-offset-4 transition hover:decoration-black">Write a review</button>
               </div>
             </div>
+
+            {readyToWearOfferEnabled && readyToWearTiers.length > 0 && (
+              <div className="mt-5 border border-black/15 bg-white/55 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-mono text-[9px] font-black uppercase tracking-[0.14em]">Buy more & save</div>
+                  <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/45">Automatic in cart</div>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {readyToWearTiers.map((tier) => {
+                    const active = qty >= tier.min && qty <= tier.max && readyToWearCanStackWithSale;
+                    const quantityLabel = tier.max >= 999 || tier.max > tier.min ? `Buy ${tier.min}+` : `Buy ${tier.min}`;
+                    return <div key={`${tier.min}-${tier.max}-${tier.percent}`} className={`border px-3 py-2.5 ${active ? "border-black bg-black text-white" : "border-black/10 bg-[#f7f6f1]"}`}><div className="font-mono text-[8px] font-black uppercase tracking-[0.12em]">{quantityLabel}</div><div className="mt-1 text-sm font-black">Save {tier.percent}%</div></div>;
+                  })}
+                </div>
+                {readyToWearPercent > 0 && (
+                  <div className="mt-3 border-t border-black/10 pt-3 text-xs font-semibold">
+                    {qty} × {formatCad(displayPrice)} = {formatCad(quantityDiscountedTotal)} <span className="text-[#b51222]">· You save {formatCad(quantitySavings)}</span>
+                  </div>
+                )}
+                {!readyToWearCanStackWithSale && <div className="mt-3 text-xs text-black/50">Buy More & Save does not stack with this product's current sale price.</div>}
+              </div>
+            )}
 
             {product.metafields?.short_description && <p className="mt-5 text-sm font-semibold leading-6 text-black/72">{product.metafields.short_description}</p>}
             {product.description && <p className={`${product.metafields?.short_description ? "mt-3" : "mt-5"} text-sm leading-6 text-black/60`}>{product.description}</p>}

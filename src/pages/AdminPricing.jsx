@@ -99,6 +99,17 @@ export default function AdminPricing() {
     }));
   };
 
+  const setReadyToWearTier = (index, field, value) => {
+    setMessage(""); setError("");
+    setPricing((current) => ({
+      ...current,
+      readyToWear: {
+        ...current.readyToWear,
+        tiers: current.readyToWear.tiers.map((tier, i) => i === index ? { ...tier, [field]: Number(value || 0) } : tier),
+      },
+    }));
+  };
+
   const setSourcingCost = (garmentKey, field, value) => {
     setMessage(""); setError("");
     setPricing((current) => ({
@@ -238,7 +249,38 @@ export default function AdminPricing() {
         </section>
 
         <section className="mt-6 rounded-2xl border border-[#dedfe3] bg-white p-5 shadow-sm">
-          <div className="mb-5"><h2 className="text-lg font-bold">Automatic quantity discounts</h2><p className="mt-1 text-sm text-[#666b73]">Used when an exact 2, 5 or 10-piece bundle price does not apply.</p></div>
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e5e6e8] pb-5">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#a70f2d]">Ready-to-Wear</div>
+              <h2 className="mt-1 text-lg font-bold">Buy More & Save</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-[#666b73]">System-wide quantity savings for Ready-to-Wear. When enabled, the same tiers are used on the product page, cart, checkout and authoritative server order totals.</p>
+            </div>
+            <label className="flex items-center gap-3 rounded-xl border border-[#d8dade] bg-[#fafafa] px-4 py-3">
+              <div><div className="text-sm font-bold">Promotion enabled</div><div className="mt-0.5 text-xs text-[#6c7078]">OFF by default for safe deployment.</div></div>
+              <input type="checkbox" checked={pricing.readyToWear?.enabled === true} onChange={(e) => setPricing((current) => ({ ...current, readyToWear: { ...current.readyToWear, enabled: e.target.checked } }))} className="h-5 w-5"/>
+            </label>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {(pricing.readyToWear?.tiers || []).map((tier, index) => (
+              <div key={`rtw-${tier.min}-${tier.max}-${index}`} className="rounded-xl border border-[#e1e3e6] bg-[#fafafa] p-4">
+                <div className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-[#6c7078]">Tier {index + 1}</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <MoneylessInput label="Min qty" value={tier.min} onChange={(value) => setReadyToWearTier(index, "min", value)}/>
+                  <MoneylessInput label="Max qty" value={tier.max} onChange={(value) => setReadyToWearTier(index, "max", value)}/>
+                  <MoneylessInput label="% off" value={tier.percent} onChange={(value) => setReadyToWearTier(index, "percent", value)}/>
+                </div>
+              </div>
+            ))}
+          </div>
+          <label className="mt-4 flex min-h-11 items-center justify-between gap-4 rounded-lg border border-[#d8dade] px-4">
+            <div><div className="text-sm font-semibold">Allow Buy More & Save on already discounted products</div><div className="mt-0.5 text-xs text-[#6c7078]">When off, compare-at sale products keep their sale price without an extra quantity discount.</div></div>
+            <input type="checkbox" checked={pricing.readyToWear?.allowSaleStacking !== false} onChange={(e) => setPricing((current) => ({ ...current, readyToWear: { ...current.readyToWear, allowSaleStacking: e.target.checked } }))} className="h-5 w-5"/>
+          </label>
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950">Recommended starter values are staged as Buy 2 = 10% off and Buy 3+ = 15% off, but no Ready-to-Wear discount is activated until you turn this section on and save.</div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-[#dedfe3] bg-white p-5 shadow-sm">
+          <div className="mb-5"><h2 className="text-lg font-bold">Custom apparel automatic quantity discounts</h2><p className="mt-1 text-sm text-[#666b73]">Used when an exact 2, 5 or 10-piece custom-apparel bundle price does not apply.</p></div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {pricing.tiers.map((tier, index) => (
               <div key={`${tier.min}-${tier.max}-${index}`} className="rounded-xl border border-[#e1e3e6] bg-[#fafafa] p-4">
@@ -252,7 +294,7 @@ export default function AdminPricing() {
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#666b73]">Custom quote starts at</span><div className="flex h-11 items-center rounded-lg border border-[#d8dade] px-3"><input type="number" min="1" value={pricing.customQuoteMinQty} onChange={(e) => setPricing((current) => ({ ...current, customQuoteMinQty: Math.max(1, Number(e.target.value || 1)) }))} className="w-full bg-transparent text-sm font-semibold outline-none"/><span className="text-xs text-[#6c7078]">pcs</span></div></label>
-            <label className="flex min-h-11 items-center justify-between gap-4 rounded-lg border border-[#d8dade] px-4"><div><div className="text-sm font-semibold">Allow coupon codes after volume pricing</div><div className="mt-0.5 text-xs text-[#6c7078]">Keep enabled for current checkout behavior.</div></div><input type="checkbox" checked={pricing.allowCouponStacking !== false} onChange={(e) => setPricing((current) => ({ ...current, allowCouponStacking: e.target.checked }))} className="h-5 w-5"/></label>
+            <label className="flex min-h-11 items-center justify-between gap-4 rounded-lg border border-[#d8dade] px-4"><div><div className="text-sm font-semibold">Allow coupon codes after quantity pricing</div><div className="mt-0.5 text-xs text-[#6c7078]">System-wide stacking policy for Custom Apparel and Ready-to-Wear quantity savings.</div></div><input type="checkbox" checked={pricing.allowCouponStacking !== false} onChange={(e) => setPricing((current) => ({ ...current, allowCouponStacking: e.target.checked }))} className="h-5 w-5"/></label>
           </div>
         </section>
       </main>

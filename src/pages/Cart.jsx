@@ -194,7 +194,7 @@ export default function Cart() {
                 <Row label="Shipping" value="Calculated at checkout" muted />
                 <Row label="Taxes" value="Calculated at checkout" muted />
               </div>
-              {pricing.discount > 0 && <div className="mt-4 bg-accent/10 px-3 py-2 text-xs font-bold text-accent">{pricing.eligibleCount >= 3 ? "25% apparel quantity discount applied" : "20% apparel quantity discount applied"}</div>}
+              {pricing.discount > 0 && pricing.label && <div className="mt-4 bg-accent/10 px-3 py-2 text-xs font-bold text-accent">{pricing.label}</div>}
               <div className="mt-5 flex items-end justify-between gap-4 border-t border-black/10 pt-5">
                 <div><div className="font-bold">Current subtotal</div><div className="mt-1 text-xs text-muted-foreground">Final total shown after fulfillment and address.</div></div>
                 <span className="font-mono text-2xl font-black">{money(pricing.afterDiscount)}</span>
