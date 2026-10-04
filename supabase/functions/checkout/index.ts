@@ -1428,7 +1428,7 @@ Deno.serve(async (req: Request) => {
             };
           }
         }
-      } else if (apparelPricing.enabled && apparelPricing.readyToWear?.enabled && product.custom_designable !== true) {
+      } else if (apparelPricing.enabled && apparelPricing.readyToWear?.enabled && String(product.selling_mode || "").trim().toLowerCase() === "ready_to_wear") {
         const compareAtPrice = Number(product.compare_at_price || 0);
         const saleActive = Number.isFinite(compareAtPrice) && compareAtPrice > unitPrice;
         if (!saleActive || apparelPricing.readyToWear.allowSaleStacking !== false) {
