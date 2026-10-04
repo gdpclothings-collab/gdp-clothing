@@ -40,6 +40,12 @@ function rangeDates(range) {
   return { from: localDateValue(start), to: localDateValue(end) };
 }
 
+function dateIsVisibleInRange(dateValue, range) {
+  if (range === "all") return true;
+  const { from, to } = rangeDates(range);
+  return (!from || dateValue >= from) && (!to || dateValue <= to);
+}
+
 function money(value) {
   return Number(value || 0).toLocaleString("en-CA", { style: "currency", currency: "CAD" });
 }
@@ -155,10 +161,14 @@ export default function FinanceExpenses() {
 
   const createExpense = async (event) => {
     event.preventDefault();
-    const ok = await run("create", () => adminExpenseControlsApi.create(createForm), "Expense recorded with an audit entry. You can now attach its receipt from the expense row.");
+    const revealAfterSave = !dateIsVisibleInRange(createForm.occurredOn, range);
+    const ok = await run("create", () => adminExpenseControlsApi.create(createForm), revealAfterSave
+      ? "Expense recorded with an audit entry. Showing All time because the expense date is outside the current filter."
+      : "Expense recorded with an audit entry. You can now attach its receipt from the expense row.");
     if (ok) {
       setCreateForm(blankExpense());
       setShowCreate(false);
+      if (revealAfterSave) setRange("all");
     }
   };
 
