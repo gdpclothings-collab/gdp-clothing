@@ -1,1 +1,0 @@
-No-regression scope: general ledger only. No checkout, Stripe, shipping, Custom Studio, inventory-quantity, receiving, favicon, or existing P&L calculation changes.
