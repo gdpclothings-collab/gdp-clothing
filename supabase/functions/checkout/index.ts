@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { calculateProfileShipping } from "./shipping-profile-rules.mjs";
 import { calculateTaxBreakdown } from "./tax-rules.mjs";
+import { couponAmountForBase, couponIsUsable, publicPromotion } from "./discount-rules.mjs";
 
 const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -243,17 +244,7 @@ async function optionalUser(req: Request, url: string, anonKey: string) {
   return data?.user || null;
 }
 
-function couponIsUsable(row: any, purchase: number) {
-  if (!row || row.active !== true) return false;
-  const now = Date.now();
-  if (row.starts_at && new Date(row.starts_at).getTime() > now) return false;
-  if (row.ends_at && new Date(row.ends_at).getTime() < now) return false;
-  if (row.usage_limit != null && Number(row.usage_count || 0) >= Number(row.usage_limit)) return false;
-  if (row.min_purchase != null && purchase < Number(row.min_purchase)) return false;
-  return true;
-}
-
-async function getCoupon(service: any, code: string, purchase = 0) {
+async function getCoupon(service: any, code: string) {
   if (!code) return null;
   const { data } = await service
     .from("discounts")
@@ -261,7 +252,63 @@ async function getCoupon(service: any, code: string, purchase = 0) {
     .eq("code", code.trim().toUpperCase())
     .maybeSingle();
 
-  return couponIsUsable(data, purchase) ? data : null;
+  return couponIsUsable(data) ? data : null;
+}
+
+async function couponTargetProductIds(service: any, coupon: any, candidateProductIds: string[]) {
+  const scope = String(coupon?.applies_to || "all");
+  if (scope === "all") return null;
+
+  const targetId = String(coupon?.applies_to_id || "");
+  if (!uuidRe.test(targetId)) return new Set<string>();
+  if (scope === "product") return new Set<string>([targetId]);
+  if (scope !== "collection" || !candidateProductIds.length) return new Set<string>();
+
+  const { data, error } = await service
+    .from("collection_products")
+    .select("product_id")
+    .eq("collection_id", targetId)
+    .in("product_id", candidateProductIds);
+  if (error) throw error;
+
+  return new Set<string>((data || []).map((row: any) => String(row.product_id || "")).filter(Boolean));
+}
+
+async function couponBaseForNormalizedItems(service: any, coupon: any, items: any[]) {
+  const candidateProductIds = [...new Set(items.map((item: any) => String(item?.product?.id || "")).filter((id: string) => uuidRe.test(id)))];
+  const targetProductIds = await couponTargetProductIds(service, coupon, candidateProductIds);
+  let eligibleSubtotal = 0;
+
+  for (const item of items) {
+    const productId = String(item?.product?.id || "");
+    if (targetProductIds && !targetProductIds.has(productId)) continue;
+    const rawLineSubtotal = roundMoney(Number(item?.unitPrice || 0) * Number(item?.quantity || 1));
+    const discountedLineSubtotal = item?.discountExempt
+      ? rawLineSubtotal
+      : roundMoney(Number(item?.customData?.discountedLineSubtotal ?? rawLineSubtotal));
+    eligibleSubtotal += discountedLineSubtotal;
+  }
+
+  return roundMoney(eligibleSubtotal);
+}
+
+async function previewCouponBase(service: any, coupon: any, rawItems: any, purchase: number) {
+  const scope = String(coupon?.applies_to || "all");
+  if (scope === "all") return roundMoney(Math.max(0, purchase));
+
+  const items = Array.isArray(rawItems)
+    ? rawItems.slice(0, 100).map((item: any) => ({
+        productId: String(item?.productId || ""),
+        amount: Math.max(0, Math.min(1000000, Number(item?.amount || 0))),
+      })).filter((item: any) => uuidRe.test(item.productId))
+    : [];
+  const candidateProductIds = [...new Set(items.map((item: any) => item.productId))];
+  const targetProductIds = await couponTargetProductIds(service, coupon, candidateProductIds);
+  if (!targetProductIds || !targetProductIds.size) return 0;
+
+  return roundMoney(items.reduce((sum: number, item: any) => (
+    targetProductIds.has(item.productId) ? sum + item.amount : sum
+  ), 0));
 }
 
 const provinceCodes: Record<string, string> = {
@@ -814,25 +861,87 @@ Deno.serve(async (req: Request) => {
       return respond(req, { uploads });
     }
 
+    if (action === "getProductPromotions") {
+      const productId = String(body?.productId || "").trim();
+      if (!uuidRe.test(productId)) {
+        return respond(req, { promotions: [] });
+      }
+
+      const { data: productDiscountRows, error: productDiscountError } = await service
+        .from("discounts")
+        .select("code,type,value,min_purchase,active,starts_at,ends_at,usage_count,usage_limit,applies_to,applies_to_id")
+        .eq("active", true)
+        .eq("applies_to", "product")
+        .eq("applies_to_id", productId);
+      if (productDiscountError) throw productDiscountError;
+
+      const { data: collectionLinks, error: collectionLinkError } = await service
+        .from("collection_products")
+        .select("collection_id")
+        .eq("product_id", productId);
+      if (collectionLinkError) throw collectionLinkError;
+
+      const collectionIds = [...new Set((collectionLinks || []).map((row: any) => String(row.collection_id || "")).filter((id: string) => uuidRe.test(id)))];
+      let collectionDiscountRows: any[] = [];
+      if (collectionIds.length) {
+        const { data, error } = await service
+          .from("discounts")
+          .select("code,type,value,min_purchase,active,starts_at,ends_at,usage_count,usage_limit,applies_to,applies_to_id")
+          .eq("active", true)
+          .eq("applies_to", "collection")
+          .in("applies_to_id", collectionIds);
+        if (error) throw error;
+        collectionDiscountRows = data || [];
+      }
+
+      const promotions = [...new Map(
+        [...(productDiscountRows || []), ...collectionDiscountRows]
+          .filter((row: any) => couponIsUsable(row))
+          .map((row: any) => [String(row.code || ""), row])
+      ).values()].map(publicPromotion);
+
+      return respond(req, { promotions });
+    }
+
     if (action === "validateCoupon") {
       const code = String(body?.code || "").trim().toUpperCase();
-      if (!code) return respond(req, { active: false });
+      if (!code) return respond(req, { active: false, reason: "missing_code" });
 
       const { data } = await service
         .from("discounts")
-        .select("code,type,value,min_purchase,active,starts_at,ends_at,usage_count,usage_limit")
+        .select("code,type,value,min_purchase,active,starts_at,ends_at,usage_count,usage_limit,applies_to,applies_to_id")
         .eq("code", code)
         .maybeSingle();
 
       const purchase = Math.max(0, Number(body?.purchase || 0));
-      const active = couponIsUsable(data, purchase);
-      return respond(req, active ? {
+      const currentlyUsable = couponIsUsable(data);
+      const eligibleSubtotal = data ? await previewCouponBase(service, data, body?.items, purchase) : 0;
+      const active = currentlyUsable && eligibleSubtotal > 0 && couponIsUsable(data, eligibleSubtotal);
+
+      if (!active) {
+        const reason = !currentlyUsable
+          ? "invalid_or_expired"
+          : eligibleSubtotal <= 0
+            ? "not_applicable"
+            : "minimum_purchase";
+        return respond(req, {
+          active: false,
+          reason,
+          minPurchase: data?.min_purchase == null ? null : Number(data.min_purchase),
+          eligibleSubtotal,
+        });
+      }
+
+      return respond(req, {
         active: true,
         code: data.code,
         type: data.type,
         value: Number(data.value || 0),
+        amount: couponAmountForBase(data, eligibleSubtotal),
+        eligibleSubtotal,
+        appliesTo: String(data.applies_to || "all"),
         minPurchase: data.min_purchase == null ? null : Number(data.min_purchase),
-      } : { active: false });
+      });
     }
 
     if (action === "checkoutConfig") {
@@ -1482,44 +1591,46 @@ Deno.serve(async (req: Request) => {
     let eligibleDiscounted = 0;
     for (const item of normalizedItems) {
       if (item.discountExempt) continue;
+
+      const quantity = Number(item.quantity || 1);
+      let discountedLineSubtotal = Number(item.unitPrice || 0) * quantity;
       const readyToWearEligible = (item.customData as any)?.readyToWearPricingEligible === true;
+
       if (readyToWearEligible) {
-        const quantity = Number(item.quantity || 1);
         const productId = String(item.product?.id || "");
         const tierQuantity = productId
           ? Number(readyToWearQuantityByProduct.get(productId) || quantity)
           : quantity;
         const percent = readyToWearVolumePercent(apparelPricing, tierQuantity);
-        eligibleDiscounted += Number(item.unitPrice || 0) * quantity * (1 - percent / 100);
-        continue;
-      }
-
-      const apparelKey = String((item.customData as any)?.apparelPricingKey || "");
-      if (!apparelKey) {
-        eligibleDiscounted += Number(item.unitPrice || 0) * Number(item.quantity || 1);
-        continue;
-      }
-
-      const quantity = Number(item.quantity || 1);
-      if (quantity >= Number(apparelPricing.customQuoteMinQty || 50)) {
-        return respond(req, {
-          error: true,
-          message: `Orders of ${apparelPricing.customQuoteMinQty}+ custom apparel pieces require a custom quote. Please contact GDP Clothing.`,
-          requiresQuote: true,
-        }, 409);
-      }
-
-      const placementKey = String((item.customData as any)?.apparelPlacement || "front");
-      const surcharge = Math.max(0, Number((item.customData as any)?.apparelSurcharge || 0));
-      const matrix = apparelPricing.products?.[apparelKey]?.[placementKey] || {};
-      const exact = [2, 5, 10].includes(quantity) ? Number(matrix?.[quantity]) : NaN;
-      if (Number.isFinite(exact) && exact >= 0) {
-        eligibleDiscounted += exact + surcharge * quantity;
+        discountedLineSubtotal = Number(item.unitPrice || 0) * quantity * (1 - percent / 100);
       } else {
-        const onePrice = Math.max(0, Number(matrix?.[1] ?? (Number(item.unitPrice || 0) - surcharge)));
-        const percent = apparelVolumePercent(apparelPricing, quantity);
-        eligibleDiscounted += onePrice * quantity * (1 - percent / 100) + surcharge * quantity;
+        const apparelKey = String((item.customData as any)?.apparelPricingKey || "");
+        if (apparelKey) {
+          if (quantity >= Number(apparelPricing.customQuoteMinQty || 50)) {
+            return respond(req, {
+              error: true,
+              message: `Orders of ${apparelPricing.customQuoteMinQty}+ custom apparel pieces require a custom quote. Please contact GDP Clothing.`,
+              requiresQuote: true,
+            }, 409);
+          }
+
+          const placementKey = String((item.customData as any)?.apparelPlacement || "front");
+          const surcharge = Math.max(0, Number((item.customData as any)?.apparelSurcharge || 0));
+          const matrix = apparelPricing.products?.[apparelKey]?.[placementKey] || {};
+          const exact = [2, 5, 10].includes(quantity) ? Number(matrix?.[quantity]) : NaN;
+          if (Number.isFinite(exact) && exact >= 0) {
+            discountedLineSubtotal = exact + surcharge * quantity;
+          } else {
+            const onePrice = Math.max(0, Number(matrix?.[1] ?? (Number(item.unitPrice || 0) - surcharge)));
+            const percent = apparelVolumePercent(apparelPricing, quantity);
+            discountedLineSubtotal = onePrice * quantity * (1 - percent / 100) + surcharge * quantity;
+          }
+        }
       }
+
+      discountedLineSubtotal = roundMoney(discountedLineSubtotal);
+      item.customData = { ...(item.customData || {}), discountedLineSubtotal };
+      eligibleDiscounted += discountedLineSubtotal;
     }
 
     eligibleDiscounted = roundMoney(eligibleDiscounted);
@@ -1527,13 +1638,20 @@ Deno.serve(async (req: Request) => {
     const quantityDiscount = roundMoney(Math.max(0, eligibleSubtotal - eligibleDiscounted));
 
     const couponCode = String(body?.discountCode || customer.discountCode || "").trim().toUpperCase();
-    const coupon = (apparelPricing.allowCouponStacking || quantityDiscount <= 0) ? await getCoupon(service, couponCode, discounted) : null;
+    const couponCandidate = (apparelPricing.allowCouponStacking || quantityDiscount <= 0)
+      ? await getCoupon(service, couponCode)
+      : null;
+    const couponBase = couponCandidate
+      ? await couponBaseForNormalizedItems(service, couponCandidate, normalizedItems)
+      : 0;
+    const coupon = couponCandidate && couponBase > 0 && couponIsUsable(couponCandidate, couponBase)
+      ? couponCandidate
+      : null;
     let couponAmount = 0;
     let freeShipping = false;
 
     if (coupon) {
-      if (coupon.type === "percentage") couponAmount = roundMoney(discounted * (Number(coupon.value || 0) / 100));
-      if (coupon.type === "fixed") couponAmount = Math.min(discounted, roundMoney(Number(coupon.value || 0)));
+      couponAmount = couponAmountForBase(coupon, couponBase);
       if (coupon.type === "free_shipping") freeShipping = true;
     }
 
@@ -1795,6 +1913,8 @@ Deno.serve(async (req: Request) => {
         pricing: {
           subtotal,
           discount: roundMoney(quantityDiscount + couponAmount),
+          couponAmount,
+          couponCode: coupon?.code || null,
           shipping,
           tax,
           total,
@@ -1904,6 +2024,8 @@ Deno.serve(async (req: Request) => {
       pricing: {
         subtotal,
         discount: roundMoney(quantityDiscount + couponAmount),
+        couponAmount,
+        couponCode: coupon?.code || null,
         shipping,
         tax,
         total,

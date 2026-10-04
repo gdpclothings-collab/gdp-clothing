@@ -165,7 +165,10 @@ export default function DiscountsModule() {
                         <span>{offerText(discount)}</span>
                       </div>
                     </Td>
-                    <Td className="capitalize">{discount.appliesTo.replaceAll("_", " ")}</Td>
+                    <Td>
+                      <div className="capitalize">{discount.appliesTo.replaceAll("_", " ")}</div>
+                      {discount.appliesToId && <div className="mt-0.5 max-w-[260px] truncate text-[11px] text-[#777]">{discountTargetName(discount, references)}</div>}
+                    </Td>
                     <Td>
                       {discount.usageCount}
                       {discount.usageLimit ? ` / ${discount.usageLimit}` : ""}
@@ -369,6 +372,16 @@ function DiscountEditor({ discount, references, onClose, onSaved }) {
       </aside>
     </div>
   );
+}
+
+function discountTargetName(discount, references) {
+  if (discount.appliesTo === "product") {
+    return references.products.find((item) => item.id === discount.appliesToId)?.name || "Selected product";
+  }
+  if (discount.appliesTo === "collection") {
+    return references.collections.find((item) => item.id === discount.appliesToId)?.name || "Selected collection";
+  }
+  return "All products";
 }
 
 function offerText(discount) {

@@ -59,6 +59,12 @@ export function calculateCartQuantityDiscount(items = []) {
   let readyToWearDiscount = 0;
   const readyToWearPercents = new Set();
   const readyToWearQuantityByProduct = new Map();
+  const discountedByProduct = new Map();
+  const addDiscountedByProduct = (item, amount) => {
+    const productId = String(item?.productId || "").trim();
+    if (!productId) return;
+    discountedByProduct.set(productId, Number(discountedByProduct.get(productId) || 0) + Number(amount || 0));
+  };
 
   if (config.enabled && config.readyToWear?.enabled) {
     for (const item of items) {
@@ -90,6 +96,7 @@ export function calculateCartQuantityDiscount(items = []) {
       const line = rawUnitPrice * quantity;
       subtotal += line;
       afterDiscount += line;
+      addDiscountedByProduct(item, line);
       exemptSubtotal += line;
       continue;
     }
@@ -115,6 +122,7 @@ export function calculateCartQuantityDiscount(items = []) {
       const discountedLine = line * (1 - percent / 100);
       subtotal += line;
       afterDiscount += discountedLine;
+      addDiscountedByProduct(item, discountedLine);
       eligibleSubtotal += line;
       eligibleCount += quantity;
       if (percent > 0) {
@@ -128,6 +136,7 @@ export function calculateCartQuantityDiscount(items = []) {
       const line = rawUnitPrice * quantity;
       subtotal += line;
       afterDiscount += line;
+      addDiscountedByProduct(item, line);
       eligibleSubtotal += line;
       eligibleCount += quantity;
       continue;
@@ -143,6 +152,7 @@ export function calculateCartQuantityDiscount(items = []) {
     if (quantity >= Number(config.customQuoteMinQty || 50)) {
       requiresQuote = true;
       afterDiscount += regularLine;
+      addDiscountedByProduct(item, regularLine);
       continue;
     }
 
@@ -150,12 +160,16 @@ export function calculateCartQuantityDiscount(items = []) {
       ? getExactBundlePrice(config, productKey, placement, quantity)
       : null;
     if (exact != null) {
-      afterDiscount += Number(exact) + surcharge * quantity;
+      const discountedLine = Number(exact) + surcharge * quantity;
+      afterDiscount += discountedLine;
+      addDiscountedByProduct(item, discountedLine);
       continue;
     }
 
     const percent = getVolumePercent(config, quantity);
-    afterDiscount += onePrice * quantity * (1 - percent / 100) + surcharge * quantity;
+    const discountedLine = onePrice * quantity * (1 - percent / 100) + surcharge * quantity;
+    afterDiscount += discountedLine;
+    addDiscountedByProduct(item, discountedLine);
   }
 
   const round = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -188,6 +202,7 @@ export function calculateCartQuantityDiscount(items = []) {
     customQuoteMinQty: Number(config.customQuoteMinQty || 50),
     readyToWearDiscount,
     readyToWearPercents: sortedReadyToWearPercents,
+    discountedByProduct: Object.fromEntries([...discountedByProduct.entries()].map(([productId, value]) => [productId, round(value)])),
     label,
   };
 }
