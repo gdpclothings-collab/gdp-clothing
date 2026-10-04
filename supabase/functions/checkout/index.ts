@@ -1468,13 +1468,28 @@ Deno.serve(async (req: Request) => {
     eligibleSubtotal = roundMoney(eligibleSubtotal);
     exemptSubtotal = roundMoney(exemptSubtotal);
 
+    const readyToWearQuantityByProduct = new Map<string, number>();
+    for (const item of normalizedItems) {
+      if (item.discountExempt || (item.customData as any)?.readyToWearPricingEligible !== true) continue;
+      const productId = String(item.product?.id || "");
+      if (!productId) continue;
+      readyToWearQuantityByProduct.set(
+        productId,
+        Number(readyToWearQuantityByProduct.get(productId) || 0) + Number(item.quantity || 1),
+      );
+    }
+
     let eligibleDiscounted = 0;
     for (const item of normalizedItems) {
       if (item.discountExempt) continue;
       const readyToWearEligible = (item.customData as any)?.readyToWearPricingEligible === true;
       if (readyToWearEligible) {
         const quantity = Number(item.quantity || 1);
-        const percent = readyToWearVolumePercent(apparelPricing, quantity);
+        const productId = String(item.product?.id || "");
+        const tierQuantity = productId
+          ? Number(readyToWearQuantityByProduct.get(productId) || quantity)
+          : quantity;
+        const percent = readyToWearVolumePercent(apparelPricing, tierQuantity);
         eligibleDiscounted += Number(item.unitPrice || 0) * quantity * (1 - percent / 100);
         continue;
       }
