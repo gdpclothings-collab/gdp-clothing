@@ -1,0 +1,3 @@
+create index if not exists finance_purchase_returns_location_idx on public.finance_purchase_returns(location_id) where location_id is not null;
+create index if not exists finance_purchase_return_items_inventory_adjustment_idx on public.finance_purchase_return_items(inventory_adjustment_id) where inventory_adjustment_id is not null;
+create index if not exists finance_purchase_return_items_reversal_adjustment_idx on public.finance_purchase_return_items(reversal_adjustment_id) where reversal_adjustment_id is not null;
