@@ -17,6 +17,7 @@ const STOREFRONT_PRODUCT_FIELDS = `
   name,
   slug,
   description,
+  seo,
   type,
   category,
   price,
