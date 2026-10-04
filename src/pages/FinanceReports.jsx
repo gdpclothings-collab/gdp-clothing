@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, BarChart3, LockKeyhole, ReceiptText, RefreshCw } from "lucide-react";
+import { ArrowLeft, Banknote, BarChart3, LockKeyhole, ReceiptText, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import FinanceReportsPanel from "@/components/admin/FinanceReportsPanel";
 import { adminFinanceApi } from "@/lib/adminFinanceApi";
@@ -97,6 +97,7 @@ export default function FinanceReports() {
           </Link>
           <div className="mx-auto hidden md:flex items-center gap-2 text-sm text-white/75"><BarChart3 size={16} /> Finance Reports</div>
           <div className="ml-auto flex items-center gap-2">
+            <Link to="/admin/finance/cash-flow" className="hidden md:flex h-9 px-3 rounded-lg border border-white/15 bg-white/10 hover:bg-white/15 items-center gap-2 text-sm font-semibold"><Banknote size={15} /> Cash Flow</Link>
             <Link to="/admin/finance/period-close" className="hidden sm:flex h-9 px-3 rounded-lg border border-white/15 bg-white/10 hover:bg-white/15 items-center gap-2 text-sm font-semibold"><LockKeyhole size={15} /> Period Close</Link>
             <Link to="/admin/finance/tax" className="h-9 px-3 rounded-lg border border-white/15 bg-white/10 hover:bg-white/15 flex items-center gap-2 text-sm font-semibold"><ReceiptText size={15} /> Tax Center</Link>
             <Link to="/admin/finance" className="h-9 px-3 rounded-lg border border-white/15 bg-white/10 hover:bg-white/15 flex items-center gap-2 text-sm font-semibold"><ArrowLeft size={15} /> Finance</Link>
