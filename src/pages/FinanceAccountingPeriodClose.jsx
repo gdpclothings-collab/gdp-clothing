@@ -20,7 +20,7 @@ function CheckItem({ label, ready, detail }) {
 }
 
 export default function FinanceAccountingPeriodClose() {
-  const [data, setData] = useState({ periods: [], checklist: null });
+  const [data, setData] = useState({ periods: [], checklist: null, latestClosedPeriod: null, activeOpeningCutover: null });
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
   const [reopening, setReopening] = useState(false);
