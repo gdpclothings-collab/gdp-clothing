@@ -471,13 +471,13 @@ export default function ProductDetail() {
             {requiresSize && (
               <div className="mt-6">
                 <div className="mb-3 flex items-center justify-between gap-3">
+                  <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span>
-                    <button type="button" onClick={() => setSizeGuideOpen(true)} aria-haspopup="dialog" className="inline-flex min-h-8 items-center gap-1.5 font-mono text-[8px] font-black uppercase tracking-[0.12em] text-black/50 underline decoration-black/20 underline-offset-4 transition hover:text-black hover:decoration-black">
+                    <a href="#size-guide" onClick={(event) => { event.preventDefault(); setSizeGuideOpen(true); }} aria-haspopup="dialog" className="inline-flex min-h-8 items-center gap-1.5 font-mono text-[8px] font-black uppercase tracking-[0.12em] text-black/50 underline decoration-black/20 underline-offset-4 transition hover:text-black hover:decoration-black">
                       <Ruler size={12} /> Size guide
-                    </button>
+                    </a>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span>
                   </div>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                   {sizes.map((item) => {
