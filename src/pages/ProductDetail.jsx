@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Heart, Minus, Plus, RotateCcw, ShieldCheck, ShoppingBag, Sparkles, Star, Truck } from "lucide-react";
+import { ArrowLeft, Check, Heart, Minus, Plus, RotateCcw, ShieldCheck, ShoppingBag, Sparkles, Star, Truck } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
+import { useAuth } from "@/lib/AuthContext";
 import { useCart } from "@/lib/CartContext";
 import { Image } from "@/components/ui/image";
 import { findProductVariant, isProductColorAvailable, isProductOutOfStock, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
@@ -11,6 +12,15 @@ import { PRODUCT_SELLING_MODES, onlineStoreEnabled, resolveProductSellingMode } 
 
 const uniqueValues = (values = []) =>
   [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+
+const sameOption = (left, right) =>
+  String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+
+const formatCad = (value) =>
+  new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: "CAD",
+  }).format(Number(value || 0));
 
 function productOptions(product) {
   const variants = (product?.variants || []).filter((variant) => variant?.active !== false);
@@ -25,9 +35,20 @@ function productOptions(product) {
   };
 }
 
+function splitProductTitle(name, fallbackSubtitle) {
+  const normalizedName = String(name || "").trim();
+  if (!normalizedName) return { title: "GDP Clothing", subtitle: fallbackSubtitle || "" };
+  if (fallbackSubtitle) return { title: normalizedName, subtitle: fallbackSubtitle };
+
+  const parts = normalizedName.split(/\s+[—–]\s+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return { title: normalizedName, subtitle: "" };
+  return { title: parts[0], subtitle: parts.slice(1).join(" — ") };
+}
+
 export default function ProductDetail() {
   const { id, slug } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { addItem, toggleWishlist, wishlist } = useCart();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +56,11 @@ export default function ProductDetail() {
   const [color, setColor] = useState("");
   const [qty, setQty] = useState(1);
   const [reviews, setReviews] = useState([]);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewDraft, setReviewDraft] = useState({ rating: 5, title: "", body: "" });
 
   useEffect(() => {
     let active = true;
@@ -57,10 +83,13 @@ export default function ProductDetail() {
         ? normalizedProduct
         : null;
       setProduct(nextProduct);
-
+      setActiveImageIndex(0);
       setColor("");
       setSize("");
       setQty(1);
+      setReviewFormOpen(false);
+      setReviewMessage("");
+      setReviewDraft({ rating: 5, title: "", body: "" });
 
       if (nextProduct?.id) {
         const reviewResult = await supabase
@@ -104,7 +133,7 @@ export default function ProductDetail() {
       <div className="bg-[#f7f6f1] text-black">
         <div className="mx-auto max-w-[1500px] px-4 py-10 sm:px-5 lg:px-8">
           <div className="mb-6 h-3 w-24 animate-pulse bg-black/10" />
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr]">
             <div className="aspect-[4/5] animate-pulse bg-black/10" />
             <div className="space-y-5">
               <div className="h-3 w-32 animate-pulse bg-black/10" />
@@ -138,6 +167,10 @@ export default function ProductDetail() {
   const selectionComplete = (!requiresColor || Boolean(color)) && (!requiresSize || Boolean(size));
   const validCombination = variants.length > 0 && Boolean(selectedVariant);
   const displayPrice = selectedVariant?.price == null ? Number(product.price || 0) : Number(selectedVariant.price);
+  const compareAtPrice = Number(product.compareAtPrice || 0);
+  const hasSale = compareAtPrice > displayPrice && displayPrice >= 0;
+  const savingsAmount = hasSale ? compareAtPrice - displayPrice : 0;
+  const savingsPercent = hasSale && compareAtPrice > 0 ? Math.round((savingsAmount / compareAtPrice) * 100) : 0;
   const inStock = isProductVariantAvailable(product, selectedVariant);
   const outOfStock = isProductOutOfStock(product);
   const sellingMode = resolveProductSellingMode(product);
@@ -151,15 +184,29 @@ export default function ProductDetail() {
   const wished = wishlist.includes(product.id);
   const avgRating = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null;
   const galleryImages = (product.images || []).filter(Boolean);
-  const visibleImages = galleryImages.length ? galleryImages.slice(0, 4) : [null];
+  const gallery = galleryImages.length ? galleryImages : [null];
+  const activeImage = gallery[Math.min(activeImageIndex, gallery.length - 1)] || null;
+  const titleParts = splitProductTitle(product.name, product.metafields?.subtitle);
+
+  const sizeAvailable = (nextSize, selectedColor = color) => {
+    if (!variants.length) return true;
+    return variants.some((variant) => {
+      const colorMatches = !requiresColor || !selectedColor || sameOption(variant.color, selectedColor);
+      const sizeMatches = sameOption(variant.size, nextSize);
+      const inventoryAvailable = !inventoryLimited || Number(variant.stock || 0) > 0;
+      return colorMatches && sizeMatches && inventoryAvailable;
+    });
+  };
 
   const selectColor = (nextColor) => {
     if (!isProductColorAvailable(product, nextColor)) return;
     setColor(nextColor);
+    if (size && !sizeAvailable(size, nextColor)) setSize("");
     setQty(1);
   };
 
   const selectSize = (nextSize) => {
+    if (!sizeAvailable(nextSize)) return;
     setSize(nextSize);
     setQty(1);
   };
@@ -185,6 +232,56 @@ export default function ProductDetail() {
     navigate("/cart");
   };
 
+  const openReviewForm = () => {
+    if (!user) {
+      const returnTo = `${window.location.pathname}${window.location.search}#reviews`;
+      navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+      return;
+    }
+    setReviewMessage("");
+    setReviewFormOpen(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById("review-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
+  const submitReview = async (event) => {
+    event.preventDefault();
+    if (!user || !product?.id || reviewSubmitting) return;
+
+    const title = reviewDraft.title.trim();
+    const body = reviewDraft.body.trim();
+    if (!body) {
+      setReviewMessage("Please add a short review before submitting.");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    setReviewMessage("");
+    const { error } = await supabase.from("reviews").insert({
+      product_id: product.id,
+      user_id: user.id,
+      product_name: product.name,
+      customer_name: user.display_name || user.email?.split("@")[0] || "GDP customer",
+      customer_email: user.email || null,
+      rating: Number(reviewDraft.rating),
+      title: title || null,
+      body,
+      status: "pending",
+      verified: false,
+    });
+    setReviewSubmitting(false);
+
+    if (error) {
+      setReviewMessage("We could not submit the review right now. Please try again.");
+      return;
+    }
+
+    setReviewDraft({ rating: 5, title: "", body: "" });
+    setReviewFormOpen(false);
+    setReviewMessage("Thanks — your review was submitted and is awaiting approval.");
+  };
+
   const ctaLabel = outOfStock
     ? "Out of stock"
     : !selectionComplete
@@ -193,7 +290,7 @@ export default function ProductDetail() {
         ? "Unavailable combination"
         : !inStock
           ? "Out of stock"
-          : "Add to bag";
+          : `Add to bag · ${formatCad(displayPrice)}`;
 
   return (
     <div className="bg-[#f7f6f1] text-black">
@@ -203,19 +300,40 @@ export default function ProductDetail() {
         </button>
       </div>
 
-      <section className="mx-auto grid max-w-[1500px] gap-8 px-4 pb-14 sm:px-5 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:pb-20">
-        <div className={"grid gap-2 " + (visibleImages.length > 1 ? "sm:grid-cols-2" : "grid-cols-1")}>
-          {visibleImages.map((image, index) => (
-            <div key={image || index} className={"relative overflow-hidden bg-[#e9e7e1] " + (visibleImages.length === 1 ? "aspect-[4/5]" : "aspect-[4/5] sm:aspect-[3/4]")}>
-              <Image src={image} alt={index === 0 ? product.name : ""} fittingType="fill" className="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.02]" />
-              {index === 0 && outOfStock && (
-                <div className="absolute right-3 top-3 bg-[#e11d2e] px-3 py-2 font-mono text-[9px] font-black uppercase tracking-[0.15em] text-white">Out of Stock</div>
-              )}
-              <div className="absolute left-3 top-3 bg-black px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.16em] text-white">
-                GDP / {String(index + 1).padStart(2, "0")}
-              </div>
+      <section className="mx-auto grid max-w-[1500px] gap-8 px-4 pb-14 sm:px-5 lg:grid-cols-[1.08fr_0.92fr] lg:gap-10 lg:px-8 lg:pb-20 xl:gap-14">
+        <div className="min-w-0">
+          <div className="relative overflow-hidden bg-[#e9e7e1]">
+            <div className="aspect-[4/5] sm:aspect-[5/6] lg:aspect-[4/5]">
+              <Image src={activeImage} alt={product.name} fittingType="fill" className="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.015]" />
             </div>
-          ))}
+            <div className="absolute left-3 top-3 bg-black px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.16em] text-white">
+              GDP / {String(activeImageIndex + 1).padStart(2, "0")}
+            </div>
+            <div className="absolute bottom-3 right-3 bg-[#f7f6f1]/95 px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.13em] text-black">
+              {activeImageIndex + 1} / {gallery.length}
+            </div>
+            {outOfStock && (
+              <div className="absolute right-3 top-3 bg-[#e11d2e] px-3 py-2 font-mono text-[9px] font-black uppercase tracking-[0.15em] text-white">Out of stock</div>
+            )}
+          </div>
+
+          {gallery.length > 1 && (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Product gallery thumbnails">
+              {gallery.map((image, index) => (
+                <button
+                  key={`${image || "image"}-${index}`}
+                  type="button"
+                  onClick={() => setActiveImageIndex(index)}
+                  aria-label={`Show product image ${index + 1}`}
+                  aria-pressed={activeImageIndex === index}
+                  className={`relative aspect-[4/5] w-[82px] shrink-0 overflow-hidden border transition sm:w-[96px] ${activeImageIndex === index ? "border-black" : "border-black/10 hover:border-black/50"}`}
+                >
+                  <Image src={image} alt="" fittingType="fill" className="h-full w-full object-cover" />
+                  <span className={`absolute inset-x-0 bottom-0 h-1 ${activeImageIndex === index ? "bg-black" : "bg-transparent"}`} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="lg:sticky lg:top-[126px] lg:self-start">
@@ -225,21 +343,42 @@ export default function ProductDetail() {
               {isReadyToWear && <span className="bg-white px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-black">Ready to wear</span>}
               {product.bestSeller && <span className="bg-black px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-white">Best seller</span>}
               {product.newArrival && <span className="bg-white px-2 py-1 font-mono text-[8px] uppercase tracking-[0.13em] text-black">New drop</span>}
+              {hasSale && <span className="bg-[#e11d2e] px-2 py-1 font-mono text-[8px] font-black uppercase tracking-[0.13em] text-white">Sale · {savingsPercent}% off</span>}
+              {product.metafields?.final_sale && <span className="border border-[#e11d2e] px-2 py-1 font-mono text-[8px] font-black uppercase tracking-[0.13em] text-[#e11d2e]">Final sale</span>}
               {outOfStock && <span className="bg-[#e11d2e] px-2 py-1 font-mono text-[8px] font-black uppercase tracking-[0.13em] text-white">Out of stock</span>}
             </div>
 
-            <h1 className="mt-4 font-display text-6xl leading-[0.86] tracking-wide sm:text-7xl">{product.name}</h1>
+            <h1 className="mt-4 max-w-3xl font-display text-[clamp(2.8rem,5.4vw,5.15rem)] leading-[0.9] tracking-wide">{titleParts.title}</h1>
+            {titleParts.subtitle && (
+              <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.15em] text-black/48 sm:text-xs">{titleParts.subtitle}</p>
+            )}
 
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-black/15 pb-5">
-              <span className="font-mono text-xl">${displayPrice.toFixed(2)} CAD</span>
-              {product.compareAtPrice > displayPrice && (
-                <span className="font-mono text-sm text-black/35 line-through">${Number(product.compareAtPrice).toFixed(2)}</span>
+            <div className="mt-5 border-b border-black/15 pb-5">
+              <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+                <span className={`font-mono text-2xl ${hasSale ? "font-black text-[#e11d2e]" : ""}`}>{formatCad(displayPrice)}</span>
+                {hasSale && (
+                  <span className="pb-0.5 font-mono text-sm text-black/38 line-through">{formatCad(compareAtPrice)}</span>
+                )}
+              </div>
+              {hasSale && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[9px] uppercase tracking-[0.12em]">
+                  <span className="bg-[#e11d2e]/10 px-2 py-1 font-black text-[#b51222]">Save {savingsPercent}%</span>
+                  <span className="text-black/48">You save {formatCad(savingsAmount)}</span>
+                </div>
               )}
-              {avgRating && (
-                <span className="flex items-center gap-1.5 text-xs text-black/50">
-                  <Star size={13} className="fill-black text-black" /> {avgRating} / {reviews.length} review{reviews.length === 1 ? "" : "s"}
-                </span>
-              )}
+
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-black/52">
+                <a href="#reviews" className="inline-flex items-center gap-1.5 transition hover:text-black">
+                  <span className="flex" aria-hidden="true">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <Star key={value} size={13} className={avgRating && value <= Math.round(Number(avgRating)) ? "fill-black text-black" : "text-black/20"} />
+                    ))}
+                  </span>
+                  <span>{avgRating ? `${avgRating} (${reviews.length})` : "No reviews yet"}</span>
+                </a>
+                <span className="text-black/20">·</span>
+                <button type="button" onClick={openReviewForm} className="font-semibold underline decoration-black/25 underline-offset-4 transition hover:decoration-black">Write a review</button>
+              </div>
             </div>
 
             {product.metafields?.short_description && (
@@ -260,7 +399,7 @@ export default function ProductDetail() {
 
             {requiresColor && (
               <div className="mt-7 border-t border-black/15 pt-5">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Colour</span>
                   <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{color || "Choose"}</span>
                 </div>
@@ -276,7 +415,8 @@ export default function ProductDetail() {
                         onClick={() => enabled && selectColor(item)}
                         title={!enabled ? `${item} — Unavailable` : item}
                         aria-label={!enabled ? `${item}, unavailable` : item}
-                        className={"inline-flex min-h-10 items-center gap-2 border px-3 text-[9px] font-black uppercase tracking-[0.12em] transition " + (color === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 bg-black/[0.03] text-black/40 opacity-75")}
+                        aria-pressed={color === item && enabled}
+                        className={`inline-flex min-h-11 items-center gap-2 border px-3 text-[9px] font-black uppercase tracking-[0.12em] transition ${color === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 bg-black/[0.03] text-black/40 opacity-75"}`}
                       >
                         <span className="relative h-4 w-4 shrink-0 rounded-full border border-black/45 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]" style={{ backgroundColor: swatch }}>
                           {!enabled && <span aria-hidden="true" className="absolute left-1/2 top-[-2px] h-5 w-px -translate-x-1/2 rotate-45 bg-black/55" />}
@@ -294,33 +434,49 @@ export default function ProductDetail() {
 
             {requiresSize && (
               <div className="mt-6">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span>
                   <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                  {sizes.map((item) => (
-                    <button key={item} onClick={() => selectSize(item)} className={"min-h-11 border px-2 text-[9px] font-black uppercase tracking-[0.1em] transition " + (size === item ? "border-black bg-black text-white" : "border-black/20 bg-transparent text-black hover:border-black")}>
-                      {item}
-                    </button>
-                  ))}
+                  {sizes.map((item) => {
+                    const enabled = sizeAvailable(item);
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        disabled={!enabled}
+                        onClick={() => selectSize(item)}
+                        aria-pressed={size === item}
+                        className={`relative min-h-11 border px-2 text-[9px] font-black uppercase tracking-[0.1em] transition ${size === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 text-black/28"}`}
+                      >
+                        {item}
+                        {!enabled && <span aria-hidden="true" className="absolute left-1/2 top-1/2 h-px w-7 -translate-x-1/2 -translate-y-1/2 -rotate-12 bg-black/25" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {isReadyToWear && variants.length > 0 && product.trackInventory && (
-              <div className="mt-3 font-mono text-[8px] uppercase tracking-[0.13em] text-black/38">
-                {!selectionComplete
-                  ? `Choose ${requiresColor && requiresSize ? "colour and size" : requiresColor ? "colour" : "size"} to see availability`
-                  : !validCombination
-                    ? "This selection is unavailable"
-                    : `Selected variant stock / ${selectedVariant?.stock ?? 0}`}
+              <div className="mt-3 flex items-center gap-2 font-mono text-[8px] uppercase tracking-[0.13em] text-black/45">
+                {selectionComplete && validCombination && inStock && <Check size={12} className="text-black" />}
+                <span>
+                  {!selectionComplete
+                    ? `Choose ${requiresColor && requiresSize ? "colour and size" : requiresColor ? "colour" : "size"} to see availability`
+                    : !validCombination
+                      ? "This selection is unavailable"
+                      : inStock
+                        ? "In stock for selected variant"
+                        : "Selected variant is out of stock"}
+                </span>
               </div>
             )}
 
             {isReadyToWear && (
               <div className="mt-7 flex gap-2">
-                <div className="flex shrink-0 items-center border border-black/20">
+                <div className="flex shrink-0 items-center border border-black/20" aria-label="Quantity selector">
                   <button onClick={() => setQty((current) => Math.max(1, current - 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white" aria-label="Decrease quantity"><Minus size={14} /></button>
                   <span className="min-w-8 text-center font-mono text-xs">{qty}</span>
                   <button onClick={() => setQty((current) => Math.min(maxQty || 99, current + 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white disabled:opacity-30" aria-label="Increase quantity" disabled={maxQty > 0 && qty >= maxQty}><Plus size={14} /></button>
@@ -347,11 +503,23 @@ export default function ProductDetail() {
                   <ShoppingBag size={17} /> {ctaLabel}
                 </button>
               ) : (
-                <button type="button" disabled className="flex min-h-14 w-full items-center justify-center gap-3 bg-black/30 px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white cursor-not-allowed">
+                <button type="button" disabled className="flex min-h-14 w-full cursor-not-allowed items-center justify-center gap-3 bg-black/30 px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white">
                   Available through its service builder
                 </button>
               )}
             </div>
+
+            {hasSale && (
+              <div className="mt-3 border border-[#e11d2e]/20 bg-[#e11d2e]/5 px-4 py-3 font-mono text-[9px] uppercase tracking-[0.12em] text-[#a4111f]">
+                Sale price shown above is the existing product price. Checkout remains the source of truth for final taxes, shipping, and eligible promotions.
+              </div>
+            )}
+
+            {product.metafields?.free_shipping === true && (
+              <div className="mt-3 flex items-center gap-2 border border-black/10 bg-white/50 px-4 py-3 text-xs font-semibold">
+                <Truck size={15} /> Free shipping on this item
+              </div>
+            )}
 
             {isCustom && (
               <div className="mt-4 border border-[#e11d2e]/25 bg-[#e11d2e]/5 p-4">
@@ -363,10 +531,10 @@ export default function ProductDetail() {
             <div className="mt-6 grid grid-cols-3 border-y border-black/15 py-4">
               {[
                 { icon: Truck, title: "Canada + US", text: "Shipping" },
-                { icon: RotateCcw, title: isReadyToWear ? "Stock checked" : "Proof first", text: isReadyToWear ? "At checkout" : "Before print" },
+                { icon: RotateCcw, title: isReadyToWear ? "Inventory", text: isReadyToWear ? "Checked live" : "Proof first" },
                 { icon: ShieldCheck, title: "Secure", text: "Checkout" },
               ].map((item, index) => (
-                <div key={item.title} className={"px-2 text-center " + (index > 0 ? "border-l border-black/15" : "")}>
+                <div key={item.title} className={`px-2 text-center ${index > 0 ? "border-l border-black/15" : ""}`}>
                   <item.icon size={16} className="mx-auto" strokeWidth={1.6} />
                   <div className="mt-2 text-[8px] font-black uppercase tracking-[0.1em]">{item.title}</div>
                   <div className="mt-0.5 text-[8px] text-black/40">{item.text}</div>
@@ -375,10 +543,26 @@ export default function ProductDetail() {
             </div>
 
             <div className="mt-5 divide-y divide-black/15 border-y border-black/15">
-              <details className="group py-4">
+              <details className="group py-4" open>
                 <summary className="flex cursor-pointer list-none items-center justify-between text-[9px] font-black uppercase tracking-[0.14em]">Product details <Plus size={14} className="transition group-open:rotate-45" /></summary>
-                <div className="pt-3 text-xs leading-5 text-black/52">{product.description || "GDP Clothing apparel made for everyday wear."}{product.material ? " Material: " + product.material + "." : ""}</div>
+                <div className="pt-3 text-xs leading-5 text-black/52">{product.description || "GDP Clothing apparel made for everyday wear."}{product.material ? ` Material: ${product.material}.` : ""}</div>
               </details>
+              <details className="group py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between text-[9px] font-black uppercase tracking-[0.14em]">Fit + size <Plus size={14} className="transition group-open:rotate-45" /></summary>
+                <div className="pt-3 text-xs leading-5 text-black/52">
+                  {product.metafields?.fit ? `Fit: ${product.metafields.fit}. ` : ""}
+                  Size availability updates from the active product variants and the colour you select.
+                </div>
+              </details>
+              {(product.material || product.metafields?.care_instructions) && (
+                <details className="group py-4">
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-[9px] font-black uppercase tracking-[0.14em]">Material + care <Plus size={14} className="transition group-open:rotate-45" /></summary>
+                  <div className="pt-3 text-xs leading-5 text-black/52">
+                    {product.material ? `Material: ${product.material}. ` : ""}
+                    {product.metafields?.care_instructions || "Follow the garment label for care instructions."}
+                  </div>
+                </details>
+              )}
               <details className="group py-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between text-[9px] font-black uppercase tracking-[0.14em]">Production + shipping <Plus size={14} className="transition group-open:rotate-45" /></summary>
                 <div className="pt-3 text-xs leading-5 text-black/52">Production timing can vary by product and custom-work requirements. Shipping options and final delivery costs are shown during checkout.</div>
@@ -394,32 +578,122 @@ export default function ProductDetail() {
         </div>
       </section>
 
-      {reviews.length > 0 && (
-        <section className="border-t border-black/10 bg-[#efeee8]">
-          <div className="mx-auto max-w-[1500px] px-4 py-12 sm:px-5 lg:px-8 lg:py-16">
-            <div className="mb-7 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
-              <div>
-                <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-black/40">Verified feedback</div>
-                <h2 className="mt-2 font-display text-6xl leading-none tracking-wide sm:text-7xl">CUSTOMER REVIEWS</h2>
+      <section id="reviews" className="scroll-mt-28 border-t border-black/10 bg-[#efeee8]">
+        <div className="mx-auto max-w-[1500px] px-4 py-12 sm:px-5 lg:px-8 lg:py-16">
+          <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-14">
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-black/40">Customer feedback</div>
+              <h2 className="mt-2 font-display text-6xl leading-none tracking-wide sm:text-7xl">REVIEWS</h2>
+              <div className="mt-5 flex items-center gap-2">
+                <div className="flex" aria-label={avgRating ? `${avgRating} out of 5 stars` : "No ratings yet"}>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <Star key={value} size={18} className={avgRating && value <= Math.round(Number(avgRating)) ? "fill-black text-black" : "text-black/18"} />
+                  ))}
+                </div>
+                <span className="font-mono text-xs">{avgRating ? `${avgRating} / 5` : "Not rated yet"}</span>
               </div>
-              {avgRating && <div className="font-mono text-sm">{avgRating} / 5 · {reviews.length} review{reviews.length === 1 ? "" : "s"}</div>}
+              <p className="mt-2 text-xs text-black/48">{reviews.length ? `Based on ${reviews.length} approved review${reviews.length === 1 ? "" : "s"}.` : "Be the first customer to review this product."}</p>
+              <button type="button" onClick={openReviewForm} className="mt-5 inline-flex min-h-11 items-center justify-center border border-black px-5 text-[9px] font-black uppercase tracking-[0.13em] transition hover:bg-black hover:text-white">
+                Write a review
+              </button>
+              {!user && <p className="mt-2 text-[10px] leading-4 text-black/42">Sign-in is required to submit a review.</p>}
+              {reviewMessage && (
+                <div className="mt-4 border border-black/10 bg-white/60 px-4 py-3 text-xs leading-5 text-black/65" role="status">{reviewMessage}</div>
+              )}
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              {reviews.map((review) => (
-                <article key={review.id} className="border-t border-black pt-5 md:min-h-[190px]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex">{[1,2,3,4,5].map((value) => <Star key={value} size={13} className={value <= review.rating ? "fill-black text-black" : "text-black/15"} />)}</div>
-                    {review.verified && <span className="font-mono text-[8px] uppercase tracking-[0.13em] text-[#e11d2e]">Verified buyer</span>}
+
+            <div>
+              {reviewFormOpen && user && (
+                <form id="review-form" onSubmit={submitReview} className="mb-8 border border-black/15 bg-[#f7f6f1] p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="font-mono text-[8px] uppercase tracking-[0.18em] text-black/42">Add review</div>
+                      <h3 className="mt-1 text-sm font-black uppercase tracking-[0.05em]">Share your experience</h3>
+                    </div>
+                    <button type="button" onClick={() => setReviewFormOpen(false)} className="font-mono text-[9px] uppercase tracking-[0.12em] text-black/45 hover:text-black">Close</button>
                   </div>
-                  <h3 className="mt-5 text-sm font-bold">{review.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-black/52">{review.body}</p>
-                  <p className="mt-4 font-mono text-[8px] uppercase tracking-[0.14em] text-black/38">{review.customerName}</p>
-                </article>
-              ))}
+
+                  <div className="mt-5">
+                    <label className="font-mono text-[8px] font-black uppercase tracking-[0.14em]">Rating</label>
+                    <div className="mt-2 flex gap-1" role="radiogroup" aria-label="Review rating">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          role="radio"
+                          aria-checked={reviewDraft.rating === value}
+                          onClick={() => setReviewDraft((current) => ({ ...current, rating: value }))}
+                          className="p-1"
+                          aria-label={`${value} star${value === 1 ? "" : "s"}`}
+                        >
+                          <Star size={22} className={value <= reviewDraft.rating ? "fill-black text-black" : "text-black/20"} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <label className="mt-5 block">
+                    <span className="font-mono text-[8px] font-black uppercase tracking-[0.14em]">Title <span className="font-normal text-black/35">Optional</span></span>
+                    <input
+                      value={reviewDraft.title}
+                      onChange={(event) => setReviewDraft((current) => ({ ...current, title: event.target.value.slice(0, 120) }))}
+                      maxLength={120}
+                      className="mt-2 h-11 w-full border border-black/20 bg-transparent px-3 text-sm outline-none transition focus:border-black"
+                      placeholder="What stood out?"
+                    />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className="font-mono text-[8px] font-black uppercase tracking-[0.14em]">Review</span>
+                    <textarea
+                      value={reviewDraft.body}
+                      onChange={(event) => setReviewDraft((current) => ({ ...current, body: event.target.value.slice(0, 1500) }))}
+                      maxLength={1500}
+                      rows={5}
+                      required
+                      className="mt-2 w-full resize-y border border-black/20 bg-transparent px-3 py-3 text-sm outline-none transition focus:border-black"
+                      placeholder="Tell other customers about the fit, quality, print or overall experience."
+                    />
+                  </label>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="max-w-md text-[10px] leading-4 text-black/42">Reviews are submitted as pending and appear publicly after approval. Verified-buyer status is only shown when it is confirmed by the system.</p>
+                    <button type="submit" disabled={reviewSubmitting} className="min-h-11 bg-black px-5 text-[9px] font-black uppercase tracking-[0.13em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:opacity-50">
+                      {reviewSubmitting ? "Submitting…" : "Submit review"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {reviews.length > 0 ? (
+                <div className="grid gap-5 md:grid-cols-2">
+                  {reviews.map((review) => (
+                    <article key={review.id} className="border-t border-black pt-5 md:min-h-[190px]">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex">{[1, 2, 3, 4, 5].map((value) => <Star key={value} size={13} className={value <= review.rating ? "fill-black text-black" : "text-black/15"} />)}</div>
+                        {review.verified && <span className="font-mono text-[8px] uppercase tracking-[0.13em] text-[#e11d2e]">Verified buyer</span>}
+                      </div>
+                      <h3 className="mt-5 text-sm font-bold">{review.title || "Customer review"}</h3>
+                      <p className="mt-2 text-sm leading-6 text-black/52">{review.body}</p>
+                      <p className="mt-4 font-mono text-[8px] uppercase tracking-[0.14em] text-black/38">
+                        {review.customerName || "GDP customer"}{review.created_at ? ` · ${new Date(review.created_at).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}` : ""}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex min-h-[220px] items-center justify-center border border-dashed border-black/15 px-6 text-center">
+                  <div>
+                    <div className="mx-auto flex w-fit">{[1, 2, 3, 4, 5].map((value) => <Star key={value} size={16} className="text-black/18" />)}</div>
+                    <p className="mt-3 text-sm font-semibold">No approved reviews yet.</p>
+                    <p className="mt-1 text-xs text-black/45">Customer reviews will appear here after approval.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
     </div>
   );
 }
