@@ -341,7 +341,7 @@ export default function ProductDetail() {
                 </div>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-black/52">
-                <a href="#reviews" className="inline-flex items-center gap-1.5 transition hover:text-black"><Stars rating={avgRating} /><span>{avgRating ? `${avgRating} (${reviews.length})` : "No reviews yet"}</span></a>
+                <a href="#reviews" className="inline-flex items-center gap-1.5 transition hover:text-black"><Stars rating={Number(avgRating || 0)} /><span>{avgRating ? `${avgRating} (${reviews.length})` : "No reviews yet"}</span></a>
                 <span className="text-black/20">·</span>
                 <button type="button" onClick={openReviewForm} className="font-semibold underline decoration-black/25 underline-offset-4 transition hover:decoration-black">Write a review</button>
               </div>
@@ -454,7 +454,7 @@ export default function ProductDetail() {
             <div>
               <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-black/40">Customer feedback</div>
               <h2 className="mt-2 font-display text-6xl leading-none tracking-wide sm:text-7xl">REVIEWS</h2>
-              <div className="mt-5 flex items-center gap-2"><Stars rating={avgRating} size={18} /><span className="font-mono text-xs">{avgRating ? `${avgRating} / 5` : "Not rated yet"}</span></div>
+              <div className="mt-5 flex items-center gap-2"><Stars rating={Number(avgRating || 0)} size={18} /><span className="font-mono text-xs">{avgRating ? `${avgRating} / 5` : "Not rated yet"}</span></div>
               <p className="mt-2 text-xs text-black/48">{reviews.length ? `Based on ${reviews.length} approved review${reviews.length === 1 ? "" : "s"}.` : "Be the first customer to review this product."}</p>
               <button type="button" onClick={openReviewForm} className="mt-5 inline-flex min-h-11 items-center justify-center border border-black px-5 text-[9px] font-black uppercase tracking-[0.13em] transition hover:bg-black hover:text-white">Write a review</button>
               {!user && <p className="mt-2 text-[10px] leading-4 text-black/42">Sign-in is required to submit a review.</p>}
