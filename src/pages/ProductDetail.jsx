@@ -10,6 +10,7 @@ import { findProductVariant, isProductColorAvailable, isProductOutOfStock, isPro
 import { resolveColorSwatch } from "@/lib/colorSwatches";
 import { PRODUCT_SELLING_MODES, onlineStoreEnabled, resolveProductSellingMode } from "@/lib/productSelling";
 import { normalizeApparelPricing } from "@/lib/apparelPricing";
+import { customerApi } from "@/lib/customerApi";
 
 const uniqueValues = (values = []) => [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 const sameOption = (left, right) => String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
@@ -89,6 +90,7 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [reviews, setReviews] = useState([]);
   const [apparelPricing, setApparelPricing] = useState(() => normalizeApparelPricing({}));
+  const [promotions, setPromotions] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
@@ -113,6 +115,7 @@ export default function ProductDetail() {
       setColor("");
       setSize("");
       setQty(1);
+      setPromotions([]);
       setSizeGuideOpen(false);
       setReviewFormOpen(false);
       setReviewMessage("");
@@ -153,6 +156,19 @@ export default function ProductDetail() {
       );
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!product?.id) {
+      setPromotions([]);
+      return () => { active = false; };
+    }
+    customerApi.getProductPromotions(product.id).then(
+      (rows) => { if (active) setPromotions(Array.isArray(rows) ? rows : []); },
+      () => { if (active) setPromotions([]); },
+    );
+    return () => { active = false; };
+  }, [product?.id]);
 
   useEffect(() => {
     if (product?.slug === "dtf-gang-sheet") {
@@ -406,6 +422,23 @@ export default function ProductDetail() {
                 <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[9px] uppercase tracking-[0.12em]">
                   <span className="bg-[#e11d2e]/10 px-2 py-1 font-black text-[#b51222]">Save {savingsPercent}%</span>
                   <span className="text-black/48">You save {formatCad(savingsAmount)}</span>
+                </div>
+              )}
+              {promotions.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {promotions.slice(0, 3).map((promotion) => {
+                    const offer = promotion.type === "percentage"
+                      ? `${Number(promotion.value || 0)}% off`
+                      : promotion.type === "fixed"
+                        ? `${formatCad(promotion.value)} off`
+                        : "Free shipping";
+                    return (
+                      <div key={promotion.code} className="border border-[#e11d2e]/25 bg-[#e11d2e]/[0.06] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-black/70">
+                        <span className="font-black text-[#b51222]">{offer}</span> with code <span className="font-black text-black">{promotion.code}</span>
+                        {Number(promotion.minPurchase || 0) > 0 && <span className="text-black/45"> · Min {formatCad(promotion.minPurchase)}</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-black/52">
