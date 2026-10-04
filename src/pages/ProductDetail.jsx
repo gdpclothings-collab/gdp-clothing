@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Heart, Minus, Plus, RotateCcw, ShieldCheck, ShoppingBag, Sparkles, Star, Truck } from "lucide-react";
+import { ArrowLeft, Check, Heart, Minus, Plus, RotateCcw, Ruler, ShieldCheck, ShoppingBag, Sparkles, Star, Truck, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct, normalizeReview } from "@/lib/supabaseMappers";
 import { useAuth } from "@/lib/AuthContext";
@@ -35,6 +35,23 @@ function splitProductTitle(name, fallbackSubtitle) {
   return parts.length > 1
     ? { title: parts[0], subtitle: parts.slice(1).join(" — ") }
     : { title: normalizedName, subtitle: "" };
+}
+
+function parseSizeGuideRows(value) {
+  const lines = String(value || "")
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const parsed = lines
+    .map((line) => line.split("|").map((cell) => cell.trim()))
+    .filter((row) => row.filter(Boolean).length >= 2);
+  if (parsed.length < 2) return { headers: [], rows: [] };
+  const columnCount = Math.max(...parsed.map((row) => row.length));
+  const normalizeRow = (row) => Array.from({ length: columnCount }, (_, index) => row[index] || "");
+  return {
+    headers: normalizeRow(parsed[0]),
+    rows: parsed.slice(1).map(normalizeRow),
+  };
 }
 
 function Stars({ rating = 0, size = 13 }) {
@@ -73,6 +90,7 @@ export default function ProductDetail() {
   const [reviews, setReviews] = useState([]);
   const [apparelPricing, setApparelPricing] = useState(() => normalizeApparelPricing({}));
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewMessage, setReviewMessage] = useState("");
@@ -95,6 +113,7 @@ export default function ProductDetail() {
       setColor("");
       setSize("");
       setQty(1);
+      setSizeGuideOpen(false);
       setReviewFormOpen(false);
       setReviewMessage("");
       setReviewDraft({ rating: 5, title: "", body: "" });
@@ -145,6 +164,20 @@ export default function ProductDetail() {
     if (options.colors.length === 1 && isProductColorAvailable(product, options.colors[0])) setColor(options.colors[0]);
     if (options.sizes.length === 1) setSize(options.sizes[0]);
   }, [product, navigate]);
+
+  useEffect(() => {
+    if (!sizeGuideOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setSizeGuideOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [sizeGuideOpen]);
 
   if (loading) {
     return (
@@ -212,6 +245,9 @@ export default function ProductDetail() {
   const gallery = galleryImages.length ? galleryImages : [null];
   const activeImage = gallery[Math.min(activeImageIndex, gallery.length - 1)] || null;
   const titleParts = splitProductTitle(product.name, product.metafields?.subtitle);
+  const sizeGuideNote = String(product.metafields?.size_guide_note || "").trim();
+  const sizeGuide = parseSizeGuideRows(product.metafields?.size_guide_rows);
+  const hasSizeMeasurements = sizeGuide.headers.length > 0 && sizeGuide.rows.length > 0;
 
   const sizeAvailable = (nextSize, selectedColor = color) => {
     if (!variants.length) return true;
@@ -434,7 +470,15 @@ export default function ProductDetail() {
 
             {requiresSize && (
               <div className="mt-6">
-                <div className="mb-3 flex items-center justify-between gap-3"><span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span><span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span></div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[9px] font-black uppercase tracking-[0.15em]">Size</span>
+                    <button type="button" onClick={() => setSizeGuideOpen(true)} aria-haspopup="dialog" className="inline-flex min-h-8 items-center gap-1.5 font-mono text-[8px] font-black uppercase tracking-[0.12em] text-black/50 underline decoration-black/20 underline-offset-4 transition hover:text-black hover:decoration-black">
+                      <Ruler size={12} /> Size guide
+                    </button>
+                  </div>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-black/45">{size || "Choose"}</span>
+                </div>
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                   {sizes.map((item) => {
                     const enabled = sizeAvailable(item);
@@ -493,7 +537,7 @@ export default function ProductDetail() {
 
             <div className="mt-5 divide-y divide-black/15 border-y border-black/15">
               <DetailRow title="Product details" open>{product.description || "GDP Clothing apparel made for everyday wear."}{product.material ? ` Material: ${product.material}.` : ""}</DetailRow>
-              <DetailRow title="Fit + size">{product.metafields?.fit ? `Fit: ${product.metafields.fit}. ` : ""}Size availability updates from the active product variants and the colour you select.</DetailRow>
+              <DetailRow title="Fit + size">{product.metafields?.fit ? `Fit: ${product.metafields.fit}. ` : ""}{product.metafields?.audience ? `${product.metafields.audience}. ` : ""}{sizeGuideNote || "Size availability updates from the active product variants and the colour you select."}{requiresSize ? ` Available sizes: ${sizes.join(", ")}.` : ""}</DetailRow>
               {(product.material || product.metafields?.care_instructions) && <DetailRow title="Material + care">{product.material ? `Material: ${product.material}. ` : ""}{product.metafields?.care_instructions || "Follow the garment label for care instructions."}</DetailRow>}
               <DetailRow title="Production + shipping">Production timing can vary by product and custom-work requirements. Shipping options and final delivery costs are shown during checkout.</DetailRow>
               {isCustom && <DetailRow title="Custom-order process">Submit the story and photos in Custom Studio, choose your garment details, then review the design proof before printing begins.</DetailRow>}
@@ -501,6 +545,64 @@ export default function ProductDetail() {
           </div>
         </div>
       </section>
+
+      {sizeGuideOpen && requiresSize && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setSizeGuideOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="gdp-size-guide-title" className="max-h-[88vh] w-full overflow-y-auto bg-[#f7f6f1] text-black shadow-2xl sm:max-w-3xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-black/15 bg-[#f7f6f1]/95 px-5 py-4 backdrop-blur sm:px-7">
+              <div>
+                <div className="font-mono text-[8px] uppercase tracking-[0.2em] text-black/40">GDP / fit reference</div>
+                <h2 id="gdp-size-guide-title" className="mt-1 font-display text-5xl leading-none tracking-wide sm:text-6xl">SIZE GUIDE</h2>
+              </div>
+              <button type="button" autoFocus onClick={() => setSizeGuideOpen(false)} className="flex h-11 w-11 shrink-0 items-center justify-center border border-black/15 transition hover:bg-black hover:text-white" aria-label="Close size guide"><X size={18} /></button>
+            </div>
+
+            <div className="px-5 py-6 sm:px-7 sm:py-7">
+              <p className="text-sm font-semibold leading-6">{product.name}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {product.metafields?.fit && <span className="border border-black/15 px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.12em]">Fit / {product.metafields.fit}</span>}
+                {product.metafields?.audience && <span className="border border-black/15 px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.12em]">{product.metafields.audience}</span>}
+                {product.metafields?.sleeve_type && <span className="border border-black/15 px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.12em]">{product.metafields.sleeve_type}</span>}
+              </div>
+
+              <div className="mt-6 border-t border-black/15 pt-5">
+                <div className="font-mono text-[9px] font-black uppercase tracking-[0.14em]">Available sizes</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {sizes.map((item) => <span key={item} className={`min-w-11 border px-3 py-2 text-center font-mono text-[9px] font-black uppercase ${size === item ? "border-black bg-black text-white" : "border-black/15"}`}>{item}</span>)}
+                </div>
+              </div>
+
+              {hasSizeMeasurements ? (
+                <div className="mt-6">
+                  <div className="mb-3 font-mono text-[9px] font-black uppercase tracking-[0.14em]">Garment measurements</div>
+                  <div className="overflow-x-auto border border-black/15 bg-white/45">
+                    <table className="w-full min-w-[440px] border-collapse text-left">
+                      <thead className="bg-black text-white">
+                        <tr>{sizeGuide.headers.map((header, index) => <th key={`${header}-${index}`} className="px-4 py-3 font-mono text-[8px] font-black uppercase tracking-[0.12em]">{header || `Column ${index + 1}`}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {sizeGuide.rows.map((row, rowIndex) => (
+                          <tr key={`size-row-${rowIndex}`} className="border-t border-black/10">
+                            {row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`} className={`px-4 py-3 text-xs ${cellIndex === 0 ? "font-black" : "text-black/60"}`}>{cell || "—"}</td>)}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-3 text-[10px] leading-4 text-black/42">Garment measurements are approximate. Minor production and fabric variation can occur.</p>
+                </div>
+              ) : (
+                <div className="mt-6 border border-dashed border-black/20 bg-white/40 px-4 py-4">
+                  <div className="font-mono text-[8px] font-black uppercase tracking-[0.13em] text-black/45">Measurement chart</div>
+                  <p className="mt-2 text-xs leading-5 text-black/55">Measurements have not been published for this product yet. Use the available sizes and fit information above, compare with a similar garment you already own, or contact GDP Clothing for fit help.</p>
+                </div>
+              )}
+
+              {sizeGuideNote && <div className="mt-5 border-l-2 border-black pl-4 text-xs leading-5 text-black/60">{sizeGuideNote}</div>}
+            </div>
+          </section>
+        </div>
+      )}
 
       <section id="reviews" className="scroll-mt-28 border-t border-black/10 bg-[#efeee8]">
         <div className="mx-auto max-w-[1500px] px-4 py-12 sm:px-5 lg:px-8 lg:py-16">
