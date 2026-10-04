@@ -77,7 +77,7 @@ export default function FinanceCashFlow() {
 
   const readiness = data?.readiness || {};
   const cashFlow = data?.cashFlow || {};
-  const activities = data?.activities || {};
+  const activities = data?.activities || { operating: [], investing: [], financing: [], unclassified: [] };
   const composition = Array.isArray(data?.cashComposition) ? data.cashComposition : [];
   const authoritative = Boolean(readiness.authoritative);
   const reconciled = Boolean(readiness.reconciled);
