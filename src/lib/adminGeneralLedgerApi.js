@@ -11,6 +11,12 @@ export const adminGeneralLedgerApi = {
     return data || {};
   },
 
+  async reconcileSources() {
+    const { data, error } = await supabase.rpc("reconcile_admin_general_ledger_sources");
+    if (error) throw error;
+    return data || {};
+  },
+
   async recordManualJournal({ entryDate, reference = null, memo, lines }) {
     const { data, error } = await supabase.rpc("record_admin_manual_journal", {
       p_entry_date: entryDate,
