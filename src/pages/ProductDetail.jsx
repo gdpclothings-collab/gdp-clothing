@@ -9,7 +9,7 @@ import { Image } from "@/components/ui/image";
 import { findProductVariant, isProductColorAvailable, isProductOutOfStock, isProductVariantAvailable, sortApparelSizes } from "@/lib/productVariants";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
 import { PRODUCT_SELLING_MODES, onlineStoreEnabled, resolveProductSellingMode } from "@/lib/productSelling";
-import { getReadyToWearPercent, getReadyToWearTiers, normalizeApparelPricing } from "@/lib/apparelPricing";
+import { normalizeApparelPricing } from "@/lib/apparelPricing";
 
 const uniqueValues = (values = []) => [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 const sameOption = (left, right) => String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
@@ -126,10 +126,12 @@ export default function ProductDetail() {
       .select("apparel_pricing")
       .eq("id", 1)
       .maybeSingle()
-      .then(({ data }) => {
-        if (active && data?.apparel_pricing) setApparelPricing(normalizeApparelPricing(data.apparel_pricing));
-      })
-      .catch(() => {});
+      .then(
+        ({ data }) => {
+          if (active && data?.apparel_pricing) setApparelPricing(normalizeApparelPricing(data.apparel_pricing));
+        },
+        () => {},
+      );
     return () => { active = false; };
   }, []);
 
@@ -192,10 +194,11 @@ export default function ProductDetail() {
   const isCustom = sellingMode === PRODUCT_SELLING_MODES.CUSTOM;
   const readyToWearPricing = apparelPricing.readyToWear || {};
   const readyToWearOfferEnabled = Boolean(isReadyToWear && apparelPricing.enabled && readyToWearPricing.enabled);
-  const readyToWearTiers = readyToWearOfferEnabled ? getReadyToWearTiers(apparelPricing) : [];
+  const readyToWearTiers = readyToWearOfferEnabled ? (readyToWearPricing.tiers || []).map((tier) => ({ ...tier })) : [];
   const readyToWearCanStackWithSale = !hasSale || readyToWearPricing.allowSaleStacking !== false;
+  const activeReadyToWearTier = readyToWearTiers.find((tier) => qty >= Number(tier?.min || 0) && qty <= Number(tier?.max || 0));
   const readyToWearPercent = readyToWearOfferEnabled && readyToWearCanStackWithSale
-    ? getReadyToWearPercent(apparelPricing, qty)
+    ? Number(activeReadyToWearTier?.percent || 0)
     : 0;
   const quantityRegularTotal = displayPrice * qty;
   const quantityDiscountedTotal = quantityRegularTotal * (1 - readyToWearPercent / 100);

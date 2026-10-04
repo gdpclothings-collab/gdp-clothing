@@ -3,7 +3,6 @@ import {
   apparelPlacementKey,
   apparelProductKey,
   getExactBundlePrice,
-  getReadyToWearPercent,
   getVolumePercent,
   normalizeApparelPricing,
 } from "./apparelPricing.js";
@@ -84,7 +83,8 @@ export function calculateCartQuantityDiscount(items = []) {
       const compareAtPrice = Number(item.compareAtPrice || 0);
       const saleActive = Number.isFinite(compareAtPrice) && compareAtPrice > rawUnitPrice;
       const canStackWithSale = config.readyToWear.allowSaleStacking !== false || !saleActive;
-      const percent = canStackWithSale ? getReadyToWearPercent(config, quantity) : 0;
+      const readyToWearTier = (config.readyToWear.tiers || []).find((tier) => quantity >= Number(tier?.min || 0) && quantity <= Number(tier?.max || 0));
+      const percent = canStackWithSale ? Number(readyToWearTier?.percent || 0) : 0;
       const discountedLine = line * (1 - percent / 100);
       subtotal += line;
       afterDiscount += discountedLine;
