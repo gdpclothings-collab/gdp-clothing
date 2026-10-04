@@ -1,1 +1,0 @@
-Phase 22 changes are limited to the general-ledger database migration, protected API client, Finance admin page, and Admin Finance route/shortcut. Existing operational Finance calculations remain unchanged.
