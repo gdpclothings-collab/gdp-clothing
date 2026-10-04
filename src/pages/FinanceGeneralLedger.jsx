@@ -31,9 +31,10 @@ function accountTypeLabel(value) {
 }
 
 export default function FinanceGeneralLedger() {
-  const [data, setData] = useState({ summary: {}, accounts: [], trialBalance: [], entries: [], scope: {} });
+  const [data, setData] = useState({ summary: {}, accounts: [], trialBalance: [], entries: [], scope: {}, sourceAutomation: {} });
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [reversing, setReversing] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -69,6 +70,7 @@ export default function FinanceGeneralLedger() {
   const trialBalance = Array.isArray(data?.trialBalance) ? data.trialBalance : [];
   const entries = Array.isArray(data?.entries) ? data.entries : [];
   const summary = data?.summary || {};
+  const sourceAutomation = data?.sourceAutomation || {};
 
   const postingAccounts = useMemo(
     () => accounts.filter((account) => account.active && account.manualPostingAllowed),
@@ -99,6 +101,25 @@ export default function FinanceGeneralLedger() {
   const removeLine = (index) => {
     if (lines.length <= 2) return;
     setLines((current) => current.filter((_, lineIndex) => lineIndex !== index));
+  };
+
+  const reconcileSources = async () => {
+    setReconciling(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await adminGeneralLedgerApi.reconcileSources();
+      const failures = Number(result?.unresolvedFailures || 0);
+      setNotice(failures > 0
+        ? `Source reconciliation finished with ${failures} unresolved posting ${failures === 1 ? "failure" : "failures"}. Review the automation status before relying on the ledger.`
+        : "Source reconciliation completed. Authoritative Finance records and the General Ledger are synchronized without duplicate postings.");
+      await load();
+    } catch (err) {
+      console.error("General ledger source reconciliation failed:", err);
+      setError(err?.message || "Could not reconcile Finance sources to the General Ledger.");
+    } finally {
+      setReconciling(false);
+    }
   };
 
   const recordJournal = async () => {
@@ -177,6 +198,9 @@ export default function FinanceGeneralLedger() {
   };
 
   const balanced = Boolean(summary.balanced);
+  const sourceComplete = Boolean(sourceAutomation.complete);
+  const sourceFailures = Number(sourceAutomation.unresolvedFailures || summary.sourceFailureCount || 0);
+  const pendingCogs = Number(sourceAutomation.pendingCogsOrders || summary.pendingCogsOrders || 0);
 
   return <div className="gdp-admin min-h-screen bg-[#f4f5f7] text-[#171717]">
     <header className="sticky top-0 z-40 h-16 bg-[#111214] text-white border-b border-white/10 shadow-sm">
@@ -189,13 +213,14 @@ export default function FinanceGeneralLedger() {
 
     <div className="border-b border-[#dedfe3] bg-white">
       <div className="max-w-[1500px] mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-7">
-        <div className="text-xs uppercase tracking-[0.14em] font-bold text-[#a70f2d]">Finance Phase 22</div>
+        <div className="text-xs uppercase tracking-[0.14em] font-bold text-[#a70f2d]">Finance Phase 23</div>
         <div className="mt-1 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div><h1 className="text-[28px] md:text-[32px] font-bold tracking-tight">Chart of Accounts &amp; General Ledger</h1><p className="text-base leading-6 text-[#555961] mt-1 max-w-3xl">Double-entry accounting foundation for GDP Clothing. Manual journals post only when debits equal credits, and posted entries are corrected through reversing entries instead of deletion.</p></div>
+          <div><h1 className="text-[28px] md:text-[32px] font-bold tracking-tight">Chart of Accounts &amp; General Ledger</h1><p className="text-base leading-6 text-[#555961] mt-1 max-w-3xl">Double-entry accounting with idempotent source posting for GDP Finance. Authoritative sales, expenses, online orders, refunds, Stripe fees and payouts synchronize automatically; corrections create source reversals instead of rewriting posted history.</p></div>
           <div className="flex flex-wrap gap-2 items-end">
             <label className="text-xs text-[#666]">From<input type="date" value={from} max={to || reginaDate()} onChange={(event) => setFrom(event.target.value)} className="mt-1 block h-9 rounded-lg border border-[#d5d5d5] px-2 text-sm text-[#171717]"/></label>
             <label className="text-xs text-[#666]">To<input type="date" value={to} min={from || undefined} max={reginaDate()} onChange={(event) => setTo(event.target.value)} className="mt-1 block h-9 rounded-lg border border-[#d5d5d5] px-2 text-sm text-[#171717]"/></label>
-            <button type="button" onClick={load} disabled={loading} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Refresh</button>
+            <button type="button" onClick={reconcileSources} disabled={loading || reconciling} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"><ShieldCheck size={14}/>{reconciling ? "Reconciling…" : "Reconcile sources"}</button>
+            <button type="button" onClick={load} disabled={loading || reconciling} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Refresh</button>
           </div>
         </div>
       </div>
@@ -205,27 +230,27 @@ export default function FinanceGeneralLedger() {
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
       {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
 
-      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 flex gap-3">
-        <AlertTriangle size={18} className="shrink-0 mt-0.5"/>
-        <div><div className="font-semibold">General Ledger foundation is intentionally manual-only in Phase 22</div><div className="mt-1 text-xs leading-5">Existing storefront sales, Stripe activity, expenses, AR/AP and inventory are not auto-posted into this ledger yet. This prevents duplicate or fabricated accounting entries. Source-to-ledger posting will be added as a separate controlled phase.</div></div>
+      <section className={`rounded-xl border p-4 text-sm flex gap-3 ${sourceComplete ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
+        {sourceComplete ? <CheckCircle2 size={18} className="shrink-0 mt-0.5"/> : <AlertTriangle size={18} className="shrink-0 mt-0.5"/>}
+        <div><div className="font-semibold">{sourceComplete ? "Source-to-ledger automation is synchronized" : "Source-to-ledger automation needs attention"}</div><div className="mt-1 text-xs leading-5">GDP posts each authoritative source state once, records immutable provenance, and uses equal-and-opposite source reversals when a recognized source changes. Current exceptions: {sourceFailures} unresolved posting failures and {pendingCogs} paid orders waiting for complete COGS configuration.</div></div>
       </section>
 
       {loading ? <div className="py-16 text-center text-sm text-[#777]">Loading general ledger…</div> : <>
         <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
-          <Metric label="Journal entries" value={Number(summary.entryCount || 0).toLocaleString("en-CA")} sub={`${Number(summary.reversalEntryCount || 0)} reversal entries`}/>
+          <Metric label="Journal entries" value={Number(summary.entryCount || 0).toLocaleString("en-CA")} sub={`${Number(summary.sourceEntryCount || 0)} source · ${Number(summary.manualEntryCount || 0)} manual`}/>
           <Metric label="Total debits" value={money(summary.totalDebits)} sub="Selected ledger period"/>
           <Metric label="Total credits" value={money(summary.totalCredits)} sub="Selected ledger period"/>
           <Metric label="Difference" value={money(summary.difference)} alert={!balanced} sub={balanced ? "Debits = credits" : "Ledger imbalance detected"}/>
-          <Metric label="Ledger status" value={balanced ? "Balanced" : "Attention"} alert={!balanced} strong sub="Manual journals only"/>
+          <Metric label="Ledger status" value={balanced && sourceComplete ? "Ready" : "Attention"} alert={!balanced || !sourceComplete} strong sub={balanced ? `${sourceFailures} source failures · ${pendingCogs} pending COGS` : "Trial balance is not balanced"}/>
         </div>
 
         <section className={`rounded-xl border p-4 text-sm flex gap-3 ${balanced ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-red-200 bg-red-50 text-red-950"}`}>
           {balanced ? <CheckCircle2 size={18} className="shrink-0 mt-0.5"/> : <AlertTriangle size={18} className="shrink-0 mt-0.5"/>}
-          <div><div className="font-semibold">{balanced ? "Trial balance is mathematically balanced" : "Trial balance is out of balance"}</div><div className="mt-1 text-xs">This verifies only journals currently posted in the Phase 22 ledger; it does not yet certify complete business financial statements.</div></div>
+          <div><div className="font-semibold">{balanced ? "Trial balance is mathematically balanced" : "Trial balance is out of balance"}</div><div className="mt-1 text-xs">This verifies all posted manual, source and reversal journals in the selected period. Source completeness is tracked separately so missing COGS or a failed source posting cannot be mistaken for a complete ledger.</div></div>
         </section>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <SectionHeader title="Post manual journal" subtitle="Admin + MFA protected. A journal posts immediately only after every account and amount passes server-side double-entry validation." icon={<ShieldCheck size={16}/>}/>
+          <SectionHeader title="Post manual journal" subtitle="Admin + MFA protected. Use manual journals only for legitimate accounting adjustments not already represented by an automated Finance source." icon={<ShieldCheck size={16}/>}/>
           <div className="p-4 space-y-4">
             <div className="grid md:grid-cols-[170px_220px_minmax(0,1fr)] gap-3">
               <label className="text-xs text-[#666]">Journal date<input type="date" value={entryDate} max={reginaDate()} onChange={(event) => setEntryDate(event.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[#d5d5d5] px-3 text-sm"/></label>
@@ -255,27 +280,43 @@ export default function FinanceGeneralLedger() {
         </section>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <SectionHeader title="Trial balance" subtitle={`${data?.scope?.from || from} through ${data?.scope?.to || to}. Debit and credit columns include both original and reversing journals so the audit trail nets correctly.`}/>
+          <SectionHeader title="Trial balance" subtitle={`${data?.scope?.from || from} through ${data?.scope?.to || to}. Debit and credit columns include original and reversing journals so immutable corrections net correctly.`}/>
           <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Account</Th><Th>Type</Th><Th>Normal balance</Th><Th right>Debits</Th><Th right>Credits</Th><Th right>Ending debit</Th><Th right>Ending credit</Th></tr></thead><tbody>{trialBalance.length ? trialBalance.map((row) => <tr key={row.account_id} className="border-t border-[#eeeeee]"><Td><div className="font-semibold">{row.code} · {row.name}</div></Td><Td>{accountTypeLabel(row.account_type)}</Td><Td>{accountTypeLabel(row.normal_balance)}</Td><Td right>{money(row.debits)}</Td><Td right>{money(row.credits)}</Td><Td right strong={Number(row.ending_debit || 0) > 0}>{money(row.ending_debit)}</Td><Td right strong={Number(row.ending_credit || 0) > 0}>{money(row.ending_credit)}</Td></tr>) : <Empty cols={7}>No chart-of-accounts rows.</Empty>}</tbody><tfoot className="border-t border-[#d8d8d8] bg-[#fafafa] font-semibold"><tr><Td colSpan={3}>Totals</Td><Td right>{money(summary.totalDebits)}</Td><Td right>{money(summary.totalCredits)}</Td><Td /><Td /></tr></tfoot></table></div>
         </section>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <SectionHeader title="Journal register" subtitle="Posted entries cannot be edited or deleted. Reversal creates a second equal-and-opposite posted journal and links it to the original."/>
+          <SectionHeader title="Journal register" subtitle="Automated source journals cannot be manually edited or reversed. Source corrections generate linked reversals automatically; manual journals keep the explicit reversal control."/>
           <div className="overflow-x-auto"><table className="w-full min-w-[1250px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th># / Date</Th><Th>Reference / Memo</Th><Th>Status</Th><Th right>Debit</Th><Th right>Credit</Th><Th>Lines</Th><Th>Correction</Th></tr></thead><tbody>{entries.length ? entries.map((entry) => {
             const canReverse = entry.source_type === "manual" && entry.status === "posted" && !entry.reversed_by_entry_id;
+            const entryLabel = entry.status === "reversed"
+              ? "Reversed"
+              : entry.source_type === "reversal"
+                ? "Manual reversal"
+                : entry.source_type === "source_reversal"
+                  ? "Source reversal"
+                  : entry.source_type === "source"
+                    ? "Source"
+                    : "Posted";
+            const badgeClass = entry.status === "reversed"
+              ? "bg-slate-100 text-slate-700"
+              : entry.source_type === "reversal" || entry.source_type === "source_reversal"
+                ? "bg-amber-100 text-amber-800"
+                : entry.source_type === "source"
+                  ? "bg-blue-100 text-blue-800"
+                  : "bg-emerald-100 text-emerald-800";
             return <tr key={entry.id} className="border-t border-[#eeeeee] align-top">
               <Td><div className="font-semibold">#{entry.entry_number}</div><div className="text-xs text-[#777] mt-0.5">{entry.entry_date}</div></Td>
               <Td><div className="font-medium">{entry.reference || "No reference"}</div><div className="mt-1 max-w-[360px] text-xs text-[#666] whitespace-pre-wrap">{entry.memo}</div></Td>
-              <Td><span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${entry.status === "reversed" ? "bg-slate-100 text-slate-700" : entry.source_type === "reversal" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{entry.status === "reversed" ? "Reversed" : entry.source_type === "reversal" ? "Reversal" : "Posted"}</span>{entry.reversal_reason && <div className="mt-1 max-w-[220px] text-[11px] text-[#777]">{entry.reversal_reason}</div>}</Td>
+              <Td><span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${badgeClass}`}>{entryLabel}</span>{entry.reversal_reason && <div className="mt-1 max-w-[220px] text-[11px] text-[#777]">{entry.reversal_reason}</div>}</Td>
               <Td right strong>{money(entry.total_debit)}</Td><Td right strong>{money(entry.total_credit)}</Td>
               <Td><details><summary className="cursor-pointer text-xs font-semibold">{Array.isArray(entry.lines) ? entry.lines.length : 0} lines</summary><div className="mt-2 min-w-[320px] space-y-1">{(entry.lines || []).map((line) => <div key={line.id} className="grid grid-cols-[1fr_auto] gap-3 rounded bg-[#f8f8f8] px-2 py-1 text-[11px]"><span>{line.accountCode} · {line.accountName}{line.description ? ` — ${line.description}` : ""}</span><span>{Number(line.debit || 0) > 0 ? `Dr ${money(line.debit)}` : `Cr ${money(line.credit)}`}</span></div>)}</div></details></Td>
-              <Td>{canReverse ? <div className="min-w-[310px] space-y-2"><div className="flex gap-2"><input type="date" max={reginaDate()} value={reverseDates[entry.id] || reginaDate()} onChange={(event) => setReverseDates((current) => ({ ...current, [entry.id]: event.target.value }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2 text-xs"/><input value={reverseReasons[entry.id] || ""} maxLength={500} onChange={(event) => setReverseReasons((current) => ({ ...current, [entry.id]: event.target.value }))} placeholder="Required reversal reason" className="h-8 min-w-0 flex-1 rounded-lg border border-[#d5d5d5] px-2 text-xs"/></div><button type="button" onClick={() => reverseJournal(entry)} disabled={reversing === entry.id} className="h-8 px-3 rounded-lg border border-[#cfcfcf] bg-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"><RotateCcw size={12}/>{reversing === entry.id ? "Reversing…" : "Post reversal"}</button></div> : <span className="text-xs text-[#888]">{entry.source_type === "reversal" ? "Reversal entry" : "No further action"}</span>}</Td>
+              <Td>{canReverse ? <div className="min-w-[310px] space-y-2"><div className="flex gap-2"><input type="date" max={reginaDate()} value={reverseDates[entry.id] || reginaDate()} onChange={(event) => setReverseDates((current) => ({ ...current, [entry.id]: event.target.value }))} className="h-8 rounded-lg border border-[#d5d5d5] px-2 text-xs"/><input value={reverseReasons[entry.id] || ""} maxLength={500} onChange={(event) => setReverseReasons((current) => ({ ...current, [entry.id]: event.target.value }))} placeholder="Required reversal reason" className="h-8 min-w-0 flex-1 rounded-lg border border-[#d5d5d5] px-2 text-xs"/></div><button type="button" onClick={() => reverseJournal(entry)} disabled={reversing === entry.id} className="h-8 px-3 rounded-lg border border-[#cfcfcf] bg-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"><RotateCcw size={12}/>{reversing === entry.id ? "Reversing…" : "Post reversal"}</button></div> : <span className="text-xs text-[#888]">{entry.source_type === "source" || entry.source_type === "source_reversal" ? "Managed by source automation" : entry.source_type === "reversal" ? "Reversal entry" : "No further action"}</span>}</Td>
             </tr>;
           }) : <Empty cols={7}>No journals posted in this date range.</Empty>}</tbody></table></div>
         </section>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
-          <SectionHeader title="GDP chart of accounts" subtitle="System account structure for the accounting ledger. Account maintenance is locked in Phase 22 so the foundation cannot be casually reclassified."/>
+          <SectionHeader title="GDP chart of accounts" subtitle="System account structure for the accounting ledger. Account maintenance remains protected so automated source mappings cannot be casually reclassified."/>
           <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Code</Th><Th>Account</Th><Th>Type</Th><Th>Normal balance</Th><Th>Manual posting</Th></tr></thead><tbody>{accounts.length ? accounts.map((account) => <tr key={account.id} className="border-t border-[#eeeeee]"><Td><span className="font-mono font-semibold">{account.code}</span></Td><Td><span className="font-semibold">{account.name}</span></Td><Td>{accountTypeLabel(account.accountType)}</Td><Td>{accountTypeLabel(account.normalBalance)}</Td><Td>{account.manualPostingAllowed ? "Allowed" : "System only"}</Td></tr>) : <Empty cols={5}>No Finance accounts configured.</Empty>}</tbody></table></div>
         </section>
       </>}
