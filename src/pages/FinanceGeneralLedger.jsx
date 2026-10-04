@@ -235,7 +235,7 @@ export default function FinanceGeneralLedger() {
 
             <div className="overflow-x-auto rounded-lg border border-[#e3e3e3]">
               <table className="w-full min-w-[1050px] text-sm">
-                <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Account</Th><Th>Description</Th><Th right>Debit</Th><Th right>Credit</Th><Th></Th></tr></thead>
+                <thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Account</Th><Th>Description</Th><Th right>Debit</Th><Th right>Credit</Th><Th /></tr></thead>
                 <tbody>{lines.map((line, index) => <tr key={`draft-${index}`} className="border-t border-[#eeeeee]">
                   <Td><select value={line.accountId} onChange={(event) => updateLine(index, "accountId", event.target.value)} className="h-9 w-full min-w-[280px] rounded-lg border border-[#d5d5d5] bg-white px-2 text-sm"><option value="">Select account</option>{postingAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}</select></Td>
                   <Td><input value={line.description} maxLength={240} onChange={(event) => updateLine(index, "description", event.target.value)} placeholder="Optional line description" className="h-9 w-full min-w-[260px] rounded-lg border border-[#d5d5d5] px-2 text-sm"/></Td>
@@ -243,7 +243,7 @@ export default function FinanceGeneralLedger() {
                   <Td right><input type="number" min="0" step="0.01" value={line.credit} onChange={(event) => updateLine(index, "credit", event.target.value)} className="h-9 w-32 rounded-lg border border-[#d5d5d5] px-2 text-right text-sm" placeholder="0.00"/></Td>
                   <Td><button type="button" onClick={() => removeLine(index)} disabled={lines.length <= 2} className="h-9 w-9 rounded-lg border border-[#ddd] inline-grid place-items-center disabled:opacity-30" aria-label={`Remove journal line ${index + 1}`}><Trash2 size={14}/></button></Td>
                 </tr>)}</tbody>
-                <tfoot className="border-t border-[#dedede] bg-[#fafafa]"><tr><Td><button type="button" onClick={addLine} disabled={lines.length >= 50} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"><Plus size={13}/> Add line</button></Td><Td right><span className="font-semibold">Draft totals</span></Td><Td right><span className="font-semibold">{money(draftTotals.debit)}</span></Td><Td right><span className="font-semibold">{money(draftTotals.credit)}</span></Td><Td></Td></tr></tfoot>
+                <tfoot className="border-t border-[#dedede] bg-[#fafafa]"><tr><Td><button type="button" onClick={addLine} disabled={lines.length >= 50} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"><Plus size={13}/> Add line</button></Td><Td right><span className="font-semibold">Draft totals</span></Td><Td right><span className="font-semibold">{money(draftTotals.debit)}</span></Td><Td right><span className="font-semibold">{money(draftTotals.credit)}</span></Td><Td /></tr></tfoot>
               </table>
             </div>
 
@@ -256,7 +256,7 @@ export default function FinanceGeneralLedger() {
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
           <SectionHeader title="Trial balance" subtitle={`${data?.scope?.from || from} through ${data?.scope?.to || to}. Debit and credit columns include both original and reversing journals so the audit trail nets correctly.`}/>
-          <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Account</Th><Th>Type</Th><Th>Normal balance</Th><Th right>Debits</Th><Th right>Credits</Th><Th right>Ending debit</Th><Th right>Ending credit</Th></tr></thead><tbody>{trialBalance.length ? trialBalance.map((row) => <tr key={row.account_id} className="border-t border-[#eeeeee]"><Td><div className="font-semibold">{row.code} · {row.name}</div></Td><Td>{accountTypeLabel(row.account_type)}</Td><Td>{accountTypeLabel(row.normal_balance)}</Td><Td right>{money(row.debits)}</Td><Td right>{money(row.credits)}</Td><Td right strong={Number(row.ending_debit || 0) > 0}>{money(row.ending_debit)}</Td><Td right strong={Number(row.ending_credit || 0) > 0}>{money(row.ending_credit)}</Td></tr>) : <Empty cols={7}>No chart-of-accounts rows.</Empty>}</tbody><tfoot className="border-t border-[#d8d8d8] bg-[#fafafa] font-semibold"><tr><Td colSpan={3}>Totals</Td><Td right>{money(summary.totalDebits)}</Td><Td right>{money(summary.totalCredits)}</Td><Td></Td><Td></Td></tr></tfoot></table></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-sm"><thead className="bg-[#fafafa] text-[#707070] text-xs"><tr><Th>Account</Th><Th>Type</Th><Th>Normal balance</Th><Th right>Debits</Th><Th right>Credits</Th><Th right>Ending debit</Th><Th right>Ending credit</Th></tr></thead><tbody>{trialBalance.length ? trialBalance.map((row) => <tr key={row.account_id} className="border-t border-[#eeeeee]"><Td><div className="font-semibold">{row.code} · {row.name}</div></Td><Td>{accountTypeLabel(row.account_type)}</Td><Td>{accountTypeLabel(row.normal_balance)}</Td><Td right>{money(row.debits)}</Td><Td right>{money(row.credits)}</Td><Td right strong={Number(row.ending_debit || 0) > 0}>{money(row.ending_debit)}</Td><Td right strong={Number(row.ending_credit || 0) > 0}>{money(row.ending_credit)}</Td></tr>) : <Empty cols={7}>No chart-of-accounts rows.</Empty>}</tbody><tfoot className="border-t border-[#d8d8d8] bg-[#fafafa] font-semibold"><tr><Td colSpan={3}>Totals</Td><Td right>{money(summary.totalDebits)}</Td><Td right>{money(summary.totalCredits)}</Td><Td /><Td /></tr></tfoot></table></div>
         </section>
 
         <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
@@ -291,6 +291,6 @@ function SectionHeader({ title, subtitle, icon = null }) {
   return <div className="px-4 py-3 border-b border-[#ededed]"><div className="text-sm font-semibold flex items-center gap-2">{icon}{title}</div><div className="text-xs text-[#777] mt-0.5">{subtitle}</div></div>;
 }
 
-function Th({ children, right = false }) { return <th className={`px-3 py-2.5 font-semibold ${right ? "text-right" : "text-left"}`}>{children}</th>; }
-function Td({ children, right = false, strong = false, colSpan }) { return <td colSpan={colSpan} className={`px-3 py-3 ${right ? "text-right" : "text-left"} ${strong ? "font-semibold" : ""}`}>{children}</td>; }
+function Th({ children = null, right = false }) { return <th className={`px-3 py-2.5 font-semibold ${right ? "text-right" : "text-left"}`}>{children}</th>; }
+function Td({ children = null, right = false, strong = false, colSpan = undefined }) { return <td colSpan={colSpan} className={`px-3 py-3 ${right ? "text-right" : "text-left"} ${strong ? "font-semibold" : ""}`}>{children}</td>; }
 function Empty({ children, cols }) { return <tr><td colSpan={cols} className="px-4 py-10 text-center text-sm text-[#777]">{children}</td></tr>; }
