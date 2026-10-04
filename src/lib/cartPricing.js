@@ -58,6 +58,29 @@ export function calculateCartQuantityDiscount(items = []) {
   let requiresQuote = false;
   let readyToWearDiscount = 0;
   const readyToWearPercents = new Set();
+  const readyToWearQuantityByProduct = new Map();
+
+  if (config.enabled && config.readyToWear?.enabled) {
+    for (const item of items) {
+      if (item.discountExempt) continue;
+      const isCustom = Boolean(item.isCustom || item.customDesignId);
+      const isReadyToWear = item.sellingMode === "ready_to_wear" && !isCustom && !item.isDtf;
+      if (!isReadyToWear) continue;
+
+      const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
+      const rawUnitPrice = Math.max(0, Number(item.price || 0));
+      const compareAtPrice = Number(item.compareAtPrice || 0);
+      const saleActive = Number.isFinite(compareAtPrice) && compareAtPrice > rawUnitPrice;
+      const canStackWithSale = config.readyToWear.allowSaleStacking !== false || !saleActive;
+      const productId = String(item.productId || "").trim();
+      if (!canStackWithSale || !productId) continue;
+
+      readyToWearQuantityByProduct.set(
+        productId,
+        Number(readyToWearQuantityByProduct.get(productId) || 0) + quantity,
+      );
+    }
+  }
 
   for (const item of items) {
     const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
@@ -83,7 +106,11 @@ export function calculateCartQuantityDiscount(items = []) {
       const compareAtPrice = Number(item.compareAtPrice || 0);
       const saleActive = Number.isFinite(compareAtPrice) && compareAtPrice > rawUnitPrice;
       const canStackWithSale = config.readyToWear.allowSaleStacking !== false || !saleActive;
-      const readyToWearTier = (config.readyToWear.tiers || []).find((tier) => quantity >= Number(tier?.min || 0) && quantity <= Number(tier?.max || 0));
+      const productId = String(item.productId || "").trim();
+      const tierQuantity = canStackWithSale && productId
+        ? Number(readyToWearQuantityByProduct.get(productId) || quantity)
+        : quantity;
+      const readyToWearTier = (config.readyToWear.tiers || []).find((tier) => tierQuantity >= Number(tier?.min || 0) && tierQuantity <= Number(tier?.max || 0));
       const percent = canStackWithSale ? Number(readyToWearTier?.percent || 0) : 0;
       const discountedLine = line * (1 - percent / 100);
       subtotal += line;
