@@ -42,7 +42,7 @@ export default function FinancePurchasing() {
   const suppliers = Array.isArray(data.suppliers) ? data.suppliers : [];
   const activeSuppliers = useMemo(() => suppliers.filter((s) => s.status === "active"), [suppliers]);
   const purchaseOrders = Array.isArray(data.purchaseOrders) ? data.purchaseOrders : [];
-  const openPos = useMemo(() => purchaseOrders.filter((po) => po.status !== "cancelled"), [purchaseOrders]);
+  const openPos = useMemo(() => purchaseOrders.filter((po) => po.status === "draft" || po.status === "approved"), [purchaseOrders]);
   const cancelledPos = useMemo(() => purchaseOrders.filter((po) => po.status === "cancelled"), [purchaseOrders]);
   const summary = data.summary || {};
 
