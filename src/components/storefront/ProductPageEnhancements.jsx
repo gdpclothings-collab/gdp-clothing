@@ -12,7 +12,10 @@ const PRODUCT_SCHEMA_ID = "gdp-product-structured-data";
 function routeProductKey(pathname) {
   const normalized = String(pathname || "").replace(/\/+$/, "");
   const slugMatch = normalized.match(/^\/products\/([^/]+)$/);
-  if (slugMatch) return { kind: "slug", value: decodeURIComponent(slugMatch[1]) };
+  if (slugMatch) {
+    const slug = decodeURIComponent(slugMatch[1]);
+    return slug === "dtf-gang-sheet" ? null : { kind: "slug", value: slug };
+  }
   const idMatch = normalized.match(/^\/product\/([^/]+)$/);
   if (idMatch) return { kind: "id", value: decodeURIComponent(idMatch[1]) };
   return null;
@@ -25,6 +28,16 @@ function ensureMeta(selector, attributes) {
     document.head.appendChild(element);
   }
   Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+}
+
+function ensureCanonical(href) {
+  let canonical = document.head.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement("link");
+    canonical.setAttribute("rel", "canonical");
+    document.head.appendChild(canonical);
+  }
+  canonical.setAttribute("href", href);
 }
 
 function ensureProductSchema(payload) {
@@ -104,6 +117,7 @@ export default function ProductPageEnhancements() {
       : "https://schema.org/InStock";
 
     document.title = title;
+    ensureCanonical(canonicalUrl);
     ensureMeta('meta[name="description"]', { name: "description", content: description });
     ensureMeta('meta[property="og:title"]', { property: "og:title", content: title });
     ensureMeta('meta[property="og:description"]', { property: "og:description", content: description });
