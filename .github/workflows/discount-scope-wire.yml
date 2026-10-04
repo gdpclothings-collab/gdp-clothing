@@ -26,8 +26,34 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Repair patch expectation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/_apply_discount_scope_wire.py')
+          text = path.read_text()
+          old = '''    2,\n    "checkout pricing response coupon detail",\n)'''
+          new = '''    1,\n    "checkout pricing response coupon detail",\n)'''
+          if old not in text:
+              raise SystemExit('Could not locate pricing response patch expectation')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Apply targeted discount wiring patch
         run: python3 scripts/_apply_discount_scope_wire.py
+
+      - name: Add coupon details to successful checkout response
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('supabase/functions/checkout/index.ts')
+          text = path.read_text()
+          old = '''      uiMode: "custom",\n      pricing: {\n        subtotal,\n        discount: roundMoney(quantityDiscount + couponAmount),\n        shipping,'''
+          new = '''      uiMode: "custom",\n      pricing: {\n        subtotal,\n        discount: roundMoney(quantityDiscount + couponAmount),\n        couponAmount,\n        couponCode: coupon?.code || null,\n        shipping,'''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected successful pricing response once, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Verify discount rule helpers
         run: |
@@ -67,6 +93,7 @@ jobs:
           grep -q 'This discount code does not apply to the items in your cart' src/pages/CheckoutTwoStep.jsx
           grep -q 'with code' src/pages/ProductDetail.jsx
           grep -q 'discountTargetName' src/components/admin/DiscountsModule.jsx
+          test "$(grep -c 'couponCode: coupon?.code || null' supabase/functions/checkout/index.ts)" -eq 2
 
       - name: Remove temporary patch machinery
         run: |
