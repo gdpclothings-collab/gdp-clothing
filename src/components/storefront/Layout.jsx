@@ -4,6 +4,7 @@ import StoreNav from "./StoreNav";
 import StoreFooter from "./StoreFooter";
 import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
+import ProductPageEnhancements from "./ProductPageEnhancements";
 import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
 import SeasonalStudioRuntimeGuard from "./SeasonalStudioRuntimeGuard";
 import CustomStudioShellEnhancer from "./CustomStudioShellEnhancer";
@@ -24,6 +25,7 @@ export default function Layout() {
     (route) => location.pathname === route || location.pathname.startsWith(`${route}/`)
   );
   const cartActive = location.pathname === "/cart" || location.pathname.startsWith("/cart/");
+  const productActive = /^\/products\/[^/]+\/?$/.test(location.pathname) || /^\/product\/[^/]+\/?$/.test(location.pathname);
 
   useEffect(() => {
     if (!studioActive) return;
@@ -35,6 +37,7 @@ export default function Layout() {
       <StoreNav />
       <main className="flex-1">
         <Outlet />
+        {productActive && <ProductPageEnhancements />}
       </main>
       {studioActive && <SeasonalMobileReviewEnhancer />}
       {studioActive && <SeasonalStudioRuntimeGuard />}
