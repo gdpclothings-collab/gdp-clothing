@@ -119,6 +119,14 @@ export const DEFAULT_APPAREL_PRICING = {
   currency: "CAD",
   customQuoteMinQty: 50,
   allowCouponStacking: true,
+  readyToWear: {
+    enabled: false,
+    allowSaleStacking: true,
+    tiers: [
+      { min: 2, max: 2, percent: 10 },
+      { min: 3, max: 999, percent: 15 },
+    ],
+  },
   products: {
     tshirt: {
       front: { 1: 34.99, 2: 64.99, 5: 149.99, 10: 279.99 },
@@ -226,6 +234,26 @@ export function normalizeApparelPricing(raw = {}) {
   next.customQuoteMinQty = Math.max(1, Math.floor(Number(raw?.customQuoteMinQty || 50)));
   next.enabled = raw?.enabled !== false;
   next.allowCouponStacking = raw?.allowCouponStacking !== false;
+
+  const rawReadyToWear = raw?.readyToWear || {};
+  const readyToWearTiers = Array.isArray(rawReadyToWear?.tiers) && rawReadyToWear.tiers.length
+    ? rawReadyToWear.tiers
+    : DEFAULT_APPAREL_PRICING.readyToWear.tiers;
+  next.readyToWear = {
+    enabled: rawReadyToWear.enabled === true,
+    allowSaleStacking: rawReadyToWear.allowSaleStacking !== false,
+    tiers: readyToWearTiers
+      .map((tier) => {
+        const min = Math.max(1, Math.floor(Number(tier?.min || 1)));
+        return {
+          min,
+          max: Math.max(min, Math.floor(Number(tier?.max || tier?.min || min))),
+          percent: Math.min(95, Math.max(0, Number(tier?.percent || 0))),
+        };
+      })
+      .sort((a, b) => a.min - b.min),
+  };
+
   next.currency = "CAD";
   next.sourcing = normalizeGarmentSourcing(raw?.sourcing || {});
   return next;
@@ -255,4 +283,17 @@ export function getVolumePercent(config, quantity) {
   const qty = Math.floor(Number(quantity || 1));
   const tier = normalized.tiers.find((row) => qty >= row.min && qty <= row.max);
   return Number(tier?.percent || 0);
+}
+
+export function getReadyToWearPercent(config, quantity) {
+  const normalized = normalizeApparelPricing(config);
+  if (!normalized.enabled || !normalized.readyToWear?.enabled) return 0;
+  const qty = Math.max(1, Math.floor(Number(quantity || 1)));
+  const tier = normalized.readyToWear.tiers.find((row) => qty >= row.min && qty <= row.max);
+  return Number(tier?.percent || 0);
+}
+
+export function getReadyToWearTiers(config) {
+  const normalized = normalizeApparelPricing(config);
+  return (normalized.readyToWear?.tiers || []).map((tier) => ({ ...tier }));
 }

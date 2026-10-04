@@ -50,7 +50,7 @@ replaceOnce(
 replaceOnce(
   "src/lib/cartPricing.js",
   `  const factor = eligibleSubtotal > 0\n    ? afterDiscount / Math.max(eligibleSubtotal + exemptSubtotal, 0.01)\n    : 1;\n\n  return {`,
-  `  const factor = eligibleSubtotal > 0\n    ? afterDiscount / Math.max(eligibleSubtotal + exemptSubtotal, 0.01)\n    : 1;\n  readyToWearDiscount = round(readyToWearDiscount);\n  const readyToWearOnly = readyToWearDiscount > 0 && readyToWearDiscount === discount;\n  const sortedReadyToWearPercents = [...readyToWearPercents].sort((a, b) => a - b);\n  const label = discount <= 0\n    ? ""\n    : readyToWearOnly\n      ? `Ready-to-wear Buy More & Save applied${sortedReadyToWearPercents.length === 1 ? ` · ${sortedReadyToWearPercents[0]}% off` : ""}`\n      : readyToWearDiscount > 0\n        ? "GDP quantity savings applied"\n        : "GDP bundle / volume pricing applied";\n\n  return {`,
+  `  const factor = eligibleSubtotal > 0\n    ? afterDiscount / Math.max(eligibleSubtotal + exemptSubtotal, 0.01)\n    : 1;\n  readyToWearDiscount = round(readyToWearDiscount);\n  const readyToWearOnly = readyToWearDiscount > 0 && readyToWearDiscount === discount;\n  const sortedReadyToWearPercents = [...readyToWearPercents].sort((a, b) => a - b);\n  const label = discount <= 0\n    ? ""\n    : readyToWearOnly\n      ? "Ready-to-wear Buy More & Save applied" + (sortedReadyToWearPercents.length === 1 ? " · " + sortedReadyToWearPercents[0] + "% off" : "")\n      : readyToWearDiscount > 0\n        ? "GDP quantity savings applied"\n        : "GDP bundle / volume pricing applied";\n\n  return {`,
 );
 
 replaceOnce(

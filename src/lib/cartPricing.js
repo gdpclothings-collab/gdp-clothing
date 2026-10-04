@@ -3,6 +3,7 @@ import {
   apparelPlacementKey,
   apparelProductKey,
   getExactBundlePrice,
+  getReadyToWearPercent,
   getVolumePercent,
   normalizeApparelPricing,
 } from "./apparelPricing.js";
@@ -56,6 +57,8 @@ export function calculateCartQuantityDiscount(items = []) {
   let exemptSubtotal = 0;
   let eligibleCount = 0;
   let requiresQuote = false;
+  let readyToWearDiscount = 0;
+  const readyToWearPercents = new Set();
 
   for (const item of items) {
     const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
@@ -70,10 +73,29 @@ export function calculateCartQuantityDiscount(items = []) {
     }
 
     const isCustom = Boolean(item.isCustom || item.customDesignId);
+    const isReadyToWear = item.sellingMode === "ready_to_wear" && !isCustom && !item.isDtf;
     const productKey = isCustom
       ? apparelProductKey(item.productType || item.variant || "", item.name || "")
       : null;
     const placement = apparelPlacementKey(item.placement || "front");
+
+    if (config.enabled && isReadyToWear && config.readyToWear?.enabled) {
+      const line = rawUnitPrice * quantity;
+      const compareAtPrice = Number(item.compareAtPrice || 0);
+      const saleActive = Number.isFinite(compareAtPrice) && compareAtPrice > rawUnitPrice;
+      const canStackWithSale = config.readyToWear.allowSaleStacking !== false || !saleActive;
+      const percent = canStackWithSale ? getReadyToWearPercent(config, quantity) : 0;
+      const discountedLine = line * (1 - percent / 100);
+      subtotal += line;
+      afterDiscount += discountedLine;
+      eligibleSubtotal += line;
+      eligibleCount += quantity;
+      if (percent > 0) {
+        readyToWearDiscount += Math.max(0, line - discountedLine);
+        readyToWearPercents.add(percent);
+      }
+      continue;
+    }
 
     if (!config.enabled || !productKey) {
       const line = rawUnitPrice * quantity;
@@ -116,6 +138,16 @@ export function calculateCartQuantityDiscount(items = []) {
   const factor = eligibleSubtotal > 0
     ? afterDiscount / Math.max(eligibleSubtotal + exemptSubtotal, 0.01)
     : 1;
+  readyToWearDiscount = round(readyToWearDiscount);
+  const readyToWearOnly = readyToWearDiscount > 0 && readyToWearDiscount === discount;
+  const sortedReadyToWearPercents = [...readyToWearPercents].sort((a, b) => a - b);
+  const label = discount <= 0
+    ? ""
+    : readyToWearOnly
+      ? "Ready-to-wear Buy More & Save applied" + (sortedReadyToWearPercents.length === 1 ? " · " + sortedReadyToWearPercents[0] + "% off" : "")
+      : readyToWearDiscount > 0
+        ? "GDP quantity savings applied"
+        : "GDP bundle / volume pricing applied";
 
   return {
     subtotal,
@@ -127,6 +159,8 @@ export function calculateCartQuantityDiscount(items = []) {
     factor,
     requiresQuote,
     customQuoteMinQty: Number(config.customQuoteMinQty || 50),
-    label: discount > 0 ? "GDP bundle / volume pricing applied" : "",
+    readyToWearDiscount,
+    readyToWearPercents: sortedReadyToWearPercents,
+    label,
   };
 }
