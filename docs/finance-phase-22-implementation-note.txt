@@ -1,1 +1,0 @@
-Phase 22 implementation is isolated to the general ledger foundation and does not modify checkout, Stripe payment flow, inventory quantities, Custom Studio, shipping, or existing operational Finance calculations.
