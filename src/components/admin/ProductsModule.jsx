@@ -57,6 +57,8 @@ const RESERVED_PRODUCT_METAFIELDS = new Set([
   "audience",
   "sleeve_type",
   "neck_style",
+  "size_guide_note",
+  "size_guide_rows",
 ]);
 
 const slugify = (value) =>
@@ -548,9 +550,6 @@ export default function ProductsModule() {
                         <a
                           href={`/products/${product.slug}`}
                           onClick={(event) => {
-                            // Preserve the existing in-admin editor on a normal click while
-                            // leaving the element as a real link for right-click, middle-click,
-                            // Ctrl/Cmd-click and browser "Open link in new tab/window" actions.
                             if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                               event.preventDefault();
                               setEditor({ mode: "edit", product });
@@ -707,6 +706,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     audience: productMetafields.audience || "",
     sleeveType: productMetafields.sleeve_type || "",
     neckStyle: productMetafields.neck_style || "",
+    sizeGuideNote: productMetafields.size_guide_note || "",
+    sizeGuideRows: productMetafields.size_guide_rows || "",
     status: product?.status || "draft",
     type: product?.type || "",
     category: product?.category || "",
@@ -1466,6 +1467,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
         audience: form.audience,
         sleeve_type: form.sleeveType,
         neck_style: form.neckStyle,
+        size_guide_note: form.sizeGuideNote,
+        size_guide_rows: form.sizeGuideRows,
       };
       for (const [key, value] of Object.entries(structuredMetafields)) {
         const cleanValue = String(value || "").trim();
@@ -1667,7 +1670,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
           missing_color: display.missingColor,
           missing_view: display.missingView,
           missing_alt: display.missingAlt,
-          unassigned: display.unassigned,
+          unassigned: !display.fullyAssigned,
           studio_mapped: display.studioMapped,
         }[mediaFilters.assignment];
         if (!matches) return false;
@@ -2427,6 +2430,29 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       <option value="Other">Other</option>
                     </select>
                   </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Size guide note" helper="Customer-facing fit or measuring guidance shown in the PDP Size Guide.">
+                      <textarea
+                        value={form.sizeGuideNote}
+                        onChange={(event) => set("sizeGuideNote", event.target.value)}
+                        className={textareaClass}
+                        rows={3}
+                        placeholder="For the best fit, compare these garment measurements with a similar item you already own."
+                      />
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Field label="Measurement chart" helper="Use | between columns. First line is the header; add one size per line. Leave blank to keep the table unpublished.">
+                      <textarea
+                        value={form.sizeGuideRows}
+                        onChange={(event) => set("sizeGuideRows", event.target.value)}
+                        className={`${textareaClass} font-mono`}
+                        rows={7}
+                        spellCheck={false}
+                        placeholder={"Size | Width (in) | Length (in)\nS | 18 | 28\nM | 20 | 29\nL | 22 | 30\nXL | 24 | 31"}
+                      />
+                    </Field>
+                  </div>
                 </div>
               </EditorSection>
 
@@ -3006,10 +3032,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                   <div className="text-[11px] leading-5 text-[#777]">
                     Use the generated garment silhouette, or select an uploaded product image as the front/back mockup. Print-area values are percentages of the mockup canvas.
                   </div>
-                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-5 text-blue-800">
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-[11px] leading-5 text-blue-800">
                     Global Custom Studio behavior, print-side visibility and print-side pricing are managed from <strong>Admin → Custom Studio → Settings</strong>. This product section only controls garment-specific preview media and print-area mapping.
                   </div>
-                   <Field label="Front mockup" helper="Optional">
+                  <Field label="Front mockup" helper="Optional">
                     <select
                       value={form.customization?.preview?.frontMockupUrl || ""}
                       onChange={(event) => setPreviewConfig("frontMockupUrl", event.target.value)}
@@ -3021,7 +3047,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       ))}
                     </select>
                   </Field>
-                   <Field label="Back mockup" helper="Optional">
+                  <Field label="Back mockup" helper="Optional">
                     <select
                       value={form.customization?.preview?.backMockupUrl || ""}
                       onChange={(event) => setPreviewConfig("backMockupUrl", event.target.value)}
@@ -3033,7 +3059,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                       ))}
                     </select>
                   </Field>
-                   {customStudioColors.length > 0 && (
+                  {customStudioColors.length > 0 && (
                     <div className="rounded-lg border border-[#e2e2e2] bg-white overflow-hidden">
                       <div className="px-3 py-2.5 border-b border-[#eeeeee] bg-[#fafafa]">
                         <div className="text-xs font-semibold">Color-specific preview media</div>
@@ -3163,7 +3189,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                     sizes={customStudioSizes}
                   />
 
-                   <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
                     <div className="text-xs font-semibold">Front printable area</div>
                     <div className="text-[10px] text-[#777] mt-0.5">Percent values position the guide on the garment mockup. Editing any value automatically switches the Front side to a custom preview box.</div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
@@ -3179,7 +3205,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                     </div>
                   </div>
 
-                   <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
+                  <div className="rounded-lg border border-[#e2e2e2] bg-[#fafafa] p-3">
                     <div className="text-xs font-semibold">Back printable area</div>
                     <div className="text-[10px] text-[#777] mt-0.5">Percent values position the guide on the garment mockup. Editing any value automatically switches the Back side to a custom preview box.</div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
@@ -3195,13 +3221,11 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                     </div>
                   </div>
 
-                   <div className="text-[10px] leading-4 text-[#888]">
+                  <div className="text-[10px] leading-4 text-[#888]">
                     Tip: keep the guide inside the real printable chest/back area. Customers can move and scale artwork within this zone, while the original uploaded files remain preserved for production.
                   </div>
                 </EditorSection>
               )}
-
-
 
               <EditorSection title="Advanced metafields">
                 <div className="flex items-center justify-between gap-3">
