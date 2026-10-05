@@ -79,6 +79,9 @@ export default function TaxFilingControls() {
   const registrationRows = Array.isArray(data?.registrations) ? data.registrations : [];
   const periods = Array.isArray(data?.periods) ? data.periods : [];
   const registrationByType = useMemo(() => new Map(registrationRows.map((row) => [row.taxType, row])), [registrationRows]);
+  const collectionMismatchCount = Number(data?.summary?.collectionMismatchCount || 0);
+  const checkoutCollectionTaxTypes = Number(data?.summary?.checkoutCollectionTaxTypes || 0);
+  const collectionAlignmentComplete = Boolean(data?.summary?.collectionAlignmentComplete);
 
   const patchRegistration = (taxType, key, value) => {
     setRegistrations((current) => ({ ...current, [taxType]: { ...current[taxType], [key]: value } }));
@@ -179,6 +182,20 @@ export default function TaxFilingControls() {
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
 
+        {!loading && collectionMismatchCount > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-950 flex gap-2">
+            <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+            <div><span className="font-semibold">Tax collection needs registration review.</span> Checkout is configured to collect {collectionMismatchCount === 1 ? "a tax type" : `${collectionMismatchCount} tax types`} that does not currently match the Finance registration setup. Customer tax calculation has not been changed. Verify the real registration details below before preparing or filing tax periods.</div>
+          </div>
+        )}
+
+        {!loading && collectionAlignmentComplete && checkoutCollectionTaxTypes > 0 && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900 flex gap-2">
+            <CheckCircle2 size={15} className="shrink-0 mt-0.5" />
+            <div><span className="font-semibold">Checkout tax collection is aligned.</span> Finance registration controls match the tax types currently configured for customer checkout.</div>
+          </div>
+        )}
+
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-950 flex gap-2">
           <LockKeyhole size={15} className="shrink-0 mt-0.5" />
           <div><span className="font-semibold">Account numbers stay masked after save.</span> Leaving the account-number field blank on a later edit keeps the saved number. “Mark filed” only records a filing completed outside GDP.</div>
@@ -253,14 +270,30 @@ export default function TaxFilingControls() {
 
 function RegistrationCard({ taxType, current, form, onChange, onSave, saving, loading }) {
   const configured = Boolean(current?.ready);
+  const alignmentIssue = Boolean(current?.alignmentIssue);
   const statusLabel = configured ? "Configured" : current?.registered ? "Needs setup" : "Not registered";
   const statusClass = configured ? "bg-emerald-100 text-emerald-800" : current?.registered ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
+  const alignmentText = current?.alignmentStatus === "collecting_unregistered"
+    ? "Checkout is collecting this tax, but Finance is marked not registered."
+    : current?.alignmentStatus === "registration_incomplete"
+      ? "Checkout is collecting this tax, but the Finance registration setup is incomplete."
+      : current?.alignmentStatus === "registered_not_collecting"
+        ? "Finance is marked registered, but checkout is not configured to collect this tax."
+        : current?.alignmentStatus === "aligned"
+          ? "Checkout collection and Finance registration are aligned."
+          : "Checkout is not configured to collect this tax.";
   return (
-    <div className="rounded-lg border border-[#e2e2e2] p-4">
+    <div className={`rounded-lg border p-4 ${alignmentIssue ? "border-amber-300" : "border-[#e2e2e2]"}`}>
       <div className="flex items-start justify-between gap-3">
         <div><div className="font-semibold text-sm">{TAX_LABELS[taxType]}</div><div className="text-xs text-[#777] mt-0.5">{current?.hasAccountNumber ? `Saved account: ${current.accountNumberMasked}` : "No account number saved"}</div></div>
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClass}`}>{statusLabel}</span>
       </div>
+      {current && (
+        <div className={`mt-3 rounded-md px-2.5 py-2 text-[11px] flex gap-1.5 ${alignmentIssue ? "bg-amber-50 text-amber-900" : current.checkoutCollectionEnabled ? "bg-emerald-50 text-emerald-800" : "bg-slate-50 text-slate-700"}`}>
+          {alignmentIssue ? <AlertTriangle size={12} className="shrink-0 mt-0.5" /> : current.checkoutCollectionEnabled ? <CheckCircle2 size={12} className="shrink-0 mt-0.5" /> : null}
+          <div><span className="font-semibold">Checkout collection: {current.checkoutCollectionEnabled ? "Enabled" : "Not configured"}.</span> {alignmentText}</div>
+        </div>
+      )}
       <label className="mt-3 inline-flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={form.registered} onChange={(e) => onChange("registered", e.target.checked)} /> Registered</label>
       <div className="grid sm:grid-cols-2 gap-3 mt-3">
         <Field label="Account number"><input value={form.accountNumber} onChange={(e) => onChange("accountNumber", e.target.value)} disabled={!form.registered} placeholder={current?.hasAccountNumber ? `${current.accountNumberMasked} · leave blank to keep` : "Enter account number"} className="input-control disabled:bg-[#f5f5f5]" autoComplete="off" /></Field>
