@@ -1,0 +1,1 @@
+Fast-start scope: frontend checkout timing only. No Finance/Cash Flow, tax, inventory, webhook, or payment-confirmation authority changes.
