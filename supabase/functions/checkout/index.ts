@@ -1098,6 +1098,26 @@ Deno.serve(async (req: Request) => {
     }
 
 
+    if (action === "acceptCheckoutPolicies") {
+      const orderNumber = String(body?.orderNumber || "").trim();
+      const confirmationToken = String(body?.confirmationToken || "").trim();
+      const checkoutSessionToken = String(body?.checkoutSessionToken || "").trim();
+      if (!orderNumber || !uuidRe.test(confirmationToken) || !uuidRe.test(checkoutSessionToken)) return respond(req, { error: true, message: "Checkout policy acceptance could not be verified." }, 400);
+      const { data: order, error: orderError } = await service.from("orders").select("id,user_id,customer_email,payment_status").eq("order_number", orderNumber).eq("confirmation_token", confirmationToken).maybeSingle();
+      if (orderError) throw orderError;
+      if (!order || order.payment_status !== "pending") return respond(req, { error: true, message: "This checkout is no longer awaiting payment." }, 409);
+      const { data: tracked, error: trackedError } = await service.from("checkout_sessions").select("converted_order_id").eq("session_token", checkoutSessionToken).eq("converted_order_id", order.id).maybeSingle();
+      if (trackedError) throw trackedError;
+      if (!tracked) return respond(req, { error: true, message: "Checkout policy acceptance could not be verified." }, 403);
+      const { data: existing, error: existingError } = await service.from("policy_acceptances").select("policy_key").eq("order_id", order.id).eq("source", "checkout").in("policy_key", ["terms_conditions", "privacy_policy"]);
+      if (existingError) throw existingError;
+      const present = new Set((existing || []).map((row: any) => String(row.policy_key || "")));
+      const acceptedAt = new Date().toISOString();
+      const rows = ["terms_conditions", "privacy_policy"].filter((policyKey) => !present.has(policyKey)).map((policyKey) => ({ user_id: order.user_id || null, email: order.customer_email, order_id: order.id, policy_key: policyKey, policy_version: "2026-09-07", source: "checkout", accepted_at: acceptedAt }));
+      if (rows.length) { const { error: insertError } = await service.from("policy_acceptances").insert(rows); if (insertError) throw insertError; }
+      return respond(req, { success: true, acceptedAt });
+    }
+
     if (action === "trackCheckout") {
       const user = await optionalUser(req, supabaseUrl, anonKey);
       const incomingToken = String(body?.sessionToken || "").trim();
@@ -1207,9 +1227,6 @@ Deno.serve(async (req: Request) => {
       return respond(req, { error: true, message: "Enter a valid Canadian postal code in the format A1A 1A1." }, 400);
     }
 
-    if (customer.termsAccepted !== true) {
-      return respond(req, { error: true, message: "Accept the Terms & Conditions and Privacy Policy before checkout." }, 400);
-    }
 
     customer.email = customerEmail.toLowerCase();
     customer.country = "Canada";
@@ -1720,29 +1737,13 @@ Deno.serve(async (req: Request) => {
 
     if (orderError) throw orderError;
 
-    const acceptedAt = new Date().toISOString();
-    const { error: policyAcceptanceError } = await service.from("policy_acceptances").insert([
-      {
-        user_id: user?.id || null,
-        email: user?.email || customer.email,
-        order_id: order.id,
-        policy_key: "terms_conditions",
-        policy_version: "2026-09-07",
-        source: "checkout",
-        accepted_at: acceptedAt,
-      },
-      {
-        user_id: user?.id || null,
-        email: user?.email || customer.email,
-        order_id: order.id,
-        policy_key: "privacy_policy",
-        policy_version: "2026-09-07",
-        source: "checkout",
-        accepted_at: acceptedAt,
-      },
-    ]);
-    if (policyAcceptanceError) {
-      console.error("checkout policy acceptance audit failed", policyAcceptanceError);
+    if (customer.termsAccepted === true) {
+      const acceptedAt = new Date().toISOString();
+      const { error: policyAcceptanceError } = await service.from("policy_acceptances").insert([
+        { user_id: user?.id || null, email: user?.email || customer.email, order_id: order.id, policy_key: "terms_conditions", policy_version: "2026-09-07", source: "checkout", accepted_at: acceptedAt },
+        { user_id: user?.id || null, email: user?.email || customer.email, order_id: order.id, policy_key: "privacy_policy", policy_version: "2026-09-07", source: "checkout", accepted_at: acceptedAt },
+      ]);
+      if (policyAcceptanceError) console.error("checkout policy acceptance audit failed", policyAcceptanceError);
     }
 
     if (customer.marketingConsent === true) {
