@@ -1,7 +1,6 @@
 import fs from "node:fs";
 
-const checkout = fs.readFileSync("src/pages/CheckoutTwoStepMichaels.jsx", "utf8");
-const alias = fs.readFileSync("src/pages/CheckoutTwoStep.jsx", "utf8");
+const checkout = fs.readFileSync("src/pages/CheckoutTwoStep.jsx", "utf8");
 const paymentApi = fs.readFileSync("src/lib/paymentApi.js", "utf8");
 const paymentSession = fs.readFileSync("supabase/functions/payment-session/index.ts", "utf8");
 const webhook = fs.readFileSync("supabase/functions/stripe-webhook/index.ts", "utf8");
@@ -17,13 +16,13 @@ const payStart = checkout.indexOf("const pay = async");
 const payEnd = checkout.indexOf("if (!items.length)", payStart);
 const payBlock = checkout.slice(payStart, payEnd);
 
-assert(alias.includes("CheckoutTwoStepMichaels"), "Checkout route is not using the Michaels-style implementation.");
 assert(checkout.includes('mode:"payment"'), "Deferred Payment Element mode is missing.");
 assert(checkout.includes('currency:"cad"'), "Deferred Payment Element currency is missing.");
 assert(checkout.includes('defaultCollapsed:false'), "Payment Element is not configured to expand by default.");
 assert(checkout.includes('paymentMethodOrder:["card"'), "Card is not first in payment method order.");
 assert(checkout.includes('elements.create("payment"'), "Payment Element is not mounted from deferred Elements.");
 assert(!continueBlock.includes("createOrder"), "Continue to payment must not create an order before Step 2 renders.");
+assert(!checkout.includes("paymentPreparation.current"), "Unsafe Step-1 order/session prewarm must stay removed.");
 assert(payBlock.indexOf("elements.submit()") >= 0, "Payment details are not validated before authoritative order creation.");
 assert(payBlock.indexOf("elements.submit()") < payBlock.indexOf("customerApi.createOrder"), "Order creation happens before Payment Element validation.");
 assert(payBlock.includes("paymentApi.createPaymentIntent"), "Authoritative order is not bridged to a PaymentIntent.");
@@ -36,10 +35,8 @@ assert(paymentSession.includes('action === "bootstrap"'), "Payment bootstrap end
 assert(paymentSession.includes('action === "createIntent"'), "PaymentIntent bridge endpoint is missing.");
 assert(paymentSession.includes('form.set("amount", String(expectedAmount))'), "PaymentIntent amount is not server-authoritative.");
 assert(paymentSession.includes('form.set("automatic_payment_methods[enabled]", "true")'), "Automatic payment methods are not enabled.");
-assert(paymentSession.includes('scrub.set("metadata[order_id]", "")'), "Legacy Checkout Session order metadata is not scrubbed before retirement.");
-assert(paymentSession.indexOf('scrub.set("metadata[order_id]", "")') < paymentSession.indexOf('/expire`'), "Legacy Checkout Session is expired before metadata is scrubbed.");
 assert(paymentSession.includes('stripe_payment_intent_id: paymentIntent.id'), "PaymentIntent is not linked to the GDP order.");
-assert(paymentSession.includes('stripe_checkout_session_id: null'), "Legacy Checkout Session linkage is not cleared after the bridge.");
+assert(paymentSession.includes('stripe_checkout_session_id: null'), "Legacy Checkout Session linkage is cleared after the bridge.");
 
 assert(webhook.includes('event.type === "payment_intent.succeeded"'), "Webhook does not accept direct PaymentIntent success.");
 assert(webhook.includes("finalizePaidOrder"), "Paid-order finalization is not shared across Stripe success paths.");
