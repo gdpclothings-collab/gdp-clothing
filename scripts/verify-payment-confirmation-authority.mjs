@@ -17,10 +17,13 @@ const payBlock = payStart >= 0 && emptyCartStart > payStart
   ? checkout.slice(payStart, emptyCartStart)
   : "";
 
-assert(payBlock.includes("actions.confirm()"), "checkout pay handler must still submit through Stripe");
-assert(!payBlock.includes("clearCart()"), "client confirm result must not clear the cart before server payment verification");
-assert(!payBlock.includes("status=success"), "client confirm result must not manufacture a success URL");
-assert(payBlock.includes("The order page") || payBlock.includes("server-side payment_status"), "checkout must document server payment authority");
+assert(payBlock.includes("paymentClient.elements.submit()"), "checkout must validate the deferred Payment Element before creating the authoritative order");
+assert(payBlock.includes("paymentClient.stripe.confirmPayment"), "checkout pay handler must still submit through Stripe");
+assert(payBlock.includes("await customerApi.acceptCheckoutPolicies"), "checkout policy acceptance must still be recorded before payment confirmation");
+assert(payBlock.indexOf("acceptCheckoutPolicies") < payBlock.indexOf("confirmPayment"), "policy acceptance must occur before Stripe confirmation");
+assert(payBlock.includes("orderData?.paid"), "a resumed checkout must trust the server paid state before treating the order as paid");
+assert(payBlock.indexOf("clearCart()") > payBlock.indexOf("orderData?.paid"), "cart clearing must only occur behind a server-verified paid response");
+assert(payBlock.includes('redirect:"if_required"'), "Stripe confirmation must preserve redirect-capable payment methods");
 
 assert(confirmation.includes('const paid = order?.paymentStatus === "paid"'), "Order Confirmed must depend on server payment_status");
 assert(!confirmation.includes('status === "success"'), "URL success flags must not mark an order paid");
@@ -28,8 +31,11 @@ assert(confirmation.includes("window.setInterval(refresh, 2000)"), "pending redi
 assert(confirmation.includes("if (!paid && <Link") || confirmation.includes("{!paid && <Link"), "unpaid orders must offer a safe return to checkout");
 assert(confirmation.includes("paid && order.items?.some"), "production-ready custom messaging must be paid-only");
 
-assert(webhook.includes('event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded"'), "webhook must handle delayed-payment success");
-assert(webhook.includes('session?.payment_status !== "paid"'), "webhook must not finalize unpaid Checkout Sessions");
-assert(webhook.includes('payment_status: "paid"'), "verified paid sessions must still finalize orders");
+assert(webhook.includes('event.type === "checkout.session.completed"'), "webhook must preserve legacy Checkout Session success handling during migration");
+assert(webhook.includes('event.type === "checkout.session.async_payment_succeeded"'), "webhook must preserve delayed Checkout Session success handling");
+assert(webhook.includes('event.type === "payment_intent.succeeded"'), "webhook must finalize Michaels-style direct PaymentIntent success");
+assert(webhook.includes('paymentObject?.payment_status !== "paid"'), "legacy Checkout Sessions must not finalize before Stripe marks them paid");
+assert(webhook.includes('payment_status: "paid"'), "verified Stripe success must still finalize orders");
+assert(webhook.includes("finalizePaidOrder"), "all verified Stripe success paths must share one paid-order finalizer");
 
 console.log("Payment confirmation authority regression checks passed.");
