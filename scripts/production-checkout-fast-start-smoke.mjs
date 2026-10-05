@@ -20,18 +20,24 @@ async function main() {
   });
 
   const blocked = [];
+  const observedPaymentActions = [];
   await context.route("**/*", async (route) => {
     const request = route.request();
     const method = request.method().toUpperCase();
     const url = request.url();
     const writeMethod = !["GET", "HEAD", "OPTIONS"].includes(method);
+
+    let action = null;
+    try { action = request.postDataJSON()?.action || null; } catch {}
+    if (/\/functions\/v1\/payment-session(?:\?|$|\/)/i.test(url) && action) {
+      observedPaymentActions.push(action);
+    }
+
     const protectedTarget =
       /\/functions\/v1\/checkout(?:-gateway)?(?:\?|$|\/)/i.test(url) ||
       /\/rest\/v1\/(orders|order_items|inventory|inventory_reservations|payments)(?:\?|$|\/)/i.test(url);
 
     if (writeMethod && protectedTarget) {
-      let action = null;
-      try { action = request.postDataJSON()?.action || null; } catch {}
       blocked.push({ method, url, action });
       return route.abort("blockedbyclient");
     }
@@ -79,11 +85,13 @@ async function main() {
     const continueButton = page.getByRole("button", { name: /Continue to payment/i }).first();
     await continueButton.waitFor({ state: "visible" });
     assert(await continueButton.isEnabled(), "Continue to payment did not enable after required checkout fields were completed.");
+
+    const clickStartedAt = Date.now();
     await continueButton.click();
     await page.waitForURL((url) => url.pathname === "/checkout/payment", { timeout: 15000 });
 
     assert((await page.getByText(/Step 2 of 2 · Payment & review/i).count()) > 0, "Checkout did not reach Payment Step 2.");
-    assert((await page.getByText("Credit / Debit Card", { exact: true }).count()) > 0, "Credit / Debit Card option is missing from Payment Step 2.");
+    assert((await page.getByText("Secure payment", { exact: true }).count()) > 0, "Secure payment surface is missing from Payment Step 2.");
     assert((await page.getByText(/Accept the policies above to load secure payment/i).count()) === 0, "Retired policy-gated payment copy is still visible.");
 
     const terms = page.locator('label:has-text("I agree to the") input[type="checkbox"]').first();
@@ -94,10 +102,20 @@ async function main() {
     await payButton.waitFor({ state: "visible" });
     assert(await payButton.isDisabled(), "Pay must remain disabled until payment details are ready and policies are accepted.");
 
-    await page.waitForTimeout(700);
-    const gatewayBlocks = blocked.filter((entry) => /\/functions\/v1\/checkout-gateway(?:\?|$|\/)/i.test(entry.url));
-    assert(gatewayBlocks.length > 0, "Continue to payment did not immediately exercise secure checkout preparation.");
-    assert(new URL(page.url()).pathname === "/checkout/payment", "Checkout unexpectedly left Payment Step 2 during the safe fast-start probe.");
+    await page.waitForFunction(
+      () => !document.body.innerText.includes("Loading secure payment…"),
+      undefined,
+      { timeout: 15000 },
+    );
+    const paymentReadyMs = Date.now() - clickStartedAt;
+
+    assert(observedPaymentActions.includes("bootstrap"), "Payment Step 2 did not bootstrap the deferred Stripe Payment Element.");
+    assert(!observedPaymentActions.includes("createIntent"), "PaymentIntent was created before the customer pressed Pay.");
+
+    await page.waitForTimeout(1200);
+    const checkoutBlocks = blocked.filter((entry) => /\/functions\/v1\/checkout(?:-gateway)?(?:\?|$|\/)/i.test(entry.url));
+    assert(!checkoutBlocks.some((entry) => entry.action === "createOrder"), "An order was created before the customer pressed Pay.");
+    assert(new URL(page.url()).pathname === "/checkout/payment", "Checkout unexpectedly left Payment Step 2 during the safe deferred-payment probe.");
     assert(pageErrors.length === 0, `Uncaught browser errors: ${pageErrors.join(" | ")}`);
 
     await page.screenshot({ path: path.join(ARTIFACT_DIR, "checkout-fast-start-safe.png"), fullPage: true });
@@ -107,12 +125,13 @@ async function main() {
       step: 2,
       termsAccepted: false,
       payEnabled: false,
-      checkoutGatewayWritesBlocked: gatewayBlocks.length,
-      blockedActions: gatewayBlocks.map((entry) => entry.action).filter(Boolean),
-      safety: "No checkout/payment write request left the browser and no charge was attempted.",
+      paymentReadyMs,
+      paymentActions: observedPaymentActions,
+      blockedCheckoutActions: checkoutBlocks.map((entry) => entry.action).filter(Boolean),
+      safety: "Deferred Payment Element rendered before order/PaymentIntent creation; no charge was attempted.",
     }, null, 2));
 
-    console.log("PASS checkout fast-start safe production smoke");
+    console.log(`PASS checkout Michaels-style deferred payment production smoke (${paymentReadyMs}ms to Stripe ready)`);
   } finally {
     await context.close();
     await browser.close();
