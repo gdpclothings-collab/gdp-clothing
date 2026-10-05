@@ -438,8 +438,21 @@ export default function CheckoutTwoStepMichaels() {
             <Section n="02" title="Payment">
               {paymentMode === "test" && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><AlertTriangle size={16} className="inline mr-2" />Payment Test Mode — no real money will be charged.</div>}
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><CreditCard size={19} /> Secure payment</div>
-              {!paymentReady && <div className="min-h-40 rounded-xl border border-border flex items-center justify-center text-sm text-muted-foreground"><Lock size={18} className="mr-2" /> Loading secure payment…</div>}
-              <div ref={paymentHost} className={paymentClient ? "rounded-xl border border-border bg-background p-4 min-h-[180px]" : "h-0 overflow-hidden"} />
+              <div className="relative min-h-[300px] sm:min-h-[280px] rounded-xl bg-muted/20 p-2 sm:p-3">
+                {!paymentReady && <div className="absolute inset-2 sm:inset-3 z-10 rounded-lg bg-background p-3" role="status" aria-live="polite">
+                  <span className="sr-only">Loading secure payment</span>
+                  <div className="animate-pulse space-y-3" aria-hidden="true">
+                    <div className="h-11 rounded-lg bg-muted" />
+                    <div className="h-24 rounded-lg bg-muted" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="h-11 rounded-lg bg-muted" />
+                      <div className="h-11 rounded-lg bg-muted" />
+                    </div>
+                    <div className="h-11 rounded-lg bg-muted" />
+                  </div>
+                </div>}
+                <div ref={paymentHost} className={`min-h-[260px] transition-opacity duration-200 ${paymentReady ? "opacity-100" : "opacity-0 pointer-events-none"}`} />
+              </div>
             </Section>
           </>}
         </main>
@@ -453,7 +466,6 @@ export default function CheckoutTwoStepMichaels() {
           {!isPayment ? <button onClick={continueToPayment} disabled={!detailsComplete} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">Continue to payment →</button> : <>
             <button onClick={pay} disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">{placing ? "Processing order…" : `Pay · $${total.toFixed(2)}`}</button>
             <label className="mt-3 flex items-start gap-3 rounded-xl border border-border p-3 text-xs text-left"><input type="checkbox" checked={!!form.termsAccepted} onChange={(e)=>set("termsAccepted",e.target.checked)} disabled={placing} className="mt-0.5" /><span>I agree to the <Link to="/pages/terms" target="_blank" className="text-accent font-semibold">Terms & Conditions</Link> and acknowledge the <Link to="/pages/privacy" target="_blank" className="text-accent font-semibold">Privacy Policy</Link>.</span></label>
-            <button onClick={editInformation} disabled={placing} className="w-full mt-2 py-2 text-sm font-semibold text-accent hover:underline">← Edit information & delivery</button>
           </>}
           <p className="text-[11px] text-muted-foreground mt-3 text-center"><Lock size={11} className="inline mr-1" />Secure payment fields are provided by Stripe.</p>
         </aside>
