@@ -5,7 +5,7 @@ const edge=fs.readFileSync('supabase/functions/checkout/index.ts','utf8');
 const pay=src.indexOf('Pay · $'); const consent=src.indexOf('I agree to the <Link to="/pages/terms"');
 const checks=[
 ['payment initializes immediately',!src.includes('preparing.current || !form.termsAccepted')],
-['session preparation does not claim acceptance',src.includes('termsAccepted:false }; if (tracking.current')],
+['session preparation does not claim acceptance',src.includes('termsAccepted:false')&&src.includes('customerApi.createOrder(items, checkoutForm')&&!src.includes('termsAccepted:true')],
 ['consent is below Pay',pay>=0&&consent>pay],
 ['Pay still requires consent',src.includes('disabled={placing||!actions||!canConfirm||!form.termsAccepted}')],
 ['consent recorded before Stripe confirm',src.indexOf('await customerApi.acceptCheckoutPolicies')>=0&&src.indexOf('await customerApi.acceptCheckoutPolicies')<src.indexOf('await actions.confirm()')],
