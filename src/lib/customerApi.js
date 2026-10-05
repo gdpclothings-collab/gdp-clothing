@@ -493,6 +493,15 @@ export const customerApi = {
     return data;
   },
 
+  async acceptCheckoutPolicies(orderNumber, confirmationToken, checkoutSessionToken) {
+    const { data, error } = await supabase.functions.invoke("checkout", {
+      body: { action: "acceptCheckoutPolicies", orderNumber, confirmationToken, checkoutSessionToken },
+    });
+    if (error) throw new Error(await functionErrorMessage(error, "Could not record checkout policy acceptance."));
+    if (data?.error || data?.success !== true) throw new Error(data?.message || "Could not record checkout policy acceptance.");
+    return data;
+  },
+
   async createOrder(cart, customer, discountCode, origin, checkoutSessionToken) {
     const { data, error } = await supabase.functions.invoke("checkout-gateway", {
       body: {
