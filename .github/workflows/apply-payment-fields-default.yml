@@ -5,7 +5,7 @@ on:
     branches:
       - fix/payment-fields-default-20261004
     paths:
-      - scripts/apply-payment-fields-default.mjs
+      - scripts/apply-payment-fields-default-v2.mjs
       - .github/workflows/apply-payment-fields-default.yml
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply payment fields default patch
-        run: node scripts/apply-payment-fields-default.mjs
+        run: node scripts/apply-payment-fields-default-v2.mjs
       - name: Verify checkout consent flow
         run: node scripts/verify-checkout-terms-hotfix.mjs
       - name: Install dependencies
