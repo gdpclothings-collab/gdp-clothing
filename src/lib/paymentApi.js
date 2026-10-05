@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 
+let bootstrapPromise = null;
+
 async function functionErrorMessage(error, fallback) {
   try {
     const context = error?.context;
@@ -24,7 +26,14 @@ async function invokePaymentSession(action, body = {}, fallback = "Secure paymen
 
 export const paymentApi = {
   async getBootstrap() {
-    return invokePaymentSession("bootstrap", {}, "Could not load secure payment.");
+    if (!bootstrapPromise) {
+      bootstrapPromise = invokePaymentSession("bootstrap", {}, "Could not load secure payment.")
+        .catch((error) => {
+          bootstrapPromise = null;
+          throw error;
+        });
+    }
+    return bootstrapPromise;
   },
 
   async createPaymentIntent({ orderNumber, confirmationToken, checkoutSessionToken }) {
