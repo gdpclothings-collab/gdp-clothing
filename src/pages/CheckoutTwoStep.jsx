@@ -20,13 +20,26 @@ function initialForm() { const fallback = { email:"",phone:"",firstName:"",lastN
 export default function CheckoutTwoStep() {
   const { items, clearCart } = useCart(); const { user } = useAuth(); const location = useLocation(); const navigate = useNavigate();
   const isPayment = location.pathname === "/checkout/payment"; const tokenKey = scopedStorageKey("gdp_checkout_session_v2", user);
-  const [form, setForm] = useState(initialForm); const [appliedDiscount, setAppliedDiscount] = useState(null); const [config, setConfig] = useState(null); const [error, setError] = useState(""); const [placing, setPlacing] = useState(false); const [actions, setActions] = useState(null); const [canConfirm, setCanConfirm] = useState(false); const [paymentSession, setPaymentSession] = useState(null); const paymentHost = useRef(null); const preparing = useRef(false); const tracking = useRef(null); const trackedToken = useRef(""); const paymentPreparation = useRef(null); const preparedToken = useRef("");
+  const [form, setForm] = useState(initialForm); const [appliedDiscount, setAppliedDiscount] = useState(null); const [config, setConfig] = useState(null); const [error, setError] = useState(""); const [placing, setPlacing] = useState(false); const [actions, setActions] = useState(null); const [canConfirm, setCanConfirm] = useState(false); const [paymentSession, setPaymentSession] = useState(null); const paymentHost = useRef(null); const preparing = useRef(false); const tracking = useRef(null); const trackedToken = useRef(""); const paymentPreparation = useRef(null); const preparedToken = useRef(""); const stepOneWarmStarted = useRef(false);
   useEffect(() => { if (user?.email) setForm(v => v.email ? v : { ...v, email:user.email }); }, [user?.email]);
   useEffect(() => { try { sessionStorage.setItem(FORM_KEY, JSON.stringify(form)); } catch {} }, [form]);
   const pricing = calculateCartQuantityDiscount(items); const subtotal = pricing.subtotal; const quantityDiscount = pricing.discount; const discounted = pricing.afterDiscount; const coupon = appliedDiscount ? Math.max(0, Number(appliedDiscount.amount || 0)) : 0; const afterCoupon = Math.max(0, discounted - coupon); const checkoutPostalCode = normalizePostal(form.postalCode); const checkoutShippingItems = items.map(item => ({ productId:item.productId, amount:Math.max(0, Number(item.price || 0)) * Math.max(1, Number(item.quantity || 1)), quantity:Math.max(1, Number(item.quantity || 1)) })); const checkoutDiscountItems = Object.entries(pricing.discountedByProduct || {}).map(([productId, amount]) => ({ productId, amount:Math.max(0, Number(amount || 0)) })); const checkoutShippingKey = checkoutShippingItems.map(item => `${item.productId}:${Number(item.amount || 0).toFixed(2)}:${Number(item.quantity || 1)}`).sort().join(","); const checkoutConfigKey = `${afterCoupon.toFixed(2)}|${form.province}|${checkoutPostalCode}|${form.shippingMethod}|${appliedDiscount?.type === "free_shipping" ? 1 : 0}|${checkoutShippingKey}`; const activeConfig = config?.requestKey === checkoutConfigKey ? config : null; const fallbackShipping = form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping" ? 0 : (afterCoupon >= 150 ? 0 : 12.99); const shipping = activeConfig?.shipping ?? fallbackShipping; const taxRate = activeConfig?.taxRate ?? (FALLBACK_TAX_RATES[form.province] ?? .05); const tax = activeConfig ? (afterCoupon + ((activeConfig?.taxShipping ?? true) ? shipping : 0)) * taxRate : form.province === "Saskatchewan" ? (afterCoupon + shipping) * 0.05 + afterCoupon * 0.06 : (afterCoupon + shipping) * taxRate; const total = afterCoupon + shipping + tax;
   useEffect(() => { if (!items.length || actions) return; const requestKey = checkoutConfigKey; const timer = setTimeout(async () => { try { const nextConfig = await customerApi.getCheckoutConfig({ amount:afterCoupon, province:form.province, postalCode:checkoutPostalCode, shippingMethod:form.shippingMethod, freeShipping:appliedDiscount?.type === "free_shipping", shippingItems:checkoutShippingItems }); setConfig({ ...nextConfig, requestKey }); } catch { setConfig(v => v?.requestKey === requestKey ? null : v); } }, 180); return () => clearTimeout(timer); }, [items.length, checkoutConfigKey, actions]);
   const set = (key, value) => { setError(""); setForm(v => ({ ...v, [key]:value })); }; const detailsComplete = Boolean(form.email && form.firstName && form.lastName && form.address && form.city && normalizePostal(form.postalCode));
   const ensureToken = (fresh = false) => { let token = ""; try { token = fresh ? "" : localStorage.getItem(tokenKey) || ""; } catch {} if (!token) token = crypto.randomUUID(); try { localStorage.setItem(tokenKey, token); } catch {} return token; };
+  useEffect(() => {
+    if (isPayment || !items.length || isIframe || stepOneWarmStarted.current) return;
+    stepOneWarmStarted.current = true;
+    const token = ensureToken(true);
+    const checkoutForm = { ...form, postalCode:normalizePostal(form.postalCode), country:"Canada", termsAccepted:false };
+    trackedToken.current = token;
+    const promise = customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token).catch((e) => {
+      if (trackedToken.current === token) { tracking.current = null; trackedToken.current = ""; }
+      throw e;
+    });
+    tracking.current = promise;
+    promise.catch(() => {});
+  }, [isPayment, items.length]);
   const applyCoupon = async () => {
     if (!form.discountCode) return;
     setError("");
@@ -51,37 +64,30 @@ export default function CheckoutTwoStep() {
     const next = { ...form, postalCode, country:"Canada", termsAccepted:false };
     setForm(next);
     try { sessionStorage.setItem(FORM_KEY, JSON.stringify(next)); } catch {}
-    tracking.current = null;
-    trackedToken.current = "";
     paymentPreparation.current = null;
     preparedToken.current = "";
-    const token = ensureToken(true);
+    const token = ensureToken();
     const checkoutForm = { ...next, termsAccepted:false };
-    trackedToken.current = token;
     preparedToken.current = token;
-    const trackPromise = customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token).catch((e) => {
-      if (trackedToken.current === token) { tracking.current = null; trackedToken.current = ""; }
-      throw e;
-    });
-    tracking.current = trackPromise;
     const prepPromise = (async () => {
-      await trackPromise;
+      if (tracking.current && trackedToken.current === token) await tracking.current;
+      else await customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token);
       return customerApi.createOrder(items, checkoutForm, checkoutForm.discountCode, window.location.origin, token);
     })();
     paymentPreparation.current = prepPromise;
     prepPromise.catch(() => {});
     navigate("/checkout/payment");
   };
-  const editInformation = () => { tracking.current = null; trackedToken.current = ""; paymentPreparation.current = null; preparedToken.current = ""; ensureToken(true); setActions(null); setCanConfirm(false); setPaymentSession(null); preparing.current = false; setError(""); setForm(v => ({ ...v, termsAccepted:false })); navigate("/checkout"); };
-  const beginCheckoutTracking = () => { if (!isPayment || !items.length || !detailsComplete || isIframe) return Promise.resolve(); const token = ensureToken(); if (tracking.current && trackedToken.current === token) return tracking.current; const checkoutForm = { ...form, postalCode:normalizePostal(form.postalCode), country:"Canada", termsAccepted:false }; trackedToken.current = token; const promise = customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token).catch((e) => { if (trackedToken.current === token) { tracking.current = null; trackedToken.current = ""; } throw e; }); tracking.current = promise; return promise; };
-  useEffect(() => { if (!isPayment || !items.length || actions || !detailsComplete || isIframe) return; beginCheckoutTracking().catch(() => {}); }, [isPayment, items.length, actions, detailsComplete]);
+  const editInformation = () => { tracking.current = null; trackedToken.current = ""; paymentPreparation.current = null; preparedToken.current = ""; stepOneWarmStarted.current = false; ensureToken(true); setActions(null); setCanConfirm(false); setPaymentSession(null); preparing.current = false; setError(""); setForm(v => ({ ...v, termsAccepted:false })); navigate("/checkout"); };
+  const beginCheckoutTracking = () => { if (!isPayment || !items.length || !detailsComplete || isIframe || paymentPreparation.current) return Promise.resolve(); const token = ensureToken(); if (tracking.current && trackedToken.current === token) return tracking.current; const checkoutForm = { ...form, postalCode:normalizePostal(form.postalCode), country:"Canada", termsAccepted:false }; trackedToken.current = token; const promise = customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token).catch((e) => { if (trackedToken.current === token) { tracking.current = null; trackedToken.current = ""; } throw e; }); tracking.current = promise; return promise; };
+  useEffect(() => { if (!isPayment || !items.length || actions || !detailsComplete || isIframe || paymentPreparation.current) return; beginCheckoutTracking().catch(() => {}); }, [isPayment, items.length, actions, detailsComplete]);
   useEffect(() => { if (!isPayment || !items.length || actions || preparing.current) return; if (!detailsComplete) { navigate("/checkout", { replace:true }); return; } if (isIframe) { setError("Checkout works only from the published app. Open the app in a new tab to complete payment."); return; } preparing.current = true; (async () => { setPlacing(true); setError(""); try { const token = ensureToken(); const checkoutForm = { ...form, postalCode:normalizePostal(form.postalCode), country:"Canada", termsAccepted:false }; let data; if (paymentPreparation.current && preparedToken.current === token) data = await paymentPreparation.current; else { if (tracking.current && trackedToken.current === token) await tracking.current; else await customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token); data = await customerApi.createOrder(items, checkoutForm, checkoutForm.discountCode, window.location.origin, token); } if (data?.paid && data?.orderNumber) { clearCart(); const t = data.confirmationToken ? `?token=${encodeURIComponent(data.confirmationToken)}` : ""; navigate(`/order/${data.orderNumber}${t}`, { replace:true }); return; } if (data?.error) throw new Error(data.message || "Order could not be prepared. Please try again."); if (!data?.configured || !data?.clientSecret || !data?.publishableKey) throw new Error("Secure payment is temporarily unavailable. No charge was attempted."); if (data?.pricing) {
       setConfig(v => ({ ...(v?.requestKey === checkoutConfigKey ? v : {}), requestKey:checkoutConfigKey, shipping:Number(data.pricing.shipping || 0), taxRate:Number(data.pricing.taxRate || 0), taxName:data.pricing.taxName || (v?.requestKey === checkoutConfigKey ? v?.taxName : null) || "Tax" }));
       if (form.discountCode) {
         if (data.pricing.couponCode) setAppliedDiscount(current => current ? { ...current, amount:Number(data.pricing.couponAmount || 0) } : current);
         else setAppliedDiscount(null);
       }
-    } const stripe = await loadStripe(data.publishableKey); if (!stripe) throw new Error("Stripe.js could not load."); const checkout = stripe.initCheckoutElementsSdk({ clientSecret:data.clientSecret }); const loaded = await checkout.loadActions(); if (loaded.type !== "success") throw new Error(loaded.error?.message || "Stripe payment form could not initialize."); const element = checkout.createPaymentElement(); element.mount(paymentHost.current); checkout.on("change", session => setCanConfirm(Boolean(session?.canConfirm))); setCanConfirm(Boolean(loaded.actions.getSession()?.canConfirm)); setActions(loaded.actions); setPaymentSession({ orderNumber:data.orderNumber, confirmationToken:data.confirmationToken, paymentMode:data.paymentMode === "test" ? "test" : "live" }); } catch (e) { setError(e?.message || "Could not load secure payment. Please try again."); paymentPreparation.current = null; preparedToken.current = ""; preparing.current = false; } finally { setPlacing(false); } })(); }, [isPayment, items.length, actions, detailsComplete]);
+    } const stripe = await loadStripe(data.publishableKey); if (!stripe) throw new Error("Stripe.js could not load."); const checkout = stripe.initCheckoutElementsSdk({ clientSecret:data.clientSecret }); const loaded = await checkout.loadActions(); if (loaded.type !== "success") throw new Error(loaded.error?.message || "Stripe payment form could not initialize."); const element = checkout.createPaymentElement({ layout:{ type:"accordion", defaultCollapsed:false } }); element.mount(paymentHost.current); checkout.on("change", session => setCanConfirm(Boolean(session?.canConfirm))); setCanConfirm(Boolean(loaded.actions.getSession()?.canConfirm)); setActions(loaded.actions); setPaymentSession({ orderNumber:data.orderNumber, confirmationToken:data.confirmationToken, paymentMode:data.paymentMode === "test" ? "test" : "live" }); } catch (e) { setError(e?.message || "Could not load secure payment. Please try again."); paymentPreparation.current = null; preparedToken.current = ""; preparing.current = false; } finally { setPlacing(false); } })(); }, [isPayment, items.length, actions, detailsComplete]);
   const pay = async () => {
     setError("");
     if (!form.termsAccepted) return setError("Accept the Terms & Conditions and acknowledge the Privacy Policy to place your order.");
