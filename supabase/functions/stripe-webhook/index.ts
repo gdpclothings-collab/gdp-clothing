@@ -22,7 +22,6 @@ async function verifyStripeSignature(rawBody: string, signatureHeader: string, s
   const parts = signatureHeader.split(",").map((part) => part.trim());
   const timestamp = parts.find((part) => part.startsWith("t="))?.slice(2);
   const signatures = parts.filter((part) => part.startsWith("v1=")).map((part) => part.slice(3));
-
   if (!timestamp || !signatures.length) return false;
 
   const age = Math.abs(Date.now() / 1000 - Number(timestamp));
@@ -35,27 +34,19 @@ async function verifyStripeSignature(rawBody: string, signatureHeader: string, s
     false,
     ["sign"],
   );
-
   const digest = await crypto.subtle.sign(
     "HMAC",
     key,
     new TextEncoder().encode(`${timestamp}.${rawBody}`),
   );
-
   const expected = hex(digest);
   return signatures.some((sig) => timingSafeEqual(expected, sig));
 }
 
 async function releaseCheckoutReservations(service: any, orderId: string, status = "released") {
   const [inventory, coupon] = await Promise.all([
-    service.rpc("release_order_inventory_reservations", {
-      p_order_id: orderId,
-      p_status: status,
-    }),
-    service.rpc("release_order_coupon_reservation", {
-      p_order_id: orderId,
-      p_status: status,
-    }),
+    service.rpc("release_order_inventory_reservations", { p_order_id: orderId, p_status: status }),
+    service.rpc("release_order_coupon_reservation", { p_order_id: orderId, p_status: status }),
   ]);
   if (inventory.error) console.error("inventory reservation release failed", inventory.error);
   if (coupon.error) console.error("coupon reservation release failed", coupon.error);
@@ -107,6 +98,156 @@ async function resetUnpaidCustomOrderState(service: any, orderId: string) {
   if (checkoutError) throw checkoutError;
 }
 
+async function finalizePaidOrder(
+  service: any,
+  orderId: string,
+  matchedMode: "live" | "test",
+  paymentIntentId: string | null,
+) {
+  const { data: orderRecord, error: orderRecordError } = await service
+    .from("orders")
+    .select("payment_mode,test_inventory_workflow")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (orderRecordError) throw orderRecordError;
+  if (!orderRecord || orderRecord.payment_mode !== matchedMode) {
+    throw new Error("Payment environment mismatch.");
+  }
+
+  const applyCommerceWorkflow = matchedMode === "live" || Boolean(orderRecord.test_inventory_workflow);
+  const { data: items, error: itemError } = await service
+    .from("order_items")
+    .select("is_custom,custom_design_id")
+    .eq("order_id", orderId);
+  if (itemError) throw itemError;
+
+  const hasCustom = (items || []).some((item: any) => item.is_custom);
+  const customDesignIds = [...new Set(
+    (items || [])
+      .filter((item: any) => item.is_custom && item.custom_design_id)
+      .map((item: any) => item.custom_design_id),
+  )];
+
+  let productionReady = false;
+  let readyDesignIds: string[] = [];
+  if (customDesignIds.length) {
+    const { data: designs, error: designError } = await service
+      .from("custom_designs")
+      .select("id,render_status,locked_hash,customer_approved_at,production_files,seasonal_artwork_id")
+      .in("id", customDesignIds);
+    if (designError) throw designError;
+
+    readyDesignIds = (designs || [])
+      .filter((design: any) => Boolean(design.seasonal_artwork_id) || (
+        design.render_status === "locked" &&
+        design.customer_approved_at &&
+        /^[0-9a-f]{64}$/.test(String(design.locked_hash || "")) &&
+        design.production_files &&
+        Object.keys(design.production_files).length > 0
+      ))
+      .map((design: any) => design.id);
+    productionReady = readyDesignIds.length === customDesignIds.length;
+  }
+
+  const nextStatus = matchedMode === "test"
+    ? "paid"
+    : hasCustom
+      ? (productionReady ? "production_queue" : "artwork_needed")
+      : "paid";
+
+  if (customDesignIds.length) {
+    const paidAt = new Date().toISOString();
+    const { data: finalizedGuestSessions, error: guestFinalizeError } = await service
+      .from("guest_design_sessions")
+      .update({ converted_at: paidAt, updated_at: paidAt })
+      .eq("converted_order_id", orderId)
+      .is("converted_at", null)
+      .select("design_id");
+    if (guestFinalizeError) throw guestFinalizeError;
+
+    const finalizedGuestIds = (finalizedGuestSessions || []).map((row: any) => row.design_id);
+    if (finalizedGuestIds.length) {
+      const { error: guestDesignError } = await service
+        .from("custom_designs")
+        .update({ order_id: orderId, status: "ordered" })
+        .in("id", finalizedGuestIds);
+      if (guestDesignError) throw guestDesignError;
+    }
+  }
+
+  const { error: orderUpdateError } = await service
+    .from("orders")
+    .update({
+      payment_status: "paid",
+      status: nextStatus,
+      design_status: matchedMode === "test" ? "not_required" : hasCustom ? (productionReady ? "approved" : "artwork_needed") : "not_required",
+      production_status: matchedMode === "test" ? "not_started" : productionReady ? "queued" : "not_started",
+      fulfillment_status: "unfulfilled",
+      stripe_payment_intent_id: paymentIntentId || null,
+    })
+    .eq("id", orderId);
+  if (orderUpdateError) throw orderUpdateError;
+
+  const { error: checkoutCleanupError } = await service
+    .from("checkout_sessions")
+    .update({
+      status: "converted",
+      stripe_client_secret: null,
+      processing_started_at: null,
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("converted_order_id", orderId);
+  if (checkoutCleanupError) console.error("checkout secret cleanup failed", checkoutCleanupError);
+
+  if (matchedMode === "live" && productionReady && readyDesignIds.length) {
+    await service
+      .from("custom_designs")
+      .update({ status: "in_production" })
+      .in("id", readyDesignIds);
+  } else if (matchedMode === "live" && hasCustom) {
+    await service
+      .from("design_proofs")
+      .update({ status: "pending" })
+      .eq("order_id", orderId)
+      .eq("status", "pending");
+  }
+
+  const { data: inventoryResult, error: inventoryError } = applyCommerceWorkflow
+    ? await service.rpc("apply_paid_order_inventory", { p_order_id: orderId })
+    : { data: { shortages: [] }, error: null };
+
+  const shortages = Array.isArray(inventoryResult?.shortages) ? inventoryResult.shortages : [];
+
+  const { error: couponError } = applyCommerceWorkflow
+    ? await service.rpc("redeem_order_coupon", { p_order_id: orderId })
+    : { error: null };
+  if (couponError) console.error("paid-order coupon redemption requires attention", couponError);
+
+  if (inventoryError || shortages.length) {
+    console.error("paid-order inventory allocation requires attention", inventoryError || shortages);
+
+    const { data: currentOrder } = await service
+      .from("orders")
+      .select("notes")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    const detail = inventoryError
+      ? inventoryError.message
+      : `${shortages.length} paid line item(s) could not be allocated from an online-fulfillment location.`;
+    const existingNotes = String(currentOrder?.notes || "").trim();
+    const inventoryNote = `Inventory attention: ${detail}`;
+
+    await service
+      .from("orders")
+      .update({
+        priority: "due_soon",
+        notes: existingNotes ? `${existingNotes}\n${inventoryNote}` : inventoryNote,
+      })
+      .eq("id", orderId);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
@@ -124,18 +265,13 @@ Deno.serve(async (req: Request) => {
     return respond({ error: "Invalid JSON." }, 400);
   }
 
-  if (typeof event?.livemode !== "boolean") {
-    return respond({ error: "Stripe event mode is missing." }, 400);
-  }
+  if (typeof event?.livemode !== "boolean") return respond({ error: "Stripe event mode is missing." }, 400);
 
   const matchedMode: "live" | "test" = event.livemode ? "live" : "test";
   const webhookSecret = matchedMode === "live" ? liveWebhookSecret : testWebhookSecret;
-  if (!webhookSecret) {
-    return respond({ error: `Stripe ${matchedMode} webhook is not configured.` }, 503);
-  }
+  if (!webhookSecret) return respond({ error: `Stripe ${matchedMode} webhook is not configured.` }, 503);
 
-  const signatureValid = await verifyStripeSignature(rawBody, signature, webhookSecret);
-  if (!signatureValid) {
+  if (!await verifyStripeSignature(rawBody, signature, webhookSecret)) {
     return respond({ error: "Invalid Stripe signature." }, 400);
   }
 
@@ -146,168 +282,24 @@ Deno.serve(async (req: Request) => {
   });
 
   try {
-    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-      const session = event.data.object;
-      const orderId = session?.metadata?.order_id;
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded" ||
+      event.type === "payment_intent.succeeded"
+    ) {
+      const paymentObject = event.data.object;
+      const isPaymentIntent = event.type === "payment_intent.succeeded";
+      const orderId = paymentObject?.metadata?.order_id;
 
-      // Some payment methods complete the Checkout flow before funds are
-      // actually confirmed. Only a Stripe session whose payment_status is
-      // explicitly paid may release production/inventory/coupon workflows.
-      if (session?.payment_status !== "paid") {
+      if (!isPaymentIntent && paymentObject?.payment_status !== "paid") {
         return respond({ received: true, payment_pending: true });
       }
 
       if (orderId) {
-        const { data: orderRecord, error: orderRecordError } = await service
-          .from("orders")
-          .select("payment_mode,test_inventory_workflow")
-          .eq("id", orderId)
-          .maybeSingle();
-        if (orderRecordError) throw orderRecordError;
-        if (!orderRecord || orderRecord.payment_mode !== matchedMode || Boolean(event.livemode) !== (matchedMode === "live")) {
-          return respond({ error: "Payment environment mismatch." }, 409);
-        }
-
-        const applyCommerceWorkflow = matchedMode === "live" || Boolean(orderRecord.test_inventory_workflow);
-        const { data: items, error: itemError } = await service
-          .from("order_items")
-          .select("is_custom,custom_design_id")
-          .eq("order_id", orderId);
-        if (itemError) throw itemError;
-
-        const hasCustom = (items || []).some((item: any) => item.is_custom);
-        const customDesignIds = [...new Set(
-          (items || [])
-            .filter((item: any) => item.is_custom && item.custom_design_id)
-            .map((item: any) => item.custom_design_id)
-        )];
-        let productionReady = false;
-        let readyDesignIds: string[] = [];
-        if (customDesignIds.length) {
-          const { data: designs, error: designError } = await service
-            .from("custom_designs")
-            .select("id,render_status,locked_hash,customer_approved_at,production_files,seasonal_artwork_id")
-            .in("id", customDesignIds);
-          if (designError) throw designError;
-          readyDesignIds = (designs || [])
-            .filter((design: any) => Boolean(design.seasonal_artwork_id) || (
-              design.render_status === "locked" &&
-              design.customer_approved_at &&
-              /^[0-9a-f]{64}$/.test(String(design.locked_hash || "")) &&
-              design.production_files &&
-              Object.keys(design.production_files).length > 0
-            ))
-            .map((design: any) => design.id);
-          productionReady = readyDesignIds.length === customDesignIds.length;
-        }
-        const nextStatus = matchedMode === "test" ? "paid" : hasCustom ? (productionReady ? "production_queue" : "artwork_needed") : "paid";
-
-        // Finalize guest custom designs only after Stripe has confirmed payment.
-        // The converted_order_id predicate prevents an older abandoned/retried
-        // checkout from consuming a design currently reserved by a newer one.
-        if (customDesignIds.length) {
-          const paidAt = new Date().toISOString();
-          const { data: finalizedGuestSessions, error: guestFinalizeError } = await service
-            .from("guest_design_sessions")
-            .update({ converted_at: paidAt, updated_at: paidAt })
-            .eq("converted_order_id", orderId)
-            .is("converted_at", null)
-            .select("design_id");
-          if (guestFinalizeError) throw guestFinalizeError;
-
-          const finalizedGuestIds = (finalizedGuestSessions || []).map((row: any) => row.design_id);
-          if (finalizedGuestIds.length) {
-            const { error: guestDesignError } = await service
-              .from("custom_designs")
-              .update({ order_id: orderId, status: "ordered" })
-              .in("id", finalizedGuestIds);
-            if (guestDesignError) throw guestDesignError;
-          }
-        }
-
-        const { error } = await service
-          .from("orders")
-          .update({
-            payment_status: "paid",
-            status: nextStatus,
-            design_status: matchedMode === "test" ? "not_required" : hasCustom ? (productionReady ? "approved" : "artwork_needed") : "not_required",
-            production_status: matchedMode === "test" ? "not_started" : productionReady ? "queued" : "not_started",
-            fulfillment_status: "unfulfilled",
-            stripe_payment_intent_id: session.payment_intent || null,
-          })
-          .eq("id", orderId);
-        if (error) throw error;
-
-        const { error: checkoutCleanupError } = await service
-          .from("checkout_sessions")
-          .update({
-            status: "converted",
-            stripe_client_secret: null,
-            processing_started_at: null,
-            last_activity_at: new Date().toISOString(),
-          })
-          .eq("converted_order_id", orderId);
-        if (checkoutCleanupError) console.error("checkout secret cleanup failed", checkoutCleanupError);
-
-        if (matchedMode === "live" && productionReady && readyDesignIds.length) {
-          await service
-            .from("custom_designs")
-            .update({ status: "in_production" })
-            .in("id", readyDesignIds);
-        } else if (matchedMode === "live" && hasCustom) {
-          await service
-            .from("design_proofs")
-            .update({ status: "pending" })
-            .eq("order_id", orderId)
-            .eq("status", "pending");
-        }
-
-        // Allocate tracked variant inventory only after Stripe confirms payment.
-        // The database RPC is idempotent per order item, so webhook retries do
-        // not deduct stock twice.
-        const { data: inventoryResult, error: inventoryError } = applyCommerceWorkflow
-          ? await service.rpc("apply_paid_order_inventory", { p_order_id: orderId })
-          : { data: { shortages: [] }, error: null };
-
-        const shortages = Array.isArray(inventoryResult?.shortages)
-          ? inventoryResult.shortages
-          : [];
-
-        const { error: couponError } = applyCommerceWorkflow
-          ? await service.rpc("redeem_order_coupon", { p_order_id: orderId })
-          : { error: null };
-        if (couponError) {
-          console.error("paid-order coupon redemption requires attention", couponError);
-        }
-
-        if (inventoryError || shortages.length) {
-          console.error(
-            "paid-order inventory allocation requires attention",
-            inventoryError || shortages
-          );
-
-          const { data: currentOrder } = await service
-            .from("orders")
-            .select("notes")
-            .eq("id", orderId)
-            .maybeSingle();
-
-          const detail = inventoryError
-            ? inventoryError.message
-            : `${shortages.length} paid line item(s) could not be allocated from an online-fulfillment location.`;
-          const existingNotes = String(currentOrder?.notes || "").trim();
-          const inventoryNote = `Inventory attention: ${detail}`;
-
-          await service
-            .from("orders")
-            .update({
-              priority: "due_soon",
-              notes: existingNotes
-                ? `${existingNotes}\n${inventoryNote}`
-                : inventoryNote,
-            })
-            .eq("id", orderId);
-        }
+        const paymentIntentId = isPaymentIntent
+          ? String(paymentObject.id || "") || null
+          : String(paymentObject.payment_intent || "") || null;
+        await finalizePaidOrder(service, String(orderId), matchedMode, paymentIntentId);
       }
     }
 
@@ -319,11 +311,7 @@ Deno.serve(async (req: Request) => {
         await resetUnpaidCustomOrderState(service, orderId);
         await service
           .from("orders")
-          .update({
-            payment_status: "failed",
-            status: "payment_failed",
-            fulfillment_status: "unfulfilled",
-          })
+          .update({ payment_status: "failed", status: "payment_failed", fulfillment_status: "unfulfilled" })
           .eq("id", orderId)
           .eq("payment_status", "pending");
       }
@@ -351,8 +339,8 @@ Deno.serve(async (req: Request) => {
       const intent = event.data.object;
       const orderId = intent?.metadata?.order_id;
       if (orderId) {
-        // A failed attempt inside an open Checkout Session is retryable. Keep
-        // the inventory/coupon reservation until the session actually expires.
+        // Both legacy Checkout-backed and Michaels-style direct PaymentIntent
+        // failures remain retryable until the checkout itself is abandoned.
         await service
           .from("orders")
           .update({
@@ -394,6 +382,7 @@ Deno.serve(async (req: Request) => {
     return respond({ received: true });
   } catch (error) {
     console.error("stripe webhook processing error", error);
-    return respond({ error: error?.message || "Webhook processing failed." }, 500);
+    const message = error instanceof Error ? error.message : "Webhook processing failed.";
+    return respond({ error: message }, message === "Payment environment mismatch." ? 409 : 500);
   }
 });
