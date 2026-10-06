@@ -1,12 +1,15 @@
 
 import assert from "node:assert/strict";
+import { getAssistantResponse } from "../src/components/storefront/gdpAssistantKnowledge.js";
 import {
+  adaptWebsiteAssistantResponse,
   findExplicitProductMention,
   formatDiscountLine,
   isProductSellable,
   normalizeText,
   scoreKnowledge,
   selectProductMatches,
+  toMessengerQuickReplies,
   verifyMetaSignature,
 } from "../functions/api/messenger.js";
 
@@ -119,6 +122,47 @@ assert.match(
   discountLine,
   /gdpclothing\.ca\/products\/sometimes-all-we-need-is-a-hug-adult-short-sleeve-tee/,
   "Product-specific discounts should include the product link.",
+);
+
+const websiteCustom = getAssistantResponse("Can you help me make a custom shirt?", "");
+assert.equal(
+  websiteCustom.intentId,
+  "custom-overview",
+  "Messenger should inherit the website assistant's natural custom-design routing.",
+);
+
+const websiteDtf = getAssistantResponse("I need help arranging a gangsheet", "");
+assert.equal(
+  websiteDtf.intentId,
+  "gangsheet-builder",
+  "Messenger should inherit the website assistant's DTF/gang-sheet routing.",
+);
+
+const websiteSize = getAssistantResponse("I am between sizes, what should I pick?", "");
+assert.equal(
+  websiteSize.intentId,
+  "size",
+  "Messenger should inherit the website assistant's sizing routing.",
+);
+
+const adapted = adaptWebsiteAssistantResponse(
+  {
+    intentId: "custom-overview",
+    text: "Open the studio.",
+    action: { label: "Open Custom Studio", path: "/custom-studio" },
+    suggestions: ["How do the editing tools work?"],
+  },
+  { website_url: "https://gdpclothing.ca" },
+);
+assert.match(
+  adapted.text,
+  /https:\/\/gdpclothing\.ca\/custom-studio/,
+  "Website assistant actions must become usable Messenger links.",
+);
+assert.equal(
+  toMessengerQuickReplies([], true).map((item) => item.title).join("|"),
+  "Custom design|DTF printing|Find my size|Order help",
+  "Messenger greeting should expose the same popular-question topics as the website assistant.",
 );
 
 const secret = "gdp-messenger-test-secret";
