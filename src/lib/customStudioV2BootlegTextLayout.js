@@ -301,6 +301,7 @@ export function constrainBootlegTextStyleToCanvas({
 }) {
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
+  const boundaryInset = Math.max(0.5, Math.min(safeWidth, safeHeight) * 0.0005);
   const requestedScale = positive(style.fontScale, 100);
   const requestedX = clamp(style.canvasX ?? 50, 0, 100);
   const requestedY = clamp(style.canvasY ?? 50, 0, 100);
@@ -322,8 +323,8 @@ export function constrainBootlegTextStyleToCanvas({
   const fits = (layout) => {
     const relative = layout?.relativeBounds;
     if (!relative) return true;
-    return (relative.maxX - relative.minX) <= safeWidth + 0.001
-      && (relative.maxY - relative.minY) <= safeHeight + 0.001;
+    return (relative.maxX - relative.minX) <= safeWidth - boundaryInset * 2
+      && (relative.maxY - relative.minY) <= safeHeight - boundaryInset * 2;
   };
 
   let safeScale = requestedScale;
@@ -354,15 +355,19 @@ export function constrainBootlegTextStyleToCanvas({
 
   if (layout?.bounds) {
     const ranges = resolveBootlegAnchorRanges(layout);
+    const xStart = Math.min(ranges.x.start, ranges.x.end) + boundaryInset;
+    const xEnd = Math.max(ranges.x.start, ranges.x.end) - boundaryInset;
+    const yStart = Math.min(ranges.y.start, ranges.y.end) + boundaryInset;
+    const yEnd = Math.max(ranges.y.start, ranges.y.end) - boundaryInset;
     const anchorX = clamp(
       requestedX / 100 * safeWidth,
-      Math.min(ranges.x.start, ranges.x.end),
-      Math.max(ranges.x.start, ranges.x.end),
+      Math.min(xStart, xEnd),
+      Math.max(xStart, xEnd),
     );
     const anchorY = clamp(
       requestedY / 100 * safeHeight,
-      Math.min(ranges.y.start, ranges.y.end),
-      Math.max(ranges.y.start, ranges.y.end),
+      Math.min(yStart, yEnd),
+      Math.max(yStart, yEnd),
     );
     constrainedStyle = {
       ...constrainedStyle,
