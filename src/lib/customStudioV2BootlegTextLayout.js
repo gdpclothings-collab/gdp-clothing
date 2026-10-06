@@ -292,6 +292,15 @@ export function bootlegGestureLimits(layout) {
  * canvas. This is intentionally shared by preview, controls and production so
  * switching tools or reopening an older draft cannot reintroduce text overflow.
  */
+/**
+ * @param {{
+ *   text?: Record<string, any>,
+ *   zone?: Record<string, any>,
+ *   style?: Record<string, any>,
+ *   width: number,
+ *   height: number,
+ * }} options
+ */
 export function constrainBootlegTextStyleToCanvas({
   text = {},
   zone = {},
@@ -299,18 +308,19 @@ export function constrainBootlegTextStyleToCanvas({
   width,
   height,
 }) {
+  const sourceStyle = /** @type {Record<string, any>} */ (style);
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
   const boundaryInset = Math.max(0.5, Math.min(safeWidth, safeHeight) * 0.0005);
-  const requestedScale = positive(style.fontScale, 100);
-  const requestedX = clamp(style.canvasX ?? 50, 0, 100);
-  const requestedY = clamp(style.canvasY ?? 50, 0, 100);
-  const baseStyle = {
-    ...style,
+  const requestedScale = positive(sourceStyle.fontScale, 100);
+  const requestedX = clamp(sourceStyle.canvasX ?? 50, 0, 100);
+  const requestedY = clamp(sourceStyle.canvasY ?? 50, 0, 100);
+  const baseStyle = /** @type {Record<string, any>} */ ({
+    ...sourceStyle,
     fontScale: requestedScale,
     canvasX: requestedX,
     canvasY: requestedY,
-  };
+  });
 
   const probeForScale = (fontScale) => resolveBootlegTextLayout({
     text,
