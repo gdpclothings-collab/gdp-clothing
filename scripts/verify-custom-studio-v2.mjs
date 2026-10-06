@@ -24,6 +24,8 @@ const seasonal = read('src/components/storefront/custom-studio-v2/SeasonalEditor
 const protectedEditor = read('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx');
 const uploadEditor = read('src/components/storefront/custom-studio-v2/UploadArtworkEditorV2.jsx');
 const gestures = read('src/components/storefront/custom-studio-v2/useTouchTransformV2.js');
+const bootlegTextLayout = read('src/lib/customStudioV2BootlegTextLayout.js');
+const bootlegLayerOrder = read('src/components/storefront/custom-studio-v2/photoBootlegLayerOrder.css');
 const v2Guard = read('src/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard.jsx');
 const mobileRepair = read('src/components/storefront/custom-studio-v2/customStudioV2MobileRepair.css');
 const maintenanceRepair = read('src/components/storefront/maintenanceMobileRepair.css');
@@ -127,6 +129,15 @@ assert(protectedEditor.includes('V2_TEXT_EFFECTS'), 'text effects are missing');
 assert(protectedEditor.includes('Move text left / right'), 'direct text positioning controls are missing');
 assert(protectedEditor.includes('Text rotation'), 'text rotation controls are missing');
 assert(protectedEditor.includes('GDP template artwork never becomes an editable layer.'), 'locked-template contract copy is missing');
+
+assert(protectedEditor.includes('PrintAreaTextSizeControl'), 'protected text sizing must use the print-area constrained control');
+assert(!protectedEditor.includes('No preset maximum'), 'protected text must not advertise unbounded sizing');
+assert(protectedEditor.includes('data-gdp-active-layer={usesLayerLab ? activeLayer : undefined}'), 'print guide must expose the active layer for stable hit-testing');
+assert(protectedEditor.includes('zIndex: isBootleg ? 15 : 20'), 'template selection must not raise the Bootleg template above customer photos');
+assert(bootlegTextLayout.includes('constrainBootlegTextStyleToCanvas'), 'shared protected-text print-boundary constraint is missing');
+assert(protectedProduction.includes('constrainBootlegTextStyleToCanvas'), '300-DPI protected production must enforce the same text boundary constraint');
+assert(bootlegLayerOrder.includes('[data-gdp-bootleg-template-layer="true"]'), 'Bootleg template layer-order lock is missing');
+assert(bootlegLayerOrder.includes(':not([data-gdp-active-layer="template"])'), 'sticker recovery must not intercept Template editing');
 
 // Side-aware garment preview must use authoritative color/side metadata first and never fake a back view with a known front image.
 assert(preview.includes('studioV2GarmentPreview'), 'side-aware garment preview helper is missing');
