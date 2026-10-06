@@ -84,6 +84,7 @@ jobs:
           node scripts/verify-checkout-shipping-weight.mjs
           node scripts/verify-seasonal-artwork.mjs
           node scripts/verify-photo-bootleg-desktop.mjs
+          node scripts/verify-storefront-seo-ux.mjs
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund

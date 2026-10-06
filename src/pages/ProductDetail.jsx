@@ -91,6 +91,7 @@ export default function ProductDetail() {
   const [reviews, setReviews] = useState([]);
   const [apparelPricing, setApparelPricing] = useState(() => normalizeApparelPricing({}));
   const [promotions, setPromotions] = useState([]);
+  const [copiedPromotionCode, setCopiedPromotionCode] = useState("");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
@@ -169,6 +170,17 @@ export default function ProductDetail() {
     );
     return () => { active = false; };
   }, [product?.id]);
+
+  useEffect(() => {
+    if (loading) return;
+    let robots = document.head.querySelector('meta[name="robots"]');
+    if (!robots) {
+      robots = document.createElement("meta");
+      robots.setAttribute("name", "robots");
+      document.head.appendChild(robots);
+    }
+    robots.setAttribute("content", product ? "index,follow" : "noindex,follow");
+  }, [loading, product, id, slug]);
 
   useEffect(() => {
     if (product?.slug === "dtf-gang-sheet") {
@@ -286,6 +298,30 @@ export default function ProductDetail() {
     if (!sizeAvailable(nextSize)) return;
     setSize(nextSize);
     setQty(1);
+  };
+
+  const copyPromotionCode = async (code) => {
+    const value = String(code || "").trim();
+    if (!value) return;
+
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+
+    setCopiedPromotionCode(value);
+    window.setTimeout(() => {
+      setCopiedPromotionCode((current) => current === value ? "" : current);
+    }, 1800);
   };
 
   const addToCart = () => {
@@ -433,8 +469,16 @@ export default function ProductDetail() {
                         ? `${formatCad(promotion.value)} off`
                         : "Free shipping";
                     return (
-                      <div key={promotion.code} className="border border-[#e11d2e]/25 bg-[#e11d2e]/[0.06] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-black/70">
-                        <span className="font-black text-[#b51222]">{offer}</span> with code <span className="font-black text-black">{promotion.code}</span>
+                      <div key={promotion.code} className="flex flex-wrap items-center gap-x-2 gap-y-1 border border-[#e11d2e]/25 bg-[#e11d2e]/[0.06] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-black/70">
+                        <span><span className="font-black text-[#b51222]">{offer}</span> with code <span className="font-black text-black">{promotion.code}</span></span>
+                        <button
+                          type="button"
+                          onClick={() => copyPromotionCode(promotion.code)}
+                          className="inline-flex min-h-7 items-center border border-black/15 bg-white px-2 py-1 font-black text-black transition hover:border-black"
+                          aria-label={`Copy discount code ${promotion.code}`}
+                        >
+                          {copiedPromotionCode === promotion.code ? "Copied ✓" : "Copy code"}
+                        </button>
                         {Number(promotion.minPurchase || 0) > 0 && <span className="text-black/45"> · Min {formatCad(promotion.minPurchase)}</span>}
                       </div>
                     );

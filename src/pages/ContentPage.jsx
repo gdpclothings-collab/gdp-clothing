@@ -42,6 +42,17 @@ export default function ContentPage() {
   }, [slug]);
 
   useEffect(() => {
+    if (loading) return;
+    let robots = document.head.querySelector('meta[name="robots"]');
+    if (!robots) {
+      robots = document.createElement("meta");
+      robots.setAttribute("name", "robots");
+      document.head.appendChild(robots);
+    }
+    robots.setAttribute("content", notFound || !page ? "noindex,follow" : "index,follow");
+  }, [loading, notFound, page, slug]);
+
+  useEffect(() => {
     if (!page) return;
     const originalTitle = document.title;
     const title = page.seo?.title || page.title;
