@@ -55,7 +55,7 @@ export function buildSitemapXml(products = []) {
 
 async function fetchActiveProducts(env) {
   const baseUrl = String(env.SUPABASE_URL || env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
-  const key = String(env.SUPABASE_SERVICE_ROLE_KEY || "");
+  const key = String(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || "");
   if (!baseUrl || !key) return [];
 
   const response = await fetch(
