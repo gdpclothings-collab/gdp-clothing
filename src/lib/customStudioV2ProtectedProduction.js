@@ -1,5 +1,5 @@
 import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers';
-import { resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
+import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
@@ -242,18 +242,20 @@ function drawWaveText(context, text, zone, style, widthPx, heightPx) {
 }
 
 function drawBootlegText(context, text = {}, zone = {}, style = {}, widthPx, heightPx) {
-  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, true);
-  const layout = resolveBootlegTextLayout({ text, zone, style, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
+  const constrained = constrainBootlegTextStyleToCanvas({ text, zone, style, width: widthPx, height: heightPx });
+  const safeStyle = /** @type {Record<string, any>} */ (constrained.style);
+  const metrics = resolveTextMetrics(zone, safeStyle, widthPx, heightPx, true);
+  const layout = constrained.layout || resolveBootlegTextLayout({ text, zone, style: safeStyle, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
   const drawItem = (item, weight) => {
     if (!item) return;
     context.save();
     context.translate(item.x, item.y);
     context.rotate(Number(item.rotation || 0) * Math.PI / 180);
-    context.font = `${weight} ${item.fontSize}px ${style.fontFamily || 'Arial, sans-serif'}`;
+    context.font = `${weight} ${item.fontSize}px ${safeStyle.fontFamily || 'Arial, sans-serif'}`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillStyle = style.color || '#ffffff';
-    const effectStyle = { ...style, fontPx: item.fontSize };
+    context.fillStyle = safeStyle.color || '#ffffff';
+    const effectStyle = { ...safeStyle, fontPx: item.fontSize };
     textEffect(context, effectStyle, item.fontSize);
     paintGlyph(context, item.text, 0, 0, effectStyle);
     context.restore();

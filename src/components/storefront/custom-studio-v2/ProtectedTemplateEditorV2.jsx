@@ -28,8 +28,8 @@ import {
   bootlegAnchorToSlider,
   bootlegGestureLimits,
   bootlegSliderToAnchor,
+  constrainBootlegTextStyleToCanvas,
   resolveBootlegAnchorRanges,
-  resolveBootlegTextLayout,
 } from '@/lib/customStudioV2BootlegTextLayout';
 import {
   BOOTLEG_MAX_TEXT_LAYERS,
@@ -64,10 +64,10 @@ function RangeControl({ label, value, min, max, step = 1, suffix = '', onChange 
   );
 }
 
-function UnboundedTextSizeControl({ value, onChange }) {
+function PrintAreaTextSizeControl({ value, onChange }) {
   return (
-    <label className="block" data-gdp-bootleg-text-size="unbounded">
-      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>Text size</span><span>No preset maximum</span></div>
+    <label className="block" data-gdp-bootleg-text-size="print-area-constrained">
+      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>Text size</span><span>Fits print area</span></div>
       <div className="flex min-h-11 items-center overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-slate-500">
         <input
           type="number"
@@ -77,11 +77,11 @@ function UnboundedTextSizeControl({ value, onChange }) {
           value={positiveScale(value)}
           onChange={(event) => onChange(positiveScale(event.target.value))}
           className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm font-black text-slate-800 outline-none"
-          aria-label="Text size percentage with no preset maximum"
+          aria-label="Text size constrained to the printable area"
         />
         <span className="px-3 text-xs font-black text-slate-400">%</span>
       </div>
-      <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">Type any positive size, or pinch the text directly on the print area. Oversized text is allowed and will show a print-area warning if part of it falls outside.</p>
+      <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">Type a size or pinch the text directly. The Studio automatically limits and repositions text so the complete rendered layer stays inside the print area.</p>
     </label>
   );
 }
@@ -467,15 +467,15 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const bootlegTextLayouts = bootlegTextLayers.map((layer) => {
     const style = normalizeBootlegTextStyle(layer.style || {}, fallbackTextStyle);
     const position = resolveBootlegTextPosition(style, textZone);
-    const layout = resolveBootlegTextLayout({
+    const constrained = constrainBootlegTextStyleToCanvas({
       text: layer.text || {},
       zone: textZone,
       style: { ...style, canvasX: position.x, canvasY: position.y },
       width: layoutWidth,
       height: layoutHeight,
     });
-    const previewLayer = /** @type {Record<string, any>} */ ({ ...layer, style });
-    return { layer: previewLayer, layout };
+    const previewLayer = /** @type {Record<string, any>} */ ({ ...layer, style: constrained.style });
+    return { layer: previewLayer, layout: constrained.layout };
   });
 
   const legacyTextGesture = useTouchTransformV2({
@@ -517,7 +517,19 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   };
   const patchBootlegTextStyle = (id, style) => {
     const current = resolveBootlegTextLayers(editor, fallbackTextStyle);
-    const next = current.map((layer) => layer.id === id ? { ...layer, style: normalizeBootlegTextStyle(style, fallbackTextStyle) } : layer);
+    const next = current.map((layer) => {
+      if (layer.id !== id) return layer;
+      const normalized = normalizeBootlegTextStyle(style, fallbackTextStyle);
+      const position = resolveBootlegTextPosition(normalized, textZone);
+      const constrained = constrainBootlegTextStyleToCanvas({
+        text: layer.text || {},
+        zone: textZone,
+        style: { ...normalized, canvasX: position.x, canvasY: position.y },
+        width: layoutWidth,
+        height: layoutHeight,
+      });
+      return { ...layer, style: constrained.style };
+    });
     onPatch(buildBootlegTextStatePatch(editor, next, id, fallbackTextStyle));
   };
 
@@ -534,7 +546,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   );
 
   const bootlegPhotoCanvas = (
-    <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10 }}>
+    <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10, pointerEvents: isBootleg && templateEditing ? 'none' : 'auto' }}>
       {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
       {!photos.length && <div className="absolute grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>Photo zone</div>}
     </div>
@@ -548,7 +560,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     >
       <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
         {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
-        <div ref={canvasRef} data-gdp-print-guide="true" aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
+        <div ref={canvasRef} data-gdp-print-guide="true" data-gdp-active-layer={usesLayerLab ? activeLayer : undefined} aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
           <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
 
           {usesLayerLab ? bootlegPhotoCanvas : photoZone}
@@ -560,7 +572,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
                 data-gdp-bootleg-template-layer={isBootleg ? 'true' : undefined}
                 data-gdp-memorial-template-layer={isMemorial ? 'true' : undefined}
                 className={`absolute inset-0 select-none ${templateEditing ? 'cursor-grab ring-2 ring-cyan-400/90 ring-inset' : 'pointer-events-none'}`}
-                style={{ ...(templateEditing ? templateGesture.style : {}), zIndex: templateEditing ? 45 : 20, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}
+                style={{ ...(templateEditing ? templateGesture.style : {}), zIndex: isBootleg ? 15 : 20, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}
               >
                 <div className="absolute inset-0" style={{ transformOrigin: '50% 50%', transform: `scale(${templateTransform.scale / 100}) rotate(${templateTransform.rotation}deg)` }}>
                   <img src={template.assetUrl} alt="GDP template artwork" draggable="false" className="absolute inset-0 h-full w-full select-none object-fill" />
@@ -583,7 +595,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         </div>
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
-      {isBootleg && bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-amber-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>Part of a text layer is outside the print area. Text size is not limited, but anything outside the dashed print boundary will not be printed.</span></div> : null}
+      {bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
       <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? `${activeLayer === 'template' ? 'Template' : activeLayer === 'photo' ? 'Photo' : activeLayer === 'text' ? 'Text' : 'Sticker'} layer selected · ` : ''}One finger moves · two fingers pinch/rotate · {String(side || 'front').toUpperCase()} side</p>
     </div>
   );
@@ -614,9 +626,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const bootlegTextLayers = isBootleg ? resolveBootlegTextLayers(editor, fallbackBootlegTextStyle) : isMemorial ? resolveMemorialTextLayers(editor, fallbackBootlegTextStyle, textZone) : [];
   const activeTextLayerId = editor.activeTextLayerId || bootlegTextLayers.at(-1)?.id || '';
   const activeTextLayer = bootlegTextLayers.find((layer) => layer.id === activeTextLayerId) || bootlegTextLayers.at(-1) || null;
-  const textStyle = usesLayerLab ? normalizeBootlegTextStyle(activeTextLayer?.style || {}, fallbackBootlegTextStyle) : legacyTextStyle;
+  const rawTextStyle = usesLayerLab ? normalizeBootlegTextStyle(activeTextLayer?.style || {}, fallbackBootlegTextStyle) : legacyTextStyle;
   const textContent = usesLayerLab ? (activeTextLayer?.text || { headline: '', subline: '', message: '' }) : (editor.text || {});
-  const textPosition = resolveBootlegTextPosition(textStyle, textZone);
   const templateTransform = resolveBootlegTemplateTransform(legacyTextStyle);
   const stickerLayers = Array.isArray(editor.stickers) ? editor.stickers : [];
   const activeSticker = stickerLayers.find((layer) => layer.id === editor.activeStickerId) || null;
@@ -624,7 +635,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
-  const textLayout = usesLayerLab && activeTextLayer ? resolveBootlegTextLayout({ text: textContent, zone: textZone, style: { ...textStyle, canvasX: textPosition.x, canvasY: textPosition.y }, width: layoutWidth, height: layoutHeight }) : null;
+  const rawTextPosition = resolveBootlegTextPosition(rawTextStyle, textZone);
+  const textConstraint = usesLayerLab && activeTextLayer ? constrainBootlegTextStyleToCanvas({ text: textContent, zone: textZone, style: { ...rawTextStyle, canvasX: rawTextPosition.x, canvasY: rawTextPosition.y }, width: layoutWidth, height: layoutHeight }) : null;
+  const textStyle = textConstraint?.style || rawTextStyle;
+  const textPosition = resolveBootlegTextPosition(textStyle, textZone);
+  const textLayout = textConstraint?.layout || null;
   const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
   const textXSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
   const textYSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
@@ -863,6 +878,19 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     syncPhotos(photos.map((layer) => layer.id === activePhoto.id ? { ...layer, asset: nextAsset } : layer), activePhoto.id);
   };
 
+  const constrainTextLayer = (layer, nextText = layer?.text || {}, nextStyle = layer?.style || {}) => {
+    const normalized = normalizeBootlegTextStyle(nextStyle, fallbackBootlegTextStyle);
+    const position = resolveBootlegTextPosition(normalized, textZone);
+    const constrained = constrainBootlegTextStyleToCanvas({
+      text: nextText,
+      zone: textZone,
+      style: { ...normalized, canvasX: position.x, canvasY: position.y },
+      width: layoutWidth,
+      height: layoutHeight,
+    });
+    return { ...layer, text: nextText, style: constrained.style };
+  };
+
   const patchText = (patch) => {
     if (!usesLayerLab) {
       onPatch({ text: { ...editor.text, ...patch } });
@@ -870,7 +898,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     }
     if (!activeTextLayer) return;
     setActiveBootlegLayer('text');
-    syncTextLayers(bootlegTextLayers.map((layer) => layer.id === activeTextLayer.id ? { ...layer, text: { ...layer.text, ...patch, subline: '', message: '' } } : layer), activeTextLayer.id);
+    syncTextLayers(bootlegTextLayers.map((layer) => {
+      if (layer.id !== activeTextLayer.id) return layer;
+      const nextText = { ...layer.text, ...patch, subline: '', message: '' };
+      return constrainTextLayer(layer, nextText, layer.style);
+    }), activeTextLayer.id);
   };
   const patchTextStyle = (patch, activateText = true) => {
     if (!usesLayerLab) {
@@ -879,7 +911,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     }
     if (!activeTextLayer) return;
     if (activateText) setActiveBootlegLayer('text');
-    syncTextLayers(bootlegTextLayers.map((layer) => layer.id === activeTextLayer.id ? { ...layer, style: normalizeBootlegTextStyle({ ...layer.style, ...patch }, fallbackBootlegTextStyle) } : layer), activeTextLayer.id);
+    syncTextLayers(bootlegTextLayers.map((layer) => layer.id === activeTextLayer.id
+      ? constrainTextLayer(layer, layer.text, { ...layer.style, ...patch })
+      : layer), activeTextLayer.id);
   };
   const patchTemplateTransform = (patch) => {
     if (usesLayerLab) setActiveBootlegLayer('template');
@@ -1062,10 +1096,10 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         <div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected text</p><p className="text-xs font-black text-slate-700">{activeTextLayer.name}</p></div><span className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white">Text layer active</span></div>
         <label className="block text-xs font-black text-slate-600">Your Text<input value={activeTextLayer.text?.headline || ''} onFocus={() => setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
         <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
-        <UnboundedTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} />
+        <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} />
         <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} />
         <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} />
-        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold leading-4 text-amber-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> Text size remains unlimited. Reposition it or reduce its size if you want every visible letter inside the printable boundary.</div> : null}
+        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">Text is constrained to stay fully inside the printable boundary.</p>}
         <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} />
         {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} /> : null}
       </div> : null}
