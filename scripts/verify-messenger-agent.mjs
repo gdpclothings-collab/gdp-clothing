@@ -1,6 +1,8 @@
 
 import assert from "node:assert/strict";
 import {
+  formatDiscountLine,
+  isProductSellable,
   normalizeText,
   scoreKnowledge,
   selectProductMatches,
@@ -42,6 +44,65 @@ assert.equal(
   selectProductMatches("How much is the hoodie?", products, 3)?.[0]?.slug,
   "adult-pullover-hoodie",
   "Hoodie pricing questions should rank the hoodie first.",
+);
+
+const stockedProductIds = new Set(["in-stock-product"]);
+assert.equal(
+  isProductSellable(
+    { id: "out-of-stock-product", status: "active", track_inventory: true, sell_when_out_of_stock: false },
+    stockedProductIds,
+  ),
+  false,
+  "Tracked products with no stocked active variant must not be recommended.",
+);
+assert.equal(
+  isProductSellable(
+    { id: "in-stock-product", status: "active", track_inventory: true, sell_when_out_of_stock: false },
+    stockedProductIds,
+  ),
+  true,
+  "Tracked products with stock remain eligible.",
+);
+assert.equal(
+  isProductSellable(
+    { id: "backorder-product", status: "active", track_inventory: true, sell_when_out_of_stock: true },
+    new Set(),
+  ),
+  true,
+  "Products explicitly allowed to sell out of stock remain eligible.",
+);
+assert.equal(
+  isProductSellable(
+    { id: "untracked-product", status: "active", track_inventory: false, sell_when_out_of_stock: false },
+    new Set(),
+  ),
+  true,
+  "Products that do not track inventory remain eligible.",
+);
+
+const discountLine = formatDiscountLine(
+  {
+    code: "50OFF",
+    type: "percentage",
+    value: 50,
+    applies_to: "product",
+    min_purchase: 0,
+  },
+  {
+    name: "Sometimes All We Need Is a Hug — Adult Short Sleeve Tee",
+    slug: "sometimes-all-we-need-is-a-hug-adult-short-sleeve-tee",
+  },
+  { website_url: "https://gdpclothing.ca" },
+);
+assert.match(
+  discountLine,
+  /50OFF: 50% off Sometimes All We Need Is a Hug/,
+  "Product-specific discounts must name the eligible product.",
+);
+assert.match(
+  discountLine,
+  /gdpclothing\.ca\/products\/sometimes-all-we-need-is-a-hug-adult-short-sleeve-tee/,
+  "Product-specific discounts should include the product link.",
 );
 
 const secret = "gdp-messenger-test-secret";
