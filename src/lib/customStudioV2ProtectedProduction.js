@@ -243,7 +243,7 @@ function drawWaveText(context, text, zone, style, widthPx, heightPx) {
 
 function drawBootlegText(context, text = {}, zone = {}, style = {}, widthPx, heightPx) {
   const constrained = constrainBootlegTextStyleToCanvas({ text, zone, style, width: widthPx, height: heightPx });
-  const safeStyle = constrained.style;
+  const safeStyle = /** @type {Record<string, any>} */ (constrained.style);
   const metrics = resolveTextMetrics(zone, safeStyle, widthPx, heightPx, true);
   const layout = constrained.layout || resolveBootlegTextLayout({ text, zone, style: safeStyle, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
   const drawItem = (item, weight) => {
