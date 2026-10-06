@@ -653,12 +653,19 @@ function greetingResponse(query) {
 }
 
 function capabilityResponse(query) {
-  if (
-    termMatches(query, "what can you do") ||
-    termMatches(query, "how can you help") ||
-    termMatches(query, "help me") ||
-    termMatches(query, "what can i ask")
-  ) {
+  const genericPrompts = [
+    "what can you do",
+    "how can you help",
+    "how can you help me",
+    "help",
+    "help me",
+    "what can i ask",
+    "what can i ask you",
+  ];
+
+  // Only treat short, generic capability questions as "what can you do?"
+  // so phrases like "help me make a custom shirt" continue into topic routing.
+  if (genericPrompts.some((prompt) => normalize(query) === normalize(prompt))) {
     return {
       intentId: "capabilities",
       text:
