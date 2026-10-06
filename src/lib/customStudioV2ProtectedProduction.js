@@ -1,5 +1,5 @@
 import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers';
-import { resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
+import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
@@ -151,7 +151,7 @@ function textEffect(context, style, baseSize) {
     context.shadowOffsetX = baseSize * (0.04 + strength * 0.035);
     context.shadowOffsetY = baseSize * (0.05 + strength * 0.045);
   } else if (effect === 'glow') {
-    context.shadowColor = style.color || '#ffffff';
+    context.shadowColor = safeStyle.color || '#ffffff';
     context.shadowBlur = Math.max(4, baseSize * (0.15 + strength * 0.3));
   }
 }
@@ -198,10 +198,10 @@ function drawArcText(context, text, zone, style, direction, widthPx, heightPx) {
   const base = direction === 'up' ? -Math.PI / 2 : Math.PI / 2;
   const characters = [...text];
   context.save();
-  context.font = `900 ${fontSize}px ${style.fontFamily || 'Arial, sans-serif'}`;
+  context.font = `900 ${fontSize}px ${safeStyle.fontFamily || 'Arial, sans-serif'}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillStyle = style.color || '#ffffff';
+  context.fillStyle = safeStyle.color || '#ffffff';
   style.fontPx = fontSize;
   textEffect(context, style, fontSize);
   characters.forEach((character, index) => {
@@ -227,8 +227,8 @@ function drawWaveText(context, text, zone, style, widthPx, heightPx) {
   const startX = metrics.x + metrics.width * 0.08 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
   const baselineY = metrics.y + metrics.height * 0.42 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
   context.save();
-  context.font = `900 ${fontSize}px ${style.fontFamily || 'Arial, sans-serif'}`;
-  context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = style.color || '#ffffff';
+  context.font = `900 ${fontSize}px ${safeStyle.fontFamily || 'Arial, sans-serif'}`;
+  context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = safeStyle.color || '#ffffff';
   style.fontPx = fontSize; textEffect(context, style, fontSize);
   chars.forEach((character, index) => {
     const t = chars.length <= 1 ? 0.5 : index / (chars.length - 1);
@@ -242,18 +242,20 @@ function drawWaveText(context, text, zone, style, widthPx, heightPx) {
 }
 
 function drawBootlegText(context, text = {}, zone = {}, style = {}, widthPx, heightPx) {
-  const metrics = resolveTextMetrics(zone, style, widthPx, heightPx, true);
-  const layout = resolveBootlegTextLayout({ text, zone, style, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
+  const constrained = constrainBootlegTextStyleToCanvas({ text, zone, style, width: widthPx, height: heightPx });
+  const safeStyle = constrained.style;
+  const metrics = resolveTextMetrics(zone, safeStyle, widthPx, heightPx, true);
+  const layout = constrained.layout || resolveBootlegTextLayout({ text, zone, style: safeStyle, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
   const drawItem = (item, weight) => {
     if (!item) return;
     context.save();
     context.translate(item.x, item.y);
     context.rotate(Number(item.rotation || 0) * Math.PI / 180);
-    context.font = `${weight} ${item.fontSize}px ${style.fontFamily || 'Arial, sans-serif'}`;
+    context.font = `${weight} ${item.fontSize}px ${safeStyle.fontFamily || 'Arial, sans-serif'}`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillStyle = style.color || '#ffffff';
-    const effectStyle = { ...style, fontPx: item.fontSize };
+    context.fillStyle = safeStyle.color || '#ffffff';
+    const effectStyle = { ...safeStyle, fontPx: item.fontSize };
     textEffect(context, effectStyle, item.fontSize);
     paintGlyph(context, item.text, 0, 0, effectStyle);
     context.restore();
@@ -289,26 +291,26 @@ function drawStyledText(context, text = {}, zone = {}, style = {}, widthPx, heig
     context.save();
     context.translate(headlineX, headlineY);
     context.rotate(clamp(style.rotation || 0, -25, 25) * Math.PI / 180);
-    context.font = `900 ${size}px ${style.fontFamily || 'Arial, sans-serif'}`;
-    context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = style.color || '#ffffff';
+    context.font = `900 ${size}px ${safeStyle.fontFamily || 'Arial, sans-serif'}`;
+    context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = safeStyle.color || '#ffffff';
     style.fontPx = size; textEffect(context, style, size); paintGlyph(context, headline, 0, 0, style, metrics.width * 0.96);
     context.restore();
   }
 
   context.save();
-  context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = style.color || '#ffffff';
+  context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = safeStyle.color || '#ffffff';
   if (subline) {
     const size = Math.max(10, metrics.height * 0.14 * metrics.fontScale / 100);
     const sublineX = metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
     const sublineY = metrics.y + metrics.height * 0.62 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
-    context.font = `700 ${size}px ${style.fontFamily || 'Arial, sans-serif'}`; textEffect(context, style, size);
+    context.font = `700 ${size}px ${safeStyle.fontFamily || 'Arial, sans-serif'}`; textEffect(context, style, size);
     context.fillText(subline, sublineX, sublineY, metrics.width * 0.95);
   }
   if (message) {
     const size = Math.max(9, metrics.height * 0.1 * metrics.fontScale / 100);
     const messageX = metrics.x + metrics.width / 2 + clamp(style.x || 0, -42, 42) / 100 * metrics.width;
     const messageY = metrics.y + metrics.height * 0.84 + clamp(style.y || 0, -42, 42) / 100 * metrics.height;
-    context.font = `600 ${size}px ${style.fontFamily || 'Arial, sans-serif'}`; textEffect(context, style, size);
+    context.font = `600 ${size}px ${safeStyle.fontFamily || 'Arial, sans-serif'}`; textEffect(context, style, size);
     context.fillText(message, messageX, messageY, metrics.width * 0.92);
   }
   context.restore();
