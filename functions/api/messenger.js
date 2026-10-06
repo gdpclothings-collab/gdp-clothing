@@ -435,7 +435,7 @@ async function shippingReply(env) {
   const lines = [];
   if (paid) {
     let line = "Standard shipping: " + money(paid.price);
-    if (paid.max_order != null) line += " for eligible orders under " + money(paid.max_order + 0.01);
+    if (paid.max_order != null) line += " for eligible orders under " + money(Number(paid.max_order) + 0.01);
     if (paid.min_delivery_days && paid.max_delivery_days) {
       line += " (" + paid.min_delivery_days + "–" + paid.max_delivery_days + " delivery days)";
     }
