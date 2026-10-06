@@ -354,7 +354,7 @@ export function constrainBootlegTextStyleToCanvas({
   }
 
   safeScale = Math.max(1, Math.floor(safeScale * 10) / 10);
-  let constrainedStyle = { ...baseStyle, fontScale: safeScale };
+  let constrainedStyle = /** @type {Record<string, any>} */ ({ ...baseStyle, fontScale: safeScale });
   let layout = resolveBootlegTextLayout({
     text,
     zone,
