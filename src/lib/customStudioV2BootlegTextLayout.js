@@ -286,3 +286,104 @@ export function bootlegGestureLimits(layout) {
     maxY: Math.max(...yValues),
   };
 }
+
+/**
+ * Keep a free-positioned Bootleg/Memorial text layer fully inside the printable
+ * canvas. This is intentionally shared by preview, controls and production so
+ * switching tools or reopening an older draft cannot reintroduce text overflow.
+ */
+export function constrainBootlegTextStyleToCanvas({
+  text = {},
+  zone = {},
+  style = {},
+  width,
+  height,
+}) {
+  const safeWidth = Math.max(1, Number(width) || 1);
+  const safeHeight = Math.max(1, Number(height) || 1);
+  const requestedScale = positive(style.fontScale, 100);
+  const requestedX = clamp(style.canvasX ?? 50, 0, 100);
+  const requestedY = clamp(style.canvasY ?? 50, 0, 100);
+  const baseStyle = {
+    ...style,
+    fontScale: requestedScale,
+    canvasX: requestedX,
+    canvasY: requestedY,
+  };
+
+  const probeForScale = (fontScale) => resolveBootlegTextLayout({
+    text,
+    zone,
+    style: { ...baseStyle, fontScale, canvasX: 50, canvasY: 50 },
+    width: safeWidth,
+    height: safeHeight,
+  });
+
+  const fits = (layout) => {
+    const relative = layout?.relativeBounds;
+    if (!relative) return true;
+    return (relative.maxX - relative.minX) <= safeWidth + 0.001
+      && (relative.maxY - relative.minY) <= safeHeight + 0.001;
+  };
+
+  let safeScale = requestedScale;
+  if (!fits(probeForScale(safeScale))) {
+    let low = 1;
+    let high = requestedScale;
+    if (fits(probeForScale(low))) {
+      for (let index = 0; index < 24; index += 1) {
+        const middle = (low + high) / 2;
+        if (fits(probeForScale(middle))) low = middle;
+        else high = middle;
+      }
+      safeScale = low;
+    } else {
+      safeScale = 1;
+    }
+  }
+
+  safeScale = Math.max(1, Math.floor(safeScale * 10) / 10);
+  let constrainedStyle = { ...baseStyle, fontScale: safeScale };
+  let layout = resolveBootlegTextLayout({
+    text,
+    zone,
+    style: constrainedStyle,
+    width: safeWidth,
+    height: safeHeight,
+  });
+
+  if (layout?.bounds) {
+    const ranges = resolveBootlegAnchorRanges(layout);
+    const anchorX = clamp(
+      requestedX / 100 * safeWidth,
+      Math.min(ranges.x.start, ranges.x.end),
+      Math.max(ranges.x.start, ranges.x.end),
+    );
+    const anchorY = clamp(
+      requestedY / 100 * safeHeight,
+      Math.min(ranges.y.start, ranges.y.end),
+      Math.max(ranges.y.start, ranges.y.end),
+    );
+    constrainedStyle = {
+      ...constrainedStyle,
+      canvasX: clamp(anchorX / safeWidth * 100, 0, 100),
+      canvasY: clamp(anchorY / safeHeight * 100, 0, 100),
+    };
+    layout = resolveBootlegTextLayout({
+      text,
+      zone,
+      style: constrainedStyle,
+      width: safeWidth,
+      height: safeHeight,
+    });
+  }
+
+  return {
+    style: constrainedStyle,
+    layout,
+    adjusted:
+      Math.abs(Number(constrainedStyle.fontScale) - requestedScale) > 0.05
+      || Math.abs(Number(constrainedStyle.canvasX) - requestedX) > 0.05
+      || Math.abs(Number(constrainedStyle.canvasY) - requestedY) > 0.05,
+  };
+}
