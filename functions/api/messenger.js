@@ -368,11 +368,42 @@ export function selectProductMatches(message, products, limit = 3) {
     .map((item) => item.product);
 }
 
-async function productReply(env, message, settings) {
-  const products = await supabaseRequest(
+export function isProductSellable(product, stockedProductIds = new Set()) {
+  if (!product) return false;
+  if (product.status && product.status !== "active") return false;
+  if (product.track_inventory !== true) return true;
+  if (product.sell_when_out_of_stock === true) return true;
+  return stockedProductIds.has(product.id);
+}
+
+async function filterSellableProducts(env, products) {
+  const candidates = products || [];
+  const stockTrackedIds = candidates
+    .filter((product) => product?.track_inventory === true && product?.sell_when_out_of_stock !== true)
+    .map((product) => product.id)
+    .filter(Boolean);
+
+  if (!stockTrackedIds.length) {
+    return candidates.filter((product) => isProductSellable(product));
+  }
+
+  const variants = await supabaseRequest(
     env,
-    "products?status=eq.active&select=name,slug,price,compare_at_price,tags,custom_designable&limit=100",
+    "product_variants?active=eq.true&stock=gt.0&product_id=in.(" +
+      stockTrackedIds.map((id) => encodeURIComponent(id)).join(",") +
+      ")&select=product_id&limit=1000",
   );
+  const stockedProductIds = new Set((variants || []).map((variant) => variant.product_id).filter(Boolean));
+
+  return candidates.filter((product) => isProductSellable(product, stockedProductIds));
+}
+
+async function productReply(env, message, settings) {
+  const productRows = await supabaseRequest(
+    env,
+    "products?status=eq.active&select=id,name,slug,price,compare_at_price,tags,custom_designable,status,track_inventory,sell_when_out_of_stock&limit=100",
+  );
+  const products = await filterSellableProducts(env, productRows);
 
   let matches = selectProductMatches(message, products, 3);
 
@@ -467,10 +498,31 @@ async function shippingReply(env) {
     : "Shipping and pickup options are calculated from your order at checkout.";
 }
 
-async function discountReply(env) {
+export function formatDiscountLine(row, product, settings = {}) {
+  const amount = row.type === "percentage"
+    ? Number(row.value).toFixed(0) + "% off"
+    : money(row.value) + " off";
+
+  let line = "Code " + row.code + ": " + amount;
+  if (row.applies_to === "product" && product) {
+    line += " " + product.name;
+    if (product.slug && settings.website_url) {
+      line += "\n" + String(settings.website_url).replace(/\/$/, "") + "/products/" + product.slug;
+    }
+  } else {
+    line += " eligible " + (row.applies_to || "items");
+  }
+
+  if (Number(row.min_purchase || 0) > 0) {
+    line += " (minimum " + money(row.min_purchase) + ")";
+  }
+  return line;
+}
+
+async function discountReply(env, settings) {
   const rows = await supabaseRequest(
     env,
-    "discounts?active=eq.true&select=code,type,value,applies_to,min_purchase,starts_at,ends_at,usage_count,usage_limit&order=created_at.desc&limit=20",
+    "discounts?active=eq.true&select=code,type,value,applies_to,applies_to_id,min_purchase,starts_at,ends_at,usage_count,usage_limit&order=created_at.desc&limit=20",
   );
 
   const now = Date.now();
@@ -487,19 +539,39 @@ async function discountReply(env) {
     return "There isn’t an active public discount code I can confirm right now. Current promotions will appear on eligible GDP Clothing product or checkout pages.";
   }
 
-  const lines = active.slice(0, 3).map((row) => {
-    const amount = row.type === "percentage"
-      ? Number(row.value).toFixed(0) + "% off"
-      : money(row.value) + " off";
-    let line = "Code " + row.code + ": " + amount + " eligible " + (row.applies_to || "items");
-    if (Number(row.min_purchase || 0) > 0) {
-      line += " (minimum " + money(row.min_purchase) + ")";
-    }
-    return line;
+  const productIds = unique(
+    active
+      .filter((row) => row.applies_to === "product" && row.applies_to_id)
+      .map((row) => row.applies_to_id),
+  );
+
+  let productById = new Map();
+  if (productIds.length) {
+    const productRows = await supabaseRequest(
+      env,
+      "products?status=eq.active&id=in.(" +
+        productIds.map((id) => encodeURIComponent(id)).join(",") +
+        ")&select=id,name,slug,status,track_inventory,sell_when_out_of_stock",
+    );
+    const sellableProducts = await filterSellableProducts(env, productRows);
+    productById = new Map(sellableProducts.map((product) => [product.id, product]));
+  }
+
+  const visible = active.filter((row) => {
+    if (row.applies_to !== "product") return true;
+    return Boolean(row.applies_to_id && productById.has(row.applies_to_id));
   });
 
+  if (!visible.length) {
+    return "There isn’t an active public discount code I can confirm for an available product right now. Current promotions will appear on eligible GDP Clothing product or checkout pages.";
+  }
+
+  const lines = visible.slice(0, 3).map((row) =>
+    formatDiscountLine(row, productById.get(row.applies_to_id), settings),
+  );
+
   return "Current active GDP Clothing discount code" + (lines.length > 1 ? "s" : "") + ":\n" +
-    lines.join("\n") +
+    lines.join("\n\n") +
     "\nExact eligibility is confirmed in the cart/checkout.";
 }
 
@@ -536,7 +608,7 @@ async function buildReply(env, message, settings, knowledge) {
   }
 
   if (containsAny(message, ["discount", "promo", "coupon", "sale", "discount code", "promo code"])) {
-    return { text: await discountReply(env), intent: "discounts", handoff: false };
+    return { text: await discountReply(env, settings), intent: "discounts", handoff: false };
   }
 
   if (shouldCheckProducts(message)) {
