@@ -1,6 +1,7 @@
 
 import assert from "node:assert/strict";
 import {
+  findExplicitProductMention,
   formatDiscountLine,
   isProductSellable,
   normalizeText,
@@ -44,6 +45,21 @@ assert.equal(
   selectProductMatches("How much is the hoodie?", products, 3)?.[0]?.slug,
   "adult-pullover-hoodie",
   "Hoodie pricing questions should rank the hoodie first.",
+);
+
+const explicitProducts = [
+  { id: "generic", name: "Adult Pullover Hoodie", slug: "adult-pullover-hoodie" },
+  { id: "vintage", name: "Vintage Bootleg Hoodie", slug: "vintage-bootleg-hoodie" },
+];
+assert.equal(
+  findExplicitProductMention("How much is the Vintage Bootleg Hoodie?", explicitProducts)?.id,
+  "vintage",
+  "An explicitly named unavailable product must be recognized before generic category fallback.",
+);
+assert.equal(
+  findExplicitProductMention("How much is a hoodie?", explicitProducts),
+  null,
+  "Generic category questions should not be treated as an exact product mention.",
 );
 
 const stockedProductIds = new Set(["in-stock-product"]);
