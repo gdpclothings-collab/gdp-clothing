@@ -639,6 +639,7 @@ const SMALL_TALK = [
 function greetingResponse(query) {
   if (/^(hi|hey|hello|yo|sup|good morning|good afternoon|good evening)[!. ]*$/.test(query)) {
     return {
+      intentId: "greeting",
       text:
         "Hey! What can I help you with today — Custom Studio, Photo Bootleg, Memorial Tribute, DTF gang sheets, products, sizing, checkout, shipping or an order question?",
       suggestions: [
@@ -659,6 +660,7 @@ function capabilityResponse(query) {
     termMatches(query, "what can i ask")
   ) {
     return {
+      intentId: "capabilities",
       text:
         "I can explain GDP products and stock, all four Custom Studio paths, photo and text editing, front/back printing, draft resume, background removal, DTF and gang sheets, artwork setup, sizing, pricing, cart and guest checkout, payment safety, shipping, production, returns, account access and order-help directions.",
       suggestions: [
@@ -746,7 +748,7 @@ export function getAssistantResponse(message, pathname = "") {
   if (capability) return capability;
 
   const smallTalk = SMALL_TALK.find(({ terms }) => scoreTerms(query, terms) > 0);
-  if (smallTalk) return { text: smallTalk.text };
+  if (smallTalk) return { intentId: "small-talk", text: smallTalk.text };
 
   const ranked = INTENTS
     .map((intent) => ({
@@ -762,11 +764,12 @@ export function getAssistantResponse(message, pathname = "") {
   if (ranked.length > 0) {
     const { intent } = ranked[0];
     return {
+      intentId: intent.id,
       text: intent.text,
       action: intent.action,
       suggestions: intent.suggestions
     };
   }
 
-  return getContextualFallback(pathname);
+  return { ...getContextualFallback(pathname), intentId: "fallback" };
 }
