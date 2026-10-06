@@ -368,6 +368,16 @@ export function selectProductMatches(message, products, limit = 3) {
     .map((item) => item.product);
 }
 
+export function findExplicitProductMention(message, products) {
+  const normalizedMessage = normalizeText(message);
+  return (products || [])
+    .filter((product) => {
+      const normalizedName = normalizeText(product?.name);
+      return normalizedName.length >= 4 && normalizedMessage.includes(normalizedName);
+    })
+    .sort((left, right) => normalizeText(right?.name).length - normalizeText(left?.name).length)[0] || null;
+}
+
 export function isProductSellable(product, stockedProductIds = new Set()) {
   if (!product) return false;
   if (product.status && product.status !== "active") return false;
@@ -403,7 +413,20 @@ async function productReply(env, message, settings) {
     env,
     "products?status=eq.active&select=id,name,slug,price,compare_at_price,tags,custom_designable,status,track_inventory,sell_when_out_of_stock&limit=100",
   );
+  const explicitProduct = findExplicitProductMention(message, productRows);
   const products = await filterSellableProducts(env, productRows);
+  const sellableIds = new Set(products.map((product) => product.id));
+
+  if (explicitProduct && !sellableIds.has(explicitProduct.id)) {
+    let reply = explicitProduct.name + " is currently out of stock.";
+    if (explicitProduct.slug) {
+      reply += "\nI won’t substitute another product. Check the product page for restock updates:\n" +
+        settings.website_url.replace(/\/$/, "") + "/products/" + explicitProduct.slug;
+    } else {
+      reply += "\nI won’t substitute another product.";
+    }
+    return reply;
+  }
 
   let matches = selectProductMatches(message, products, 3);
 
