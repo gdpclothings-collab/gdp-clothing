@@ -1,3 +1,4 @@
+import { getAssistantResponse } from "../../src/components/storefront/gdpAssistantKnowledge.js";
 
 const DEFAULT_GRAPH_VERSION = "v26.0";
 
@@ -29,6 +30,57 @@ export function normalizeText(value) {
     .replace(/[^a-z0-9$%+.#' -]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const MESSENGER_STARTERS = [
+  { title: "Custom design", payload: "How does custom design work?" },
+  { title: "DTF printing", payload: "Tell me about DTF printing and gang sheets." },
+  { title: "Find my size", payload: "What size should I order?" },
+  { title: "Order help", payload: "How can I check my order?" },
+];
+
+function absoluteStoreUrl(settings, path) {
+  if (!path) return null;
+  const base = String(settings?.website_url || "https://gdpclothing.ca").replace(/\/$/, "") + "/";
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+export function toMessengerQuickReplies(suggestions = [], starters = false) {
+  if (starters) return MESSENGER_STARTERS;
+
+  return (suggestions || [])
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((suggestion) => ({
+      title: String(suggestion).slice(0, 20),
+      payload: String(suggestion).slice(0, 1000),
+    }));
+}
+
+export function adaptWebsiteAssistantResponse(response, settings) {
+  if (!response) return null;
+
+  let text = String(response.text || "").trim();
+  const actionUrl = absoluteStoreUrl(settings, response.action?.path);
+  if (actionUrl) {
+    text += "\n\n" + (response.action?.label || "Open GDP Clothing") + ": " + actionUrl;
+  }
+
+  const useStarters =
+    response.intentId === "greeting" ||
+    response.intentId === "capabilities" ||
+    response.showStarters === true;
+
+  return {
+    text,
+    intent: response.intentId || "website_assistant",
+    handoff: false,
+    quickReplies: toMessengerQuickReplies(response.suggestions, useStarters),
+  };
 }
 
 function unique(values) {
@@ -274,12 +326,23 @@ async function openHandoff(env, psid, reason, timeoutMinutes) {
   }
 }
 
-async function sendText(env, recipientId, text) {
+async function sendText(env, recipientId, text, quickReplies = []) {
   const pageToken = String(env.META_PAGE_ACCESS_TOKEN || "");
   const pageId = String(env.META_PAGE_ID || "");
   const version = String(env.META_GRAPH_VERSION || DEFAULT_GRAPH_VERSION);
 
   if (!pageToken || !pageId) throw new Error("meta_send_not_configured");
+
+  const message = { text: String(text || "").slice(0, 1900) };
+  const replies = (quickReplies || [])
+    .filter((item) => item?.title && item?.payload)
+    .slice(0, 4)
+    .map((item) => ({
+      content_type: "text",
+      title: String(item.title).slice(0, 20),
+      payload: String(item.payload).slice(0, 1000),
+    }));
+  if (replies.length) message.quick_replies = replies;
 
   const response = await fetch(
     "https://graph.facebook.com/" + version + "/" + encodeURIComponent(pageId) + "/messages",
@@ -292,7 +355,7 @@ async function sendText(env, recipientId, text) {
       body: JSON.stringify({
         recipient: { id: recipientId },
         messaging_type: "RESPONSE",
-        message: { text: String(text || "").slice(0, 1900) },
+        message,
       }),
     },
   );
@@ -420,10 +483,10 @@ async function productReply(env, message, settings) {
   if (explicitProduct && !sellableIds.has(explicitProduct.id)) {
     let reply = explicitProduct.name + " is currently out of stock.";
     if (explicitProduct.slug) {
-      reply += "\nI won’t substitute another product. Check the product page for restock updates:\n" +
+      reply += "\nYou can check the product page for restock updates:\n" +
         settings.website_url.replace(/\/$/, "") + "/products/" + explicitProduct.slug;
     } else {
-      reply += "\nI won’t substitute another product.";
+      reply += "\nPlease check back for a restock update.";
     }
     return reply;
   }
@@ -618,39 +681,82 @@ function shouldCheckProducts(message) {
 async function buildReply(env, message, settings, knowledge) {
   const best = scoreKnowledge(message, knowledge);
 
+  // Preserve the existing safety rule: private/sensitive order issues go to a human.
   if (best?.requires_human) {
     return {
       text: renderTemplate(best.response_template, settings),
       intent: best.intent,
       handoff: true,
+      quickReplies: [],
     };
   }
 
-  if (containsAny(message, ["shipping", "delivery", "deliver", "pickup", "pick up"])) {
-    return { text: await shippingReply(env), intent: "shipping", handoff: false };
+  // Use the exact same natural-language topic router as the website GDP Assistant.
+  const websiteResponse = getAssistantResponse(message, "");
+  const websiteIntent = websiteResponse?.intentId || "fallback";
+
+  // Keep live production data authoritative for topics that change over time.
+  if (
+    websiteIntent === "shipping" ||
+    containsAny(message, ["shipping", "delivery", "deliver", "pickup", "pick up"])
+  ) {
+    return {
+      text: await shippingReply(env),
+      intent: "shipping",
+      handoff: false,
+      quickReplies: toMessengerQuickReplies(websiteResponse?.suggestions),
+    };
   }
 
-  if (containsAny(message, ["discount", "promo", "coupon", "sale", "discount code", "promo code"])) {
-    return { text: await discountReply(env, settings), intent: "discounts", handoff: false };
+  if (
+    websiteIntent === "discount" ||
+    containsAny(message, ["discount", "promo", "coupon", "sale", "discount code", "promo code"])
+  ) {
+    return {
+      text: await discountReply(env, settings),
+      intent: "discounts",
+      handoff: false,
+      quickReplies: toMessengerQuickReplies(websiteResponse?.suggestions),
+    };
   }
 
-  if (shouldCheckProducts(message)) {
+  if (
+    websiteIntent === "pricing" ||
+    websiteIntent === "products" ||
+    shouldCheckProducts(message)
+  ) {
     const product = await productReply(env, message, settings);
-    if (product) return { text: product, intent: "products", handoff: false };
+    if (product) {
+      return {
+        text: product,
+        intent: "products",
+        handoff: false,
+        quickReplies: toMessengerQuickReplies(websiteResponse?.suggestions),
+      };
+    }
   }
 
+  // Prefer the website assistant's richer topic knowledge for all remaining questions.
+  if (websiteIntent !== "fallback") {
+    return adaptWebsiteAssistantResponse(websiteResponse, settings);
+  }
+
+  // Keep server-managed knowledge as an additional fallback layer.
   if (best) {
     return {
       text: renderTemplate(best.response_template, settings),
       intent: best.intent,
       handoff: false,
+      quickReplies: [],
     };
   }
 
-  return {
+  // Website fallback also carries the same popular starter topics.
+  return adaptWebsiteAssistantResponse(websiteResponse, settings) || {
     text: renderTemplate(settings.fallback_reply, settings),
     intent: "fallback",
     handoff: false,
+    quickReplies: MESSENGER_STARTERS,
   };
 }
 
@@ -724,7 +830,7 @@ async function processMessagingEvent(env, event) {
       return;
     }
 
-    await sendText(env, senderPsid, reply.text);
+    await sendText(env, senderPsid, reply.text, reply.quickReplies);
     await updateEvent(env, eventKey, "replied", reply.intent);
   } catch (error) {
     console.error("gdp-messenger-agent", error);
