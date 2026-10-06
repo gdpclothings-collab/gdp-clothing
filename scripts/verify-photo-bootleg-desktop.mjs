@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import {
   bootlegSliderToAnchor,
+  constrainBootlegTextStyleToCanvas,
   resolveBootlegAnchorRanges,
   resolveBootlegTextLayout,
 } from '../src/lib/customStudioV2BootlegTextLayout.js';
@@ -65,7 +66,7 @@ assert(protectedV2.includes("path === 'memorial' ? 'memorial_tribute' : 'photo_b
 assert(protectedV2.includes("'Protected GDP templates'"), 'Memorial keeps protected-template customer guidance');
 assert(protectedV2.includes('templateTransform'), 'V2 Bootleg persists template transform in the existing editor snapshot');
 assert(protectedV2.includes('BOOTLEG_TEMPLATE_MAX_SCALE = 400'), 'GDP template resize keeps its established visual safety bound');
-assert(protectedV2.includes('No preset maximum'), 'Bootleg text size control communicates that it has no preset maximum');
+assert(protectedV2.includes('PrintAreaTextSizeControl') && !protectedV2.includes('No preset maximum'), 'Bootleg text size control is constrained to the printable area');
 assert(protectedV2.includes('Number.POSITIVE_INFINITY'), 'direct Bootleg text pinch scaling has no configured upper size cap');
 assert(protectedV2.includes('freeTextLayout: true'), 'Bootleg text opts into full-print-area production layout');
 assert(protectedV2.includes('canvasX') && protectedV2.includes('canvasY'), 'Bootleg text stores full-print-area coordinates');
@@ -76,7 +77,7 @@ assert(protectedV2.includes("activeLayer === 'template'"), 'only the selected te
 assert(protectedV2.includes("data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined}"), 'Bootleg photo zone remains linked without applying Bootleg foreground stacking to Memorial');
 assert(protectedV2.includes('data-gdp-bootleg-sticky-preview'), 'Bootleg live garment preview remains isolated from inspector scrolling');
 assert(protectedV2.includes('data-gdp-bootleg-inspector-scroll'), 'Bootleg personalization controls use their own desktop scroll rail');
-assert(protectedV2.includes('data-gdp-bootleg-print-boundary-warning="true"'), 'unbounded text gets a non-blocking print-area overflow warning');
+assert(protectedV2.includes('Text is constrained to stay fully inside the printable boundary.'), 'protected text editor communicates the hard print-boundary constraint');
 assert(protectedV2.includes('bootlegAnchorToSlider') && protectedV2.includes('bootlegSliderToAnchor'), 'text sliders map visible text bounds to print-area edges instead of only moving the anchor point');
 assert(protectedV2.includes('layout.headline.glyphs.map'), 'large Arc/Wave text renders as explicit glyphs rather than a fixed SVG textPath');
 assert(!protectedV2.includes('unbounded={isBootleg}'), 'Bootleg no longer routes unlimited curved text through the legacy fixed-path renderer');
@@ -85,7 +86,8 @@ assert(!protectedV2.includes('unbounded={isBootleg}'), 'Bootleg no longer routes
 assert(presentationGuard.includes("import './photoBootlegLayerOrder.css';"), 'Photo Bootleg layer-order stylesheet is loaded only inside the V2 presentation guard');
 assert(layerOrderCss.includes('[data-gdp-studio-v2-guard="true"] [data-gdp-bootleg-linked-photo-zone="true"]'), 'photo foreground rule is scoped to the rebuilt Bootleg preview');
 assert(layerOrderCss.includes('z-index: 25 !important'), 'customer photo group is visually above the normal GDP template layer');
-assert(layerOrderCss.includes('[data-gdp-bootleg-template-layer="true"].pointer-events-none'), 'only the non-active template is forced behind photos so direct Template editing can still rise above');
+assert(layerOrderCss.includes('[data-gdp-bootleg-template-layer="true"]'), 'GDP template stays behind photos even while Template editing is active');
+assert(layerOrderCss.includes(':not([data-gdp-active-layer="template"])'), 'sticker recovery cannot intercept direct Template editing');
 assert(layerOrderCss.includes('z-index: 15 !important'), 'inactive GDP template is explicitly the background artwork layer');
 
 // Recording-driven follow-up: preserve real multi-photo state and isolate layer controls.
@@ -140,9 +142,9 @@ assert(protectedProduction.includes('editor.textStyle?.photoForeground !== false
 
 assert(bootlegTextLayout.includes('curveGlyphs'), 'shared Bootleg layout owns dynamic per-glyph curve geometry');
 assert(bootlegTextLayout.includes('relativeBounds'), 'shared Bootleg layout exposes visible bounds for boundary-aware movement');
-assert(bootlegTextLayout.includes('overflow'), 'shared Bootleg layout reports printable-boundary overflow without auto-shrinking text');
-
-assert(protectedProduction.includes("import { resolveBootlegTextLayout }"), '300-DPI renderer consumes the same Bootleg text geometry engine as the preview');
+assert(bootlegTextLayout.includes('overflow'), 'shared Bootleg layout still reports raw printable-boundary overflow for diagnostics');
+assert(bootlegTextLayout.includes('constrainBootlegTextStyleToCanvas'), 'shared Bootleg layout exposes a hard printable-boundary constraint');
+assert(protectedProduction.includes('constrainBootlegTextStyleToCanvas') && protectedProduction.includes('resolveBootlegTextLayout'), '300-DPI renderer consumes the same constrained Bootleg text geometry engine as the preview');
 assert(protectedProduction.includes('withTemplateTransform'), '300-DPI renderer has one shared template transform for aligned artwork/photo composition');
 assert(protectedProduction.includes('if (templateTransform) withTemplateTransform'), 'production photo zone follows the edited GDP template transform');
 assert(protectedProduction.includes('drawTemplateArtwork'), '300-DPI renderer applies GDP template transforms');
@@ -187,6 +189,16 @@ const hugeWave = resolveBootlegTextLayout({
 });
 assert(hugeWave.headline?.kind === 'glyphs' && hugeWave.headline.glyphs.length === 6, '500 percent Wave preserves every headline glyph');
 assert(new Set(hugeWave.headline.glyphs.map((glyph) => `${glyph.x.toFixed(3)}:${glyph.y.toFixed(3)}`)).size === 6, '500 percent Wave does not collapse multiple letters onto one position');
+
+const constrainedHugeText = constrainBootlegTextStyleToCanvas({
+  text: { headline: 'GERALD' },
+  zone: { x: 12, y: 78, width: 76, height: 16 },
+  style: { freeTextLayout: true, canvasX: 98, canvasY: 4, fontScale: 500, curve: 'wave', curveAmount: 70, rotation: 28 },
+  width: 1000,
+  height: 1200,
+});
+assert(!constrainedHugeText.layout?.overflow?.any, '500 percent text request is reduced/repositioned so the final rendered bounds stay inside the print area');
+assert(Number(constrainedHugeText.style.fontScale) < 500, 'oversized protected text is automatically reduced instead of remaining out of bounds');
 
 // Visible-bound slider contract: endpoints align the actual text bounds to the printable edges when the design fits.
 const edgeBase = resolveBootlegTextLayout({
