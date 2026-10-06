@@ -30,7 +30,6 @@ import {
   bootlegSliderToAnchor,
   constrainBootlegTextStyleToCanvas,
   resolveBootlegAnchorRanges,
-  resolveBootlegTextLayout,
 } from '@/lib/customStudioV2BootlegTextLayout';
 import {
   BOOTLEG_MAX_TEXT_LAYERS,
