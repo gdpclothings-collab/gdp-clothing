@@ -492,28 +492,6 @@ export default function ProductDetail() {
               </div>
             </div>
 
-            {readyToWearOfferEnabled && readyToWearTiers.length > 0 && (
-              <div className="mt-5 border border-black/15 bg-white/55 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-mono text-[9px] font-black uppercase tracking-[0.14em]">Buy more & save</div>
-                  <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/45">Automatic in cart</div>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {readyToWearTiers.map((tier) => {
-                    const active = qty >= tier.min && qty <= tier.max && readyToWearCanStackWithSale;
-                    const quantityLabel = tier.max >= 999 || tier.max > tier.min ? `Buy ${tier.min}+` : `Buy ${tier.min}`;
-                    return <div key={`${tier.min}-${tier.max}-${tier.percent}`} className={`border px-3 py-2.5 ${active ? "border-black bg-black text-white" : "border-black/10 bg-[#f7f6f1]"}`}><div className="font-mono text-[8px] font-black uppercase tracking-[0.12em]">{quantityLabel}</div><div className="mt-1 text-sm font-black">Save {tier.percent}%</div></div>;
-                  })}
-                </div>
-                {readyToWearPercent > 0 && (
-                  <div className="mt-3 border-t border-black/10 pt-3 text-xs font-semibold">
-                    {qty} × {formatCad(displayPrice)} = {formatCad(quantityDiscountedTotal)} <span className="text-[#b51222]">· You save {formatCad(quantitySavings)}</span>
-                  </div>
-                )}
-                {!readyToWearCanStackWithSale && <div className="mt-3 text-xs text-black/50">Buy More & Save does not stack with this product's current sale price.</div>}
-              </div>
-            )}
-
             {product.metafields?.short_description && <p className="mt-5 text-sm font-semibold leading-6 text-black/72">{product.metafields.short_description}</p>}
             {product.description && <p className={`${product.metafields?.short_description ? "mt-3" : "mt-5"} text-sm leading-6 text-black/60`}>{product.description}</p>}
 
@@ -611,6 +589,28 @@ export default function ProductDetail() {
                 <div key={item.title} className={`px-2 text-center ${index > 0 ? "border-l border-black/15" : ""}`}><item.icon size={16} className="mx-auto" strokeWidth={1.6} /><div className="mt-2 text-[8px] font-black uppercase tracking-[0.1em]">{item.title}</div><div className="mt-0.5 text-[8px] text-black/40">{item.text}</div></div>
               ))}
             </div>
+
+            {readyToWearOfferEnabled && readyToWearTiers.length > 0 && (
+              <div className="mt-5 border border-black/15 bg-white/55 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-mono text-[9px] font-black uppercase tracking-[0.14em]">Buy more & save</div>
+                  <div className="font-mono text-[8px] uppercase tracking-[0.12em] text-black/45">Automatic in cart</div>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {readyToWearTiers.map((tier) => {
+                    const active = qty >= tier.min && qty <= tier.max && readyToWearCanStackWithSale;
+                    const quantityLabel = tier.max >= 999 || tier.max > tier.min ? `Buy ${tier.min}+` : `Buy ${tier.min}`;
+                    return <div key={`${tier.min}-${tier.max}-${tier.percent}`} className={`border px-3 py-2.5 ${active ? "border-black bg-black text-white" : "border-black/10 bg-[#f7f6f1]"}`}><div className="font-mono text-[8px] font-black uppercase tracking-[0.12em]">{quantityLabel}</div><div className="mt-1 text-sm font-black">Save {tier.percent}%</div></div>;
+                  })}
+                </div>
+                {readyToWearPercent > 0 && (
+                  <div className="mt-3 border-t border-black/10 pt-3 text-xs font-semibold">
+                    {qty} × {formatCad(displayPrice)} = {formatCad(quantityDiscountedTotal)} <span className="text-[#b51222]">· You save {formatCad(quantitySavings)}</span>
+                  </div>
+                )}
+                {!readyToWearCanStackWithSale && <div className="mt-3 text-xs text-black/50">Buy More & Save does not stack with this product's current sale price.</div>}
+              </div>
+            )}
 
             <div className="mt-5 divide-y divide-black/15 border-y border-black/15">
               <DetailRow title="Product details" open>{product.description || "GDP Clothing apparel made for everyday wear."}{product.material ? ` Material: ${product.material}.` : ""}</DetailRow>
