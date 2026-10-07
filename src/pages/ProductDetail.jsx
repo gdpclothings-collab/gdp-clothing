@@ -480,6 +480,7 @@ export default function ProductDetail() {
                           {copiedPromotionCode === promotion.code ? "Copied ✓" : "Copy code"}
                         </button>
                         {Number(promotion.minPurchase || 0) > 0 && <span className="text-black/45"> · Min {formatCad(promotion.minPurchase)}</span>}
+                        {readyToWearOfferEnabled && apparelPricing.allowCouponStacking === false && <span className="basis-full text-[8px] normal-case tracking-normal text-black/45">Promotion code and Buy More &amp; Save cannot be combined.</span>}
                       </div>
                     );
                   })}
