@@ -73,6 +73,7 @@ jobs:
           node scripts/verify-admin-production-files.mjs
           node scripts/verify-admin-legacy-retired.mjs
           node scripts/verify-admin-neumorphism-accessibility.mjs
+          node scripts/verify-admin-authenticated-smoke.mjs
           node scripts/verify-safe-auto-merge.mjs
           node scripts/verify-custom-studio-print-guides.mjs
           node scripts/verify-custom-studio-print-pipeline.mjs
