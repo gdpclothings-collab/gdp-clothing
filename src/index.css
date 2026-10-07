@@ -459,3 +459,97 @@
     transform: none;
   }
 }
+
+
+/*
+ * GDP admin hybrid neumorphism
+ * ----------------------------
+ * Scoped to navigation, overview surfaces, search and shortcut controls.
+ * Transactional, destructive and finance/payment action styling remains
+ * unchanged so depth never becomes the only action/status signal.
+ */
+.gdp-admin-neu {
+  --gdp-admin-neu-dark: rgb(17 24 39 / 0.10);
+  --gdp-admin-neu-dark-strong: rgb(17 24 39 / 0.16);
+  --gdp-admin-neu-light: rgb(255 255 255 / 0.92);
+  --gdp-admin-neu-inset-light: rgb(255 255 255 / 0.52);
+}
+
+.gdp-admin-neu-card {
+  box-shadow:
+    6px 6px 16px var(--gdp-admin-neu-dark),
+    -5px -5px 14px var(--gdp-admin-neu-light);
+}
+
+.gdp-admin-neu-panel {
+  box-shadow:
+    4px 4px 12px rgb(17 24 39 / 0.08),
+    -4px -4px 12px rgb(255 255 255 / 0.78);
+}
+
+.gdp-admin-neu-control,
+.gdp-admin-neu-nav {
+  transform: translateZ(0);
+  transition:
+    box-shadow 150ms ease,
+    transform 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.gdp-admin-neu-control {
+  box-shadow:
+    3px 3px 8px var(--gdp-admin-neu-dark),
+    -3px -3px 8px var(--gdp-admin-neu-light);
+}
+
+.gdp-admin-neu-control:hover:not(:disabled) {
+  box-shadow:
+    4px 4px 10px var(--gdp-admin-neu-dark-strong),
+    -4px -4px 10px var(--gdp-admin-neu-light);
+  transform: translateY(-1px);
+}
+
+.gdp-admin-neu-control:active:not(:disabled),
+.gdp-admin-neu-nav:active:not(:disabled),
+.gdp-admin-neu-nav[aria-current="page"] {
+  box-shadow:
+    inset 2px 2px 6px rgb(17 24 39 / 0.15),
+    inset -2px -2px 5px var(--gdp-admin-neu-inset-light);
+  transform: none;
+}
+
+.gdp-admin-neu-nav:not([aria-current="page"]) {
+  box-shadow:
+    2px 2px 6px rgb(17 24 39 / 0.055),
+    -2px -2px 6px rgb(255 255 255 / 0.72);
+}
+
+.gdp-admin-neu-well {
+  box-shadow:
+    inset 3px 3px 8px rgb(17 24 39 / 0.09),
+    inset -3px -3px 8px rgb(255 255 255 / 0.72);
+}
+
+.gdp-admin-neu-dark-control {
+  box-shadow:
+    inset 1px 1px 0 rgb(255 255 255 / 0.05),
+    0 5px 14px rgb(0 0 0 / 0.22);
+}
+
+.gdp-admin-neu-control:focus-visible,
+.gdp-admin-neu-nav:focus-visible {
+  outline: 3px solid rgb(215 25 63 / 0.24);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gdp-admin-neu-control,
+  .gdp-admin-neu-nav {
+    transition: none !important;
+  }
+
+  .gdp-admin-neu-control:hover:not(:disabled) {
+    transform: none;
+  }
+}

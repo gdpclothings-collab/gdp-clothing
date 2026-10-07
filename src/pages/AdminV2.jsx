@@ -317,7 +317,7 @@ export default function AdminV2() {
   const module = MODULE_COPY[section] || MODULE_COPY.settings;
 
   return (
-    <div className="gdp-admin min-h-screen bg-[#f4f5f7] text-[#171717]">
+    <div className="gdp-admin gdp-admin-neu min-h-screen bg-[#f4f5f7] text-[#171717]">
       <AdminTopBar
         user={user}
         onMenu={() => setSidebarOpen(true)}
@@ -646,7 +646,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
         <button
           type="button"
           onClick={onSearch}
-          className="mx-auto w-full max-w-[640px] h-10 px-3.5 rounded-xl bg-white/10 border border-white/10 hover:bg-white/15 flex items-center gap-2.5 text-sm text-white/80 transition-colors"
+          className="gdp-admin-neu-dark-control mx-auto w-full max-w-[640px] h-10 px-3.5 rounded-xl bg-white/10 border border-white/10 hover:bg-white/15 flex items-center gap-2.5 text-sm text-white/80 transition-colors"
         >
           <Search size={16} />
           <span className="truncate">Search orders, products and customers</span>
@@ -678,7 +678,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
             </button>
 
             {storeMenuOpen && (
-              <div className="absolute right-0 top-11 w-64 rounded-xl bg-white text-[#181818] border border-[#ddd] shadow-2xl p-2">
+              <div className="gdp-admin-neu-card absolute right-0 top-11 w-64 rounded-xl bg-white text-[#181818] border border-[#ddd] p-2">
                 <div className="px-3 py-2 border-b border-[#eee]">
                   <div className="text-xs text-[#777]">Signed in as</div>
                   <div className="text-sm font-medium truncate mt-0.5">{user?.email || displayName}</div>
@@ -697,7 +697,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
 
 function AdminSidebar({ active, onSelect, className = "", onClose = undefined }) {
   return (
-    <aside className={`${className} flex-col bg-white border-r border-[#dedfe3] w-[264px] shrink-0`}>
+    <aside className={`${className} gdp-admin-neu-panel flex-col bg-white border-r border-[#dedfe3] w-[264px] shrink-0`}>
       <div className="lg:hidden h-14 px-4 border-b border-[#ddd] flex items-center justify-between">
         <div className="font-semibold">GDP Commerce</div>
         <button onClick={onClose} className="p-2 rounded-lg hover:bg-black/5" aria-label="Close navigation">
@@ -720,7 +720,7 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
                   type="button"
                   onClick={() => onSelect(item.id)}
                   aria-current={selected ? "page" : undefined}
-                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6] text-[#35373b]"}`}
+                  className={`gdp-admin-neu-nav relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6] text-[#35373b]"}`}
                 >
                   {selected && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-[#d7193f]" />}
                   <Icon size={17} strokeWidth={1.8} />
@@ -737,14 +737,14 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
         <button
           type="button"
           onClick={() => onSelect("settings")}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "settings" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}
+          className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "settings" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}
         >
           <Settings size={17} /> Store settings
         </button>
-        <button type="button" onClick={() => onSelect("apps")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "apps" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+        <button type="button" onClick={() => onSelect("apps")} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "apps" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
           <Blocks size={17} /> Apps & integrations
         </button>
-        <button type="button" onClick={() => onSelect("security")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+        <button type="button" onClick={() => onSelect("security")} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
           <ShieldCheck size={17} /> Security
         </button>
       </div>
@@ -953,7 +953,7 @@ function ModuleLanding({ module, section, onOpen }) {
       />
 
       <div className="max-w-[1450px] mx-auto px-4 md:px-6 lg:px-8 pb-12">
-        <div className="rounded-2xl border border-[#d8d8d8] bg-white overflow-hidden">
+        <div className="gdp-admin-neu-card rounded-2xl border border-[#d8d8d8] bg-white overflow-hidden">
           <div className="p-6 md:p-8 border-b border-[#e5e5e5] bg-gradient-to-br from-white to-[#f8f8f8]">
             <div className="w-11 h-11 rounded-xl bg-[#191919] text-white grid place-items-center mb-5">
               <Icon size={21} />
@@ -969,7 +969,7 @@ function ModuleLanding({ module, section, onOpen }) {
           {settingsCards ? (
             <div className="p-5 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
               {settingsCards.map((card) => (
-                <div key={card.title} className="rounded-xl border border-[#e2e2e2] p-4 hover:border-[#bdbdbd] transition">
+                <div key={card.title} className="gdp-admin-neu-panel rounded-xl border border-[#e2e2e2] bg-white p-4 hover:border-[#bdbdbd] transition">
                   <card.icon size={18} className="mb-3" />
                   <div className="font-semibold text-sm">{card.title}</div>
                   <div className="text-xs text-[#777] mt-1 leading-5">{card.text}</div>
@@ -979,7 +979,7 @@ function ModuleLanding({ module, section, onOpen }) {
           ) : (
             <div className="p-5 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
               {module.items.map((item) => (
-                <div key={item} className="rounded-xl border border-[#e2e2e2] p-4 min-h-[115px] flex flex-col">
+                <div key={item} className="gdp-admin-neu-panel rounded-xl border border-[#e2e2e2] bg-white p-4 min-h-[115px] flex flex-col">
                   <div className="font-semibold text-sm">{item}</div>
                   <div className="text-xs text-[#777] mt-1">
                     Ready for workflow migration into the new GDP admin.
@@ -1033,7 +1033,7 @@ function MetricCard({ icon: Icon, label, value, helper, tone = "neutral" }) {
         : "bg-white border-[#dedede]";
 
   return (
-    <div className={`rounded-xl border p-4 ${toneClass}`}>
+    <div className={`gdp-admin-neu-card rounded-xl border p-4 ${toneClass}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-medium text-[#666]">{label}</div>
         <Icon size={17} className="text-[#666]" />
@@ -1046,7 +1046,7 @@ function MetricCard({ icon: Icon, label, value, helper, tone = "neutral" }) {
 
 function Panel({ title, action = null, children }) {
   return (
-    <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
+    <section className="gdp-admin-neu-panel rounded-xl border border-[#dedede] bg-white overflow-hidden">
       <div className="min-h-12 px-4 py-3 border-b border-[#e8e8e8] flex items-center justify-between gap-4">
         <h2 className="text-sm font-semibold">{title}</h2>
         {action}
@@ -1156,7 +1156,7 @@ function QuickAction({ icon: Icon, title, text, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border border-[#dedede] bg-white p-4 text-left hover:border-[#aaa] hover:shadow-sm transition"
+      className="gdp-admin-neu-control rounded-xl border border-[#dedede] bg-white p-4 text-left hover:border-[#aaa] transition"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="w-9 h-9 rounded-lg bg-[#f2f2f2] grid place-items-center">
@@ -1205,7 +1205,7 @@ function GlobalSearch({ onClose }) {
   return (
     <div className="fixed inset-0 z-[70] bg-black/45 p-3 sm:p-8 flex items-start justify-center" onMouseDown={onClose}>
       <div
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden mt-[7vh]"
+        className="gdp-admin-neu-card w-full max-w-2xl bg-white rounded-2xl overflow-hidden mt-[7vh]"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="h-14 px-4 flex items-center gap-3 border-b border-[#e5e5e5]">
