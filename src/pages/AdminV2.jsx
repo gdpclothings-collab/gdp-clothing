@@ -737,14 +737,15 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
         <button
           type="button"
           onClick={() => onSelect("settings")}
+          aria-current={active === "settings" ? "page" : undefined}
           className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "settings" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}
         >
           <Settings size={17} /> Store settings
         </button>
-        <button type="button" onClick={() => onSelect("apps")} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "apps" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+        <button type="button" onClick={() => onSelect("apps")} aria-current={active === "apps" ? "page" : undefined} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "apps" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
           <Blocks size={17} /> Apps & integrations
         </button>
-        <button type="button" onClick={() => onSelect("security")} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+        <button type="button" onClick={() => onSelect("security")} aria-current={active === "security" ? "page" : undefined} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
           <ShieldCheck size={17} /> Security
         </button>
       </div>
@@ -1205,6 +1206,9 @@ function GlobalSearch({ onClose }) {
   return (
     <div className="gdp-admin-neu-backdrop fixed inset-0 z-[70] bg-black/45 p-3 sm:p-8 flex items-start justify-center" onMouseDown={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="GDP admin search"
         className="gdp-admin-neu-card w-full max-w-2xl bg-white rounded-2xl overflow-hidden mt-[7vh]"
         onMouseDown={(event) => event.stopPropagation()}
       >
@@ -1217,7 +1221,7 @@ function GlobalSearch({ onClose }) {
             placeholder="Search GDP Clothing"
             className="flex-1 outline-none text-sm"
           />
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]">
+          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-[#f2f2f2]" aria-label="Close admin search">
             <X size={17} />
           </button>
         </div>
