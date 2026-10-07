@@ -1011,7 +1011,7 @@ function ModuleLanding({ module, section, onOpen }) {
 
 function PageHeader({ eyebrow, title, description, actions = null }) {
   return (
-    <div className="border-b border-[#dedfe3] bg-white">
+    <div className="gdp-admin-neu-header border-b border-[#dedfe3] bg-white">
       <div className="max-w-[1600px] mx-auto px-4 md:px-7 lg:px-10 py-6 md:py-7 flex flex-col md:flex-row md:items-center gap-4 md:justify-between">
         <div>
           <div className="text-xs uppercase tracking-[0.14em] font-bold text-[#a70f2d]">{eyebrow}</div>
@@ -1036,7 +1036,7 @@ function MetricCard({ icon: Icon, label, value, helper, tone = "neutral" }) {
     <div className={`gdp-admin-neu-card rounded-xl border p-4 ${toneClass}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-medium text-[#666]">{label}</div>
-        <Icon size={17} className="text-[#666]" />
+        <span className="gdp-admin-neu-icon grid h-8 w-8 place-items-center rounded-lg bg-white/70"><Icon size={17} className="text-[#666]" /></span>
       </div>
       <div className="text-2xl font-semibold mt-3">{value}</div>
       <div className="text-xs text-[#777] mt-1">{helper}</div>
@@ -1122,9 +1122,9 @@ function AttentionRow({ icon: Icon, label, value, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full px-4 py-3 border-b last:border-b-0 border-[#eee] flex items-center gap-3 text-left hover:bg-[#fafafa]"
+      className="gdp-admin-neu-row w-full px-4 py-3 border-b last:border-b-0 border-[#eee] flex items-center gap-3 text-left hover:bg-[#fafafa]"
     >
-      <div className="w-8 h-8 rounded-lg bg-[#f1f1f1] grid place-items-center">
+      <div className="gdp-admin-neu-icon w-8 h-8 rounded-lg bg-[#f1f1f1] grid place-items-center">
         <Icon size={15} />
       </div>
       <span className="text-sm flex-1">{label}</span>
@@ -1159,10 +1159,10 @@ function QuickAction({ icon: Icon, title, text, onClick }) {
       className="gdp-admin-neu-control rounded-xl border border-[#dedede] bg-white p-4 text-left hover:border-[#aaa] transition"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="w-9 h-9 rounded-lg bg-[#f2f2f2] grid place-items-center">
+        <div className="gdp-admin-neu-icon w-9 h-9 rounded-lg bg-[#f2f2f2] grid place-items-center">
           <Icon size={17} />
         </div>
-        <ChevronRight size={16} className="text-[#aaa]" />
+        <ChevronRight size={16} className="gdp-admin-neu-arrow text-[#aaa]" />
       </div>
       <div className="font-semibold text-sm mt-4">{title}</div>
       <div className="text-xs text-[#777] mt-1">{text}</div>
@@ -1203,7 +1203,7 @@ function GlobalSearch({ onClose }) {
   const hasResults = results.orders.length || results.products.length;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/45 p-3 sm:p-8 flex items-start justify-center" onMouseDown={onClose}>
+    <div className="gdp-admin-neu-backdrop fixed inset-0 z-[70] bg-black/45 p-3 sm:p-8 flex items-start justify-center" onMouseDown={onClose}>
       <div
         className="gdp-admin-neu-card w-full max-w-2xl bg-white rounded-2xl overflow-hidden mt-[7vh]"
         onMouseDown={(event) => event.stopPropagation()}
