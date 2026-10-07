@@ -209,7 +209,7 @@ export default function ProductDetail() {
 
   if (loading) {
     return (
-      <div className="bg-[#f7f6f1] text-black">
+      <div className="gdp-neu-scope bg-[#f7f6f1] text-black">
         <div className="mx-auto max-w-[1500px] px-4 py-10 sm:px-5 lg:px-8">
           <div className="mb-6 h-3 w-24 animate-pulse bg-black/10" />
           <div className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr]">
@@ -402,7 +402,7 @@ export default function ProductDetail() {
           : `Add to bag · ${formatCad(qty > 1 ? quantityDiscountedTotal : displayPrice)}`;
 
   return (
-    <div className="bg-[#f7f6f1] text-black">
+    <div className="gdp-neu-scope bg-[#f7f6f1] text-black">
       <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-5 lg:px-8 lg:py-8">
         <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.17em] text-black/45 transition hover:text-black">
           <ArrowLeft size={14} /> Back
@@ -474,7 +474,7 @@ export default function ProductDetail() {
                         <button
                           type="button"
                           onClick={() => copyPromotionCode(promotion.code)}
-                          className="inline-flex min-h-7 items-center border border-black/15 bg-white px-2 py-1 font-black text-black transition hover:border-black"
+                          className="gdp-neu-control inline-flex min-h-7 items-center border border-black/15 bg-white px-2 py-1 font-black text-black transition hover:border-black"
                           aria-label={`Copy discount code ${promotion.code}`}
                         >
                           {copiedPromotionCode === promotion.code ? "Copied ✓" : "Copy code"}
@@ -535,7 +535,7 @@ export default function ProductDetail() {
                     const enabled = isProductColorAvailable(product, item);
                     const swatch = resolveColorSwatch(product?.customization?.preview?.colorSwatches, item);
                     return (
-                      <button key={item} type="button" disabled={!enabled} onClick={() => enabled && selectColor(item)} title={!enabled ? `${item} — Unavailable` : item} aria-label={!enabled ? `${item}, unavailable` : item} aria-pressed={color === item && enabled} className={`inline-flex min-h-11 items-center gap-2 border px-3 text-[9px] font-black uppercase tracking-[0.12em] transition ${color === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 bg-black/[0.03] text-black/40 opacity-75"}`}>
+                      <button key={item} type="button" disabled={!enabled} onClick={() => enabled && selectColor(item)} title={!enabled ? `${item} — Unavailable` : item} aria-label={!enabled ? `${item}, unavailable` : item} aria-pressed={color === item && enabled} className={`gdp-neu-control inline-flex min-h-11 items-center gap-2 border px-3 text-[9px] font-black uppercase tracking-[0.12em] transition ${color === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 bg-black/[0.03] text-black/40 opacity-75"}`}>
                         <span className="relative h-4 w-4 shrink-0 rounded-full border border-black/45 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.7)]" style={{ backgroundColor: swatch }}>{!enabled && <span aria-hidden="true" className="absolute left-1/2 top-[-2px] h-5 w-px -translate-x-1/2 rotate-45 bg-black/55" />}</span>
                         <span className="text-left leading-tight"><span className="block">{item}</span>{!enabled && <span className="mt-0.5 block font-mono text-[7px] font-bold tracking-[0.09em]">Unavailable</span>}</span>
                       </button>
@@ -560,7 +560,7 @@ export default function ProductDetail() {
                   {sizes.map((item) => {
                     const enabled = sizeAvailable(item);
                     return (
-                      <button key={item} type="button" disabled={!enabled} onClick={() => selectSize(item)} aria-pressed={size === item} className={`relative min-h-11 border px-2 text-[9px] font-black uppercase tracking-[0.1em] transition ${size === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 text-black/28"}`}>
+                      <button key={item} type="button" disabled={!enabled} onClick={() => selectSize(item)} aria-pressed={size === item} className={`gdp-neu-control relative min-h-11 border px-2 text-[9px] font-black uppercase tracking-[0.1em] transition ${size === item && enabled ? "border-black bg-black text-white" : enabled ? "border-black/20 bg-transparent text-black hover:border-black" : "cursor-not-allowed border-black/10 text-black/28"}`}>
                         {item}{!enabled && <span aria-hidden="true" className="absolute left-1/2 top-1/2 h-px w-7 -translate-x-1/2 -translate-y-1/2 -rotate-12 bg-black/25" />}
                       </button>
                     );
@@ -578,12 +578,12 @@ export default function ProductDetail() {
 
             {isReadyToWear && (
               <div className="mt-7 flex gap-2">
-                <div className="flex shrink-0 items-center border border-black/20" aria-label="Quantity selector">
+                <div className="gdp-neu-well flex shrink-0 items-center border border-black/20 bg-[#f7f6f1]" aria-label="Quantity selector">
                   <button onClick={() => setQty((current) => Math.max(1, current - 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white" aria-label="Decrease quantity"><Minus size={14} /></button>
                   <span className="min-w-8 text-center font-mono text-xs">{qty}</span>
                   <button onClick={() => setQty((current) => Math.min(maxQty || 99, current + 1))} className="flex h-12 w-11 items-center justify-center transition hover:bg-black hover:text-white disabled:opacity-30" aria-label="Increase quantity" disabled={maxQty > 0 && qty >= maxQty}><Plus size={14} /></button>
                 </div>
-                <button onClick={() => toggleWishlist(product.id)} className="flex h-12 w-12 shrink-0 items-center justify-center border border-black/20 transition hover:border-black" aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}><Heart size={17} className={wished ? "fill-[#e11d2e] text-[#e11d2e]" : ""} /></button>
+                <button onClick={() => toggleWishlist(product.id)} className="gdp-neu-control flex h-12 w-12 shrink-0 items-center justify-center border border-black/20 bg-[#f7f6f1] transition hover:border-black" aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}><Heart size={17} className={wished ? "fill-[#e11d2e] text-[#e11d2e]" : ""} /></button>
               </div>
             )}
 

@@ -45,14 +45,14 @@ function variantFor(product, color, size) {
 function StudioStepRail({ currentStep, onStep }) {
   const currentIndex = STUDIO_V2_STEPS.findIndex((step) => step.id === currentStep);
   return (
-    <aside className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-24 lg:self-start">
+    <aside className="gdp-neu-card rounded-3xl border border-slate-200 bg-white p-3 lg:sticky lg:top-24 lg:self-start">
       <div className="mb-3 px-2 pt-2 text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Custom Studio</div>
       <div className="grid grid-cols-4 gap-1 lg:grid-cols-1">
         {STUDIO_V2_STEPS.map((step, index) => {
           const active = step.id === currentStep;
           const complete = index < currentIndex;
           return (
-            <button key={step.id} type="button" onClick={() => complete && onStep(step.id)} disabled={!complete && !active} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl px-1.5 text-left text-xs font-black transition lg:justify-start lg:px-3 ${active ? 'bg-slate-900 text-white' : complete ? 'bg-slate-50 text-slate-700 hover:bg-slate-100' : 'bg-white text-slate-300'}`}>
+            <button key={step.id} type="button" onClick={() => complete && onStep(step.id)} disabled={!complete && !active} className={`gdp-neu-control flex min-h-12 items-center justify-center gap-2 rounded-2xl px-1.5 text-left text-xs font-black transition lg:justify-start lg:px-3 ${active ? 'bg-slate-900 text-white' : complete ? 'bg-slate-50 text-slate-700 hover:bg-slate-100' : 'bg-white text-slate-300'}`}>
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] ${active ? 'bg-white text-slate-900' : complete ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>{complete ? <Check size={14} /> : index + 1}</span>
               <span className="hidden lg:block">{step.label}</span>
             </button>
@@ -77,8 +77,8 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
     }
   }, [dispatch, selectedColorAvailable, state.color]);
   return (
-    <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-4 lg:p-5" data-gdp-selected-garment-options="true" data-gdp-selected-garment-configurator="true">
-      <div data-gdp-selected-garment-summary="true" className="grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+    <div className="gdp-neu-well grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 sm:p-4 lg:p-5" data-gdp-selected-garment-options="true" data-gdp-selected-garment-configurator="true">
+      <div data-gdp-selected-garment-summary="true" className="gdp-neu-card grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
         <div data-gdp-selected-garment-preview="true" className="min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3">
           <div className="grid h-[220px] place-items-center sm:h-[260px] lg:h-[300px]">
             <img src={selectedPreview} decoding="async" alt={`${product?.name || 'Selected garment'}${state.color ? ` in ${displayVariantLabel(state.color)}` : ''}`} className="h-full w-full object-contain" />
@@ -124,7 +124,7 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
               aria-label={available ? `Select ${label}` : `${label}, unavailable`}
               aria-pressed={selected}
               title={available ? label : `${label} — Unavailable`}
-              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 text-sm font-bold transition ${selected ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : available ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-400' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-70'}`}
+              className={`gdp-neu-control inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 text-sm font-bold transition ${selected ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : available ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-400' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-70'}`}
             >
               <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: garmentColorSwatch(product, color) }} aria-hidden="true">
                 {!available && <span className="absolute left-1/2 top-[-3px] h-7 w-px -translate-x-1/2 rotate-45 bg-slate-600" />}
@@ -139,14 +139,14 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
           <div className="flex flex-wrap gap-2">{sizes.map((size) => {
             const sizeVariant = variantFor(product, state.color, size);
             const available = isProductVariantAvailable(product, sizeVariant);
-            return <button key={size} type="button" disabled={!available} onClick={() => available && dispatch({ type: 'SET_SIZE', size })} title={!available ? `${size} — Unavailable` : size} className={`min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold transition ${state.size === size && available ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : available ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-400' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 line-through opacity-70'}`}>{size}</button>;
+            return <button key={size} type="button" disabled={!available} onClick={() => available && dispatch({ type: 'SET_SIZE', size })} title={!available ? `${size} — Unavailable` : size} className={`gdp-neu-control min-h-11 min-w-12 rounded-xl border-2 px-3 text-sm font-bold transition ${state.size === size && available ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : available ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-400' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 line-through opacity-70'}`}>{size}</button>;
           })}</div>
           {sizeRequired && <p className="mt-2 text-xs font-bold text-amber-700">Select a size to continue.</p>}
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
           <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Quantity</div>
-          <div className="inline-flex min-h-11 items-center rounded-xl border-2 border-slate-200 bg-white"><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.max(1, Number(state.quantity || 1) - 1) })} disabled={Number(state.quantity || 1) <= 1} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">−</button><input type="number" min="1" max="99" value={state.quantity} onChange={(event) => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Math.max(1, Number(event.target.value || 1))) })} className="h-11 w-14 border-x border-slate-200 text-center text-base font-black outline-none sm:text-sm" /><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Number(state.quantity || 1) + 1) })} disabled={Number(state.quantity || 1) >= 99} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">+</button></div>
+          <div className="gdp-neu-well inline-flex min-h-11 items-center rounded-xl border-2 border-slate-200 bg-white"><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.max(1, Number(state.quantity || 1) - 1) })} disabled={Number(state.quantity || 1) <= 1} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">−</button><input type="number" min="1" max="99" value={state.quantity} onChange={(event) => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Math.max(1, Number(event.target.value || 1))) })} className="h-11 w-14 border-x border-slate-200 text-center text-base font-black outline-none sm:text-sm" /><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Number(state.quantity || 1) + 1) })} disabled={Number(state.quantity || 1) >= 99} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">+</button></div>
         </div>
       </div>
 
@@ -187,8 +187,8 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
       <div className="flex flex-wrap items-end justify-between gap-3" data-gdp-garment-choices="top">
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{browseGarments ? 'Garment options' : 'Your garment'}</p><p className="mt-1 text-xs font-semibold text-slate-500">{browseGarments ? 'Select a garment below to continue.' : 'Only your selected garment stays visible while you configure it.'}</p></div>
         {selectedProduct && (browseGarments
-          ? <button data-gdp-keep-current-garment="true" type="button" onClick={() => setIsChoosingGarment(false)} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Keep current garment</button>
-          : <button data-gdp-change-garment="true" type="button" onClick={() => setIsChoosingGarment(true)} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Change garment</button>)}
+          ? <button data-gdp-keep-current-garment="true" type="button" onClick={() => setIsChoosingGarment(false)} className="gdp-neu-control inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Keep current garment</button>
+          : <button data-gdp-change-garment="true" type="button" onClick={() => setIsChoosingGarment(true)} className="gdp-neu-control inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Change garment</button>)}
       </div>
 
       {browseGarments ? (
@@ -198,7 +198,7 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
             const cardPreviewSource = item?.customization?.preview?.cardImageUrl || item?.customization?.cardImageUrl || item.images?.[0] || '/images/gdp-logo.webp';
             const cardPreview = studioV2DisplayPreviewUrl(cardPreviewSource, { width: 960 });
             return <div key={item.id} className="min-w-0">
-              <button type="button" onClick={() => chooseProduct(item)} className={`group w-full overflow-hidden rounded-3xl border-2 bg-white text-left transition ${selected ? 'border-slate-900 shadow-lg ring-1 ring-slate-900/5' : 'border-slate-200 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md'}`} aria-pressed={selected}>
+              <button type="button" onClick={() => chooseProduct(item)} className={`gdp-neu-card group w-full overflow-hidden rounded-3xl border-2 bg-white text-left transition ${selected ? 'border-slate-900 shadow-lg ring-1 ring-slate-900/5' : 'border-slate-200 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md'}`} aria-pressed={selected}>
                 <div className="relative aspect-[5/4] bg-slate-50 p-3 xl:aspect-[3/2]"><img src={cardPreview} loading="lazy" decoding="async" alt={item.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]" />{selected && <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.08em] text-white"><Check size={12} /> Selected</span>}</div>
                 <div className="p-4"><p className="text-sm font-black text-slate-900">{item.name}</p><p className="mt-1 line-clamp-2 text-xs font-medium text-slate-500">{item.description || item.type || 'Custom garment'}</p></div>
               </button>
@@ -214,14 +214,14 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
 
 function DesignStepV2({ dispatch }) {
   return <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 2</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose a design path</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Choose the design experience that fits what you want to create. Each path keeps its own artwork and settings.</p>
-    <div className="mt-6 grid gap-4 md:grid-cols-2">{STUDIO_V2_DESIGN_PATHS.map((path) => { const Icon = pathIcons[path.id]; return <button key={path.id} type="button" onClick={() => dispatch({ type: 'SET_DESIGN_PATH', designPath: path.id })} className="rounded-3xl border-2 border-slate-200 bg-white p-5 text-left transition hover:border-slate-900 hover:shadow-lg"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-900 text-white"><Icon size={20} /></span><div><h2 className="text-lg font-black text-slate-900">{path.label}</h2><p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p></div></div></button>; })}</div>
+    <div className="mt-6 grid gap-4 md:grid-cols-2">{STUDIO_V2_DESIGN_PATHS.map((path) => { const Icon = pathIcons[path.id]; return <button key={path.id} type="button" onClick={() => dispatch({ type: 'SET_DESIGN_PATH', designPath: path.id })} className="gdp-neu-card rounded-3xl border-2 border-slate-200 bg-white p-5 text-left transition hover:border-slate-900"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-900 text-white"><Icon size={20} /></span><div><h2 className="text-lg font-black text-slate-900">{path.label}</h2><p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p></div></div></button>; })}</div>
   </div>;
 }
 
 function PrintSideControl({ state, onChange }) {
-  return <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+  return <div className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
     <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Print side</p><p className="text-xs font-bold text-slate-600">Front and Back keep independent artwork and positions.</p></div>
-    <div className="flex rounded-xl bg-slate-100 p-1">{['front', 'back'].map((value) => { const designed = studioV2SideHasContent(state, value); return <button key={value} type="button" onClick={() => onChange(value)} className={`min-h-11 rounded-lg px-4 text-xs font-black uppercase ${state.side === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}>{value}{designed ? ' ✓' : ''}</button>; })}</div>
+    <div className="flex rounded-xl bg-slate-100 p-1">{['front', 'back'].map((value) => { const designed = studioV2SideHasContent(state, value); return <button key={value} type="button" onClick={() => onChange(value)} className={`gdp-neu-control min-h-11 rounded-lg px-4 text-xs font-black uppercase ${state.side === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}>{value}{designed ? ' ✓' : ''}</button>; })}</div>
   </div>;
 }
 
@@ -531,8 +531,8 @@ export default function CustomStudioV2() {
 
   if (loading) return <div className="grid min-h-[60vh] place-items-center bg-slate-50"><div className="text-sm font-black text-slate-500">Loading Custom Studio…</div></div>;
 
-  return <main className="min-h-[70vh] bg-slate-50 text-slate-950"><div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm"><div className="flex items-center gap-2"><span className="rounded-full bg-slate-900 px-2.5 py-1 text-[9px] font-black uppercase tracking-[.14em] text-white">GDP Custom Studio</span><span className="text-xs font-bold text-slate-400">Create · Preview · Approve</span></div><button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button></div>
+  return <main className="gdp-neu-scope min-h-[70vh] bg-slate-50 text-slate-950"><div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
+    <div className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3"><div className="flex items-center gap-2"><span className="rounded-full bg-slate-900 px-2.5 py-1 text-[9px] font-black uppercase tracking-[.14em] text-white">GDP Custom Studio</span><span className="text-xs font-bold text-slate-400">Create · Preview · Approve</span></div><button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button></div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
     <div className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm sm:p-5">
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} onContinue={next} canContinue={canContinue} />}
