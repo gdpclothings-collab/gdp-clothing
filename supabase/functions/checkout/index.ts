@@ -219,8 +219,62 @@ function validDtfStoragePath(value: unknown) {
   return /^dtf\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(String(value || ""));
 }
 
-function respond(req: Request, body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
+function respond(
+  req: Request,
+  body: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders(req), ...extraHeaders },
+  });
+}
+
+function clientIp(req: Request) {
+  const direct = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
+  if (direct) return direct.trim().slice(0, 128);
+  const forwarded = req.headers.get("x-forwarded-for") || "";
+  return (forwarded.split(",")[0] || "unknown").trim().slice(0, 128);
+}
+
+async function consumeActionRateLimit(
+  service: any,
+  req: Request,
+  action: string,
+  limit: number,
+  windowSeconds = 600,
+) {
+  const key = await sha256Hex(`checkout:${action}:ip:${clientIp(req)}`);
+  const { data, error } = await service.rpc("consume_checkout_rate_limit", {
+    p_key: key,
+    p_limit: limit,
+    p_window_seconds: windowSeconds,
+  });
+  if (error) throw error;
+  return data || { allowed: false, retry_after: 60 };
+}
+
+async function enforceActionRateLimit(
+  service: any,
+  req: Request,
+  action: string,
+  limit: number,
+  windowSeconds = 600,
+) {
+  const rate = await consumeActionRateLimit(service, req, action, limit, windowSeconds);
+  if (rate.allowed) return null;
+  const retryAfter = Math.max(1, Number(rate.retry_after || 60));
+  return respond(
+    req,
+    {
+      error: true,
+      rateLimited: true,
+      message: "Too many requests. Please wait briefly and try again.",
+    },
+    429,
+    { "Retry-After": String(retryAfter) },
+  );
 }
 
 function validOrigin(value: unknown) {
@@ -560,6 +614,9 @@ Deno.serve(async (req: Request) => {
     const action = body?.action;
 
     if (action === "createGuestCustomUpload") {
+      const limited = await enforceActionRateLimit(service, req, action, 20);
+      if (limited) return limited;
+
       const files = Array.isArray(body?.files) ? body.files.slice(0, 8) : [];
       if (!files.length) {
         return respond(req, { error: true, message: "Choose at least one artwork file." }, 400);
@@ -589,6 +646,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "signGuestCustomUpload") {
+      const limited = await enforceActionRateLimit(service, req, action, 120);
+      if (limited) return limited;
+
       const path = guestUploadPath(body?.path);
       if (!path) {
         return respond(req, { error: true, message: "That guest artwork path is invalid." }, 400);
@@ -605,6 +665,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "createGuestCustomDesign") {
+      const limited = await enforceActionRateLimit(service, req, action, 30);
+      if (limited) return limited;
+
       const requestUser = await optionalUser(req, supabaseUrl, anonKey);
       const accountUser = isAccountUser(requestUser) ? requestUser : null;
 
@@ -821,6 +884,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "createDtfUpload") {
+      const limited = await enforceActionRateLimit(service, req, action, 20);
+      if (limited) return limited;
+
       const files = Array.isArray(body?.files) ? body.files.slice(0, 30) : [];
       if (!files.length) {
         return respond(req, { error: true, message: "Choose at least one artwork file." }, 400);

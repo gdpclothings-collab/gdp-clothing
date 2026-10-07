@@ -27,8 +27,40 @@ function corsHeaders(req: Request) {
   };
 }
 
-function respond(req: Request, body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
+function respond(
+  req: Request,
+  body: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders(req), ...extraHeaders },
+  });
+}
+
+function clientIp(req: Request) {
+  const direct = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
+  if (direct) return direct.trim().slice(0, 128);
+  const forwarded = req.headers.get("x-forwarded-for") || "";
+  return (forwarded.split(",")[0] || "unknown").trim().slice(0, 128);
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function consumeRateLimit(service: any, req: Request, action: string) {
+  const normalizedAction = action === "createIntent" ? "createIntent" : "bootstrap";
+  const key = await sha256Hex(`payment-session:${normalizedAction}:ip:${clientIp(req)}`);
+  const { data, error } = await service.rpc("consume_checkout_rate_limit", {
+    p_key: key,
+    p_limit: normalizedAction === "createIntent" ? 30 : 120,
+    p_window_seconds: 600,
+  });
+  if (error) throw error;
+  return data || { allowed: false, retry_after: 60 };
 }
 
 function normalizePaymentMode(value: unknown): "live" | "test" {
@@ -79,7 +111,11 @@ async function stripeRequest(
   headers.set("Authorization", `Bearer ${stripeSecret}`);
   headers.set("Stripe-Version", "2026-08-26.dahlia");
   if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
-  const response = await fetch(`https://api.stripe.com${path}`, { ...init, headers });
+  const response = await fetch(`https://api.stripe.com${path}`, {
+    ...init,
+    headers,
+    signal: init.signal || AbortSignal.timeout(10_000),
+  });
   let data: any = null;
   try {
     data = await response.json();
@@ -338,6 +374,22 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const action = String(body?.action || "");
+
+    const rate = await consumeRateLimit(service, req, action);
+    if (!rate.allowed) {
+      const retryAfter = Math.max(1, Number(rate.retry_after || 60));
+      return respond(
+        req,
+        {
+          error: true,
+          rateLimited: true,
+          message: "Too many payment requests. Please wait briefly and try again.",
+        },
+        429,
+        { "Retry-After": String(retryAfter) },
+      );
+    }
+
     if (action === "bootstrap") return await bootstrap(req, service);
     if (action === "createIntent") return await createIntent(req, service, body);
     return respond(req, { error: true, message: "Unsupported payment action." }, 400);
