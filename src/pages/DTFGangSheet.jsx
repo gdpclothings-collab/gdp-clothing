@@ -1198,6 +1198,7 @@ export default function DTFGangSheet() {
   };
 
   const fitSheet = () => {
+    if (mode !== "build") return;
     const nextLength = Math.max(settings.minLength, fitLength);
     setSheetLength(nextLength);
     setApproval(false);
@@ -1210,7 +1211,7 @@ export default function DTFGangSheet() {
   };
 
   const onPointerDown = (event, item) => {
-    if (panMode) return;
+    if (panMode || mode !== "build") return;
     if (!canvasRef.current) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1227,7 +1228,7 @@ export default function DTFGangSheet() {
   };
 
   const onResizePointerDown = (event, item) => {
-    if (panMode) return;
+    if (panMode || mode !== "build") return;
     if (!canvasRef.current) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1268,7 +1269,7 @@ export default function DTFGangSheet() {
   const onPointerMove = (event) => {
     const drag = dragRef.current;
     const canvas = canvasRef.current;
-    if (!drag || !canvas) return;
+    if (!drag || !canvas || mode !== "build") return;
 
     event.preventDefault();
     const item = artworks.find((entry) => entry.id === drag.id);
@@ -1751,9 +1752,9 @@ export default function DTFGangSheet() {
                       {settings.advancedNestingEnabled ? "Advanced Nest" : "Auto Arrange"}
                     </button>
                   )}
-                  <button type="button" onClick={fitSheet} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
+                  {mode === "build" && <button type="button" onClick={fitSheet} disabled={!artworks.length} className="border border-white/20 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white disabled:opacity-30">
                     Fit sheet to artwork
-                  </button>
+                  </button>}
                   <button
                     type="button"
                     onClick={resetWorkspace}
