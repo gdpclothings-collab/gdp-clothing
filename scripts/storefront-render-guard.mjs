@@ -2,8 +2,8 @@ import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-// Test only the locally built production bundle, never the live storefront.
-// This runs before PR auto-merge, so a JS crash cannot silently publish a blank page.
+// Check a local production build before merge, or the explicitly pinned live site after deployment.
+// This catches blank pages without changing production data.
 const BASE_URL = new URL(process.env.RENDER_GUARD_BASE_URL || "http://127.0.0.1:4173");
 const localPreview = ["localhost", "127.0.0.1"].includes(BASE_URL.hostname);
 const liveCanary = process.env.RENDER_GUARD_ALLOW_PRODUCTION === "1" && BASE_URL.origin === "https://gdpclothing.ca";
@@ -50,7 +50,7 @@ async function probe(browser, item) {
     const target = new URL(item.route, BASE_URL);
     const response = await page.goto(target.toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
     assert(response && response.status() < 400, "Document failed to load: " + (response?.status() ?? "no response"));
-    assert(new URL(page.url()).origin === BASE_URL.origin, "Preview unexpectedly redirected off localhost.");
+    assert(new URL(page.url()).origin === BASE_URL.origin, "Render check unexpectedly redirected to another origin.");
 
     // A successful HTTP 200 or a visible <body> is not enough: React must mount.
     await page.waitForFunction(() => {
@@ -72,7 +72,11 @@ async function probe(browser, item) {
     assert(await page.locator("#root").isVisible(), "React root is hidden.");
     const rootText = (await page.locator("#root").innerText()).trim();
     assert(rootText.length > 40, "React root rendered only a blank or loading shell.");
-    assert(item.required.test(rootText), "Expected page content was not rendered on " + item.route);
+    await page.waitForFunction(({ source, flags }) => {
+      const text = document.getElementById("root")?.innerText || "";
+      return new RegExp(source, flags).test(text);
+    }, { source: item.required.source, flags: item.required.flags }, { timeout: 20000 });
+    assert(item.required.test(await page.locator("#root").innerText()), "Expected route content missing: " + item.route);
     await page.waitForTimeout(400);
     assert(pageErrors.length === 0, "Uncaught JS error: " + pageErrors.join(" | "));
     assert(assetFailures.length === 0, "First-party JS/CSS asset failed: " + assetFailures.join(" | "));
@@ -87,6 +91,7 @@ async function probe(browser, item) {
         bodyVisibility: body ? getComputedStyle(body).visibility : "absent",
         rootChildren: root?.children.length ?? -1,
         rootTextLength: (root?.innerText || "").trim().length,
+        rootTextSnippet: (root?.innerText || "").trim().slice(0, 350),
       };
     }).catch(() => ({}));
     await page.screenshot({ path: path.join(OUT, item.name + "-FAIL.png"), fullPage: true }).catch(() => {});
