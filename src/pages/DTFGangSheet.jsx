@@ -463,6 +463,9 @@ export default function DTFGangSheet() {
   const { addItem, replaceItem } = useCart();
   const { confirmAction } = useNotifications();
   const canvasRef = useRef(null);
+  const viewportRef = useRef(null);
+  const panRef = useRef(null);
+  const [panMode, setPanMode] = useState(false);
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [canvasBackground, setCanvasBackground] = useState("checker");
   const dragRef = useRef(null);
@@ -1207,6 +1210,7 @@ export default function DTFGangSheet() {
   };
 
   const onPointerDown = (event, item) => {
+    if (panMode) return;
     if (!canvasRef.current) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1223,6 +1227,7 @@ export default function DTFGangSheet() {
   };
 
   const onResizePointerDown = (event, item) => {
+    if (panMode) return;
     if (!canvasRef.current) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1246,7 +1251,7 @@ export default function DTFGangSheet() {
   };
 
   const onRotatePointerDown = (event, item) => {
-    if (!canvasRef.current || mode !== "build") return;
+    if (panMode || !canvasRef.current || mode !== "build") return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -1766,6 +1771,8 @@ export default function DTFGangSheet() {
                   <output className="min-w-12 text-center font-mono text-xs">{Math.round(canvasZoom * 100)}%</output>
                   <button type="button" aria-label="Zoom in" disabled={canvasZoom >= 2} onClick={() => setCanvasZoom((v) => Math.min(2, Math.round((v + 0.25) * 100) / 100))} className="border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">+</button>
                   <button type="button" onClick={() => setCanvasZoom(1)} className="border border-white/30 px-2 py-1.5 font-mono text-[10px]">100%</button>
+                  <button type="button" aria-pressed={panMode} onClick={() => setPanMode((value) => !value)} className={`border px-3 py-1.5 font-mono text-[10px] ${panMode ? "border-white bg-white text-black" : "border-white/30 text-white"}`}>{panMode ? "Pan: ON" : "Pan view"}</button>
+                  <button type="button" onClick={() => { setCanvasZoom(1); if (viewportRef.current) { viewportRef.current.scrollLeft = 0; viewportRef.current.scrollTop = 0; } }} className="border border-white/30 px-2 py-1.5 font-mono text-[10px]">Reset view</button>
                 </div>
                 <label className="flex items-center gap-2 font-mono text-[10px] uppercase text-white/65">
                   Preview background
@@ -1777,7 +1784,26 @@ export default function DTFGangSheet() {
                 </label>
                 <span className="w-full font-mono text-[9px] text-white/50">Preview only — does not change artwork, film size, or print colors.</span>
               </div>
-              <div className="max-h-[820px] overflow-auto bg-[#262626] p-4 sm:p-7">
+              <div
+                ref={viewportRef}
+                className="max-h-[820px] overflow-auto bg-[#262626] p-4 sm:p-7"
+                style={{ cursor: panMode ? "grab" : undefined, touchAction: panMode ? "none" : "auto" }}
+                onPointerDown={(event) => {
+                  if (!panMode || !viewportRef.current) return;
+                  event.preventDefault();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  panRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, left: event.currentTarget.scrollLeft, top: event.currentTarget.scrollTop };
+                }}
+                onPointerMove={(event) => {
+                  const pan = panRef.current;
+                  if (!pan || pan.id !== event.pointerId || !viewportRef.current) return;
+                  event.preventDefault();
+                  viewportRef.current.scrollLeft = pan.left - (event.clientX - pan.x);
+                  viewportRef.current.scrollTop = pan.top - (event.clientY - pan.y);
+                }}
+                onPointerUp={(event) => { if (panRef.current?.id === event.pointerId) panRef.current = null; }}
+                onPointerCancel={(event) => { if (panRef.current?.id === event.pointerId) panRef.current = null; }}
+              >
                 <div className="mx-auto" style={{ width: `${canvasZoom * 100}%`, maxWidth: `${540 * canvasZoom}px` }}>
                   <div className="mb-2 flex justify-between font-mono text-[8px] uppercase tracking-[0.1em] text-white/40">
                     <span>0"</span><span>{round(sheetWidth / 2, 1)}"</span><span>{round(sheetWidth, 1)}"</span>
@@ -1795,7 +1821,7 @@ export default function DTFGangSheet() {
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
                     onPointerLeave={endDrag}
-                    onPointerDown={() => setSelectedId("")}
+                    onPointerDown={() => { if (!panMode) setSelectedId(""); }}
                   >
                     {artworks.map((item) => {
                       const selected = item.id === selectedId;
