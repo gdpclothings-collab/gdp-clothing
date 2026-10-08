@@ -82,6 +82,14 @@ jobs:
             sleep 5
           done
           exit 1
+      - name: Fail fast on hidden or blank production storefront
+        env:
+          RENDER_GUARD_BASE_URL: https://gdpclothing.ca
+          RENDER_GUARD_ALLOW_PRODUCTION: "1"
+          RENDER_GUARD_CANARY_ONLY: "1"
+          RENDER_GUARD_ARTIFACT_DIR: production-smoke-results/first-paint
+        run: node scripts/storefront-render-guard.mjs
+
       - name: Run maintenance-aware production canary
         run: node scripts/production-smoke-v2.mjs
       - name: Run read-only payment preflight
