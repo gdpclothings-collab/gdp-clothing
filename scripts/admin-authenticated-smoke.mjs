@@ -128,17 +128,31 @@ async function authenticate(browser) {
     await waitForAdminOrMfa(page);
   } catch (error) {
     const bodyText = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 1200);
-    console.error(`Admin auth diagnostic: url=${page.url()} body=${bodyText || "[empty]"}`);
+    const currentUrl = page.url();
+    console.error(`Admin auth diagnostic: url=${currentUrl} body=${bodyText || "[empty]"}`);
     await page.screenshot({
       path: path.join(OUT, "admin-authentication-FAILED.png"),
       fullPage: true,
     }).catch(() => {});
+
+    const blockedByCloudflare =
+      /performing security verification|protect against malicious bots|performance and security by cloudflare|ray id:/i.test(bodyText);
+
+    if (blockedByCloudflare) {
+      await context.close();
+      return {
+        blocked: true,
+        reason: "cloudflare-security-verification",
+        url: currentUrl,
+      };
+    }
+
     throw error;
   }
 
   const state = await context.storageState();
   await context.close();
-  return state;
+  return { blocked: false, storageState: state };
 }
 
 async function runCheck(browser, name, viewport, storageState, test) {
@@ -183,7 +197,28 @@ async function main() {
   const results = [];
 
   try {
-    const storageState = await authenticate(browser);
+    const authResult = await authenticate(browser);
+
+    if (authResult?.blocked) {
+      const report = {
+        baseUrl: BASE_URL,
+        generatedAt: new Date().toISOString(),
+        authenticated: false,
+        status: "blocked",
+        blocker: authResult.reason,
+        url: authResult.url,
+        safetyBoundary: "Authenticated admin smoke was blocked by Cloudflare security verification before the admin app rendered. No commerce mutation was submitted.",
+        passed: 0,
+        failed: 0,
+        total: 0,
+        results: [],
+      };
+      await fs.writeFile(path.join(OUT, "admin-authenticated-smoke.json"), JSON.stringify(report, null, 2));
+      console.warn("SKIP admin smoke - Cloudflare security verification blocked the GitHub Actions browser before the admin app rendered.");
+      return;
+    }
+
+    const storageState = authResult.storageState;
 
     results.push(await runCheck(browser, "desktop dashboard", DESKTOP, storageState, async (page) => {
       await nav(page, "/admin");
