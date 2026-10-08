@@ -539,6 +539,15 @@ export default function DTFGangSheet() {
     );
   };
 
+  // A completed print-ready sheet defines its own film length; never bill for a stale preset.
+  const readyLength = mode === "upload" && artworks.length === 1 ? artworks[0].height : null;
+  useEffect(() => {
+    if (readyLength != null && Math.abs(sheetLength - readyLength) > 0.0001) {
+      setSheetLength(readyLength);
+      setApproval(false);
+    }
+  }, [readyLength, sheetLength]);
+
   const hasArtwork = artworks.length > 0;
   const price = useMemo(
     () => calculateDtfPrice(hasArtwork ? sheetWidth : 0, hasArtwork ? sheetLength : 0, settings),
@@ -1603,6 +1612,7 @@ export default function DTFGangSheet() {
                     <button
                       key={length}
                       type="button"
+                      disabled={mode === "upload" && artworks.length > 0}
                       onClick={() => {
                         if (mode === "upload" && artworks.length) { setPageError("Upload a different print-ready file to change its length."); return; }
                         setSheetLength(length);
@@ -1619,6 +1629,7 @@ export default function DTFGangSheet() {
                     <input
                       type="number"
                       min={mode === "upload" ? 36 : settings.minLength}
+                      disabled={mode === "upload" && artworks.length > 0}
                       step="1"
                       value={sheetLength}
                       onChange={(event) => {
