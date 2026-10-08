@@ -554,6 +554,8 @@ export default function DTFGangSheet() {
     () => calculateDtfPrice(hasArtwork ? sheetWidth : 0, hasArtwork ? sheetLength : 0, settings),
     [hasArtwork, sheetWidth, sheetLength, settings]
   );
+  const perCopyReviewFee = artworkReviewRequested && settings.artworkReviewEnabled ? Number(settings.artworkReviewPrice || 0) : 0;
+  const copiesSubtotal = Math.round((price.price + perCopyReviewFee) * 100) * copyQuantity / 100;
   const selectedArtwork = artworks.find((item) => item.id === selectedId) || null;
   const selectedQuality = getArtworkQuality(selectedArtwork, settings);
   const overlaps = artworkOverlaps(artworks);
@@ -2069,7 +2071,7 @@ export default function DTFGangSheet() {
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-black/45">Film price</div>
-                    <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `${(Math.round((price.price + (artworkReviewRequested && settings.artworkReviewEnabled ? Number(settings.artworkReviewPrice || 0) : 0)) * 100) * copyQuantity / 100).toFixed(2)}` : "—"}</div>
+                    <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `$${copiesSubtotal.toFixed(2)}` : "—"}</div>
                     {hasArtwork && <div className="mt-1 text-[10px] text-black/50">${price.price.toFixed(2)} film per copy × {copyQuantity}{artworkReviewRequested && settings.artworkReviewEnabled ? " (plus artwork review per copy)" : ""}</div>
                   </div>
                   <div className="pb-1 font-mono text-[9px] uppercase text-black/40">{hasArtwork ? "CAD" : "Upload artwork"}</div>
