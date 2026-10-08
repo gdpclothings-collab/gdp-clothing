@@ -608,8 +608,8 @@ export default function DTFGangSheet() {
     if (mode === "upload" && artworks.length !== 1 && artworks.length > 0) {
       errors.push("Upload exactly one completed gang sheet.");
     }
-    if (mode === "upload" && artworks.length && (Math.abs(artworks[0].width - sheetWidth) > 0.01 || Math.abs(artworks[0].height - sheetLength) > 0.01)) {
-      errors.push("The uploaded gang sheet must match the full film dimensions without resizing.");
+    if (mode === "upload" && artworks.length && (artworks[0].width > sheetWidth + 0.01 || Math.abs(artworks[0].x - (sheetWidth - artworks[0].width) / 2) > 0.01 || Math.abs(artworks[0].height - sheetLength) > 0.01)) {
+      errors.push("Print-ready artwork must fit within 34-inch film, be centered, and retain its original dimensions.");
     }
     if (usedLength > sheetLength + 0.01) {
       errors.push("Artwork extends beyond the selected film length.");
@@ -704,15 +704,15 @@ export default function DTFGangSheet() {
         }
         const exactWidth = metadata.originalPixelWidth / 300;
         const exactLength = metadata.originalPixelHeight / 300;
-        if (Math.abs(exactWidth - 34) > 0.01 || exactLength < 36 - 0.01 || exactLength > 10000) {
-          setPageError(`Print-ready gang sheets must be 34" wide and at least 36" long at 300 DPI. This file measures ${round(exactWidth, 2)}" × ${round(exactLength, 2)}".`);
+        if (exactWidth <= 0 || exactWidth > 34 + 0.01 || exactLength < 36 - 0.01 || exactLength > 10000) {
+          setPageError(`Print-ready artwork must be no wider than 34" and at least 36" long at 300 DPI. This file measures ${round(exactWidth, 2)}" × ${round(exactLength, 2)}".`);
           metadata.previewUrl && URL.revokeObjectURL(metadata.previewUrl);
           return;
         }
       }
       const isVector = file.type === "image/svg+xml" || file.type === "application/pdf";
       const sourceSize = sourceDefaultPrintSize(metadata, settings, sheetWidth, sheetLength);
-      const defaultWidth = mode === "upload" ? 34 : isVector
+      const defaultWidth = mode === "upload" ? metadata.originalPixelWidth / 300 : isVector
         ? mode === "upload"
           ? Math.max(0.1, sheetWidth - settings.spacing * 2)
           : Math.min(10, Math.max(0.1, sheetWidth - settings.spacing * 2))
@@ -743,7 +743,7 @@ export default function DTFGangSheet() {
         transparentTrimmed: metadata.transparentTrimmed === true,
         aspectRatio: metadata.aspectRatio || 1,
         isVector,
-        x: mode === "upload" ? 0 : settings.spacing,
+        x: mode === "upload" ? (34 - defaultWidth) / 2 : settings.spacing,
         y: mode === "upload" ? 0 : settings.spacing,
         width: defaultWidth,
         height,
