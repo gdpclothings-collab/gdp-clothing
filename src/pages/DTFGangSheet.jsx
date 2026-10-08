@@ -2072,7 +2072,7 @@ export default function DTFGangSheet() {
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-black/45">Film price</div>
                     <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `$${copiesSubtotal.toFixed(2)}` : "—"}</div>
-                    {hasArtwork && <div className="mt-1 text-[10px] text-black/50">${price.price.toFixed(2)} film per copy × {copyQuantity}{artworkReviewRequested && settings.artworkReviewEnabled ? " (plus artwork review per copy)" : ""}</div>
+                    {hasArtwork && <div className="mt-1 text-[10px] text-black/50">${price.price.toFixed(2)} film per copy × {copyQuantity}{artworkReviewRequested && settings.artworkReviewEnabled ? " (plus artwork review per copy)" : ""}</div>}
                   </div>
                   <div className="pb-1 font-mono text-[9px] uppercase text-black/40">{hasArtwork ? "CAD" : "Upload artwork"}</div>
                 </div>
