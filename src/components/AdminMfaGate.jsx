@@ -65,6 +65,35 @@ export default function AdminMfaGate() {
     setAal2(false);
 
     try {
+      let nextGrace = null;
+      let graceLoadError = null;
+
+      try {
+        nextGrace = await adminMfaSecurityApi.getState();
+        setGrace(nextGrace);
+        setMode("intro");
+      } catch (stateError) {
+        graceLoadError = stateError;
+        setGrace(null);
+      }
+
+      const expiresAt = nextGrace?.grace_expires_at
+        ? new Date(nextGrace.grace_expires_at).getTime()
+        : 0;
+      const graceIsActive =
+        Boolean(nextGrace?.grace_active) &&
+        !nextGrace?.enrolled_at &&
+        Number.isFinite(expiresAt) &&
+        expiresAt > Date.now();
+
+      // The server-backed grace record is the source of truth for first-time
+      // admin onboarding. If it is active and the admin has not enrolled MFA,
+      // do not block dashboard access on optional browser MFA SDK checks.
+      if (graceIsActive) {
+        setGraceBypass(true);
+        return;
+      }
+
       const [aalResult, factorsResult] = await Promise.all([
         supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
         supabase.auth.mfa.listFactors(),
@@ -90,34 +119,11 @@ export default function AdminMfaGate() {
         return;
       }
 
-      let nextGrace = null;
-      try {
-        nextGrace = await adminMfaSecurityApi.getState();
-      } catch {
-        setGrace(null);
-        setMode("intro");
+      setMode("intro");
+      if (graceLoadError) {
         setError(
           "The MFA grace-period status could not be loaded. You can still set up your authenticator now."
         );
-        return;
-      }
-      setGrace(nextGrace);
-      setMode("intro");
-
-      const expiresAt = nextGrace?.grace_expires_at
-        ? new Date(nextGrace.grace_expires_at).getTime()
-        : 0;
-      const graceIsActive =
-        Boolean(nextGrace?.grace_active) &&
-        Number.isFinite(expiresAt) &&
-        expiresAt > Date.now();
-
-      // During the documented first-time grace period, keep the administrator
-      // in their workflow and surface setup as a persistent banner. The full
-      // security gate is reserved for verified-factor challenges or an expired
-      // grace period, so opening Admin never unexpectedly discards page context.
-      if (graceIsActive) {
-        setGraceBypass(true);
       }
     } catch (loadError) {
       setError(
