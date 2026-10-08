@@ -692,7 +692,7 @@ export default function DTFGangSheet() {
         }
         const exactWidth = metadata.originalPixelWidth / 300;
         const exactLength = metadata.originalPixelHeight / 300;
-        if (Math.abs(exactWidth - 34) > 0.01 || exactLength < 36 - 0.01) {
+        if (Math.abs(exactWidth - 34) > 0.01 || exactLength < 36 - 0.01 || exactLength > 10000) {
           setPageError(`Print-ready gang sheets must be 34" wide and at least 36" long at 300 DPI. This file measures ${round(exactWidth, 2)}" × ${round(exactLength, 2)}".`);
           metadata.previewUrl && URL.revokeObjectURL(metadata.previewUrl);
           return;
