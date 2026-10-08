@@ -124,7 +124,18 @@ async function authenticate(browser) {
     }),
   ]);
 
-  await waitForAdminOrMfa(page);
+  try {
+    await waitForAdminOrMfa(page);
+  } catch (error) {
+    const bodyText = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 1200);
+    console.error(`Admin auth diagnostic: url=${page.url()} body=${bodyText || "[empty]"}`);
+    await page.screenshot({
+      path: path.join(OUT, "admin-authentication-FAILED.png"),
+      fullPage: true,
+    }).catch(() => {});
+    throw error;
+  }
+
   const state = await context.storageState();
   await context.close();
   return state;
