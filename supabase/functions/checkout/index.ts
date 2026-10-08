@@ -1488,6 +1488,9 @@ Deno.serve(async (req: Request) => {
         if (!Number.isFinite(length) || length < dtfSettings.minLength || length > 10000) {
           return respond(req, { error: true, message: `DTF film length must be at least ${dtfSettings.minLength}".` }, 400);
         }
+        if (mode === "upload" && (Math.abs(width - 34) > 0.01 || length < 36)) {
+          return respond(req, { error: true, message: 'Print-ready film must be 34" wide and at least 36" long.' }, 400);
+        }
         if (spec.approvalAcknowledged !== true) {
           return respond(req, { error: true, message: "Approve the DTF film layout before checkout." }, 400);
         }
@@ -1551,6 +1554,19 @@ Deno.serve(async (req: Request) => {
             cropBounds,
             transparentTrimmed: artwork?.transparentTrimmed === true && Boolean(cropBounds),
           });
+        }
+
+        if (mode === "upload") {
+          const sheet = cleanLayout[0];
+          const expectedWidthPx = Math.round(width * 300);
+          const expectedHeightPx = Math.round(length * 300);
+          if (Math.abs(sheet.x) > 0.01 || Math.abs(sheet.y) > 0.01 ||
+              Math.abs(sheet.width - width) > 0.01 || Math.abs(sheet.height - length) > 0.01 ||
+              Math.abs(sheet.rotation) > 0.01 || sheet.cropBounds ||
+              Math.abs(sheet.originalPixelWidth - expectedWidthPx) > 2 ||
+              Math.abs(sheet.originalPixelHeight - expectedHeightPx) > 2) {
+            return respond(req, { error: true, message: "Print-ready artwork must cover the exact film at 300 DPI without scaling, cropping, or rotation." }, 400);
+          }
         }
 
         for (let i = 0; i < cleanLayout.length; i += 1) {
