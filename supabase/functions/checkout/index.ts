@@ -1558,14 +1558,14 @@ Deno.serve(async (req: Request) => {
 
         if (mode === "upload") {
           const sheet = cleanLayout[0];
-          const expectedWidthPx = Math.round(width * 300);
+          const expectedWidthPx = Math.round(sheet.width * 300);
           const expectedHeightPx = Math.round(length * 300);
-          if (Math.abs(sheet.x) > 0.01 || Math.abs(sheet.y) > 0.01 ||
-              Math.abs(sheet.width - width) > 0.01 || Math.abs(sheet.height - length) > 0.01 ||
+          if (sheet.width > width + 0.01 || Math.abs(sheet.x - (width - sheet.width) / 2) > 0.01 || Math.abs(sheet.y) > 0.01 ||
+              Math.abs(sheet.height - length) > 0.01 ||
               Math.abs(sheet.rotation) > 0.01 || sheet.cropBounds ||
               Math.abs(sheet.originalPixelWidth - expectedWidthPx) > 2 ||
               Math.abs(sheet.originalPixelHeight - expectedHeightPx) > 2) {
-            return respond(req, { error: true, message: "Print-ready artwork must cover the exact film at 300 DPI without scaling, cropping, or rotation." }, 400);
+            return respond(req, { error: true, message: "Print-ready artwork must fit centered on 34-inch film at 300 DPI without scaling, cropping, or rotation." }, 400);
           }
         }
 
