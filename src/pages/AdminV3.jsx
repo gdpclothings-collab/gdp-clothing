@@ -2,6 +2,7 @@ import React, { lazy, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Activity, ArrowLeft, Banknote, BarChart3, Bot, DollarSign, ExternalLink, FileText, HeartPulse, LockKeyhole, MoreHorizontal, Truck, UsersRound, X } from "lucide-react";
 import AdminV2 from "@/pages/AdminV2";
+import PaymentPreflightCard from "@/components/admin/PaymentPreflightCard";
 import { systemHealthApi } from "@/lib/systemHealthApi";
 
 const SalesLeads = lazy(() => import("@/pages/SalesLeads"));
@@ -27,7 +28,6 @@ const FinanceVendorCredits = lazy(() => import("@/pages/FinanceVendorCredits"));
 const FinanceReceivables = lazy(() => import("@/pages/FinanceReceivables"));
 const FinanceExpenses = lazy(() => import("@/pages/FinanceExpenses"));
 const SystemHealthModule = lazy(() => import("@/components/admin/SystemHealthModule"));
-const PaymentPreflightCard = lazy(() => import("@/components/admin/PaymentPreflightCard"));
 const AiBusinessManagerModule = lazy(() => import("@/components/admin/AiBusinessManagerModule"));
 const ProductActionsUX = lazy(() => import("@/components/admin/ProductActionsUX"));
 
