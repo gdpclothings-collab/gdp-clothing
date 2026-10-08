@@ -19,6 +19,7 @@ concurrency:
 jobs:
   standalone-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -101,3 +102,30 @@ jobs:
 
       - name: Build production app
         run: npm run build
+
+      - name: Install Playwright render guard
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify built storefront paints before merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/gdp-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          node scripts/storefront-render-guard.mjs || {
+            cat /tmp/gdp-preview.log
+            exit 1
+          }
+
+      - name: Upload storefront render guard evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: storefront-render-guard-${{ github.run_id }}
+          path: render-guard-results
+          if-no-files-found: ignore
+          retention-days: 7
