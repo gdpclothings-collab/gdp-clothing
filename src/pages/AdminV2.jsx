@@ -1,4 +1,4 @@
-import React, { lazy, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUnsavedChanges } from "@/lib/UnsavedChangesContext";
 import {
@@ -47,34 +47,36 @@ import {
   FileImage,
 } from "lucide-react";
 import { adminDashboardApi } from "@/lib/adminDashboardApi";
-const OrdersModule = lazy(() => import("@/components/admin/OrdersModule"));
-const DraftOrdersModule = lazy(() => import("@/components/admin/DraftOrdersModule"));
-const ReturnsModule = lazy(() => import("@/components/admin/ReturnsModule"));
-const AbandonedCheckoutsModule = lazy(() => import("@/components/admin/AbandonedCheckoutsModule"));
-const ProductsModule = lazy(() => import("@/components/admin/ProductsModule"));
-const InventoryModule = lazy(() => import("@/components/admin/InventoryModule"));
-const InventoryOperationsModule = lazy(() => import("@/components/admin/InventoryOperationsModule"));
-const CustomersModule = lazy(() => import("@/components/admin/CustomersModule"));
-const SupportTicketsModule = lazy(() => import("@/components/admin/SupportTicketsModule"));
-const CustomerGroupsModule = lazy(() => import("@/components/admin/CustomerGroupsModule"));
-const CollectionsModule = lazy(() => import("@/components/admin/CollectionsModule"));
-const ReviewsModule = lazy(() => import("@/components/admin/ReviewsModule"));
-const DiscountsModule = lazy(() => import("@/components/admin/DiscountsModule"));
-const CustomStudioAdminModule = lazy(() => import("@/components/admin/CustomStudioAdminModule"));
-const DTFGangSheetAdminModule = lazy(() => import("@/components/admin/DTFGangSheetAdminModule"));
-const ProductionModule = lazy(() => import("@/components/admin/ProductionModule"));
-const AnalyticsModule = lazy(() => import("@/components/admin/AnalyticsModule"));
-const FinanceModule = lazy(() => import("@/components/admin/FinanceModule"));
-const SettingsModule = lazy(() => import("@/components/admin/SettingsModule"));
-const AdvancedSettingsModule = lazy(() => import("@/components/admin/AdvancedSettingsModule"));
-const SecurityComplianceModule = lazy(() => import("@/components/admin/SecurityComplianceModule"));
-const MarketsManagementModule = lazy(() => import("@/components/admin/MarketsManagementModule"));
-const ContentManagementModule = lazy(() => import("@/components/admin/ContentManagementModule"));
-const LandingPageModule = lazy(() => import("@/components/admin/LandingPageModule"));
-const GrowthModule = lazy(() => import("@/components/admin/BusinessInsightsModules").then((module) => ({ default: module.GrowthModule })));
-const MarketingModule = lazy(() => import("@/components/admin/BusinessInsightsModules").then((module) => ({ default: module.MarketingModule })));
-const OnlineStoreModule = lazy(() => import("@/components/admin/BusinessInsightsModules").then((module) => ({ default: module.OnlineStoreModule })));
-const AppsModule = lazy(() => import("@/components/admin/BusinessInsightsModules").then((module) => ({ default: module.AppsModule })));
+import OrdersModule from "@/components/admin/OrdersModule";
+import DraftOrdersModule from "@/components/admin/DraftOrdersModule";
+import ReturnsModule from "@/components/admin/ReturnsModule";
+import AbandonedCheckoutsModule from "@/components/admin/AbandonedCheckoutsModule";
+import ProductsModule from "@/components/admin/ProductsModule";
+import InventoryModule from "@/components/admin/InventoryModule";
+import InventoryOperationsModule from "@/components/admin/InventoryOperationsModule";
+import CustomersModule from "@/components/admin/CustomersModule";
+import SupportTicketsModule from "@/components/admin/SupportTicketsModule";
+import CustomerGroupsModule from "@/components/admin/CustomerGroupsModule";
+import CollectionsModule from "@/components/admin/CollectionsModule";
+import ReviewsModule from "@/components/admin/ReviewsModule";
+import DiscountsModule from "@/components/admin/DiscountsModule";
+import CustomStudioAdminModule from "@/components/admin/CustomStudioAdminModule";
+import DTFGangSheetAdminModule from "@/components/admin/DTFGangSheetAdminModule";
+import ProductionModule from "@/components/admin/ProductionModule";
+import AnalyticsModule from "@/components/admin/AnalyticsModule";
+import FinanceModule from "@/components/admin/FinanceModule";
+import SettingsModule from "@/components/admin/SettingsModule";
+import AdvancedSettingsModule from "@/components/admin/AdvancedSettingsModule";
+import SecurityComplianceModule from "@/components/admin/SecurityComplianceModule";
+import MarketsManagementModule from "@/components/admin/MarketsManagementModule";
+import ContentManagementModule from "@/components/admin/ContentManagementModule";
+import LandingPageModule from "@/components/admin/LandingPageModule";
+import {
+  GrowthModule,
+  MarketingModule,
+  OnlineStoreModule,
+  AppsModule,
+} from "@/components/admin/BusinessInsightsModules";
 import { useAuth } from "@/lib/AuthContext";
 
 const NAV_GROUPS = [
