@@ -1691,6 +1691,10 @@ export default function DTFGangSheet() {
                   <div className="mb-2 flex justify-between font-mono text-[8px] uppercase tracking-[0.1em] text-white/40">
                     <span>0"</span><span>{round(sheetWidth / 2, 1)}"</span><span>{round(sheetWidth, 1)}"</span>
                   </div>
+                  <div className="mb-2 flex justify-between gap-2 font-mono text-[8px] uppercase tracking-[0.08em] text-white/80">
+                    <span>{round(sheetWidth, 1)}" wide DTF film</span>
+                    <span>{round(sheetLength, 1)}" length</span>
+                  </div>
                   <div
                     ref={canvasRef}
                     className="relative w-full touch-none overflow-hidden border border-white/35 shadow-2xl"
@@ -1701,10 +1705,6 @@ export default function DTFGangSheet() {
                     onPointerLeave={endDrag}
                     onPointerDown={() => setSelectedId("")}
                   >
-                    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-between bg-black/70 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.08em] text-white">
-                      <span>{round(sheetWidth, 1)}" wide DTF film</span>
-                      <span>{round(sheetLength, 1)}" length</span>
-                    </div>
                     {artworks.map((item) => {
                       const selected = item.id === selectedId;
                       const quality = getArtworkQuality(item, settings);
