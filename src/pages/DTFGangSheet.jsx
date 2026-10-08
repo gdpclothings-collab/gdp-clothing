@@ -80,7 +80,7 @@ function sourceDefaultPrintSize(metadata, settings, sheetWidth, sheetLength) {
   };
 }
 
-async function imageMetadata(file) {
+async function imageMetadata(file, preserveFullSheet = false) {
   if (!file || !String(file.type || "").startsWith("image/") || file.type === "image/svg+xml") {
     return {
       pixelWidth: 0,
@@ -111,6 +111,7 @@ async function imageMetadata(file) {
 
       try {
         if (
+          !preserveFullSheet &&
           file.type === "image/png" &&
           originalPixelWidth > 0 &&
           originalPixelHeight > 0
@@ -473,6 +474,7 @@ export default function DTFGangSheet() {
   const [sheetWidth, setSheetWidth] = useState(34);
   const [sheetLength, setSheetLength] = useState(36);
   const [artworks, setArtworks] = useState([]);
+  const modeWorkspacesRef = useRef({ build: null, upload: null });
   const [selectedId, setSelectedId] = useState("");
   const [approval, setApproval] = useState(false);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
@@ -546,7 +548,7 @@ export default function DTFGangSheet() {
   const selectedQuality = getArtworkQuality(selectedArtwork, settings);
   const overlaps = artworkOverlaps(artworks);
   const utilization = calculateUtilization(artworks, sheetWidth, sheetLength);
-  const usedLength = usedArtworkLength(artworks, settings.spacing);
+  const usedLength = mode === "upload" ? (artworks[0]?.height || 0) : usedArtworkLength(artworks, settings.spacing);
   const fitLength = fitLengthToArtwork(artworks, settings);
   const displayHeight = Math.min(1600, Math.max(520, (sheetLength / Math.max(1, sheetWidth)) * 500));
   const showUnusedFilmWarning = hasArtwork && utilization < 90;
@@ -579,11 +581,23 @@ export default function DTFGangSheet() {
     const lowResolutionFiles = new Map();
     const jpegFiles = new Map();
     if (!artworks.length) errors.push("Upload at least one artwork file.");
+    if (mode === "upload" && Math.abs(sheetWidth - 34) > 0.01) {
+      errors.push('Print-ready gang sheets must be exactly 34" wide.');
+    }
+    if (mode === "upload" && sheetLength < 36) {
+      errors.push('Print-ready gang sheets must be at least 36" long.');
+    }
     if (sheetWidth <= 0 || sheetWidth > settings.maxWidth) {
       errors.push(`Film width must be between 1" and ${settings.maxWidth}".`);
     }
     if (sheetLength < settings.minLength) {
       errors.push(`Film length must be at least ${settings.minLength}".`);
+    }
+    if (mode === "upload" && artworks.length !== 1 && artworks.length > 0) {
+      errors.push("Upload exactly one completed gang sheet.");
+    }
+    if (mode === "upload" && artworks.length && (Math.abs(artworks[0].width - sheetWidth) > 0.01 || Math.abs(artworks[0].height - sheetLength) > 0.01)) {
+      errors.push("The uploaded gang sheet must match the full film dimensions without resizing.");
     }
     if (usedLength > sheetLength + 0.01) {
       errors.push("Artwork extends beyond the selected film length.");
@@ -619,7 +633,7 @@ export default function DTFGangSheet() {
     });
 
     return { errors, warnings };
-  }, [artworks, sheetWidth, sheetLength, settings, usedLength, overlaps.length]);
+  }, [artworks, sheetWidth, sheetLength, settings, usedLength, overlaps.length, mode]);
 
   const setWidth = (value) => {
     const next = Math.max(1, Math.min(settings.maxWidth, Number(value || 1)));
@@ -634,12 +648,18 @@ export default function DTFGangSheet() {
   };
 
   const changeMode = (nextMode) => {
-    artworks.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
+    if (nextMode === mode) return;
+    modeWorkspacesRef.current[mode] = { artworks, sheetWidth, sheetLength, selectedId };
+    const restored = modeWorkspacesRef.current[nextMode];
     setMode(nextMode);
-    setArtworks([]);
-    setSelectedId("");
+    setArtworks(restored?.artworks || []);
+    setSheetWidth(nextMode === "upload" ? 34 : (restored?.sheetWidth || settings.defaultWidth));
+    setSheetLength(restored?.sheetLength || Math.max(36, settings.standardMaxLength || 36));
+    setSelectedId(restored?.selectedId || "");
     setApproval(false);
-    setNotice("");
+    setRightsConfirmed(false);
+    setPageError("");
+    setNotice(restored?.artworks?.length ? "Your previous artwork for this mode has been restored." : "");
   };
 
   const addFiles = async (fileList) => {
@@ -663,15 +683,29 @@ export default function DTFGangSheet() {
     const nextItems = [];
 
     for (const file of chosen) {
-      const metadata = await imageMetadata(file);
+      const metadata = await imageMetadata(file, mode === "upload");
+      if (mode === "upload") {
+        if (!metadata.originalPixelWidth || !metadata.originalPixelHeight) {
+          setPageError("Print-ready sizing requires a raster image with readable pixel dimensions. Export your vector or PDF at 300 DPI as PNG or WEBP for exact-size verification.");
+          metadata.previewUrl && URL.revokeObjectURL(metadata.previewUrl);
+          return;
+        }
+        const exactWidth = metadata.originalPixelWidth / 300;
+        const exactLength = metadata.originalPixelHeight / 300;
+        if (Math.abs(exactWidth - 34) > 0.01 || exactLength < 36 - 0.01) {
+          setPageError(`Print-ready gang sheets must be 34" wide and at least 36" long at 300 DPI. This file measures ${round(exactWidth, 2)}" × ${round(exactLength, 2)}".`);
+          metadata.previewUrl && URL.revokeObjectURL(metadata.previewUrl);
+          return;
+        }
+      }
       const isVector = file.type === "image/svg+xml" || file.type === "application/pdf";
       const sourceSize = sourceDefaultPrintSize(metadata, settings, sheetWidth, sheetLength);
-      const defaultWidth = isVector
+      const defaultWidth = mode === "upload" ? 34 : isVector
         ? mode === "upload"
           ? Math.max(0.1, sheetWidth - settings.spacing * 2)
           : Math.min(10, Math.max(0.1, sheetWidth - settings.spacing * 2))
         : sourceSize.width;
-      const height = isVector
+      const height = mode === "upload" ? metadata.originalPixelHeight / 300 : isVector
         ? Math.max(0.1, defaultWidth / Math.max(0.01, metadata.aspectRatio || 1))
         : sourceSize.height;
 
@@ -697,8 +731,8 @@ export default function DTFGangSheet() {
         transparentTrimmed: metadata.transparentTrimmed === true,
         aspectRatio: metadata.aspectRatio || 1,
         isVector,
-        x: settings.spacing,
-        y: settings.spacing,
+        x: mode === "upload" ? 0 : settings.spacing,
+        y: mode === "upload" ? 0 : settings.spacing,
         width: defaultWidth,
         height,
         defaultWidth,
@@ -708,12 +742,19 @@ export default function DTFGangSheet() {
       });
     }
 
-    const merged = mode === "upload" ? nextItems : [...artworks, ...nextItems];
-    const nested = runNesting(merged, sheetLength);
-    const nextLength = Math.max(sheetLength, nested.recommendedLength);
-    setSheetLength(nextLength);
-    setArtworks(nested.items);
-    setSelectedId(nested.items[nested.items.length - 1]?.id || "");
+    if (mode === "upload") {
+      artworks.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
+      setSheetWidth(34);
+      setSheetLength(nextItems[0].height);
+      setArtworks(nextItems);
+      setSelectedId(nextItems[0].id);
+    } else {
+      const merged = [...artworks, ...nextItems];
+      const nested = runNesting(merged, sheetLength);
+      setSheetLength(Math.max(sheetLength, nested.recommendedLength));
+      setArtworks(nested.items);
+      setSelectedId(nested.items[nested.items.length - 1]?.id || "");
+    }
     setApproval(false);
   };
 
@@ -1075,13 +1116,14 @@ export default function DTFGangSheet() {
       if (!confirmed) return;
     }
 
-    artworks.forEach((item) => {
+    [...artworks, ...(modeWorkspacesRef.current.build?.artworks || []), ...(modeWorkspacesRef.current.upload?.artworks || [])].forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     });
+    modeWorkspacesRef.current = { build: null, upload: null };
 
     dragRef.current = null;
-    setSheetWidth(settings.defaultWidth);
-    setSheetLength(settings.standardMaxLength || 36);
+    setSheetWidth(mode === "upload" ? 34 : settings.defaultWidth);
+    setSheetLength(Math.max(mode === "upload" ? 36 : settings.minLength, settings.standardMaxLength || 36));
     setArtworks([]);
     setSelectedId("");
     setApproval(false);
@@ -1545,14 +1587,14 @@ export default function DTFGangSheet() {
                     min="1"
                     max={settings.maxWidth}
                     step="0.25"
-                    value={sheetWidth}
-                    disabled={!settings.allowCustomWidth}
+                    value={mode === "upload" ? 34 : sheetWidth}
+                    disabled={mode === "upload" || !settings.allowCustomWidth}
                     onChange={(event) => setWidth(event.target.value)}
                     className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black disabled:bg-black/5"
                   />
                   <span className="font-mono text-xs">in</span>
                 </div>
-                <div className="mt-1.5 text-[11px] text-black/45">Maximum width: {settings.maxWidth}"</div>
+                <div className="mt-1.5 text-[11px] text-black/45">{mode === "upload" ? 'Print-ready: fixed 34" width, minimum 36" length (300 DPI).' : `Maximum width: ${settings.maxWidth}"`}</div>
               </Field>
 
               <Field label="Length">
@@ -1562,6 +1604,7 @@ export default function DTFGangSheet() {
                       key={length}
                       type="button"
                       onClick={() => {
+                        if (mode === "upload" && artworks.length) { setPageError("Upload a different print-ready file to change its length."); return; }
                         setSheetLength(length);
                         setApproval(false);
                       }}
@@ -1575,11 +1618,12 @@ export default function DTFGangSheet() {
                   <div className="mt-2 flex items-center gap-2">
                     <input
                       type="number"
-                      min={settings.minLength}
+                      min={mode === "upload" ? 36 : settings.minLength}
                       step="1"
                       value={sheetLength}
                       onChange={(event) => {
-                        setSheetLength(Math.max(settings.minLength, Number(event.target.value || settings.minLength)));
+                        if (mode === "upload" && artworks.length) { setPageError("Upload a different print-ready file to change its length."); return; }
+                        setSheetLength(Math.max(mode === "upload" ? 36 : settings.minLength, Number(event.target.value || (mode === "upload" ? 36 : settings.minLength))));
                         setApproval(false);
                       }}
                       className="w-full border border-black/20 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-black"
