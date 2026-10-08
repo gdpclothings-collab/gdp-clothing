@@ -1594,6 +1594,15 @@ export default function DTFGangSheet() {
 
         <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)_330px]">
           <aside className="space-y-4">
+            {mode === "upload" ? (
+              <Panel title="1 / Detected film size" icon={Ruler}>
+                <p className="text-xs leading-5 text-black/60">Print-ready film is always 34" wide. Upload one complete 300 DPI sheet; its length is detected automatically (minimum 36").</p>
+                <div className="mt-3 border border-black/10 bg-black/[0.03] p-3 font-mono text-sm font-bold">
+                  {artworks.length ? `34" × ${round(sheetLength, 2)}"` : '34" wide · 36" minimum length'}
+                </div>
+                <p className="mt-2 text-[11px] text-black/50">Film dimensions are locked to the uploaded artwork. Upload another file to change the length.</p>
+              </Panel>
+            ) : (
             <Panel title="1 / Film size" icon={Ruler}>
               <Field label="Width">
                 <div className="flex items-center gap-2">
@@ -1667,6 +1676,7 @@ export default function DTFGangSheet() {
                 )}
               </div>
             </Panel>
+            )}
 
             <Panel title="2 / Artwork" icon={Upload}>
               <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center border border-dashed border-black/25 bg-white px-4 text-center transition hover:border-black hover:bg-black/[0.02]">
@@ -1821,12 +1831,12 @@ export default function DTFGangSheet() {
                           )}
                           {selected && (
                             <>
-                              <span
+                              {mode === "build" && <span
                                 className="pointer-events-none absolute left-1 top-1 z-30 bg-black/85 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white shadow"
                                 style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
                               >
                                 {round(item.width, 1)}" × {round(item.height, 1)}" · {round(normalizeArtworkRotation(item.rotation), 1)}°
-                              </span>
+                              </span>}
                               <div
                                 className="absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-black/20 bg-white p-1 text-black shadow-xl"
                                 style={{
@@ -2165,35 +2175,20 @@ export default function DTFGangSheet() {
             <label className="flex cursor-pointer items-start gap-3 border border-black/15 bg-white p-4">
               <input
                 type="checkbox"
-                checked={approval}
-                onChange={(event) => setApproval(event.target.checked)}
+                checked={approval && rightsConfirmed}
+                onChange={(event) => { setApproval(event.target.checked); setRightsConfirmed(event.target.checked); }}
                 className="mt-0.5 h-4 w-4"
               />
               <span>
-                <span className="block text-xs font-black uppercase tracking-[0.07em]">I approve this film layout</span>
+                <span className="block text-xs font-black uppercase tracking-[0.07em]">I approve this artwork for printing</span>
                 <span className="mt-1 block text-[11px] leading-4 text-black/48">
-                  I reviewed the artwork placement, dimensions and warnings and understand GDP will produce from this submitted layout.
-                </span>
-              </span>
-            </label>
-
-            <label className="flex cursor-pointer items-start gap-3 border border-black/15 bg-white p-4">
-              <input
-                type="checkbox"
-                checked={rightsConfirmed}
-                onChange={(event) => setRightsConfirmed(event.target.checked)}
-                className="mt-0.5 h-4 w-4"
-              />
-              <span>
-                <span className="block text-xs font-black uppercase tracking-[0.07em]">I have artwork rights</span>
-                <span className="mt-1 block text-[11px] leading-4 text-black/48">
-                  I own or have permission to reproduce this artwork for printing.{" "}
+                  I have reviewed the artwork, film dimensions and warnings, and confirm I own or have permission to reproduce it. I authorize GDP Clothing to print this submitted layout.{" "}
                   <Link to="/pages/custom-artwork-policy" target="_blank" className="font-semibold text-black underline">Read the upload policy</Link>.
                 </span>
               </span>
             </label>
 
-            {artworks.length > 0 && fitLength + 0.5 < sheetLength && (
+            {mode === "build" && artworks.length > 0 && fitLength + 0.5 < sheetLength && (
               <button type="button" onClick={fitSheet} className="w-full border border-emerald-300 bg-emerald-50 p-4 text-left">
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.07em] text-emerald-900">
                   <Sparkles size={15} /> Save film space
