@@ -68,7 +68,7 @@ async function waitForAdminOrMfa(page) {
   await page.waitForURL(/\/admin(?:\/|$)/, { timeout: 30000 });
 
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await page.getByText("Commerce Admin", { exact: true }).first().isVisible().catch(() => false)) {
+    if (await page.getByText("GDP Commerce Admin", { exact: true }).first().isVisible().catch(() => false)) {
       return;
     }
 
@@ -177,7 +177,7 @@ async function main() {
     results.push(await runCheck(browser, "desktop dashboard", DESKTOP, storageState, async (page) => {
       await nav(page, "/admin");
       await page.getByRole("heading", { name: "Home" }).waitFor();
-      assert(await page.getByText("Commerce Admin", { exact: true }).first().isVisible(), "Admin identity missing.");
+      assert(await page.getByText("GDP Commerce Admin", { exact: true }).first().isVisible(), "Admin identity missing.");
       assert(await page.locator('a[aria-label="Open System Health"]').isVisible(), "Desktop System Health shortcut missing.");
       assert(!(await page.getByRole("button", { name: "Quick Actions" }).isVisible()), "Mobile Quick Actions should be hidden on desktop.");
       await noOverflow(page, DESKTOP);
