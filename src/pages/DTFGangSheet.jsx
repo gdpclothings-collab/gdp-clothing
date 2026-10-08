@@ -463,6 +463,8 @@ export default function DTFGangSheet() {
   const { addItem, replaceItem } = useCart();
   const { confirmAction } = useNotifications();
   const canvasRef = useRef(null);
+  const [canvasZoom, setCanvasZoom] = useState(1);
+  const [canvasBackground, setCanvasBackground] = useState("checker");
   const dragRef = useRef(null);
   const selectedPanelRef = useRef(null);
   const [settings, setSettings] = useState(() => normalizeDtfSettings({}));
@@ -1757,8 +1759,26 @@ export default function DTFGangSheet() {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/15 bg-[#202020] px-4 py-3 text-white">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] uppercase text-white/65">Canvas zoom</span>
+                  <button type="button" aria-label="Zoom out" disabled={canvasZoom <= 0.5} onClick={() => setCanvasZoom((v) => Math.max(0.5, Math.round((v - 0.25) * 100) / 100))} className="border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">−</button>
+                  <output className="min-w-12 text-center font-mono text-xs">{Math.round(canvasZoom * 100)}%</output>
+                  <button type="button" aria-label="Zoom in" disabled={canvasZoom >= 2} onClick={() => setCanvasZoom((v) => Math.min(2, Math.round((v + 0.25) * 100) / 100))} className="border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">+</button>
+                  <button type="button" onClick={() => setCanvasZoom(1)} className="border border-white/30 px-2 py-1.5 font-mono text-[10px]">100%</button>
+                </div>
+                <label className="flex items-center gap-2 font-mono text-[10px] uppercase text-white/65">
+                  Preview background
+                  <select aria-label="Preview background" value={canvasBackground} onChange={(event) => setCanvasBackground(event.target.value)} className="border border-white/30 bg-[#303030] px-2 py-2 text-xs text-white">
+                    <option value="checker">Checkerboard</option>
+                    <option value="dark">Dark (white artwork)</option>
+                    <option value="light">Light</option>
+                  </select>
+                </label>
+                <span className="w-full font-mono text-[9px] text-white/50">Preview only — does not change artwork, film size, or print colors.</span>
+              </div>
               <div className="max-h-[820px] overflow-auto bg-[#262626] p-4 sm:p-7">
-                <div className="mx-auto w-full max-w-[540px]">
+                <div className="mx-auto" style={{ width: `${canvasZoom * 100}%`, maxWidth: `${540 * canvasZoom}px` }}>
                   <div className="mb-2 flex justify-between font-mono text-[8px] uppercase tracking-[0.1em] text-white/40">
                     <span>0"</span><span>{round(sheetWidth / 2, 1)}"</span><span>{round(sheetWidth, 1)}"</span>
                   </div>
@@ -1770,7 +1790,7 @@ export default function DTFGangSheet() {
                     ref={canvasRef}
                     data-testid="dtf-film-printable-canvas"
                     className="relative w-full touch-none overflow-hidden border border-white/35 shadow-2xl"
-                    style={{ ...checkerboardStyle(), height: `${displayHeight}px` }}
+                    style={{ ...(canvasBackground === "checker" ? checkerboardStyle() : { backgroundColor: canvasBackground === "dark" ? "#262626" : "#ffffff" }), height: `${displayHeight * canvasZoom}px` }}
                     onPointerMove={onPointerMove}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
