@@ -5,8 +5,10 @@ import path from "node:path";
 // Test only the locally built production bundle, never the live storefront.
 // This runs before PR auto-merge, so a JS crash cannot silently publish a blank page.
 const BASE_URL = new URL(process.env.RENDER_GUARD_BASE_URL || "http://127.0.0.1:4173");
-if (!["localhost", "127.0.0.1"].includes(BASE_URL.hostname)) {
-  throw new Error("Storefront render guard refuses non-local URLs.");
+const localPreview = ["localhost", "127.0.0.1"].includes(BASE_URL.hostname);
+const liveCanary = process.env.RENDER_GUARD_ALLOW_PRODUCTION === "1" && BASE_URL.origin === "https://gdpclothing.ca";
+if (!localPreview && !liveCanary) {
+  throw new Error("Render guard only permits localhost, or explicitly enabled GDP Clothing production.");
 }
 const OUT = process.env.RENDER_GUARD_ARTIFACT_DIR || "render-guard-results";
 const CASES = [
@@ -15,6 +17,7 @@ const CASES = [
   { name: "shop-desktop", route: "/shop", viewport: { width: 1440, height: 900 }, required: /SHOP|PRODUCTS|COLLECTION/i },
   { name: "dtf-builder-desktop", route: "/dtf-gang-sheet?mode=build", viewport: { width: 1440, height: 900 }, required: /CUSTOM DTF GANG SHEET/i },
 ];
+const RUN_CASES = process.env.RENDER_GUARD_CANARY_ONLY === "1" ? CASES.slice(0, 2) : CASES;
 const results = [];
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -106,7 +109,7 @@ async function main() {
   await fs.mkdir(OUT, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const item of CASES) await probe(browser, item);
+    for (const item of RUN_CASES) await probe(browser, item);
   } finally {
     await browser.close();
   }
