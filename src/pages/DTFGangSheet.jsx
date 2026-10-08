@@ -473,6 +473,7 @@ export default function DTFGangSheet() {
   const [mode, setMode] = useState(() => (searchParams.get("mode") === "upload" ? "upload" : "build"));
   const [sheetWidth, setSheetWidth] = useState(34);
   const [sheetLength, setSheetLength] = useState(36);
+  const [copyQuantity, setCopyQuantity] = useState(1);
   const [artworks, setArtworks] = useState([]);
   const modeWorkspacesRef = useRef({ build: null, upload: null });
   const [selectedId, setSelectedId] = useState("");
@@ -553,6 +554,8 @@ export default function DTFGangSheet() {
     () => calculateDtfPrice(hasArtwork ? sheetWidth : 0, hasArtwork ? sheetLength : 0, settings),
     [hasArtwork, sheetWidth, sheetLength, settings]
   );
+  const perCopyReviewFee = artworkReviewRequested && settings.artworkReviewEnabled ? Number(settings.artworkReviewPrice || 0) : 0;
+  const copiesSubtotal = Math.round((price.price + perCopyReviewFee) * 100) * copyQuantity / 100;
   const selectedArtwork = artworks.find((item) => item.id === selectedId) || null;
   const selectedQuality = getArtworkQuality(selectedArtwork, settings);
   const overlaps = artworkOverlaps(artworks);
@@ -1134,6 +1137,7 @@ export default function DTFGangSheet() {
     setSheetWidth(mode === "upload" ? 34 : settings.defaultWidth);
     setSheetLength(Math.max(mode === "upload" ? 36 : settings.minLength, settings.standardMaxLength || 36));
     setArtworks([]);
+    setCopyQuantity(1);
     setSelectedId("");
     setApproval(false);
     setRightsConfirmed(false);
@@ -1431,7 +1435,8 @@ export default function DTFGangSheet() {
         variant: mode === "upload" ? "Upload Print-Ready Gang Sheet" : "Build My Gang Sheet",
         size: `${round(sheetWidth, 2)}" × ${round(sheetLength, 2)}"`,
         color: "DTF Film",
-        quantity: 1,
+        quantity: copyQuantity,
+        maxQuantity: 99,
         price: linePrice,
         fulfillmentMode: product.fulfillment_mode || "in_house",
         isCustom: false,
@@ -1440,6 +1445,7 @@ export default function DTFGangSheet() {
         dtfSpec: {
           configId,
           mode,
+          copies: copyQuantity,
           width: round(sheetWidth, 3),
           length: round(sheetLength, 3),
           area: round(price.area, 3),
@@ -2047,11 +2053,26 @@ export default function DTFGangSheet() {
               <SummaryRow label="Standard rate" value={`$${settings.standardRate.toFixed(3)}/in²`} />
               <SummaryRow label="Volume rate" value={`$${settings.volumeRate.toFixed(3)}/in²`} />
               <SummaryRow label="Designs" value={String(artworks.length)} />
+              <div className="mt-4 border-t border-black/10 pt-3">
+                <label htmlFor="dtf-copies" className="block font-mono text-[10px] font-black uppercase tracking-[0.1em]">Identical film copies</label>
+                <p className="mt-1 text-[11px] text-black/55">Print the same gang sheet multiple times. One artwork upload; each copy is a separate film.</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button type="button" aria-label="Remove one film copy" disabled={copyQuantity <= 1} onClick={() => setCopyQuantity((value) => Math.max(1, value - 1))} className="h-10 w-10 border border-black/20 disabled:opacity-30">−</button>
+                  <input id="dtf-copies" type="number" min="1" max="99" step="1" value={copyQuantity} onChange={(event) => { const next = Number(event.target.value); if (Number.isFinite(next)) setCopyQuantity(Math.min(99, Math.max(1, Math.floor(next)))); }} className="h-10 w-20 border border-black/20 bg-white text-center font-mono font-bold" />
+                  <button type="button" aria-label="Add one film copy" disabled={copyQuantity >= 99} onClick={() => setCopyQuantity((value) => Math.min(99, value + 1))} className="h-10 w-10 border border-black/20 disabled:opacity-30">+</button>
+                </div>
+                {hasArtwork && <div className="mt-2 space-y-1 font-mono text-[10px] text-black/70">
+                  <div>Film per copy: {round(price.area, 1)} in²</div>
+                  <div>Total film: {round(price.area * copyQuantity, 1)} in²</div>
+                  <div>Copies: {copyQuantity} separate sheets</div>
+                </div>}
+              </div>
               <div className="mt-4 border-t border-black/10 pt-4">
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-black/45">Film price</div>
-                    <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `$${price.price.toFixed(2)}` : "—"}</div>
+                    <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `$${copiesSubtotal.toFixed(2)}` : "—"}</div>
+                    {hasArtwork && <div className="mt-1 text-[10px] text-black/50">${price.price.toFixed(2)} film per copy × {copyQuantity}{artworkReviewRequested && settings.artworkReviewEnabled ? " (plus artwork review per copy)" : ""}</div>}
                   </div>
                   <div className="pb-1 font-mono text-[9px] uppercase text-black/40">{hasArtwork ? "CAD" : "Upload artwork"}</div>
                 </div>
