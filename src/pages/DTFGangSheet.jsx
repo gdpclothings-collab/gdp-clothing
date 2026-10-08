@@ -1697,6 +1697,7 @@ export default function DTFGangSheet() {
                   </div>
                   <div
                     ref={canvasRef}
+                    data-testid="dtf-film-printable-canvas"
                     className="relative w-full touch-none overflow-hidden border border-white/35 shadow-2xl"
                     style={{ ...checkerboardStyle(), height: `${displayHeight}px` }}
                     onPointerMove={onPointerMove}
