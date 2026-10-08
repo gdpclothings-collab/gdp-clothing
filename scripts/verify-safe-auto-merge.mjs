@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 const workflow = fs.readFileSync(".github/workflows/safe-auto-merge.yml", "utf8");
 const productionSmoke = fs.readFileSync(".github/workflows/production-smoke.yml", "utf8");
+const buildVerification = fs.readFileSync(".github/workflows/build-verification.yml", "utf8");
 
 function requireText(source, needle, label) {
   if (!source.includes(needle)) {
@@ -45,5 +46,12 @@ requireText(productionSmoke, "github.event_name == 'push' || github.event_name =
 if (workflow.includes('mergeable_state}" != "clean"')) {
   throw new Error("Legacy clean-only mergeability check would recreate the self-check deadlock.");
 }
+
+requireText(buildVerification, "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort", "PR checks start the exact production bundle preview");
+requireText(buildVerification, "node scripts/storefront-render-guard.mjs", "PR standalone-build blocks blank storefronts");
+requireText(buildVerification, "Install Chromium", "PR render guard uses a real browser");
+requireText(productionSmoke, "Fail fast on hidden or blank production storefront", "post-deploy smoke rejects blank first paint early");
+requireText(productionSmoke, 'RENDER_GUARD_ALLOW_PRODUCTION: "1"', "live canary explicitly enables pinned GDP Clothing URL");
+requireText(productionSmoke, 'RENDER_GUARD_CANARY_ONLY: "1"', "live canary executes small first-paint check");
 
 console.log("Safe auto-merge and post-merge Production Smoke handling verified.");
