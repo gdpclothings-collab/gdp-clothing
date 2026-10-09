@@ -62,7 +62,7 @@ export default function ContactPageContent({ page }) {
   const [store, setStore] = useState({
     storeName: "GDP Clothing",
     email: "hello@gdpclothing.ca",
-    phone: "3068363345",
+    phone: "",
     address: "Saskatoon, Saskatchewan, Canada",
   });
   const [form, setForm] = useState({
@@ -183,7 +183,7 @@ export default function ContactPageContent({ page }) {
               {content.responseTime}
             </ContactCard>
             <ContactCard icon={MapPin} label="Location">
-              {store.address || content.locationNote}
+              Saskatoon, Saskatchewan, Canada
             </ContactCard>
           </div>
         </div>
