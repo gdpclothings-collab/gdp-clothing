@@ -28,7 +28,7 @@ export default function AboutPageContent({ page }) {
 
   return (
     <article className="overflow-hidden bg-background">
-      <section className="relative min-h-[68vh] md:min-h-[76vh] flex items-end bg-[#101010] text-white">
+      <section className="relative min-h-[50vh] md:min-h-[56vh] flex items-end bg-[#101010] text-white">
         {content.heroImageUrl && (
           <img
             src={content.heroImageUrl}
