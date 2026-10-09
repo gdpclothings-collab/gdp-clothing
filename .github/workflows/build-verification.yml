@@ -107,7 +107,8 @@ jobs:
         run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
 
       - name: Verify built storefront paints before merge
         shell: bash
