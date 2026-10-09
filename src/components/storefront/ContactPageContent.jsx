@@ -9,7 +9,6 @@ import {
   Mail,
   MapPin,
   MessageSquareText,
-  Phone,
   Shirt,
 } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
@@ -62,8 +61,6 @@ export default function ContactPageContent({ page }) {
   const [store, setStore] = useState({
     storeName: "GDP Clothing",
     email: "hello@gdpclothing.ca",
-    phone: "",
-    address: "Saskatoon, Saskatchewan, Canada",
   });
   const [form, setForm] = useState({
     name: user?.display_name || "",
@@ -151,8 +148,6 @@ export default function ContactPageContent({ page }) {
       setSubmitting(false);
     }
   };
-
-  const telHref = String(store.phone || "").replace(/[^+\d]/g, "");
 
   return (
     <div className="bg-background">
@@ -403,27 +398,15 @@ export default function ContactPageContent({ page }) {
               </Link>
             </div>
 
-            {(store.phone || content.locationNote) && (
-              <div className="rounded-2xl border border-border bg-muted/40 p-5">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  GDP Clothing
-                </div>
-                <div className="mt-3 space-y-3 text-sm">
-                  {store.phone ? (
-                    <a
-                      href={`tel:${telHref}`}
-                      className="flex items-center gap-2 hover:text-accent"
-                    >
-                      <Phone size={15} /> {store.phone}
-                    </a>
-                  ) : null}
-                  <div className="flex items-start gap-2 text-muted-foreground">
-                    <MapPin size={15} className="mt-0.5 shrink-0" />
-                    <span>{content.locationNote}</span>
-                  </div>
-                </div>
+            <div className="rounded-2xl border border-border bg-muted/40 p-5">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                GDP Clothing
               </div>
-            )}
+              <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
+                <MapPin size={15} className="mt-0.5 shrink-0" />
+                <span>Saskatoon, Saskatchewan, Canada</span>
+              </div>
+            </div>
           </aside>
         </div>
       </section>
