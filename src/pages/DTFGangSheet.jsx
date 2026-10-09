@@ -1524,7 +1524,7 @@ export default function DTFGangSheet() {
     <div className="bg-[#f4f2ec] text-[#111]">
       <section className="border-b border-black/10 bg-[#111] text-white">
         <div className="mx-auto max-w-[1500px] px-4 py-9 sm:px-6 lg:px-8 lg:py-12">
-          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/55">GDP Clothing / DTF Transfers</div>
+          <div className="font-mono text-xs uppercase tracking-[0.22em] text-white/55">GDP Clothing / DTF Transfers</div>
           <div className="mt-4 grid items-end gap-6 lg:grid-cols-[1fr_auto]">
             <div>
               <h1 className="max-w-4xl font-display text-5xl leading-[0.9] sm:text-6xl lg:text-7xl">
@@ -1608,7 +1608,7 @@ export default function DTFGangSheet() {
                 <div className="mt-3 border border-black/10 bg-black/[0.03] p-3 font-mono text-sm font-bold">
                   {artworks.length ? `34" × ${round(sheetLength, 2)}"` : '34" wide · 36" minimum length'}
                 </div>
-                <p className="mt-2 text-[11px] text-black/50">Film dimensions are locked to the uploaded artwork. Upload another file to change the length.</p>
+                <p className="mt-2 text-xs text-black/50">Film dimensions are locked to the uploaded artwork. Upload another file to change the length.</p>
               </Panel>
             ) : (
             <Panel title="1 / Film size" icon={Ruler}>
@@ -1626,7 +1626,7 @@ export default function DTFGangSheet() {
                   />
                   <span className="font-mono text-xs">in</span>
                 </div>
-                <div className="mt-1.5 text-[11px] text-black/45">{mode === "upload" ? 'Print-ready: fixed 34" width, minimum 36" length (300 DPI).' : `Maximum width: ${settings.maxWidth}"`}</div>
+                <div className="mt-1.5 text-xs text-black/45">{mode === "upload" ? 'Print-ready: fixed 34" width, minimum 36" length (300 DPI).' : `Maximum width: ${settings.maxWidth}"`}</div>
               </Field>
 
               <Field label="Length">
@@ -1641,7 +1641,7 @@ export default function DTFGangSheet() {
                         setSheetLength(length);
                         setApproval(false);
                       }}
-                      className={`min-h-9 border px-1 font-mono text-[10px] ${Number(sheetLength) === Number(length) ? "border-black bg-black text-white" : "border-black/15 bg-white hover:border-black"}`}
+                      className={`min-h-11 border px-2 font-mono text-xs ${Number(sheetLength) === Number(length) ? "border-black bg-black text-white" : "border-black/15 bg-white hover:border-black"}`}
                     >
                       {length}"
                     </button>
@@ -1692,7 +1692,7 @@ export default function DTFGangSheet() {
                 <span className="mt-2 text-xs font-black uppercase tracking-[0.08em]">
                   {mode === "upload" ? "Upload gang sheet" : "Add artwork"}
                 </span>
-                <span className="mt-1 text-[10px] leading-4 text-black/45">PNG · JPG · WEBP · SVG · PDF</span>
+                <span className="mt-1 text-xs leading-4 text-black/45">PNG · JPG · WEBP · SVG · PDF</span>
                 <input
                   type="file"
                   multiple={mode === "build"}
@@ -1720,7 +1720,7 @@ export default function DTFGangSheet() {
                           {item.previewUrl ? <img src={item.previewUrl} alt="" className="h-full w-full object-contain" /> : <FileCheck className="m-2.5" size={20} />}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-[11px] font-semibold">{index + 1}. {item.name}</div>
+                          <div className="truncate text-xs font-semibold">{index + 1}. {item.name}</div>
                           <div className={`mt-0.5 font-mono text-[9px] ${selectedId === item.id ? "text-white/60" : "text-black/45"}`}>
                             {item.pixelWidth > 0 && item.pixelHeight > 0 ? `${item.pixelWidth} × ${item.pixelHeight}px · ` : ""}{formatFileSize(item.size)}
                           </div>
@@ -1767,15 +1767,15 @@ export default function DTFGangSheet() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/15 bg-[#202020] px-4 py-3 text-white">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] uppercase text-white/65">Canvas zoom</span>
+                  <span className="font-mono text-xs uppercase text-white/65">Canvas zoom</span>
                   <button type="button" aria-label="Zoom out" disabled={canvasZoom <= 0.5} onClick={() => setCanvasZoom((v) => Math.max(0.5, Math.round((v - 0.25) * 100) / 100))} className="border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">−</button>
                   <output className="min-w-12 text-center font-mono text-xs">{Math.round(canvasZoom * 100)}%</output>
                   <button type="button" aria-label="Zoom in" disabled={canvasZoom >= 2} onClick={() => setCanvasZoom((v) => Math.min(2, Math.round((v + 0.25) * 100) / 100))} className="border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">+</button>
-                  <button type="button" onClick={() => setCanvasZoom(1)} className="border border-white/30 px-2 py-1.5 font-mono text-[10px]">100%</button>
-                  <button type="button" aria-pressed={panMode} onClick={() => setPanMode((value) => !value)} className={`border px-3 py-1.5 font-mono text-[10px] ${panMode ? "border-white bg-white text-black" : "border-white/30 text-white"}`}>{panMode ? "Pan: ON" : "Pan view"}</button>
-                  <button type="button" onClick={() => { setCanvasZoom(1); if (viewportRef.current) { viewportRef.current.scrollLeft = 0; viewportRef.current.scrollTop = 0; } }} className="border border-white/30 px-2 py-1.5 font-mono text-[10px]">Reset view</button>
+                  <button type="button" onClick={() => setCanvasZoom(1)} className="border border-white/30 px-2 py-1.5 font-mono text-xs">100%</button>
+                  <button type="button" aria-pressed={panMode} onClick={() => setPanMode((value) => !value)} className={`border px-3 py-1.5 font-mono text-xs ${panMode ? "border-white bg-white text-black" : "border-white/30 text-white"}`}>{panMode ? "Pan: ON" : "Pan view"}</button>
+                  <button type="button" onClick={() => { setCanvasZoom(1); if (viewportRef.current) { viewportRef.current.scrollLeft = 0; viewportRef.current.scrollTop = 0; } }} className="border border-white/30 px-2 py-1.5 font-mono text-xs">Reset view</button>
                 </div>
-                <label className="flex items-center gap-2 font-mono text-[10px] uppercase text-white/65">
+                <label className="flex items-center gap-2 font-mono text-xs uppercase text-white/65">
                   Preview background
                   <select aria-label="Preview background" value={canvasBackground} onChange={(event) => setCanvasBackground(event.target.value)} className="border border-white/30 bg-[#303030] px-2 py-2 text-xs text-white">
                     <option value="checker">Checkerboard</option>
@@ -2025,7 +2025,7 @@ export default function DTFGangSheet() {
                     </div>
                   </div>
                 )}
-                <div className="mb-3 text-[10px] leading-4 text-black/45">
+                <div className="mb-3 text-xs leading-4 text-black/45">
                   Aspect ratio is locked so the artwork cannot be stretched or distorted.
                 </div>
                 <div className="mb-3 border border-black/10 bg-white p-3 font-mono text-[9px] leading-5 text-black/55">
@@ -2038,27 +2038,27 @@ export default function DTFGangSheet() {
                 </div>
                 <div className={`border p-3 text-xs ${selectedQuality.tone === "bad" ? "border-red-200 bg-red-50" : selectedQuality.tone === "warning" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
                   <div className="font-semibold">{selectedQuality.label}</div>
-                  <div className="mt-1 text-[11px] opacity-70">
+                  <div className="mt-1 text-xs opacity-70">
                     {selectedQuality.dpi
                       ? `${Math.round(selectedQuality.dpi)} DPI at ${round(selectedArtwork.width, 2)}" wide`
                       : "Vector/PDF artwork is not limited by raster DPI in this preview."}
                   </div>
                 </div>
                 <div className="mt-3 border-t border-black/10 pt-3">
-                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em]">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.1em]">
                     <Scissors size={14} /> Edit artwork
                   </div>
                   {mode !== "build" ? (
-                    <div className="mt-2 text-[10px] leading-4 text-black/45">
+                    <div className="mt-2 text-xs leading-4 text-black/45">
                       Print-ready sheets should already be fully edited. Switch to Build My Gang Sheet to edit individual artwork.
                     </div>
                   ) : selectedArtwork.isVector ? (
-                    <div className="mt-2 text-[10px] leading-4 text-black/45">
+                    <div className="mt-2 text-xs leading-4 text-black/45">
                       AI background removal is available for raster PNG, JPG and WEBP artwork. Vector/PDF files should be edited before upload.
                     </div>
                   ) : (
                     <>
-                      <div className="mt-3 border border-violet-200 bg-violet-50 p-3 text-[10px] leading-4 text-violet-950">
+                      <div className="mt-3 border border-violet-200 bg-violet-50 p-3 text-xs leading-4 text-violet-950">
                         <span className="font-black uppercase tracking-[0.08em]">AI background removal</span>
                         <span className="mt-1 block text-violet-900/70">Works with people, pets, products and detailed photo backgrounds. Your original file is always preserved.</span>
                       </div>
@@ -2111,14 +2111,14 @@ export default function DTFGangSheet() {
               <SummaryRow label="Volume rate" value={`$${settings.volumeRate.toFixed(3)}/in²`} />
               <SummaryRow label="Designs" value={String(artworks.length)} />
               <div className="mt-4 border-t border-black/10 pt-3">
-                <label htmlFor="dtf-copies" className="block font-mono text-[10px] font-black uppercase tracking-[0.1em]">Identical film copies</label>
-                <p className="mt-1 text-[11px] text-black/55">Print the same gang sheet multiple times. One artwork upload; each copy is a separate film.</p>
+                <label htmlFor="dtf-copies" className="block font-mono text-xs font-black uppercase tracking-[0.1em]">Identical film copies</label>
+                <p className="mt-1 text-xs text-black/55">Print the same gang sheet multiple times. One artwork upload; each copy is a separate film.</p>
                 <div className="mt-2 flex items-center gap-2">
                   <button type="button" aria-label="Remove one film copy" disabled={copyQuantity <= 1} onClick={() => setCopyQuantity((value) => Math.max(1, value - 1))} className="h-10 w-10 border border-black/20 disabled:opacity-30">−</button>
                   <input id="dtf-copies" type="number" min="1" max="99" step="1" value={copyQuantity} onChange={(event) => { const next = Number(event.target.value); if (Number.isFinite(next)) setCopyQuantity(Math.min(99, Math.max(1, Math.floor(next)))); }} className="h-10 w-20 border border-black/20 bg-white text-center font-mono font-bold" />
                   <button type="button" aria-label="Add one film copy" disabled={copyQuantity >= 99} onClick={() => setCopyQuantity((value) => Math.min(99, value + 1))} className="h-10 w-10 border border-black/20 disabled:opacity-30">+</button>
                 </div>
-                {hasArtwork && <div className="mt-2 space-y-1 font-mono text-[10px] text-black/70">
+                {hasArtwork && <div className="mt-2 space-y-1 font-mono text-xs text-black/70">
                   <div>Film per copy: {round(price.area, 1)} in²</div>
                   <div>Total film: {round(price.area * copyQuantity, 1)} in²</div>
                   <div>Copies: {copyQuantity} separate sheets</div>
@@ -2129,12 +2129,12 @@ export default function DTFGangSheet() {
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-black/45">Film price</div>
                     <div className="mt-1 font-mono text-3xl font-black">{hasArtwork ? `$${copiesSubtotal.toFixed(2)}` : "—"}</div>
-                    {hasArtwork && <div className="mt-1 text-[10px] text-black/50">${price.price.toFixed(2)} film per copy × {copyQuantity}{artworkReviewRequested && settings.artworkReviewEnabled ? " (plus artwork review per copy)" : ""}</div>}
+                    {hasArtwork && <div className="mt-1 text-xs text-black/50">${price.price.toFixed(2)} film per copy × {copyQuantity}{artworkReviewRequested && settings.artworkReviewEnabled ? " (plus artwork review per copy)" : ""}</div>}
                   </div>
                   <div className="pb-1 font-mono text-[9px] uppercase text-black/40">{hasArtwork ? "CAD" : "Upload artwork"}</div>
                 </div>
                 {settings.pricingMode === "graduated" && price.volumeArea > 0 && (
-                  <div className="mt-2 text-[11px] leading-5 text-black/50">
+                  <div className="mt-2 text-xs leading-5 text-black/50">
                     The first {round(settings.breakpointArea, 0)} in² is billed at ${settings.standardRate.toFixed(3)}/in².
                     Additional film is ${settings.volumeRate.toFixed(3)}/in².
                   </div>
@@ -2148,14 +2148,14 @@ export default function DTFGangSheet() {
               <StatusLine good={usedLength <= sheetLength + 0.01} text={usedLength <= sheetLength + 0.01 ? "Artwork fits selected length" : "Artwork extends past film"} />
               <StatusLine good={!overlaps.length} text={!overlaps.length ? "No artwork overlaps detected" : `${overlaps.length} overlap${overlaps.length === 1 ? "" : "s"} must be fixed`} />
               {validation.warnings.slice(0, 4).map((warning) => (
-                <div key={warning} className="mt-2 flex items-start gap-2 text-[11px] leading-4 text-amber-800">
+                <div key={warning} className="mt-2 flex items-start gap-2 text-xs leading-4 text-amber-800">
                   <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {warning}
                 </div>
               ))}
             </Panel>
 
             <Panel title="Export film preview" icon={Download}>
-              <div className="text-[11px] leading-5 text-black/55">
+              <div className="text-xs leading-5 text-black/55">
                 Download a low-resolution proof of the exact film placement. Production files remain clean and are available to GDP administrators.
               </div>
               {(settings.previewDownloadBeforePayment || adminPreviewBypass) ? (
@@ -2197,7 +2197,7 @@ export default function DTFGangSheet() {
                 {adminPreviewBypass && <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.05em] text-emerald-700">Admin bypass active · downloads are logged</div>}
                 </>
               ) : (
-                <div className="mt-3 border border-black/10 bg-black/[0.03] p-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-black/50">Preview download is disabled before payment</div>
+                <div className="mt-3 border border-black/10 bg-black/[0.03] p-3 text-xs font-semibold uppercase tracking-[0.05em] text-black/50">Preview download is disabled before payment</div>
               )}
             </Panel>
 
@@ -2211,7 +2211,7 @@ export default function DTFGangSheet() {
                 />
                 <span>
                   <span className="block text-xs font-black uppercase tracking-[0.07em]">Professional artwork review</span>
-                  <span className="mt-1 block text-[11px] leading-4 text-black/48">
+                  <span className="mt-1 block text-xs leading-4 text-black/48">
                     GDP checks placement and print readiness before production
                     {settings.artworkReviewPrice > 0 ? ` (+$${settings.artworkReviewPrice.toFixed(2)})` : " (included)"}.
                   </span>
@@ -2228,7 +2228,7 @@ export default function DTFGangSheet() {
               />
               <span>
                 <span className="block text-xs font-black uppercase tracking-[0.07em]">I approve this artwork for printing</span>
-                <span className="mt-1 block text-[11px] leading-4 text-black/48">
+                <span className="mt-1 block text-xs leading-4 text-black/48">
                   I have reviewed the artwork, film dimensions and warnings, and confirm I own or have permission to reproduce it. I authorize GDP Clothing to print this submitted layout.{" "}
                   <Link to="/pages/custom-artwork-policy" target="_blank" className="font-semibold text-black underline">Read the upload policy</Link>.
                 </span>
@@ -2240,7 +2240,7 @@ export default function DTFGangSheet() {
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.07em] text-emerald-900">
                   <Sparkles size={15} /> Save film space
                 </div>
-                <div className="mt-1 text-[11px] leading-4 text-emerald-800">
+                <div className="mt-1 text-xs leading-4 text-emerald-800">
                   Your current layout fits in about {fitLength}". Reduce the selected length before checkout.
                 </div>
               </button>
@@ -2250,7 +2250,7 @@ export default function DTFGangSheet() {
               type="button"
               disabled={saving || !approval || !rightsConfirmed || Boolean(validation.errors.length)}
               onClick={() => addToCart()}
-              className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/25"
+              className="flex min-h-14 w-full items-center justify-center gap-3 bg-black px-5 text-xs font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#e11d2e] disabled:cursor-not-allowed disabled:bg-black/25"
             >
               <ShoppingBag size={17} />
               {saving
@@ -2260,7 +2260,7 @@ export default function DTFGangSheet() {
                   : "Upload artwork to continue"}
             </button>
 
-            <div className="border border-black/10 bg-white p-4 text-[10px] leading-5 text-black/46">
+            <div className="border border-black/10 bg-white p-4 text-xs leading-5 text-black/46">
               <strong className="text-black">Transfer film only.</strong> Garments are not included. Transparent PNG, vector SVG or print-ready PDF files provide the most predictable results.
             </div>
           </aside>
@@ -2287,7 +2287,7 @@ export default function DTFGangSheet() {
               <div className="h-2.5 overflow-hidden rounded-full bg-amber-100" aria-label={`${round(utilization, 1)}% of film filled`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={round(utilization, 1)}>
                 <div className="h-full rounded-full bg-black transition-[width]" style={{ width: `${Math.min(100, Math.max(0, utilization))}%` }} />
               </div>
-              <div className="mt-2 flex justify-between text-[11px] font-bold">
+              <div className="mt-2 flex justify-between text-xs font-bold">
                 <span>{round(utilization, 1)}% used</span>
                 <span className="text-amber-800">{round(Math.max(0, 100 - utilization), 1)}% available</span>
               </div>
@@ -2322,7 +2322,7 @@ export default function DTFGangSheet() {
           <div className="fixed inset-x-3 bottom-3 z-40 border border-black/20 bg-white p-3 shadow-2xl xl:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-[10px] font-black uppercase tracking-[0.08em]">{selectedArtwork.name}</div>
+                <div className="truncate text-xs font-black uppercase tracking-[0.08em]">{selectedArtwork.name}</div>
                 <div className="mt-0.5 font-mono text-[9px] text-black/45">{round(selectedArtwork.width, 2)}" × {round(selectedArtwork.height, 2)}" · {round(normalizeArtworkRotation(selectedArtwork.rotation), 1)}°</div>
               </div>
               <button
@@ -2397,7 +2397,7 @@ function Panel({ title, icon: Icon, children }) {
     <section className="border border-black/15 bg-[#faf9f5]">
       <div className="flex min-h-11 items-center gap-2 border-b border-black/10 px-4 py-3">
         <Icon size={15} />
-        <h2 className="text-[10px] font-black uppercase tracking-[0.12em]">{title}</h2>
+        <h2 className="text-xs font-black uppercase tracking-[0.12em]">{title}</h2>
       </div>
       <div className="p-4">{children}</div>
     </section>
@@ -2424,7 +2424,7 @@ function SummaryRow({ label, value }) {
 
 function StatusLine({ good, text }) {
   return (
-    <div className={`flex items-start gap-2 py-1.5 text-[11px] ${good ? "text-emerald-800" : "text-red-700"}`}>
+    <div className={`flex items-start gap-2 py-1.5 text-xs ${good ? "text-emerald-800" : "text-red-700"}`}>
       {good ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
       <span>{text}</span>
     </div>
@@ -2436,7 +2436,7 @@ function Metric({ label, value, helper }) {
     <div className="border border-black/15 bg-white p-4">
       <div className="font-mono text-[8px] uppercase tracking-[0.13em] text-black/42">{label}</div>
       <div className="mt-1 font-mono text-xl font-black">{value}</div>
-      <div className="mt-1 text-[10px] text-black/42">{helper}</div>
+      <div className="mt-1 text-xs text-black/42">{helper}</div>
     </div>
   );
 }
