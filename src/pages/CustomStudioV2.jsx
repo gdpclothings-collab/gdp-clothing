@@ -313,6 +313,7 @@ export default function CustomStudioV2() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState('');
   const [finalizeStage, setFinalizeStage] = useState('');
+  const finalizationLock = useRef(false);
   const dispatch = (action) => setState((current) => studioV2Reducer(current, action));
 
   useEffect(() => {
@@ -358,10 +359,13 @@ export default function CustomStudioV2() {
   };
 
   const finalizeToCart = async () => {
-    if (!product || finalizing || !state.approval.finalDesignApproved) return;
+    if (!product || finalizationLock.current || finalizing || !state.approval.finalDesignApproved) return;
+    finalizationLock.current = true;
     setFinalizing(true);
     setFinalizeError('');
-    setFinalizeStage('Preparing production artwork…');
+    let activeStage = 'Preparing production artwork…';
+    const updateStage = (stage) => { activeStage = stage; setFinalizeStage(stage); };
+    updateStage(activeStage);
     try {
       const sides = studioV2PrintableSides(state);
       if (!sides.length) throw new Error('There is no confirmed printable side.');
@@ -373,7 +377,7 @@ export default function CustomStudioV2() {
       const sourceAssets = [];
 
       for (const side of sides) {
-        setFinalizeStage(`Rendering ${side} print artwork at 300 DPI…`);
+        updateStage(`Rendering ${side} print artwork at 300 DPI…`);
         const editor = state[state.designPath].sides[side];
         let snapshot;
         let rendered;
@@ -412,7 +416,7 @@ export default function CustomStudioV2() {
         renderedSides[side] = rendered;
         const sideHash = await digestStudioV2Snapshot(snapshot);
         const file = new File([rendered.blob], `gdp-${state.designPath}-${side}-${sideHash.slice(0, 12)}.png`, { type: 'image/png', lastModified: Date.now() });
-        setFinalizeStage(`Uploading ${side} production file…`);
+        updateStage(`Uploading ${side} production file…`);
         const upload = await customerApi.uploadArtwork(file);
         uploads[side] = upload;
         productionFiles[side] = { path: upload.storage_path, widthPx: rendered.widthPx, heightPx: rendered.heightPx, widthIn: rendered.widthIn, heightIn: rendered.heightIn, dpi: rendered.dpi, mimeType: rendered.mimeType };
@@ -449,7 +453,7 @@ export default function CustomStudioV2() {
       }).filter(Boolean);
       const designPathLabel = STUDIO_V2_DESIGN_PATHS.find((item) => item.id === state.designPath)?.label || 'Custom Design';
 
-      setFinalizeStage("Generating customer mockup…");
+      updateStage("Generating customer mockup…");
       const customerMockup = await renderStudioV2CustomerMockup({
         garmentUrl: studioV2GarmentPreview(product, state.color, firstSide),
         productionBlob: firstRendered?.blob,
@@ -462,10 +466,10 @@ export default function CustomStudioV2() {
         `gdp-customer-mockup-${firstSide}-${lockedHash.slice(0, 12)}.png`,
         { type: customerMockup.mimeType || 'image/png', lastModified: Date.now() }
       );
-      setFinalizeStage("Uploading customer mockup…");
+      updateStage("Uploading customer mockup…");
       const customerMockupUpload = await customerApi.uploadArtwork(mockupFile);
 
-      setFinalizeStage("Saving and verifying approved design…");
+      updateStage("Saving and verifying approved design…");
       const design = await customerApi.createCustomDesign({
         productId: product.id,
         productName: product.name,
@@ -527,15 +531,20 @@ export default function CustomStudioV2() {
           },
         },
       };
-      setFinalizeStage('Adding verified design to cart…');
+      updateStage('Adding verified design to cart…');
       if (editCartKey) replaceItem(editCartKey, cartItem);
       else addItem(cartItem);
       navigate('/cart');
     } catch (err) {
-      setFinalizeError(err?.message || 'The print files could not be prepared. Your cart was not changed.');
+      const detail = err?.message || 'The print files could not be prepared.';
+      const uncertainSave = activeStage === 'Saving and verifying approved design…';
+      setFinalizeError(uncertainSave
+        ? `${detail} The design save may have completed. Check your cart before retrying to avoid duplicate designs.`
+        : `${detail} Your design is still on this page. Review it and retry when ready.`);
     } finally {
+      finalizationLock.current = false;
       setFinalizing(false);
-      setFinalizeStage('');
+      updateStage('');
     }
   };
 
