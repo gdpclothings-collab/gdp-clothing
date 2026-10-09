@@ -375,9 +375,9 @@ async function removeLightBackground(file, threshold = 230) {
 
 function checkerboardStyle() {
   return {
-    backgroundColor: "#f7f7f7",
+    backgroundColor: "#ffffff",
     backgroundImage:
-      "linear-gradient(45deg,#e8e8e8 25%,transparent 25%),linear-gradient(-45deg,#e8e8e8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e8e8e8 75%),linear-gradient(-45deg,transparent 75%,#e8e8e8 75%)",
+      "linear-gradient(45deg,#bfc4ca 25%,transparent 25%),linear-gradient(-45deg,#bfc4ca 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#bfc4ca 75%),linear-gradient(-45deg,transparent 75%,#bfc4ca 75%)",
     backgroundSize: "20px 20px",
     backgroundPosition: "0 0,0 10px,10px -10px,-10px 0px",
   };
@@ -1779,11 +1779,11 @@ export default function DTFGangSheet() {
                   Preview background
                   <select aria-label="Preview background" value={canvasBackground} onChange={(event) => setCanvasBackground(event.target.value)} className="border border-white/30 bg-[#303030] px-2 py-2 text-xs text-white">
                     <option value="checker">Checkerboard</option>
-                    <option value="dark">Dark (white artwork)</option>
-                    <option value="light">Light</option>
+                    <option value="dark">Dark — view white artwork</option>
+                    <option value="light">Light — view dark artwork</option>
                   </select>
                 </label>
-                <span className="w-full font-mono text-[9px] text-white/50">Preview only — does not change artwork, film size, or print colors.</span>
+                <span className="w-full font-mono text-xs leading-relaxed text-white/75">Tip: Choose Dark to inspect white ink or Light for dark designs. Preview only — artwork, film size, and print colors stay unchanged.</span>
               </div>
               <div
                 ref={viewportRef}
