@@ -38,7 +38,7 @@ const STARTER_ACTIONS = [
   },
 ];
 
-const HIDDEN_ROUTES = ["/custom-studio", "/design", "/checkout"];
+const HIDDEN_ROUTES = ["/custom-studio", "/design", "/checkout", "/dtf-gang-sheet", "/products/dtf-gang-sheet"];
 
 function loadStoredMessages() {
   try {
