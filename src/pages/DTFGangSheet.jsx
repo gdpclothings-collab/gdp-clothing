@@ -1523,7 +1523,7 @@ export default function DTFGangSheet() {
   return (
     <div className="bg-[#f4f2ec] text-[#111]">
       <section className="border-b border-black/10 bg-[#111] text-white">
-        <div className="mx-auto max-w-[1500px] px-4 py-9 sm:px-6 lg:px-8 lg:py-12">
+        <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
           <div className="font-mono text-xs uppercase tracking-[0.22em] text-white/55">GDP Clothing / DTF Transfers</div>
           <div className="mt-4 grid items-end gap-6 lg:grid-cols-[1fr_auto]">
             <div>
@@ -1543,7 +1543,7 @@ export default function DTFGangSheet() {
               </div>
             </div>
           </div>
-          <div className="mt-7 flex flex-wrap gap-2 font-mono text-[9px] uppercase tracking-[0.13em] text-white/65">
+          <div className="mt-5 hidden flex-wrap gap-2 font-mono sm:flex text-[9px] uppercase tracking-[0.13em] text-white/65">
             <span className="border border-white/20 px-3 py-2">Up to {settings.maxWidth}" wide</span>
             <span className="border border-white/20 px-3 py-2">Custom length</span>
             <span className="border border-white/20 px-3 py-2">Live preview</span>
@@ -1553,7 +1553,7 @@ export default function DTFGangSheet() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-[1500px] px-4 py-7 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6 sm:py-7 lg:px-8">
         {pageError && (
           <div className="mb-5 flex items-start gap-3 border border-red-300 bg-red-50 p-4 text-sm text-red-900">
             <AlertTriangle size={17} className="mt-0.5 shrink-0" />
@@ -1567,11 +1567,11 @@ export default function DTFGangSheet() {
           </div>
         )}
 
-        <div className="mb-6 grid gap-3 md:grid-cols-2">
+        <div className="mb-4 grid gap-2 sm:gap-3 md:grid-cols-2">
           <button
             type="button"
             onClick={() => changeMode("build")}
-            className={`border p-5 text-left transition ${mode === "build" ? "border-black bg-black text-white" : "border-black/15 bg-white hover:border-black"}`}
+            className={`border p-3 sm:p-5 text-left transition ${mode === "build" ? "border-black bg-black text-white" : "border-black/15 bg-white hover:border-black"}`}
           >
             <div className="flex items-center gap-3">
               <Layers3 size={20} />
@@ -1600,7 +1600,7 @@ export default function DTFGangSheet() {
           </button>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)_330px]">
+        <div className="grid gap-3 sm:gap-5 xl:grid-cols-[300px_minmax(0,1fr)_330px]">
           <aside className="space-y-4">
             {mode === "upload" ? (
               <Panel title="1 / Detected film size" icon={Ruler}>
@@ -1765,29 +1765,29 @@ export default function DTFGangSheet() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/15 bg-[#202020] px-4 py-3 text-white">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs uppercase text-white/65">Canvas zoom</span>
-                  <button type="button" aria-label="Zoom out" disabled={canvasZoom <= 0.5} onClick={() => setCanvasZoom((v) => Math.max(0.5, Math.round((v - 0.25) * 100) / 100))} className="border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">−</button>
+              <div className="flex flex-col gap-2 border-t border-white/15 bg-[#202020] px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4 text-white">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-full font-mono text-xs uppercase text-white/65 sm:w-auto">Canvas zoom</span>
+                  <button type="button" aria-label="Zoom out" disabled={canvasZoom <= 0.5} onClick={() => setCanvasZoom((v) => Math.max(0.5, Math.round((v - 0.25) * 100) / 100))} className="min-h-11 border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">−</button>
                   <output className="min-w-12 text-center font-mono text-xs">{Math.round(canvasZoom * 100)}%</output>
                   <button type="button" aria-label="Zoom in" disabled={canvasZoom >= 2} onClick={() => setCanvasZoom((v) => Math.min(2, Math.round((v + 0.25) * 100) / 100))} className="border border-white/30 px-3 py-1.5 text-sm disabled:opacity-30">+</button>
-                  <button type="button" onClick={() => setCanvasZoom(1)} className="border border-white/30 px-2 py-1.5 font-mono text-xs">100%</button>
-                  <button type="button" aria-pressed={panMode} onClick={() => setPanMode((value) => !value)} className={`border px-3 py-1.5 font-mono text-xs ${panMode ? "border-white bg-white text-black" : "border-white/30 text-white"}`}>{panMode ? "Pan: ON" : "Pan view"}</button>
+                  <button type="button" onClick={() => setCanvasZoom(1)} className="min-h-11 border border-white/30 px-2 py-1.5 font-mono text-xs">100%</button>
+                  <button type="button" aria-pressed={panMode} onClick={() => setPanMode((value) => !value)} className={`min-h-11 border px-3 py-1.5 font-mono text-xs ${panMode ? "border-white bg-white text-black" : "border-white/30 text-white"}`}>{panMode ? "Pan: ON" : "Pan view"}</button>
                   <button type="button" onClick={() => { setCanvasZoom(1); if (viewportRef.current) { viewportRef.current.scrollLeft = 0; viewportRef.current.scrollTop = 0; } }} className="border border-white/30 px-2 py-1.5 font-mono text-xs">Reset view</button>
                 </div>
-                <label className="flex items-center gap-2 font-mono text-xs uppercase text-white/65">
+                <label className="flex flex-wrap items-center gap-2 font-mono text-xs uppercase text-white/65">
                   Preview background
-                  <select aria-label="Preview background" value={canvasBackground} onChange={(event) => setCanvasBackground(event.target.value)} className="border border-white/30 bg-[#303030] px-2 py-2 text-xs text-white">
+                  <select aria-label="Preview background" value={canvasBackground} onChange={(event) => setCanvasBackground(event.target.value)} className="min-h-11 max-w-full border border-white/30 bg-[#303030] px-2 py-2 text-xs text-white">
                     <option value="checker">Checkerboard</option>
                     <option value="dark">Dark — view white artwork</option>
                     <option value="light">Light — view dark artwork</option>
                   </select>
                 </label>
-                <span className="w-full font-mono text-xs leading-relaxed text-white/75">Tip: Choose Dark to inspect white ink or Light for dark designs. Preview only — artwork, film size, and print colors stay unchanged.</span>
+                <span className="hidden w-full font-mono text-xs leading-relaxed text-white/75 sm:block">Tip: Choose Dark to inspect white ink or Light for dark designs. Preview only — artwork, film size, and print colors stay unchanged.</span>
               </div>
               <div
                 ref={viewportRef}
-                className="max-h-[820px] overflow-auto bg-[#262626] p-4 sm:p-7"
+                className="max-h-[820px] overflow-auto bg-[#262626] p-2 sm:p-7"
                 style={{ cursor: panMode ? "grab" : undefined, touchAction: panMode ? "none" : "auto" }}
                 onPointerDown={(event) => {
                   if (!panMode || !viewportRef.current) return;
@@ -1913,11 +1913,11 @@ export default function DTFGangSheet() {
                       <WorkspaceWatermark settings={settings} />
                     )}
                     {!artworks.length && (
-                      <div className="absolute inset-0 grid place-items-center px-8 text-center">
+                      <div className={`absolute inset-0 grid place-items-center px-4 text-center ${canvasBackground === "dark" ? "text-white" : "text-black"}`}>
                         <div>
-                          <Upload size={28} className="mx-auto text-black/35" />
+                          <Upload size={28} className="mx-auto opacity-70" />
                           <div className="mt-3 text-sm font-black uppercase tracking-[0.1em]">Your film starts here</div>
-                          <div className="mt-1 text-xs leading-5 text-black/45">
+                          <div className="mt-1 text-xs leading-5 opacity-75">
                             Upload artwork from the left panel, then drag designs directly on the film.
                           </div>
                         </div>
