@@ -255,7 +255,7 @@ function CustomizeApprovalPanel({ state, dispatch }) {
   </div>;
 }
 
-function ReviewStepV2({ product, state, settings, finalizing, finalizeError, onEdit, onFinalize }) {
+function ReviewStepV2({ product, state, settings, finalizing, finalizeError, finalizeStage, onEdit, onFinalize }) {
   const pathInfo = STUDIO_V2_DESIGN_PATHS.find((item) => item.id === state.designPath);
   const sides = studioV2PrintableSides(state);
   const bothSides = sides.length > 1;
@@ -279,6 +279,7 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, onE
           <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Unit price</div><div className="mt-1 text-sm font-black text-slate-900">${unitPrice.toFixed(2)}</div></div>
         </div><button type="button" onClick={onEdit} disabled={finalizing} className="mt-5 min-h-12 rounded-xl border border-slate-300 px-4 text-sm font-black text-slate-800 disabled:opacity-50">Edit design</button></div>
       <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-slate-900 text-white"><ShieldCheck size={21} /></div><h2 className="mt-4 text-lg font-black text-slate-950">Approved layout ready to build</h2><p className="mt-2 text-sm font-medium leading-6 text-slate-600">Your approved design is ready. Production PNGs stay separate from the garment mockup shown in your cart.</p>
+        {finalizing && <p role="status" aria-live="polite" className="mt-4 text-xs font-bold text-slate-700">{finalizeStage || "Preparing your design…"}</p>}
         {finalizeError && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-5 text-red-700">{finalizeError}</div>}
         <button type="button" onClick={onFinalize} disabled={finalizing} className="mt-5 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">{finalizing ? <><Loader2 size={18} className="animate-spin" /> Generating & verifying print files…</> : <>Generate, Verify & Add to Cart <ArrowRight size={18} /></>}</button>
         <p className="mt-3 text-[11px] font-semibold leading-5 text-slate-500">The cart changes only after rendering, upload, verification and secure design saving all succeed.</p>
@@ -311,6 +312,7 @@ export default function CustomStudioV2() {
   const [error, setError] = useState('');
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState('');
+  const [finalizeStage, setFinalizeStage] = useState('');
   const dispatch = (action) => setState((current) => studioV2Reducer(current, action));
 
   useEffect(() => {
@@ -359,6 +361,7 @@ export default function CustomStudioV2() {
     if (!product || finalizing || !state.approval.finalDesignApproved) return;
     setFinalizing(true);
     setFinalizeError('');
+    setFinalizeStage('Preparing production artwork…');
     try {
       const sides = studioV2PrintableSides(state);
       if (!sides.length) throw new Error('There is no confirmed printable side.');
@@ -370,6 +373,7 @@ export default function CustomStudioV2() {
       const sourceAssets = [];
 
       for (const side of sides) {
+        setFinalizeStage(`Rendering ${side} print artwork at 300 DPI…`);
         const editor = state[state.designPath].sides[side];
         let snapshot;
         let rendered;
@@ -408,6 +412,7 @@ export default function CustomStudioV2() {
         renderedSides[side] = rendered;
         const sideHash = await digestStudioV2Snapshot(snapshot);
         const file = new File([rendered.blob], `gdp-${state.designPath}-${side}-${sideHash.slice(0, 12)}.png`, { type: 'image/png', lastModified: Date.now() });
+        setFinalizeStage(`Uploading ${side} production file…`);
         const upload = await customerApi.uploadArtwork(file);
         uploads[side] = upload;
         productionFiles[side] = { path: upload.storage_path, widthPx: rendered.widthPx, heightPx: rendered.heightPx, widthIn: rendered.widthIn, heightIn: rendered.heightIn, dpi: rendered.dpi, mimeType: rendered.mimeType };
@@ -444,6 +449,7 @@ export default function CustomStudioV2() {
       }).filter(Boolean);
       const designPathLabel = STUDIO_V2_DESIGN_PATHS.find((item) => item.id === state.designPath)?.label || 'Custom Design';
 
+      setFinalizeStage("Generating customer mockup…");
       const customerMockup = await renderStudioV2CustomerMockup({
         garmentUrl: studioV2GarmentPreview(product, state.color, firstSide),
         productionBlob: firstRendered?.blob,
@@ -456,8 +462,10 @@ export default function CustomStudioV2() {
         `gdp-customer-mockup-${firstSide}-${lockedHash.slice(0, 12)}.png`,
         { type: customerMockup.mimeType || 'image/png', lastModified: Date.now() }
       );
+      setFinalizeStage("Uploading customer mockup…");
       const customerMockupUpload = await customerApi.uploadArtwork(mockupFile);
 
+      setFinalizeStage("Saving and verifying approved design…");
       const design = await customerApi.createCustomDesign({
         productId: product.id,
         productName: product.name,
@@ -519,6 +527,7 @@ export default function CustomStudioV2() {
           },
         },
       };
+      setFinalizeStage('Adding verified design to cart…');
       if (editCartKey) replaceItem(editCartKey, cartItem);
       else addItem(cartItem);
       navigate('/cart');
@@ -526,6 +535,7 @@ export default function CustomStudioV2() {
       setFinalizeError(err?.message || 'The print files could not be prepared. Your cart was not changed.');
     } finally {
       setFinalizing(false);
+      setFinalizeStage('');
     }
   };
 
@@ -542,7 +552,7 @@ export default function CustomStudioV2() {
       {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && <div><EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio' : 'Photo Bootleg Studio'} description="Your photo, text and editable details stay separate from the protected template artwork." /><ProtectedTemplateEditorV2 path={state.designPath} product={product} color={state.color} size={state.size} settings={settings} editor={currentEditor} side={state.side} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value })} /></div>}
       {state.step === 'customize' && state.designPath === 'upload' && product && <div><EditorHeading title="Upload My Own Artwork" description="Each print side keeps its own uploaded artwork, position, size and rotation." /><UploadArtworkEditorV2 product={product} color={state.color} size={state.size} side={state.side} editor={currentEditor} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: 'upload', side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })} /></div>}
       {state.step === 'customize' && product && state.designPath && <CustomizeApprovalPanel state={state} dispatch={dispatch} />}
-      {state.step === 'review' && <ReviewStepV2 product={product} state={state} settings={settings} finalizing={finalizing} finalizeError={finalizeError} onEdit={() => dispatch({ type: 'SET_STEP', step: 'customize' })} onFinalize={finalizeToCart} />}
+      {state.step === 'review' && <ReviewStepV2 product={product} state={state} settings={settings} finalizing={finalizing} finalizeError={finalizeError} finalizeStage={finalizeStage} onEdit={() => dispatch({ type: 'SET_STEP', step: 'customize' })} onFinalize={finalizeToCart} />}
     </section></div>
     {state.step !== 'review' && state.step !== 'garment' && <div className="gdp-custom-studio-v2-actions relative z-20 mx-auto mt-4 flex max-w-2xl items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_12px_36px_rgba(15,23,42,.12)]">{state.step !== 'garment' && <button type="button" onClick={back} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700"><ArrowLeft size={17} /> Back</button>}<button type="button" onClick={next} disabled={!canContinue || state.step === 'design'} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-35">{state.step === 'customize' ? 'Final review' : 'Continue'} <ArrowRight size={17} /></button></div>}
   </div></main>;
