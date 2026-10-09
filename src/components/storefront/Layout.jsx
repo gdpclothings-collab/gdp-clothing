@@ -25,7 +25,6 @@ export default function Layout() {
     (route) => location.pathname === route || location.pathname.startsWith(`${route}/`)
   );
   const cartActive = location.pathname === "/cart" || location.pathname.startsWith("/cart/");
-  const gangSheetActive = ["/dtf-gang-sheet", "/products/dtf-gang-sheet"].includes(location.pathname.replace(/\/+$/, ""));
   const dynamicProductRoute = /^\/products\/[^/]+\/?$/.test(location.pathname) || /^\/product\/[^/]+\/?$/.test(location.pathname);
   const productActive = dynamicProductRoute && location.pathname.replace(/\/+$/, "") !== "/products/dtf-gang-sheet";
 
@@ -53,7 +52,7 @@ export default function Layout() {
       ) : (
         <StoreFooter />
       )}
-      {!cartActive && !gangSheetActive && <AIAssistant />}
+      {!cartActive && <AIAssistant />}
       <CookiePreferences />
     </div>
   );
