@@ -34,7 +34,7 @@ export const contactApi = {
   async getStoreContact() {
     const { data, error } = await supabase
       .from("store_settings")
-      .select("store_name, contact_email, phone, address, instagram, facebook, tiktok")
+      .select("store_name, contact_email, instagram, facebook, tiktok")
       .eq("id", 1)
       .maybeSingle();
 
@@ -43,8 +43,8 @@ export const contactApi = {
     return {
       storeName: data?.store_name || "GDP Clothing",
       email: data?.contact_email || "hello@gdpclothing.ca",
-      phone: data?.phone || "3068363345",
-      address: data?.address || "Saskatoon, Saskatchewan, Canada",
+      phone: "",
+      address: "Saskatoon, Saskatchewan, Canada",
       instagram: data?.instagram || "",
       facebook: data?.facebook || "",
       tiktok: data?.tiktok || "",
