@@ -538,9 +538,10 @@ export default function CustomStudioV2() {
     } catch (err) {
       const detail = err?.message || 'The print files could not be prepared.';
       const uncertainSave = activeStage === 'Saving and verifying approved design…';
-      setFinalizeError(uncertainSave
-        ? `${detail} The design save may have completed. Check your cart before retrying to avoid duplicate designs.`
-        : `${detail} Your design is still on this page. Review it and retry when ready.`);
+      setFinalizeError(err?.message || 'The print files could not be prepared. Your cart was not changed.');
+      if (uncertainSave) {
+        setFinalizeError(`${detail} The design save may have completed. Check your cart before retrying to avoid duplicate designs.`);
+      }
     } finally {
       finalizationLock.current = false;
       setFinalizing(false);
