@@ -145,6 +145,8 @@ export default function AIAssistant() {
     }
   };
 
+  const compactAboutMobile = location.pathname.replace(/\/+$/, "") === "/pages/about";
+
   if (hiddenForPurchaseFlow) return null;
 
   return (
@@ -153,11 +155,11 @@ export default function AIAssistant() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-40 flex h-12 items-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-accent-foreground shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 sm:right-5"
+          className={`fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-40 flex h-12 items-center justify-center gap-2 rounded-full bg-accent text-sm font-semibold text-accent-foreground shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 sm:right-5 ${compactAboutMobile ? "w-12 px-0 sm:w-auto sm:px-4" : "px-4"}`}
           aria-label="Open GDP Assistant"
         >
           <Sparkles size={18} aria-hidden="true" />
-          <span>Ask GDP</span>
+          <span className={compactAboutMobile ? "sr-only sm:not-sr-only" : undefined}>Ask GDP</span>
         </button>
       )}
 
