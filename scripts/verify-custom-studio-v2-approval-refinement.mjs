@@ -10,7 +10,7 @@ const checks = [
   [guard.includes('data-gdp-studio-v2-guard="true"'), 'approval refinement must remain scoped to the V2 presentation guard'],
   [page.includes('I approve the final print layout'), 'canonical final-layout approval control must remain present'],
   [page.includes('finalDesignApproved: !state.approval.finalDesignApproved'), 'canonical approval toggle must remain intact'],
-  [page.includes("if (!product || finalizing || !state.approval.finalDesignApproved) return;"), 'finalization must still require final design approval'],
+  [/if \(!product \|\| (?:finalizationLock\.current \|\| )?finalizing \|\| !state\.approval\.finalDesignApproved\) return;/.test(page), 'finalization must still require final design approval'],
   [state.includes("needByDate: ''"), 'backward-compatible needByDate state support must remain intact behind the presentation layer'],
   [page.includes("needByDate: state.approval.needByDate || null"), 'existing needByDate payload compatibility must remain intact'],
   [css.includes('label:has(input[type="date"])'), 'legacy customer-facing Needed by input selector must remain safely date-scoped'],
