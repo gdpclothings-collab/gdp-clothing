@@ -49,6 +49,10 @@ export default function InvoicesModule() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const load = async () => {
     setLoading(true);
     setError("");
@@ -81,13 +85,36 @@ export default function InvoicesModule() {
     finally { setIssuing(false); }
   };
   useEffect(() => { load(); }, []);
-  const visible = orders.filter((order) => [order.order_number, order.customer_name, order.customer_email].join(" ").toLowerCase().includes(filter.toLowerCase()));
-  return <div className="space-y-5">
+  const statusOf = (order) => issued[order.id] ? (paidStatus(order) ? "paid" : "issued") : order.status === "draft" ? "draft" : paidStatus(order) ? "paid" : "unpaid";
+  const customers = [...new Set(orders.map(o => o.customer_email).filter(Boolean))].sort();
+  const counts = {draft:0,unpaid:0,issued:0,paid:0};
+  orders.forEach(o => {const status=statusOf(o);counts[status]=(counts[status]||0)+1;});
+  const pendingAmount = orders.filter(o => ["unpaid","issued"].includes(statusOf(o))).reduce((n,o)=>n+Number(o.total||0),0);
+  const visible = orders.filter(order => {
+    const matchText = [order.order_number, issued[order.id]?.invoice_number, order.customer_name, order.customer_email].join(" ").toLowerCase().includes(filter.toLowerCase());
+    const matchStatus = statusFilter === "all" || statusOf(order) === statusFilter;
+    const matchCustomer = customerFilter === "all" || order.customer_email === customerFilter;
+    const date = String(order.created_at || "").slice(0,10);
+    return matchText && matchStatus && matchCustomer && (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
+  });
+  return <div className="space-y-6 px-4 py-5 sm:px-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="text-xl font-semibold">Invoice previews</h2><p className="text-sm text-slate-500">Print order details for online and manually created orders. Only orders explicitly marked paid show a receipt; other orders show a pro forma document.</p></div>
-      <div className="flex flex-wrap gap-2"><Link to="/admin/draft-orders" className="rounded-lg border px-3 py-2 text-sm">Create local draft order</Link><button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Refresh</button></div>
+      <div><h2 className="text-2xl font-semibold">Invoices</h2><p className="text-sm text-slate-500">Manage online and local orders, previews, and issued invoices.</p></div>
+      <div className="flex gap-2"><Link to="/admin/draft-orders" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create local draft order</Link><button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Refresh</button></div>
     </div>
-    <label className="block"><span className="sr-only">Find an order</span><input className="w-full max-w-lg rounded-lg border bg-transparent p-2" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search order number or customer" /></label>
+    <div className="grid grid-cols-2 gap-3 rounded-xl border bg-white p-4 lg:grid-cols-4">
+      <div><p className="text-xs text-slate-500">Draft orders</p><p className="text-xl font-semibold">{counts.draft}</p></div>
+      <div><p className="text-xs text-slate-500">Unpaid orders</p><p className="text-xl font-semibold">{counts.unpaid}</p></div>
+      <div><p className="text-xs text-slate-500">Issued invoices</p><p className="text-xl font-semibold">{counts.issued + counts.paid}</p></div>
+      <div><p className="text-xs text-slate-500">Open order value</p><p className="text-xl font-semibold">{cad(pendingAmount)}</p></div>
+    </div>
+    <div className="grid gap-2 md:grid-cols-4">
+      <select aria-label="Filter customer" className="rounded-lg border p-2 text-sm" value={customerFilter} onChange={e=>setCustomerFilter(e.target.value)}><option value="all">All customers</option>{customers.map(c=><option key={c} value={c}>{c}</option>)}</select>
+      <input aria-label="From date" type="date" className="rounded-lg border p-2 text-sm" value={fromDate} onChange={e=>setFromDate(e.target.value)}/>
+      <input aria-label="To date" type="date" className="rounded-lg border p-2 text-sm" value={toDate} onChange={e=>setToDate(e.target.value)}/>
+      <input aria-label="Search invoice, order or customer" className="rounded-lg border p-2 text-sm" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Search invoice # or customer"/>
+    </div>
+    <div className="flex flex-wrap gap-2 border-b pb-3">{[{id:"all",name:"All"},{id:"unpaid",name:"Unpaid"},{id:"draft",name:"Draft"},{id:"issued",name:"Issued"},{id:"paid",name:"Paid"}].map(tab=><button key={tab.id} type="button" aria-pressed={statusFilter===tab.id} onClick={()=>setStatusFilter(tab.id)} className={`rounded-full px-4 py-2 text-sm ${statusFilter===tab.id?"bg-slate-900 text-white":"bg-slate-100 text-slate-700"}`}>{tab.name}{tab.id!=="all" ? ` (${counts[tab.id]})` : ""}</button>)}</div>
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     {loading ? <p>Loading orders…</p> : <div className="overflow-x-auto rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Order</th><th className="p-3">Customer</th><th className="p-3">Payment</th><th className="p-3">Total</th><th className="p-3">Document</th></tr></thead><tbody>{visible.map((order) => <tr className="border-t" key={order.id}><td className="p-3">{order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{order.payment_status || "Unknown"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><button type="button" className="inline-flex items-center gap-1 underline" onClick={() => { const snapshot = issued[order.id]?.snapshot; setSelected(snapshot ? { ...order, ...snapshot, created_at: snapshot.order_date || order.created_at, payment_status: snapshot.payment_status_at_issue || order.payment_status, order_items: snapshot.items || order.order_items } : order); }}><FileText size={15}/> {issued[order.id] ? issued[order.id].invoice_number : "Preview"}</button></td></tr>)}{visible.length === 0 && <tr><td colSpan={5} className="p-6 text-center">No matching orders in the most recent 200.</td></tr>}</tbody></table></div>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
