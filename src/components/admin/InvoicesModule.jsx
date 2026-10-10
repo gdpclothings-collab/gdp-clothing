@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, Printer, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import CreateInvoiceEditor from "@/components/admin/CreateInvoiceEditor";
 
 const cad = (value) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(Number(value || 0));
 const paidStatus = (order) => String(order.payment_status || "").toLowerCase() === "paid";
@@ -44,6 +45,7 @@ const printInvoiceDocument = () => {
 export default function InvoicesModule() {
   const [orders, setOrders] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [issued, setIssued] = useState({});
   const [issuing, setIssuing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -100,7 +102,7 @@ export default function InvoicesModule() {
   return <div className="space-y-6 px-4 py-5 sm:px-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h2 className="text-2xl font-semibold">Invoices</h2><p className="text-sm text-slate-500">Manage online and local orders, previews, and issued invoices.</p></div>
-      <div className="flex gap-2"><Link to="/admin/draft-orders" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create local draft order</Link><button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Refresh</button></div>
+      <div className="flex gap-2"><button type="button" onClick={()=>setEditorOpen(true)} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create invoice</button><Link to="/admin/draft-orders" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create local draft order</Link><button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Refresh</button></div>
     </div>
     <div className="grid grid-cols-2 gap-3 rounded-xl border bg-white p-4 lg:grid-cols-4">
       <div><p className="text-xs text-slate-500">Draft orders</p><p className="text-xl font-semibold">{counts.draft}</p></div>
@@ -117,6 +119,7 @@ export default function InvoicesModule() {
     <div className="flex flex-wrap gap-2 border-b pb-3">{[{id:"all",name:"All"},{id:"unpaid",name:"Unpaid"},{id:"draft",name:"Draft"},{id:"issued",name:"Issued"},{id:"paid",name:"Paid"}].map(tab=><button key={tab.id} type="button" aria-pressed={statusFilter===tab.id} onClick={()=>setStatusFilter(tab.id)} className={`rounded-full px-4 py-2 text-sm ${statusFilter===tab.id?"bg-slate-900 text-white":"bg-slate-100 text-slate-700"}`}>{tab.name}{tab.id!=="all" ? ` (${counts[tab.id]})` : ""}</button>)}</div>
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     {loading ? <p>Loading orders…</p> : <div className="overflow-x-auto rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3">Order / Invoice #</th><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Actions</th></tr></thead><tbody>{visible.map((order) => <tr className="border-t" key={order.id}><td className="p-3 capitalize">{statusOf(order)}</td><td className="p-3">{cleanDate(order.created_at)}</td><td className="p-3">{issued[order.id]?.invoice_number || order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><button type="button" className="inline-flex items-center gap-1 underline" onClick={() => { const snapshot = issued[order.id]?.snapshot; setSelected(snapshot ? { ...order, ...snapshot, created_at: snapshot.order_date || order.created_at, payment_status: snapshot.payment_status_at_issue || order.payment_status, order_items: snapshot.items || order.order_items } : order); }}><FileText size={15}/> {issued[order.id] ? issued[order.id].invoice_number : "Preview"}</button></td></tr>)}{visible.length === 0 && <tr><td colSpan={6} className="p-6 text-center">No matching orders in the most recent 200.</td></tr>}</tbody></table></div>}
+    {editorOpen && <CreateInvoiceEditor onClose={()=>setEditorOpen(false)} onCreated={()=>{setEditorOpen(false);load();}}/>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
       <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}
         <div className="flex justify-end gap-2 print:hidden">{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={printInvoiceDocument} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
