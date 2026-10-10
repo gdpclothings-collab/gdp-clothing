@@ -33,8 +33,8 @@ revoke all on public.artwork_library from anon, authenticated;
 grant select, insert, update, delete on public.artwork_library to authenticated;
 create policy artwork_library_admin on public.artwork_library
   for all to authenticated
-  using (public.is_admin() and public.is_admin_step_up_authorized())
-  with check (public.is_admin() and public.is_admin_step_up_authorized());
+  using (public.is_admin())
+  with check (public.is_admin());
 
 end if;
 end;
