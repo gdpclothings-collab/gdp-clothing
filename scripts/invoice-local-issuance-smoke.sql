@@ -11,6 +11,11 @@ CREATE OR REPLACE FUNCTION public.is_admin_step_up_authorized()
 RETURNS boolean LANGUAGE sql STABLE SET search_path = ''
 AS $auth$ SELECT current_setting('gdp.test_mfa', true) = 'yes' $auth$;
 
+-- A synthetic JWT subject must satisfy the invoice issued_by foreign key.
+-- The user is inserted only inside this transaction and will be rolled back.
+INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+VALUES ('11111111-1111-4111-8111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'invoice-smoke@example.invalid', '', now(), now(), now());
+
 DO $test$
 DECLARE
   v_order uuid := gen_random_uuid();
