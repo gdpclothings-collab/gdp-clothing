@@ -14,6 +14,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { adminFinanceApi } from "@/lib/adminFinanceApi";
+import { Link } from "react-router-dom";
 import StripeFinancePanel from "@/components/admin/StripeFinancePanel";
 
 const RANGE_OPTIONS = [
@@ -224,6 +225,7 @@ export default function FinanceModule() {
           <button type="button" onClick={() => load()} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
             <RefreshCw size={14} /> Refresh
           </button>
+          <Link to="/admin/finance/tax" className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#f7f7f8]"><ReceiptText size={15} /> Tax Center</Link>
           <button type="button" onClick={() => setShowExpenseForm((value) => !value)} className="h-9 px-3 rounded-lg bg-[#171717] text-white text-sm font-semibold inline-flex items-center gap-2">
             <Plus size={15} /> Expense
           </button>
