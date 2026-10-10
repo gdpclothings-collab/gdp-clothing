@@ -57,16 +57,15 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
     savingRef.current=true;
     setBusy(true);
     try {
-      const savedId=await adminDraftOrdersApi.saveDraft(draft?.id || null,{
+      await adminDraftOrdersApi.saveDraft(draft?.id || null,{
         customerName,customerEmail:customerEmail.trim(),shippingAddress:{province, country:"Canada"},
         items:lines.map(x=>({...x, quantity:Number(x.quantity), unitPrice:Number(x.unitPrice)})),
         discount:Number(discount), shipping:Number(shipping),
         gstHstTax:tax.gst_hst,pstTax:tax.pst,tax:round(tax.gst_hst+tax.pst),
         notes:[notes.trim(),"INVOICE PREPARATION — NOT ISSUED"].filter(Boolean).join("\n"),
-        invoiceDueDate:dueDate || null, invoicePaymentTerms:paymentTerms
+        invoiceDueDate:dueDate || null, invoicePaymentTerms:paymentTerms,
+        documentMeta
       });
-      const {error:metaError}=await supabase.rpc("save_admin_invoice_document_meta",{p_order_id:savedId,p_meta:documentMeta});
-      if(metaError) throw metaError;
       onCreated();
     }catch(e){setError(e?.message||"Could not save invoice preparation.");}finally{savingRef.current=false;setBusy(false);}
   }
