@@ -56,6 +56,11 @@ export const adminDraftOrdersApi = {
     );
     const shipping = roundMoney(Math.max(0, Number(payload.shipping || 0)));
     const tax = roundMoney(Math.max(0, Number(payload.tax || 0)));
+    const gstHstTax = roundMoney(Math.max(0, Number(payload.gstHstTax || 0)));
+    const pstTax = roundMoney(Math.max(0, Number(payload.pstTax || 0)));
+    if (Math.abs(gstHstTax + pstTax - tax) > 0.009) {
+      throw new Error("GST/HST and PST must add up to the combined tax before saving.");
+    }
     const total = roundMoney(Math.max(0, subtotal - discount + shipping + tax));
 
     let orderId = id;
@@ -71,6 +76,8 @@ export const adminDraftOrdersApi = {
           discount,
           shipping,
           tax,
+          gst_hst_tax: gstHstTax,
+          pst_tax: pstTax,
           total,
           shipping_address: payload.shippingAddress || {},
           billing_address: payload.billingAddress || payload.shippingAddress || {},
@@ -120,6 +127,8 @@ export const adminDraftOrdersApi = {
           discount,
           shipping,
           tax,
+          gst_hst_tax: gstHstTax,
+          pst_tax: pstTax,
           total,
           status: "draft",
           fulfillment_status: "draft",
