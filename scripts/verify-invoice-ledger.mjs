@@ -11,7 +11,7 @@ test("invoice ledger provides unique order and invoice IDs", () => {
   assert.match(sql, /for update/);
 });
 test("database invoice issuance is admin-only and immutable", () => {
-  assert.match(sql, /if auth\.uid\(\) is null or not public\.is_admin\(\)/);
+  assert.match(sql, /if auth\.uid\(\) is null or not public\.is_admin\(\) or not public\.is_admin_step_up_authorized\(\)/);
   assert.match(sql, /create trigger gdp_invoices_immutable/);
   assert.match(sql, /raise exception 'Issued invoices are immutable/);
 });
