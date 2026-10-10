@@ -68,7 +68,7 @@ export default function InvoicesModule() {
           <p className="mt-8 text-xs text-slate-500">Tax registration numbers and credit notes are not yet supported in this invoice workflow. Verify applicable registration details before distributing this document as a tax invoice. Payment status is taken from the order record and is not independent confirmation of settlement.</p>
         </div>
       </div>
-      <style>{`@media print { body * { visibility: hidden !important; } #gdp-invoice-print, #gdp-invoice-print * { visibility: visible !important; } #gdp-invoice-print { position: absolute !important; inset: 0 auto auto 0; width: 100%; box-shadow: none !important; padding: 20px !important; } @page { margin: 12mm; } }`}</style>
+      <style>{`@media print { html, body, #root { height: auto !important; min-height: 0 !important; overflow: visible !important; } body * { visibility: hidden !important; } #gdp-invoice-print, #gdp-invoice-print * { visibility: visible !important; } #gdp-invoice-print { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: auto !important; width: 100% !important; max-width: none !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 12mm !important; break-inside: avoid; } #gdp-invoice-print tr { break-inside: avoid; } @page { size: auto; margin: 0; } }`}</style>
     </div>}
   </div>;
 }
