@@ -8,6 +8,39 @@ const paidStatus = (order) => String(order.payment_status || "").toLowerCase() =
 const hasTaxSplit = (order) => Math.abs(Number(order.gst_hst_tax || 0) + Number(order.pst_tax || 0) - Number(order.tax || 0)) < 0.011;
 const cleanDate = (value) => value ? new Date(value).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }) : "—";
 
+
+const printInvoiceDocument = () => {
+  const invoice = document.getElementById("gdp-invoice-print");
+  if (!invoice) return;
+  // An isolated frame avoids printing the Admin shell or duplicating its page flow.
+  const frame = document.createElement("iframe");
+  frame.setAttribute("title", "GDP invoice print");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  if (!doc) { frame.remove(); return; }
+  const styles = [...document.head.querySelectorAll('style,link[rel="stylesheet"]')]
+    .map((node) => node.outerHTML).join("");
+  doc.open();
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><base href="' +
+    document.baseURI.replace(/"/g, "&quot;") + '">' + styles +
+    '<style>@page{size:auto;margin:12mm}html,body{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important}#gdp-invoice-print{position:static!important;width:100%!important;max-width:none!important;box-shadow:none!important;border-radius:0!important;padding:0!important;margin:0!important}tr{break-inside:avoid}</style>' +
+    '</head><body>' + invoice.outerHTML + '</body></html>');
+  doc.close();
+  let printed = false;
+  const runPrint = () => {
+    if (printed) return;
+    printed = true;
+    frame.contentWindow?.focus();
+    frame.contentWindow?.print();
+  };
+  frame.onload = runPrint;
+  setTimeout(runPrint, 700);
+  frame.contentWindow?.addEventListener("afterprint", () => setTimeout(() => frame.remove(), 1000), { once: true });
+  setTimeout(() => frame.remove(), 120000);
+};
+
 export default function InvoicesModule() {
   const [orders, setOrders] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -59,7 +92,7 @@ export default function InvoicesModule() {
     {loading ? <p>Loading orders…</p> : <div className="overflow-x-auto rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Order</th><th className="p-3">Customer</th><th className="p-3">Payment</th><th className="p-3">Total</th><th className="p-3">Document</th></tr></thead><tbody>{visible.map((order) => <tr className="border-t" key={order.id}><td className="p-3">{order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{order.payment_status || "Unknown"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><button type="button" className="inline-flex items-center gap-1 underline" onClick={() => { const snapshot = issued[order.id]?.snapshot; setSelected(snapshot ? { ...order, ...snapshot, created_at: snapshot.order_date || order.created_at, payment_status: snapshot.payment_status_at_issue || order.payment_status, order_items: snapshot.items || order.order_items } : order); }}><FileText size={15}/> {issued[order.id] ? issued[order.id].invoice_number : "Preview"}</button></td></tr>)}{visible.length === 0 && <tr><td colSpan={5} className="p-6 text-center">No matching orders in the most recent 200.</td></tr>}</tbody></table></div>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
       <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}
-        <div className="flex justify-end gap-2 print:hidden">{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        <div className="flex justify-end gap-2 print:hidden">{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={printInvoiceDocument} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
         <div id="gdp-invoice-print" className="rounded-xl bg-white p-6 text-slate-900 shadow-lg sm:p-10">
           <div className="flex justify-between gap-6 border-b pb-6"><div><h2 className="text-2xl font-bold">GDP Clothing</h2><p className="text-sm">Saskatoon, Saskatchewan, Canada</p></div><div className="text-right"><h3 className="text-xl font-bold">{issued[selected.id] ? "INVOICE" : (paidStatus(selected) ? "ORDER RECEIPT" : "PRO FORMA INVOICE")}</h3>{issued[selected.id] && <p className="text-sm font-bold">Invoice: {issued[selected.id].invoice_number}</p>}<p className="text-sm">Reference: {selected.order_number}</p><p className="text-sm">Order date: {cleanDate(selected.created_at)}</p>{issued[selected.id] && <p className="text-sm">Issued: {cleanDate(issued[selected.id].issued_at)}</p>}</div></div>
           <div className="grid grid-cols-2 gap-4 py-6 text-sm"><div><p className="font-bold">Bill to</p><p>{selected.customer_name || "Customer"}</p><p>{selected.customer_email || ""}</p><p>{selected.customer_phone || ""}</p>{selected.billing_address && typeof selected.billing_address === "object" && <p>{[selected.billing_address.line1,selected.billing_address.city,selected.billing_address.province,selected.billing_address.postal_code].filter(Boolean).join(", ")}</p>}</div><div className="text-right"><p className="font-bold">Payment status</p><p>{selected.payment_status || "Unknown"}</p><p className="mt-2 text-xs text-slate-600">{issued[selected.id] ? "Issued invoice financial details come from its immutable saved snapshot." : "This document reflects the current order record, not a separately issued tax invoice."}</p></div></div>
