@@ -99,9 +99,9 @@ export const adminDraftOrdersApi = {
         .eq("id", 1)
         .maybeSingle();
 
-      if (settingsError) throw settingsError;
+      // Order numbering must not require browser access to protected store settings.\n      // Fall back to the non-sensitive GDP prefix only for an RLS permission denial.\n      if (settingsError && settingsError.code !== "42501") throw settingsError;
 
-      const prefix = String(settings?.order_prefix || "GDP")
+      const prefix = String((settingsError ? null : settings?.order_prefix) || "GDP")
         .replace(/[^a-zA-Z0-9]/g, "")
         .toUpperCase() || "GDP";
       const orderNumber =
