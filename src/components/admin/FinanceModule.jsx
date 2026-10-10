@@ -202,15 +202,15 @@ export default function FinanceModule() {
 
   return (
     <div className="max-w-[1450px] mx-auto px-4 md:px-6 lg:px-8 pb-12">
-      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+      <div className="mb-5 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <div>
           <div className="text-sm font-semibold text-[#282828]">Live-mode financial reporting</div>
           <div className="mt-1 text-xs text-[#777]">
             Stripe test payments are excluded. Actual Stripe fees and payouts sync from Stripe; Net Profit appears only when COGS and processor-fee coverage are complete.
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap rounded-lg border border-[#d9d9d9] bg-white p-1">
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 2xl:w-auto 2xl:shrink-0">
+          <div className="flex max-w-full flex-wrap rounded-lg border border-[#d9d9d9] bg-white p-1">
             {RANGE_OPTIONS.map(([id, label]) => (
               <button
                 key={id}
@@ -222,11 +222,11 @@ export default function FinanceModule() {
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => load()} className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm inline-flex items-center gap-2">
+          <button type="button" onClick={() => load()} className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-[#d5d5d5] bg-white px-3 text-sm">
             <RefreshCw size={14} /> Refresh
           </button>
-          <Link to="/admin/finance/tax" className="h-9 px-3 rounded-lg border border-[#d5d5d5] bg-white text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#f7f7f8]"><ReceiptText size={15} /> Tax Center</Link>
-          <button type="button" onClick={() => setShowExpenseForm((value) => !value)} className="h-9 px-3 rounded-lg bg-[#171717] text-white text-sm font-semibold inline-flex items-center gap-2">
+          <Link to="/admin/finance/tax" className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-[#d5d5d5] bg-white px-3 text-sm font-semibold hover:bg-[#f7f7f8]"><ReceiptText size={15} /> Tax Center</Link>
+          <button type="button" onClick={() => setShowExpenseForm((value) => !value)} className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-[#171717] px-3 text-sm font-semibold text-white">
             <Plus size={15} /> Expense
           </button>
         </div>
