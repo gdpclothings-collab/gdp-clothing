@@ -9,6 +9,13 @@ const cad = (value) => new Intl.NumberFormat("en-CA", { style: "currency", curre
 const paidStatus = (order) => String(order.payment_status || "").toLowerCase() === "paid";
 const hasTaxSplit = (order) => Math.abs(Number(order.gst_hst_tax || 0) + Number(order.pst_tax || 0) - Number(order.tax || 0)) < 0.011;
 const hasValidItems = order => Array.isArray(order?.order_items) && order.order_items.length > 0 && Math.abs(order.order_items.reduce((sum,item)=>sum + Number(item.quantity||0)*Number(item.unit_price||0),0)-Number(order.subtotal||0)) < 0.02;
+const hasConsistentTotals = (order) => {
+  const subtotal=Number(order?.subtotal),discount=Number(order?.discount||0),shipping=Number(order?.shipping||0),tax=Number(order?.tax||0),total=Number(order?.total);
+  return [subtotal,discount,shipping,tax,total].every(Number.isFinite) &&
+    subtotal>=0 && discount>=0 && discount<=subtotal && shipping>=0 && tax>=0 && total>=0 &&
+    hasTaxSplit(order) && Math.abs(subtotal-discount+shipping+tax-total)<0.02;
+};
+const readyForInvoiceDocument = (order) => hasValidItems(order) && hasConsistentTotals(order);
 const cleanDate = (value) => value ? new Date(value).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }) : "—";
 
 
@@ -139,7 +146,7 @@ export default function InvoicesModule() {
     finally {setDocumentSaving(false);}
   };
   const issue = async (order) => {
-    if (!hasValidItems(order)) { setError("This order has missing or inconsistent line items. Restore its items before issuing."); return; }
+    if (!readyForInvoiceDocument(order)) { setError("Invoice issuance blocked: line items, tax components, or totals are inconsistent. Reconcile the order first."); return; }
     if (!window.confirm("Issue an immutable invoice for this order? Its financial snapshot cannot be edited afterward.")) return;
     setIssuing(true);
     setError("");
@@ -195,7 +202,7 @@ export default function InvoicesModule() {
     {editorOpen && <CreateInvoiceEditor draft={editingDraft} onClose={()=>{setEditorOpen(false);setEditingDraft(null);}} onCreated={()=>{setEditorOpen(false);setEditingDraft(null);load();}}/>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
       <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}
-        <div className="flex justify-end gap-2 print:hidden">{selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={printInvoiceDocument} disabled={!hasValidItems(selected)} title={!hasValidItems(selected) ? "Restore missing line items before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        <div className="flex justify-end gap-2 print:hidden">{selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={printInvoiceDocument} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
         {!hasValidItems(selected) && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 print:hidden">This historical draft has no items or an inconsistent subtotal. Printing and invoice issuance are blocked until its line items are restored. Open Draft Orders to repair the draft; do not invent item descriptions from its total.</div>}
         {documentEditing && <div className="rounded-lg bg-white p-3 text-sm text-slate-700 print:hidden">Edit the highlighted fields directly on the invoice. Changes are only saved when you select Save layout.</div>}
         {documentEditing && <div className="flex justify-end gap-2 print:hidden"><button onClick={()=>{setDocumentMeta(savedDocumentMeta);setDocumentEditing(false);}} className="rounded bg-white px-4 py-2 text-slate-900">Cancel</button><button disabled={documentSaving} onClick={saveDocumentMeta} className="rounded bg-white px-4 py-2 font-semibold text-slate-900 disabled:opacity-50">{documentSaving?"Saving…":"Save layout"}</button></div>}
