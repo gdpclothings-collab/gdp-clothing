@@ -34,7 +34,7 @@ export default function InvoicesModule() {
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h2 className="text-xl font-semibold">Invoice previews</h2><p className="text-sm text-slate-500">Print order details for online and manually created orders. Draft and unpaid orders are marked as pro forma and are not proof of payment.</p></div>
-      <div className="flex flex-wrap gap-2"><Link to="/admin?section=draft-orders" className="rounded-lg border px-3 py-2 text-sm">Create local draft order</Link><button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Refresh</button></div>
+      <div className="flex flex-wrap gap-2"><Link to="/admin/draft-orders" className="rounded-lg border px-3 py-2 text-sm">Create local draft order</Link><button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Refresh</button></div>
     </div>
     <label className="block"><span className="sr-only">Find an order</span><input className="w-full max-w-lg rounded-lg border bg-transparent p-2" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search order number or customer" /></label>
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
