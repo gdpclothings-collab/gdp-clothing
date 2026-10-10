@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { adminDraftOrdersApi } from "@/lib/adminDraftOrdersApi";
@@ -16,12 +16,13 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
   const [catalogError,setCatalogError]=useState("");
   const [discount,setDiscount]=useState(draft?.discount || 0);
   const [shipping,setShipping]=useState(draft?.shipping || 0);
-  const [notes,setNotes]=useState(draft?.notes || "");
+  const [notes,setNotes]=useState((draft?.notes || "").replace(/\\n?INVOICE PREPARATION — NOT ISSUED/g,"").trim());
   const [dueDate,setDueDate]=useState(draft?.invoice_due_date || "");
   const [paymentTerms,setPaymentTerms]=useState(draft?.invoice_payment_terms || "Due on receipt");
   const [taxRules,setTaxRules]=useState([]);
   const [taxError,setTaxError]=useState("");
   const [busy,setBusy]=useState(false);
+  const savingRef=useRef(false);
   const [error,setError]=useState("");
   useEffect(()=>{let mounted=true;supabase.from("tax_rules").select("region_code,config,priority").eq("country_code","CA").eq("active",true)
     .then(({data,error})=>{if(!mounted)return;if(error)setTaxError("Configured tax rules are unavailable.");else setTaxRules(data||[]);});return()=>{mounted=false};},[]);
@@ -44,10 +45,14 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
   const total=round(taxable+Number(shipping||0)+tax.gst_hst+tax.pst);
   const update=(i,change)=>setLines(prev=>prev.map((line,n)=>i===n?{...line,...change}:line));
   async function save() {
+    if(savingRef.current)return;
     setError("");
     if(!customerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim()))return setError("Enter a valid customer email.");
     if(!supported)return setError("Tax rules for this province are unavailable. Use Draft Orders for manual tax review.");
-    if(lines.some(x=>!x.name.trim()||Number(x.quantity)<=0||Number(x.unitPrice)<0))return setError("Check all invoice line items.");
+    if(lines.some(x=>!x.name.trim()||!Number.isInteger(Number(x.quantity))||Number(x.quantity)<=0||!Number.isFinite(Number(x.unitPrice))||Number(x.unitPrice)<0))return setError("Each item needs a description, a positive whole-number quantity, and a valid nonnegative price.");
+    if(!Number.isFinite(Number(discount))||Number(discount)<0||Number(discount)>subtotal||!Number.isFinite(Number(shipping))||Number(shipping)<0)return setError("Discount must be within the subtotal, and shipping must be nonnegative.");
+    if(dueDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate))return setError("Choose a valid due date.");
+    savingRef.current=true;
     setBusy(true);
     try {
       await adminDraftOrdersApi.saveDraft(draft?.id || null,{
@@ -59,7 +64,7 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
         invoiceDueDate:dueDate || null, invoicePaymentTerms:paymentTerms
       });
       onCreated();
-    }catch(e){setError(e?.message||"Could not save invoice preparation.");}finally{setBusy(false);}
+    }catch(e){setError(e?.message||"Could not save invoice preparation.");}finally{savingRef.current=false;setBusy(false);}
   }
   return <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/60 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Create invoice">
     <div className="mx-auto max-w-5xl rounded-xl bg-white p-5 text-slate-900 shadow-xl sm:p-8">
