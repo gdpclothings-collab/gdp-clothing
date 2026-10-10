@@ -63,8 +63,9 @@ export const adminDraftOrdersApi = {
     }
     const total = roundMoney(Math.max(0, subtotal - discount + shipping + tax));
 
-    const { data, error } = await supabase.rpc("save_admin_draft_atomic", {
+    const { data, error } = await supabase.rpc(payload.documentMeta ? "save_admin_invoice_draft_complete" : "save_admin_draft_atomic", {
       p_id: id || null,
+      ...(payload.documentMeta ? {p_meta: payload.documentMeta} : {}),
       p_order: {
         customer_email: payload.customerEmail,
         customer_name: payload.customerName || null,
