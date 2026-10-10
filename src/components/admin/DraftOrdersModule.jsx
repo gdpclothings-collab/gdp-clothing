@@ -311,6 +311,8 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
     discount: draft?.discount || 0,
     shipping: draft?.shipping || 0,
     tax: draft?.tax || 0,
+    gstHstTax: draft?.gst_hst_tax || 0,
+    pstTax: draft?.pst_tax || 0,
     shippingMethod: draft?.shipping_method || "standard",
     notes: draft?.notes || "",
     needByDate: draft?.need_by_date || "",
@@ -742,6 +744,17 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
                   className={inputClass}
                 />
               </Field>
+              <Field label="GST/HST amount">
+                <input type="number" min="0" step="0.01" value={form.gstHstTax}
+                  onChange={(event) => setForm({ ...form, gstHstTax: Math.max(0, Number(event.target.value || 0)) })}
+                  className={inputClass} />
+              </Field>
+              <Field label="PST amount">
+                <input type="number" min="0" step="0.01" value={form.pstTax}
+                  onChange={(event) => setForm({ ...form, pstTax: Math.max(0, Number(event.target.value || 0)) })}
+                  className={inputClass} />
+              </Field>
+              <p className="text-xs text-slate-600">Enter the amounts actually applicable to this order. GST/HST + PST must equal the combined tax. Do not estimate rates automatically.</p>
               <Field label="Tax">
                 <input
                   type="number"
