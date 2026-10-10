@@ -1,6 +1,9 @@
 -- Restore the missing artwork library schema prerequisite for fresh local databases.
 -- Existing production tables are not replaced or rewritten.
-create table if not exists public.artwork_library (
+do $recovery$
+begin
+if to_regclass('public.artwork_library') is null then
+create table public.artwork_library (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
   title text not null,
@@ -28,8 +31,11 @@ create table if not exists public.artwork_library (
 alter table public.artwork_library enable row level security;
 revoke all on public.artwork_library from anon, authenticated;
 grant select, insert, update, delete on public.artwork_library to authenticated;
-drop policy if exists artwork_library_admin on public.artwork_library;
 create policy artwork_library_admin on public.artwork_library
   for all to authenticated
   using (public.is_admin() and public.is_admin_step_up_authorized())
   with check (public.is_admin() and public.is_admin_step_up_authorized());
+
+end if;
+end;
+$recovery$;
