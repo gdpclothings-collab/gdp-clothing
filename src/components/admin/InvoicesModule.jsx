@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { FileText, Printer, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import CreateInvoiceEditor from "@/components/admin/CreateInvoiceEditor";
+import { adminDraftOrdersApi } from "@/lib/adminDraftOrdersApi";
 
 const cad = (value) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(Number(value || 0));
 const paidStatus = (order) => String(order.payment_status || "").toLowerCase() === "paid";
@@ -96,6 +97,18 @@ export default function InvoicesModule() {
     setSelected(snapshot ? {...order,...snapshot,created_at:snapshot.order_date||order.created_at,payment_status:snapshot.payment_status_at_issue||order.payment_status,order_items:snapshot.items||order.order_items}:order);
     setActiveActions(null);
   };
+  const duplicateDraft = (order) => {
+    if (order.status !== "draft" || issued[order.id]) return;
+    const copy = {...order, id:null, invoice_document_meta:{...(order.invoice_document_meta||{})}, notes:(order.notes||"").replace(/INVOICE PREPARATION — NOT ISSUED/g,"").trim()};
+    setEditingDraft(copy);setEditorOpen(true);setActiveActions(null);
+  };
+  const deleteDraft = async (order) => {
+    if (order.status !== "draft" || issued[order.id]) return;
+    if (!window.confirm(`Permanently delete draft ${order.order_number}? This cannot be undone.`)) return;
+    setError("");setActiveActions(null);
+    try {await adminDraftOrdersApi.deleteDraft(order.id);await load();}
+    catch(err){setError(err?.message||"Could not delete draft. No other orders were changed.");}
+  };
   const openDraftEditor = (order) => {
     setEditingDraft(order);setEditorOpen(true);setActiveActions(null);
   };
@@ -157,14 +170,14 @@ export default function InvoicesModule() {
     </div>
     <div className="flex flex-wrap gap-2 border-b pb-3">{[{id:"all",name:"All"},{id:"unpaid",name:"Unpaid"},{id:"draft",name:"Draft"},{id:"issued",name:"Issued"},{id:"paid",name:"Paid"}].map(tab=><button key={tab.id} type="button" aria-pressed={statusFilter===tab.id} onClick={()=>setStatusFilter(tab.id)} className={`rounded-full px-4 py-2 text-sm ${statusFilter===tab.id?"bg-slate-900 text-white":"bg-slate-100 text-slate-700"}`}>{tab.name}{tab.id!=="all" ? ` (${counts[tab.id]})` : ""}</button>)}</div>
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-    {loading ? <p>Loading orders…</p> : <div className="overflow-x-auto rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3">Order / Invoice #</th><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Actions</th></tr></thead><tbody>{visible.map((order) => <tr className="border-t" key={order.id}><td className="p-3 capitalize">{statusOf(order)}</td><td className="p-3">{cleanDate(order.created_at)}</td><td className="p-3">{issued[order.id]?.invoice_number || order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><div className="flex items-center gap-2"><button type="button" className="inline-flex items-center gap-1 underline" onClick={()=>openPreview(order)}><FileText size={15}/>{issued[order.id]?.invoice_number || "View"}</button><div className="relative"><button type="button" aria-label={`Actions for ${order.order_number}`} aria-expanded={activeActions===order.id} onClick={()=>setActiveActions(v=>v===order.id?null:order.id)} className="rounded border px-2 py-1">▾</button>{activeActions===order.id && <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-lg border bg-white py-1 text-slate-900 shadow-xl">
+    {loading ? <p>Loading orders…</p> : <div className="overflow-visible rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3">Order / Invoice #</th><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Actions</th></tr></thead><tbody>{visible.map((order,index) => <tr className="border-t" key={order.id}><td className="p-3 capitalize">{statusOf(order)}</td><td className="p-3">{cleanDate(order.created_at)}</td><td className="p-3">{issued[order.id]?.invoice_number || order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><div className="flex items-center gap-2"><button type="button" className="inline-flex items-center gap-1 underline" onClick={()=>openPreview(order)}><FileText size={15}/>{issued[order.id]?.invoice_number || "View"}</button><div className="relative"><button type="button" aria-label={`Actions for ${order.order_number}`} aria-expanded={activeActions===order.id} onClick={()=>setActiveActions(v=>v===order.id?null:order.id)} className="rounded border px-2 py-1">▾</button>{activeActions===order.id && <div className={`absolute right-0 z-50 w-52 ${index >= visible.length-3 ? "bottom-full mb-1" : "top-full mt-1"} rounded-lg border bg-white py-1 text-slate-900 shadow-xl`}>
   <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openPreview(order)}>View</button>
   {order.status==="draft" && !issued[order.id] && <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openDraftEditor(order)}>Edit draft</button>}
-  <button className="block w-full px-3 py-2 text-left text-slate-500" disabled title="Duplicate workflow requires a separate safety review">Duplicate (coming soon)</button>
+  {order.status==="draft" && !issued[order.id] && <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>duplicateDraft(order)}>Duplicate as new draft</button>}
   <button className="block w-full px-3 py-2 text-left text-slate-500" disabled title="Payment reconciliation is not implemented">Record payment (coming soon)</button>
   <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openPreview(order)}>Export as PDF / Print</button>
   <div className="my-1 border-t"/>
-  <button className="block w-full px-3 py-2 text-left text-slate-400" disabled title={issued[order.id]?"Issued invoices cannot be deleted":"Draft deletion must be verified before enabling"}>Delete (unavailable)</button>
+  {order.status==="draft" && !issued[order.id] ? <button className="block w-full px-3 py-2 text-left text-red-700 hover:bg-red-50" onClick={()=>deleteDraft(order)}>Delete draft</button> : <span className="block px-3 py-2 text-slate-400">Issued / active orders cannot be deleted</span>}
 </div>}</div></div></td></tr>)}{visible.length === 0 && <tr><td colSpan={6} className="p-6 text-center">No matching orders in the most recent 200.</td></tr>}</tbody></table></div>}
     {editorOpen && <CreateInvoiceEditor draft={editingDraft} onClose={()=>{setEditorOpen(false);setEditingDraft(null);}} onCreated={()=>{setEditorOpen(false);setEditingDraft(null);load();}}/>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
