@@ -51,7 +51,7 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
     if(!supported)return setError("Tax rules for this province are unavailable. Use Draft Orders for manual tax review.");
     if(lines.some(x=>!x.name.trim()||!Number.isInteger(Number(x.quantity))||Number(x.quantity)<=0||!Number.isFinite(Number(x.unitPrice))||Number(x.unitPrice)<0))return setError("Each item needs a description, a positive whole-number quantity, and a valid nonnegative price.");
     if(!Number.isFinite(Number(discount))||Number(discount)<0||Number(discount)>subtotal||!Number.isFinite(Number(shipping))||Number(shipping)<0)return setError("Discount must be within the subtotal, and shipping must be nonnegative.");
-    if(dueDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate))return setError("Choose a valid due date.");
+    if(dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))return setError("Choose a valid due date.");
     savingRef.current=true;
     setBusy(true);
     try {
