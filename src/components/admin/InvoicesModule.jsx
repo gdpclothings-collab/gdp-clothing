@@ -49,6 +49,9 @@ export default function InvoicesModule() {
   const [editingDraft,setEditingDraft]=useState(null);
   const [issued, setIssued] = useState({});
   const [issuing, setIssuing] = useState(false);
+  const [retryTesting, setRetryTesting] = useState(false);
+  const [retryResult, setRetryResult] = useState("");
+  const canRunLocalRetry = import.meta.env.DEV && ["localhost","127.0.0.1"].includes(window.location.hostname);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
@@ -87,6 +90,35 @@ export default function InvoicesModule() {
     } catch (err) { setError(err?.message || "Invoice issuance failed."); }
     finally { setIssuing(false); }
   };
+  const testExistingInvoiceRetry = async (order) => {
+    const original = issued[order.id];
+    if (!canRunLocalRetry || !original?.invoice_number) return;
+    if (!window.confirm("LOCAL TEST ONLY: retry issuance on this already-issued invoice using your current MFA session? No new invoice should be created.")) return;
+    setRetryTesting(true);
+    setRetryResult("");
+    try {
+      const { count: before, error: beforeError } = await supabase.from("gdp_invoices").select("order_id", { count: "exact", head: true });
+      if (beforeError) throw beforeError;
+      const { data, error: retryError } = await supabase.rpc("issue_admin_order_invoice", { p_order_id: order.id });
+      if (retryError) throw retryError;
+      const { count: after, error: afterError } = await supabase.from("gdp_invoices").select("order_id", { count: "exact", head: true });
+      if (afterError) throw afterError;
+      const { data: persisted, error: rowError } = await supabase.from("gdp_invoices")
+        .select("id,order_id,invoice_number,issued_at,snapshot").eq("order_id", order.id).single();
+      if (rowError) throw rowError;
+      const stable = data?.invoice_number === original.invoice_number &&
+        data?.order_id === order.id &&
+        persisted?.invoice_number === original.invoice_number &&
+        persisted?.issued_at === original.issued_at &&
+        JSON.stringify(persisted?.snapshot) === JSON.stringify(original.snapshot) &&
+        before === after;
+      setRetryResult(stable ?
+        `PASS: ${original.invoice_number} reused; ledger count unchanged (${after}).` :
+        "FAIL: retry returned different details or changed the ledger count. Stop testing.");
+    } catch (err) {
+      setRetryResult(`NOT VERIFIED: ${err?.message || "Authenticated retry failed"}`);
+    } finally { setRetryTesting(false); }
+  };
   useEffect(() => { load(); }, []);
   const statusOf = (order) => issued[order.id] ? (paidStatus(order) ? "paid" : "issued") : order.status === "draft" ? "draft" : paidStatus(order) ? "paid" : "unpaid";
   const customers = [...new Set(orders.map(o => o.customer_email).filter(Boolean))].sort();
@@ -122,8 +154,8 @@ export default function InvoicesModule() {
     {loading ? <p>Loading orders…</p> : <div className="overflow-x-auto rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3">Order / Invoice #</th><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Actions</th></tr></thead><tbody>{visible.map((order) => <tr className="border-t" key={order.id}><td className="p-3 capitalize">{statusOf(order)}</td><td className="p-3">{cleanDate(order.created_at)}</td><td className="p-3">{issued[order.id]?.invoice_number || order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><button type="button" className="inline-flex items-center gap-1 underline" onClick={() => { const snapshot = issued[order.id]?.snapshot; setSelected(snapshot ? { ...order, ...snapshot, created_at: snapshot.order_date || order.created_at, payment_status: snapshot.payment_status_at_issue || order.payment_status, order_items: snapshot.items || order.order_items } : order); }}><FileText size={15}/> {issued[order.id] ? issued[order.id].invoice_number : "Preview"}</button>{order.status === "draft" && String(order.notes||"").includes("INVOICE PREPARATION — NOT ISSUED") && <button type="button" className="ml-3 underline" onClick={()=>{setEditingDraft(order);setEditorOpen(true);}}>Edit draft</button>}</td></tr>)}{visible.length === 0 && <tr><td colSpan={6} className="p-6 text-center">No matching orders in the most recent 200.</td></tr>}</tbody></table></div>}
     {editorOpen && <CreateInvoiceEditor draft={editingDraft} onClose={()=>{setEditorOpen(false);setEditingDraft(null);}} onCreated={()=>{setEditorOpen(false);setEditingDraft(null);load();}}/>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
-      <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}
-        <div className="flex justify-end gap-2 print:hidden">{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={printInvoiceDocument} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+      <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}{retryResult && <p role="status" className="rounded-lg bg-white p-3 text-sm text-slate-900 print:hidden">{retryResult}</p>}
+        <div className="flex justify-end gap-2 print:hidden">{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}{canRunLocalRetry && issued[selected.id] && <button type="button" disabled={retryTesting} onClick={() => testExistingInvoiceRetry(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{retryTesting ? "Testing retry…" : "Test existing-invoice retry (local)"}</button>}<button type="button" onClick={printInvoiceDocument} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
         <div id="gdp-invoice-print" className="rounded-xl bg-white p-6 text-slate-900 shadow-lg sm:p-10">
           <div className="flex justify-between gap-6 border-b pb-6"><div><h2 className="text-2xl font-bold">GDP Clothing</h2><p className="text-sm">Saskatoon, Saskatchewan, Canada</p></div><div className="text-right"><h3 className="text-xl font-bold">{issued[selected.id] ? "INVOICE" : (paidStatus(selected) ? "ORDER RECEIPT" : "PRO FORMA INVOICE")}</h3>{issued[selected.id] && <p className="text-sm font-bold">Invoice: {issued[selected.id].invoice_number}</p>}<p className="text-sm">Reference: {selected.order_number}</p><p className="text-sm">Order date: {cleanDate(selected.created_at)}</p>{issued[selected.id] && <p className="text-sm">Issued: {cleanDate(issued[selected.id].issued_at)}</p>}</div></div>
           <div className="grid grid-cols-2 gap-4 py-6 text-sm"><div><p className="font-bold">Bill to</p><p>{selected.customer_name || "Customer"}</p><p>{selected.customer_email || ""}</p><p>{selected.customer_phone || ""}</p>{selected.billing_address && typeof selected.billing_address === "object" && <p>{[selected.billing_address.line1,selected.billing_address.city,selected.billing_address.province,selected.billing_address.postal_code].filter(Boolean).join(", ")}</p>}</div><div className="text-right"><p className="font-bold">Payment status</p><p>{selected.payment_status || "Unknown"}</p><p className="mt-2 text-xs text-slate-600">{issued[selected.id] ? "Issued invoice financial details come from its immutable saved snapshot." : "This document reflects the current order record, not a separately issued tax invoice."}</p></div></div>
