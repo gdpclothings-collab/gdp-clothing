@@ -98,9 +98,22 @@ export default function InvoicesModule() {
     setActiveActions(null);
   };
   const duplicateDraft = (order) => {
-    if (order.status !== "draft" || issued[order.id]) return;
-    const copy = {...order, id:null, invoice_document_meta:{...(order.invoice_document_meta||{})}, notes:(order.notes||"").replace(/INVOICE PREPARATION — NOT ISSUED/g,"").trim()};
-    setEditingDraft(copy);setEditorOpen(true);setActiveActions(null);
+    // All statuses may be copied, but the original invoice/order is never changed.
+    const source = issued[order.id]?.snapshot;
+    const rows = source?.items || order.order_items || [];
+    if (!rows.length) {
+      setError("Cannot copy this invoice: original line items are missing. Restore them first.");
+      setActiveActions(null);
+      return;
+    }
+    const copy = {
+      ...order, ...source, id:null, status:"draft", payment_status:"pending",
+      order_items:rows.map(i=>({...i, product_id:i.product_id||null, variant_id:i.variant_id||null})),
+      invoice_document_meta:{...(source?.invoice_document_meta || order.invoice_document_meta || {})},
+      invoice_due_date:order.invoice_due_date || null,
+      notes:(order.notes||"").replace(/INVOICE PREPARATION — NOT ISSUED/g,"").trim(),
+    };
+    setEditingDraft(copy);setEditorOpen(true);setActiveActions(null);setError("");
   };
   const deleteDraft = async (order) => {
     if (order.status !== "draft" || issued[order.id]) return;
@@ -172,8 +185,8 @@ export default function InvoicesModule() {
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     {loading ? <p>Loading orders…</p> : <div className="overflow-visible rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3">Order / Invoice #</th><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Actions</th></tr></thead><tbody>{visible.map((order,index) => <tr className="border-t" key={order.id}><td className="p-3 capitalize">{statusOf(order)}</td><td className="p-3">{cleanDate(order.created_at)}</td><td className="p-3">{issued[order.id]?.invoice_number || order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><div className="flex items-center gap-2"><button type="button" className="inline-flex items-center gap-1 underline" onClick={()=>openPreview(order)}><FileText size={15}/>{issued[order.id]?.invoice_number || "View"}</button><div className="relative"><button type="button" aria-label={`Actions for ${order.order_number}`} aria-expanded={activeActions===order.id} onClick={()=>setActiveActions(v=>v===order.id?null:order.id)} className="rounded border px-2 py-1">▾</button>{activeActions===order.id && <div className={`absolute right-0 z-50 w-52 ${index >= visible.length-3 ? "bottom-full mb-1" : "top-full mt-1"} rounded-lg border bg-white py-1 text-slate-900 shadow-xl`}>
   <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openPreview(order)}>View</button>
-  {order.status==="draft" && !issued[order.id] && <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openDraftEditor(order)}>Edit draft</button>}
-  {order.status==="draft" && !issued[order.id] && <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>duplicateDraft(order)}>Duplicate as new draft</button>}
+  {order.status==="draft" && !issued[order.id] ? <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openDraftEditor(order)}>Edit draft</button> : <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>duplicateDraft(order)}>Edit as new draft (original locked)</button>}
+  <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>duplicateDraft(order)}>Duplicate as new draft</button>
   <button className="block w-full px-3 py-2 text-left text-slate-500" disabled title="Payment reconciliation is not implemented">Record payment (coming soon)</button>
   <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openPreview(order)}>Export as PDF / Print</button>
   <div className="my-1 border-t"/>
