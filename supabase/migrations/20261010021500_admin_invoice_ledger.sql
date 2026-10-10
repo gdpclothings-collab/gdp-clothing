@@ -45,8 +45,8 @@ begin
   if v_order.status = 'draft' then
     raise exception 'Convert draft order before issuing an invoice';
   end if;
-  if v_order.status = 'cancelled' then
-    raise exception 'Cannot issue an invoice for a cancelled order';
+  if v_order.status in ('cancelled', 'refunded', 'partially_refunded') or v_order.payment_status in ('refunded', 'partially_refunded') then
+    raise exception 'Cannot issue an invoice for a cancelled or refunded order; review credit-note workflow';
   end if;
   if abs(coalesce(v_order.gst_hst_tax,0) + coalesce(v_order.pst_tax,0) - coalesce(v_order.tax,0)) > 0.01 then
     raise exception 'Order tax breakdown requires review before issuing an invoice';
@@ -58,12 +58,16 @@ begin
   ) order by i.id), '[]'::jsonb)
   into v_items from public.order_items i where i.order_id = p_order_id;
   if jsonb_array_length(v_items) = 0 then raise exception 'Order has no items'; end if;
+  if abs(coalesce(v_order.subtotal,0) - coalesce(v_order.discount,0) + coalesce(v_order.shipping,0) + coalesce(v_order.tax,0) - coalesce(v_order.total,0)) > 0.01 then
+    raise exception 'Order totals are inconsistent; review before issuing an invoice';
+  end if;
 
   v_next := nextval('public.gdp_invoice_number_seq');
   insert into public.gdp_invoices(order_id, invoice_number, issued_by, snapshot)
   values (p_order_id, 'GDP-INV-' || lpad(v_next::text, 6, '0'), auth.uid(),
     jsonb_build_object(
-      'order_number', v_order.order_number,
+      'order_number', v_order.order_number, 'order_date', v_order.created_at,
+      'payment_status_at_issue', v_order.payment_status,
       'customer_name', v_order.customer_name, 'customer_email', v_order.customer_email,
       'customer_phone', v_order.customer_phone, 'billing_address', v_order.billing_address,
       'subtotal', v_order.subtotal, 'discount', v_order.discount,
