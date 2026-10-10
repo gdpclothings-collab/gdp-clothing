@@ -31,8 +31,8 @@ declare
   v_items jsonb;
   v_next bigint;
 begin
-  if auth.uid() is null or not public.is_admin() then
-    raise exception 'Admin authorization required';
+  if auth.uid() is null or not public.is_admin() or not public.is_admin_step_up_authorized() then
+    raise exception 'Admin MFA step-up authorization required';
   end if;
   if p_order_id is null then raise exception 'Order ID required'; end if;
 
@@ -62,7 +62,7 @@ begin
     raise exception 'Order totals are inconsistent; review before issuing an invoice';
   end if;
 
-  v_next := nextval('public.gdp_invoice_number_seq');
+  v_next := nextval('public.gdp_invoice_number_seq'::regclass);
   insert into public.gdp_invoices(order_id, invoice_number, issued_by, snapshot)
   values (p_order_id, 'GDP-INV-' || lpad(v_next::text, 6, '0'), auth.uid(),
     jsonb_build_object(
