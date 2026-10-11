@@ -102,12 +102,36 @@ async function authenticate(browser) {
   assert(EMAIL, "GDP_ADMIN_SMOKE_EMAIL is required.");
   assert(PASSWORD, "GDP_ADMIN_SMOKE_PASSWORD is required.");
 
+  const accessId = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_ID || "").trim();
+  const accessSecret = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_SECRET || "").trim();
+  assert(Boolean(accessId) === Boolean(accessSecret), "Cloudflare Access smoke credentials must be supplied as a pair.");
+  const target = new URL(BASE_URL);
+  assert(
+    !accessId || (target.protocol === "https:" && target.hostname === "gdpclothing.ca"),
+    "Cloudflare Access credentials may only be sent to the GDP production hostname."
+  );
   const context = await browser.newContext({
     viewport: DESKTOP,
     locale: "en-CA",
     timezoneId: "America/Regina",
     colorScheme: "light",
   });
+  if (accessId) {
+    await context.route("**/*", async (route) => {
+      const request = route.request();
+      if (new URL(request.url()).origin !== target.origin) {
+        await route.continue();
+        return;
+      }
+      await route.continue({
+        headers: {
+          ...request.headers(),
+          "CF-Access-Client-Id": accessId,
+          "CF-Access-Client-Secret": accessSecret,
+        },
+      });
+    });
+  }
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
 
