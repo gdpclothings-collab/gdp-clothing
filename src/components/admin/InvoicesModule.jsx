@@ -36,6 +36,15 @@ const printInvoiceDocument = () => {
     element.textContent = element.getAttribute("data-print-value") || "";
   });
   source.querySelectorAll("input,textarea,button").forEach(element => element.remove());
+  // Rebuild the footer as plain saved text. Never print a form field or its styled wrapper.
+  source.querySelectorAll("[data-invoice-footer]").forEach((element) => {
+    const value = element.getAttribute("data-invoice-footer") || "";
+    if (!value.trim()) { element.remove(); return; }
+    const plain = doc.createElement("p");
+    plain.className = "mt-5 whitespace-pre-line text-sm";
+    plain.textContent = value;
+    element.replaceWith(plain);
+  });
   source.querySelectorAll("[data-print-value]").forEach(element => { if(!element.textContent.trim()) element.remove(); });
   source.querySelectorAll("[data-print-value]").forEach(element=>element.removeAttribute("data-print-value"));
   const styles = [...document.head.querySelectorAll('style,link[rel="stylesheet"]')]
@@ -213,7 +222,7 @@ export default function InvoicesModule() {
           <table className="w-full text-sm"><thead className="bg-slate-800 text-white"><tr className="text-left"><th className="px-3 py-3">Item</th><th className="px-3 py-3 text-right">Qty</th><th className="px-3 py-3 text-right">Price</th><th className="px-3 py-3 text-right">Amount</th></tr></thead><tbody>{(selected.order_items || []).map((item, i) => <tr key={i} className="border-b"><td className="py-2">{item.name}<div className="text-xs text-slate-500">{[item.variant, item.size, item.color].filter(Boolean).join(" · ")}</div></td><td className="py-2 text-right">{item.quantity}</td><td className="py-2 text-right">{cad(item.unit_price)}</td><td className="py-2 text-right">{cad(Number(item.unit_price || 0) * Number(item.quantity || 0))}</td></tr>)}</tbody></table>
           <div className="ml-auto mt-5 max-w-xs space-y-2 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{cad(selected.subtotal)}</span></div><div className="flex justify-between"><span>Discount</span><span>−{cad(selected.discount)}</span></div><div className="flex justify-between"><span>Shipping</span><span>{cad(selected.shipping)}</span></div>{hasTaxSplit(selected) ? <>{Number(selected.gst_hst_tax||0)>0 && <div className="flex justify-between"><span>GST/HST</span><span>{cad(selected.gst_hst_tax)}</span></div>}{Number(selected.pst_tax||0)>0 && <div className="flex justify-between"><span>PST</span><span>{cad(selected.pst_tax)}</span></div>}</> : Number(selected.tax||0)>0 ? <div className="flex justify-between"><span>Tax (combined; breakdown unavailable)</span><span>{cad(selected.tax)}</span></div> : null}<div className="flex justify-between border-t pt-2 text-lg font-bold"><span>Total CAD</span><span>{cad(selected.total)}</span></div></div>
           {(selected.invoice_due_date || selected.invoice_payment_terms) && <div className="mt-5 space-y-1 border-t pt-3 text-sm">{selected.invoice_due_date && <p>Due date: {cleanDate(selected.invoice_due_date)}</p>}{selected.invoice_payment_terms && <p>Payment terms: {selected.invoice_payment_terms}</p>}</div>}
-          {(documentEditing || documentMeta.footer) && (documentEditing ? <div data-print-value={savedDocumentMeta.footer || ""} className="mt-7 whitespace-pre-line text-sm"><textarea aria-label="Invoice footer" rows={3} className="mt-7 w-full rounded border border-blue-400 bg-blue-50 p-2 text-sm" value={documentMeta.footer || ""} placeholder="Invoice notes / footer" onChange={e=>setDocumentMeta(old=>({...old,footer:e.target.value}))}/></div> : <p className="mt-7 whitespace-pre-line text-sm">{documentMeta.footer}</p>)}
+          {(documentEditing || documentMeta.footer) && (documentEditing ? <div data-invoice-footer={savedDocumentMeta.footer || ""} className="mt-7 whitespace-pre-line text-sm"><textarea aria-label="Invoice footer" rows={3} className="mt-7 w-full rounded border border-blue-400 bg-blue-50 p-2 text-sm" value={documentMeta.footer || ""} placeholder="Invoice notes / footer" onChange={e=>setDocumentMeta(old=>({...old,footer:e.target.value}))}/></div> : <p data-invoice-footer={savedDocumentMeta.footer || ""} className="mt-7 whitespace-pre-line text-sm">{documentMeta.footer}</p>)}
 
         </div>
       </div>
