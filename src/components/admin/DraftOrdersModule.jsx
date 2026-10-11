@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { adminDraftOrdersApi } from "@/lib/adminDraftOrdersApi";
+import CreateInvoiceEditor from "@/components/admin/CreateInvoiceEditor";
 import { supabase } from "@/lib/supabaseClient";
 import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
@@ -38,6 +39,15 @@ export default function DraftOrdersModule() {
   const [drafts, setDrafts] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [editor, setEditor] = useState(null);
+  const [invoiceDraft, setInvoiceDraft] = useState(null);
+  const openDraft = (draft) => {
+    // Invoices-origin drafts use the unified document editor, ordinary order drafts retain fulfillment controls.
+    if (draft?.reserved_invoice_number || (draft?.invoice_document_meta && Object.keys(draft.invoice_document_meta).length > 0)) {
+      setInvoiceDraft(draft);
+    } else {
+      setEditor({ draft });
+    }
+  };
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
@@ -220,7 +230,7 @@ export default function DraftOrdersModule() {
                   >
                     <Td>
                       <button
-                        onClick={() => setEditor({ draft })}
+                        onClick={() => openDraft(draft)}
                         className="text-left"
                       >
                         <div className="font-semibold">{draft.order_number}</div>
@@ -253,7 +263,7 @@ export default function DraftOrdersModule() {
                     <Td right>
                       <div className="inline-flex items-center gap-2">
                         <button
-                          onClick={() => setEditor({ draft })}
+                          onClick={() => openDraft(draft)}
                           className={secondaryButton}
                         >
                           Edit
@@ -285,6 +295,8 @@ export default function DraftOrdersModule() {
           </table>
         </div>
       </section>
+
+      {invoiceDraft && <CreateInvoiceEditor draft={invoiceDraft} onClose={()=>setInvoiceDraft(null)} onCreated={async()=>{setInvoiceDraft(null);showNotice("Invoice draft saved.");await load();}}/>}
 
       {editor && (
         <DraftEditor
