@@ -102,7 +102,21 @@ async function authenticate(browser) {
   assert(EMAIL, "GDP_ADMIN_SMOKE_EMAIL is required.");
   assert(PASSWORD, "GDP_ADMIN_SMOKE_PASSWORD is required.");
 
+  const accessId = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_ID || "").trim();
+  const accessSecret = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_SECRET || "").trim();
+  assert(Boolean(accessId) === Boolean(accessSecret), "Cloudflare Access smoke credentials must be supplied as a pair.");
+  const target = new URL(BASE_URL);
+  assert(
+    !accessId || (target.protocol === "https:" && target.hostname === "gdpclothing.ca"),
+    "Cloudflare Access credentials may only be sent to the GDP production hostname."
+  );
   const context = await browser.newContext({
+    ...(accessId ? {
+      extraHTTPHeaders: {
+        "CF-Access-Client-Id": accessId,
+        "CF-Access-Client-Secret": accessSecret,
+      },
+    } : {}),
     viewport: DESKTOP,
     locale: "en-CA",
     timezoneId: "America/Regina",
