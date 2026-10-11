@@ -56,125 +56,45 @@ export const adminDraftOrdersApi = {
     );
     const shipping = roundMoney(Math.max(0, Number(payload.shipping || 0)));
     const tax = roundMoney(Math.max(0, Number(payload.tax || 0)));
+    const gstHstTax = roundMoney(Math.max(0, Number(payload.gstHstTax || 0)));
+    const pstTax = roundMoney(Math.max(0, Number(payload.pstTax || 0)));
+    if (Math.abs(gstHstTax + pstTax - tax) > 0.009) {
+      throw new Error("GST/HST and PST must add up to the combined tax before saving.");
+    }
     const total = roundMoney(Math.max(0, subtotal - discount + shipping + tax));
 
-    let orderId = id;
-
-    if (id) {
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          customer_email: payload.customerEmail,
-          customer_name: payload.customerName || null,
-          customer_phone: payload.customerPhone || null,
-          subtotal,
-          discount,
-          shipping,
-          tax,
-          total,
-          shipping_address: payload.shippingAddress || {},
-          billing_address: payload.billingAddress || payload.shippingAddress || {},
-          shipping_method: payload.shippingMethod || null,
-          notes: payload.notes || null,
-          need_by_date: payload.needByDate || null,
-          priority: payload.priority || "standard",
-          status: "draft",
-          fulfillment_status: "draft",
-          payment_status: "pending",
-        })
-        .eq("id", id)
-        .eq("status", "draft");
-
-      if (error) throw error;
-
-      const { error: clearError } = await supabase
-        .from("order_items")
-        .delete()
-        .eq("order_id", id);
-      if (clearError) throw clearError;
-    } else {
-      const { data: settings, error: settingsError } = await supabase
-        .from("store_settings")
-        .select("order_prefix")
-        .eq("id", 1)
-        .maybeSingle();
-
-      if (settingsError) throw settingsError;
-
-      const prefix = String(settings?.order_prefix || "GDP")
-        .replace(/[^a-zA-Z0-9]/g, "")
-        .toUpperCase() || "GDP";
-      const orderNumber =
-        `${prefix}-DRAFT-${Date.now().toString().slice(-8)}-${crypto.randomUUID()
-          .slice(0, 4)
-          .toUpperCase()}`;
-
-      const { data: order, error } = await supabase
-        .from("orders")
-        .insert({
-          order_number: orderNumber,
-          customer_email: payload.customerEmail,
-          customer_name: payload.customerName || null,
-          customer_phone: payload.customerPhone || null,
-          subtotal,
-          discount,
-          shipping,
-          tax,
-          total,
-          status: "draft",
-          fulfillment_status: "draft",
-          payment_status: "pending",
-          shipping_address: payload.shippingAddress || {},
-          billing_address: payload.billingAddress || payload.shippingAddress || {},
-          shipping_method: payload.shippingMethod || null,
-          notes: payload.notes || null,
-          is_guest: true,
-          need_by_date: payload.needByDate || null,
-          priority: payload.priority || "standard",
-        })
-        .select("id")
-        .single();
-
-      if (error) throw error;
-      orderId = order.id;
-    }
-
-    const { error: itemError } = await supabase
-      .from("order_items")
-      .insert(
-        items.map((item) => ({
-          order_id: orderId,
-          product_id: item.productId || null,
-          variant_id: item.variantId || null,
-          name: item.name,
-          image: item.image || null,
-          variant: item.variant || null,
-          size: item.size || null,
-          color: item.color || null,
-          quantity: Number(item.quantity),
-          unit_price: roundMoney(item.unitPrice),
-          fulfillment_mode: item.fulfillmentMode || "in_house",
-          is_custom: false,
-        }))
-      );
-
-    if (itemError) throw itemError;
-    return orderId;
+    const { data, error } = await supabase.rpc(payload.documentMeta ? "save_admin_invoice_draft_complete" : "save_admin_draft_atomic", {
+      p_id: id || null,
+      ...(payload.documentMeta ? {p_meta: payload.documentMeta} : {}),
+      p_order: {
+        customer_email: payload.customerEmail,
+        customer_name: payload.customerName || null,
+        customer_phone: payload.customerPhone || null,
+        subtotal, discount, shipping, tax, gst_hst_tax: gstHstTax, pst_tax: pstTax, total,
+        shipping_address: payload.shippingAddress || {},
+        billing_address: payload.billingAddress || payload.shippingAddress || {},
+        shipping_method: payload.shippingMethod || null,
+        notes: payload.notes || null,
+        invoice_due_date: payload.invoiceDueDate || null,
+        invoice_payment_terms: payload.invoicePaymentTerms || null,
+        need_by_date: payload.needByDate || null,
+        priority: payload.priority || "standard",
+      },
+      p_items: items.map(item => ({
+        product_id: item.productId || null,
+        variant_id: item.variantId || null,
+        name: item.name, image: item.image || null,
+        variant: item.variant || null, size: item.size || null, color: item.color || null,
+        quantity: Number(item.quantity), unit_price: roundMoney(item.unitPrice),
+        fulfillment_mode: item.fulfillmentMode || "in_house",
+      })),
+    });
+    if (error) throw error;
+    return data;
   },
 
   async convertToPendingPayment(id) {
-    const { data, error } = await supabase
-      .from("orders")
-      .update({
-        status: "pending_payment",
-        fulfillment_status: "pending_payment",
-        payment_status: "pending",
-      })
-      .eq("id", id)
-      .eq("status", "draft")
-      .select("*")
-      .single();
-
+    const { data, error } = await supabase.rpc("activate_admin_draft_atomic", { p_id: id });
     if (error) throw error;
     return data;
   },

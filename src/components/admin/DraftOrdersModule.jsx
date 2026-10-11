@@ -13,6 +13,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { adminDraftOrdersApi } from "@/lib/adminDraftOrdersApi";
+import CreateInvoiceEditor from "@/components/admin/CreateInvoiceEditor";
+import { supabase } from "@/lib/supabaseClient";
 import { useUnsavedEditorGuard } from "@/lib/UnsavedChangesContext";
 
 function money(value) {
@@ -37,6 +39,15 @@ export default function DraftOrdersModule() {
   const [drafts, setDrafts] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [editor, setEditor] = useState(null);
+  const [invoiceDraft, setInvoiceDraft] = useState(null);
+  const openDraft = (draft) => {
+    // Invoices-origin drafts use the unified document editor, ordinary order drafts retain fulfillment controls.
+    if (draft?.reserved_invoice_number || (draft?.invoice_document_meta && Object.keys(draft.invoice_document_meta).length > 0)) {
+      setInvoiceDraft(draft);
+    } else {
+      setEditor({ draft });
+    }
+  };
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
@@ -219,7 +230,7 @@ export default function DraftOrdersModule() {
                   >
                     <Td>
                       <button
-                        onClick={() => setEditor({ draft })}
+                        onClick={() => openDraft(draft)}
                         className="text-left"
                       >
                         <div className="font-semibold">{draft.order_number}</div>
@@ -252,7 +263,7 @@ export default function DraftOrdersModule() {
                     <Td right>
                       <div className="inline-flex items-center gap-2">
                         <button
-                          onClick={() => setEditor({ draft })}
+                          onClick={() => openDraft(draft)}
                           className={secondaryButton}
                         >
                           Edit
@@ -285,6 +296,8 @@ export default function DraftOrdersModule() {
         </div>
       </section>
 
+      {invoiceDraft && <CreateInvoiceEditor draft={invoiceDraft} onClose={()=>setInvoiceDraft(null)} onCreated={async()=>{setInvoiceDraft(null);showNotice("Invoice draft saved.");await load();}}/>}
+
       {editor && (
         <DraftEditor
           draft={editor.draft}
@@ -304,6 +317,15 @@ export default function DraftOrdersModule() {
 function DraftEditor({ draft, catalog, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [productSearch, setProductSearch] = useState("");
+  const [autoTax, setAutoTax] = useState(false);
+  const [taxRules, setTaxRules] = useState([]);
+  const [taxRuleError, setTaxRuleError] = useState("");
+  useEffect(() => {
+    let active = true;
+    supabase.from("tax_rules").select("region_code,rate,config,priority").eq("country_code","CA").eq("active",true)
+      .then(({data,error}) => { if (!active) return; if(error) setTaxRuleError("Tax configuration unavailable; enter verified tax amounts manually."); else setTaxRules(data || []); });
+    return () => {active=false;};
+  }, []);
   const [form, setForm] = useState({
     customerEmail: draft?.customer_email || "",
     customerName: draft?.customer_name || "",
@@ -311,6 +333,8 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
     discount: draft?.discount || 0,
     shipping: draft?.shipping || 0,
     tax: draft?.tax || 0,
+    gstHstTax: draft?.gst_hst_tax || 0,
+    pstTax: draft?.pst_tax || 0,
     shippingMethod: draft?.shipping_method || "standard",
     notes: draft?.notes || "",
     needByDate: draft?.need_by_date || "",
@@ -353,12 +377,33 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
     (sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0),
     0
   );
+  const roundTax = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+  const province = String(form.shippingAddress.province || "").trim().toUpperCase();
+  const region = ({SASKATCHEWAN:"SK",ONTARIO:"ON",ALBERTA:"AB",MANITOBA:"MB",QUEBEC:"QC",
+    "BRITISH COLUMBIA":"BC","NOVA SCOTIA":"NS","NEW BRUNSWICK":"NB",
+    "NEWFOUNDLAND AND LABRADOR":"NL","PRINCE EDWARD ISLAND":"PE"})[province] || province;
+  const rule = taxRules.filter((r) => r.region_code === region).sort((a,b) => Number(a.priority || 0)-Number(b.priority || 0))[0]
+    || taxRules.find((r) => r.region_code == null);
+  const components = rule?.config?.components;
+  const applicable = Array.isArray(components) && components.length > 0;
+  const taxableAmount = Math.max(0, subtotal - Number(form.discount || 0));
+  const calculated = applicable ? components.reduce((acc,c) => {
+    const amount = roundTax((taxableAmount + (c.tax_shipping ? Number(form.shipping || 0) : 0)) * Number(c.rate || 0));
+    if (c.bucket === "gst_hst") acc.gstHstTax += amount;
+    else if (c.bucket === "pst") acc.pstTax += amount;
+    else acc.valid = false;
+    return acc;
+  }, {gstHstTax:0,pstTax:0,valid:true}) : null;
+  const canAutoTax = Boolean(rule && calculated?.valid && region && rule.region_code === region);
+  const actualGst = autoTax && canAutoTax ? roundTax(calculated.gstHstTax) : Number(form.gstHstTax || 0);
+  const actualPst = autoTax && canAutoTax ? roundTax(calculated.pstTax) : Number(form.pstTax || 0);
+  const actualTax = autoTax && canAutoTax ? roundTax(actualGst + actualPst) : Number(form.tax || 0);
   const total = Math.max(
     0,
     subtotal -
       Number(form.discount || 0) +
       Number(form.shipping || 0) +
-      Number(form.tax || 0)
+      actualTax
   );
 
   const addVariant = (product, variant) => {
@@ -419,7 +464,7 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
   const save = async () => {
     setSaving(true);
     try {
-      await adminDraftOrdersApi.saveDraft(draft?.id || null, form);
+      await adminDraftOrdersApi.saveDraft(draft?.id || null, { ...form, gstHstTax: actualGst, pstTax: actualPst, tax: actualTax });
       await onSaved(draft?.id ? "Draft order updated." : "Draft order created.");
       return true;
     } catch (err) {
@@ -742,12 +787,26 @@ function DraftEditor({ draft, catalog, onClose, onSaved }) {
                   className={inputClass}
                 />
               </Field>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={autoTax} disabled={!canAutoTax} onChange={(e)=>setAutoTax(e.target.checked)} />Automatically calculate tax from configured provincial rules</label>
+              {!canAutoTax && <p className="text-xs text-amber-700">{taxRuleError || "No matching provincial tax components available; verify tax manually."}</p>}
+              {autoTax && canAutoTax && <p className="text-xs text-slate-600">Estimated using current configured {region} rules. Confirm tax applicability before invoicing.</p>}
+              <Field label="GST/HST amount">
+                <input type="number" min="0" step="0.01" value={actualGst} disabled={autoTax && canAutoTax}
+                  onChange={(event) => setForm({ ...form, gstHstTax: Math.max(0, Number(event.target.value || 0)) })}
+                  className={inputClass} />
+              </Field>
+              <Field label="PST amount">
+                <input type="number" min="0" step="0.01" value={actualPst} disabled={autoTax && canAutoTax}
+                  onChange={(event) => setForm({ ...form, pstTax: Math.max(0, Number(event.target.value || 0)) })}
+                  className={inputClass} />
+              </Field>
+              <p className="text-xs text-slate-600">Tax estimates use configured checkout components for the selected province where available. Review exemptions and registration before issuing.</p>
               <Field label="Tax">
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  value={form.tax}
+                  value={actualTax} disabled={autoTax && canAutoTax}
                   onChange={(event) =>
                     setForm({
                       ...form,

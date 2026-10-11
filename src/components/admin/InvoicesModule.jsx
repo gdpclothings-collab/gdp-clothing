@@ -1,0 +1,408 @@
+import React, { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { FileText, Printer, RefreshCw, X } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import CreateInvoiceEditor from "@/components/admin/CreateInvoiceEditor";
+import { adminDraftOrdersApi } from "@/lib/adminDraftOrdersApi";
+
+const cad = (value) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(Number(value || 0));
+const paidStatus = (order) => String(order.payment_status || "").toLowerCase() === "paid";
+const hasTaxSplit = (order) => Math.abs(Number(order.gst_hst_tax || 0) + Number(order.pst_tax || 0) - Number(order.tax || 0)) < 0.011;
+const hasValidItems = order => Array.isArray(order?.order_items) && order.order_items.length > 0 && Math.abs(order.order_items.reduce((sum,item)=>sum + Number(item.quantity||0)*Number(item.unit_price||0),0)-Number(order.subtotal||0)) < 0.02;
+const hasConsistentTotals = (order) => {
+  const subtotal=Number(order?.subtotal),discount=Number(order?.discount||0),shipping=Number(order?.shipping||0),tax=Number(order?.tax||0),total=Number(order?.total);
+  return [subtotal,discount,shipping,tax,total].every(Number.isFinite) &&
+    subtotal>=0 && discount>=0 && discount<=subtotal && shipping>=0 && tax>=0 && total>=0 &&
+    hasTaxSplit(order) && Math.abs(subtotal-discount+shipping+tax-total)<0.02;
+};
+const readyForInvoiceDocument = (order) => hasValidItems(order) && hasConsistentTotals(order);
+const invoiceValidationMessage = (order) => {
+  if (!order) return "Invoice is unavailable.";
+  if (!Array.isArray(order.order_items) || order.order_items.length === 0)
+    return "No saved line items were found. Open the draft and add the original items.";
+  if (!hasValidItems(order))
+    return "Saved line items do not match the subtotal. Review item quantities and prices, then save the draft.";
+  if (!hasTaxSplit(order))
+    return "GST/HST and PST do not add up to the saved total tax. Review tax settings and save the draft.";
+  const subtotal = Number(order.subtotal);
+  const discount = Number(order.discount || 0);
+  const shipping = Number(order.shipping || 0);
+  const tax = Number(order.tax || 0);
+  const total = Number(order.total);
+  if (![subtotal, discount, shipping, tax, total].every(Number.isFinite))
+    return "One or more saved invoice amounts are invalid. Review and save the draft.";
+  const expected = subtotal - discount + shipping + tax;
+  if (!hasConsistentTotals(order))
+    return `Saved total ${cad(total)} does not match ${cad(expected)} calculated from subtotal ${cad(subtotal)} − discount ${cad(discount)} + shipping ${cad(shipping)} + tax ${cad(tax)}. Open Edit draft to reconcile and save the amounts before issuing.`;
+  return "";
+};
+const cleanDate = (value) => value ? new Date(value).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+
+const printInvoiceDocument = (compact = false) => {
+  const invoice = document.getElementById("gdp-invoice-print");
+  if (!invoice) return;
+  // An isolated frame avoids printing the Admin shell or duplicating its page flow.
+  const frame = document.createElement("iframe");
+  frame.setAttribute("title", "GDP invoice print");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:720px;height:2px;border:0;opacity:0;pointer-events:none";
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  if (!doc) { frame.remove(); return; }
+  // Print the saved values rather than controls from an unsaved editor session.
+  const source = /** @type {HTMLElement} */ (invoice.cloneNode(true));
+  source.querySelectorAll("[data-print-value]").forEach((element) => {
+    element.textContent = element.getAttribute("data-print-value") || "";
+  });
+  source.querySelectorAll("input,textarea,button").forEach(element => element.remove());
+  // Hard-remove ALL footer/editor markup from the clone, then reconstruct a single
+  // plain-text node. This avoids printing any cached textarea, overlay or wrapper.
+  source.querySelectorAll("[data-invoice-footer], textarea, input, button, [contenteditable], iframe").forEach(node => node.remove());
+  source.querySelectorAll("[data-print-value]").forEach(element => {
+    if (!element.textContent.trim()) element.remove();
+    else element.removeAttribute("data-print-value");
+  });
+  const footerText = invoice.querySelector("[data-invoice-footer]")?.getAttribute("data-invoice-footer") || "";
+  if (footerText.trim()) {
+    const footer = doc.createElement("p");
+    footer.className = "invoice-print-footer";
+    footer.textContent = footerText;
+    source.appendChild(footer);
+  }
+  // Invoice root has: header, customer/payment, items, totals, terms, footer.
+  // Do not pass any other accidental editor DOM into the print frame.
+  [...source.children].forEach((child, index) => {
+    if (index >= 5 && !child.classList.contains("invoice-print-footer")) child.remove();
+  });
+  // Do not copy the admin application's print CSS or pseudo-elements into the
+  // isolated invoice frame. They can introduce a full-width gray editor panel.
+  const printCss = `
+    @page { size: letter portrait; margin: 13mm 15mm; }
+    * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    html,body { margin:0; padding:0; background:#fff !important; color:#111827; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.45; }
+    #gdp-invoice-print { width:100%; padding:0; margin:0; background:#fff; box-shadow:none; border:0; }
+    #gdp-invoice-print * { box-shadow:none !important; }
+    #gdp-invoice-print > div:first-child { display:flex; justify-content:space-between; gap:28px; border-bottom:2px solid #e2e8f0; padding-bottom:28px; }
+    #gdp-invoice-print > div:first-child > div:last-child { text-align:right; }
+    #gdp-invoice-print > div:first-child img { width:112px; height:88px; object-fit:contain; object-position:left top; }
+    #gdp-invoice-print h2,#gdp-invoice-print h3 { font-size:24px; line-height:1.2; margin:0 0 5px; font-weight:700; }
+    #gdp-invoice-print p { margin:4px 0; line-height:1.45; }
+    #gdp-invoice-print > div:nth-child(2) { display:grid; grid-template-columns:1fr 1fr; gap:28px; padding:28px 0; }
+    #gdp-invoice-print > div:nth-child(2) > div:last-child { text-align:right; }
+    #gdp-invoice-print table { width:100%; border-collapse:collapse; margin-top:4px; }
+    #gdp-invoice-print thead { background:#1e293b !important; color:#fff !important; }
+    #gdp-invoice-print thead th { color:#fff !important; font-weight:700 !important; letter-spacing:0.025em; }
+    #gdp-invoice-print th { padding:11px 12px; }
+    #gdp-invoice-print th:first-child { text-align:left; }
+    #gdp-invoice-print th:not(:first-child) { text-align:right; }
+    #gdp-invoice-print td { padding:11px 0; border-bottom:1px solid #e5e7eb; }
+    #gdp-invoice-print td:not(:first-child) { text-align:right; }
+    #gdp-invoice-print > div:nth-child(4) { margin:24px 0 0 auto; max-width:300px; }
+    #gdp-invoice-print > div:nth-child(4) > div { display:flex; justify-content:space-between; margin:9px 0; }
+    #gdp-invoice-print > div:nth-child(4) > div:last-child { border-top:1px solid #cbd5e1; padding-top:13px; font-size:17px; font-weight:700; }
+    #gdp-invoice-print > div:nth-child(5) { margin-top:26px; border-top:1px solid #d1d5db; padding-top:14px; }
+    #gdp-invoice-print .invoice-print-footer { margin:20px 0 0 !important; padding:0 !important; background:none !important; border:0 !important; min-height:0 !important; height:auto !important; white-space:pre-line; }
+    #gdp-invoice-print input,#gdp-invoice-print textarea,#gdp-invoice-print button { display:none!important; }
+    #gdp-invoice-print thead { display:table-header-group; } 
+    #gdp-invoice-print tr { break-inside:avoid; page-break-inside:avoid; }
+    #gdp-invoice-print > div:first-child, #gdp-invoice-print > div:nth-child(2), #gdp-invoice-print > div:nth-child(4), #gdp-invoice-print > div:nth-child(5) { break-inside:avoid; }
+    @media print { body { margin:0 !important; } }
+  `;
+  // Calculate compact paper height from the actual rendered invoice, not a
+  // fixed paper size. Keep Letter for long invoices to preserve pagination.
+  doc.open();
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>GDP invoice</title><style>' + printCss + '</style><style id="gdp-page-size"></style></head><body>' + source.outerHTML + '</body></html>');
+  doc.close();
+  let printStarted = false;
+  const runPrint = async () => {
+    if (printStarted) return;
+    printStarted = true;
+    try {
+      await doc.fonts?.ready;
+      await Promise.all([...doc.images].map(img => img.complete ? Promise.resolve() : new Promise(resolve => {
+        img.addEventListener("load", resolve, {once:true});
+        img.addEventListener("error", resolve, {once:true});
+      })));
+      if (compact) {
+        const root = doc.getElementById("gdp-invoice-print");
+        // Layout pixels to mm (CSS specifies 96px/in). Reserve 12mm of space
+        // beneath the footer plus 20mm for the compact page's vertical margins.
+        const heightMm = Math.ceil((root?.getBoundingClientRect().height || 0) * 25.4 / 96 + 32);
+        const pageHeightMm = Math.max(115, heightMm);
+        if (pageHeightMm <= 260) {
+          doc.getElementById("gdp-page-size").textContent =
+            "@page { size: 215.9mm " + pageHeightMm + "mm; margin: 10mm 13mm; }";
+        }
+        // Longer documents retain Letter so rows paginate without clipping.\n        // The offscreen frame must have nonzero width so the measurement is realistic.
+      }
+    } finally {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    }
+  };
+  frame.onload = runPrint;
+  setTimeout(runPrint, 700);
+  frame.contentWindow?.addEventListener("afterprint", () => setTimeout(() => frame.remove(), 1000), { once: true });
+  setTimeout(() => frame.remove(), 120000);
+};
+
+export default function InvoicesModule() {
+  const [orders, setOrders] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [activeActions,setActiveActions] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [documentEditing,setDocumentEditing] = useState(false);
+  const [savedDocumentMeta,setSavedDocumentMeta] = useState(/** @type {Record<string, any>} */ ({}));
+  const [documentMeta,setDocumentMeta] = useState(/** @type {Record<string, any>} */ ({}));
+  const [documentSaving,setDocumentSaving] = useState(false);
+  const [documentDueDate,setDocumentDueDate] = useState("");
+  const [editingDraft,setEditingDraft]=useState(null);
+  const [issued, setIssued] = useState({});
+  const [issuing, setIssuing] = useState(false);
+  const issuingRef = useRef(false);
+  const [issueConfirmOpen, setIssueConfirmOpen] = useState(false);
+  const [issueSuccess, setIssueSuccess] = useState("");
+  // Read-only real Supabase Auth assurance status. Never display JWTs or codes.
+  const [invoiceMfaStatus, setInvoiceMfaStatus] = useState("unchecked");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      // Reuse existing orders and the admin's existing RLS grants; no duplicate accounting records.
+      const { data, error: queryError } = await supabase.from("orders")
+        .select("id,order_number,created_at,customer_name,customer_email,customer_phone,subtotal,discount,shipping,tax,gst_hst_tax,pst_tax,total,status,payment_status,billing_address,shipping_address,invoice_document_meta,reserved_invoice_number,notes,invoice_due_date,invoice_payment_terms,order_items(name,variant,size,color,quantity,unit_price,product_id,variant_id,image,fulfillment_mode)")
+        .order("created_at", { ascending: false }).limit(200);
+      if (queryError) throw queryError;
+      setOrders(data || []);
+      const { data: invoices, error: ledgerError } = await supabase.from("gdp_invoices").select("order_id,invoice_number,issued_at,snapshot").order("issued_at", { ascending: false }).limit(500);
+      if (ledgerError) throw ledgerError;
+      setIssued(Object.fromEntries((invoices || []).map((invoice) => [invoice.order_id, invoice])));
+    } catch (err) {
+      setError(err?.message || "Unable to load orders.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const verifyInvoiceMfaSession = async () => {
+    setInvoiceMfaStatus("checking");
+    try {
+      const { data, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaError) throw mfaError;
+      setInvoiceMfaStatus(data?.currentLevel === "aal2" ? "verified" : "required");
+    } catch {
+      setInvoiceMfaStatus("error");
+    }
+  };
+  const openPreview = (order) => {
+    const snapshot = issued[order.id]?.snapshot;
+    const meta = snapshot?.invoice_document_meta || order.invoice_document_meta || {};
+    setDocumentMeta(meta); setSavedDocumentMeta(meta);
+    // New ledgers freeze due dates. Older issued rows predate this snapshot field.
+    const hasFrozenDueDate = snapshot && Object.prototype.hasOwnProperty.call(snapshot, "invoice_due_date");
+    const dueDateAtIssue = hasFrozenDueDate ? snapshot.invoice_due_date : order.invoice_due_date;
+    setDocumentDueDate(String(dueDateAtIssue || "").slice(0,10)); setDocumentEditing(false);
+    setSelected(snapshot ? {...order,...snapshot,created_at:snapshot.order_date||order.created_at,payment_status:snapshot.payment_status_at_issue||order.payment_status,order_items:snapshot.items||order.order_items}:order);
+    setActiveActions(null);
+    setIssueConfirmOpen(false);
+    setIssueSuccess("");
+    setError("");
+    void verifyInvoiceMfaSession();
+  };
+  const duplicateDraft = (order) => {
+    // All statuses may be copied, but the original invoice/order is never changed.
+    const source = issued[order.id]?.snapshot;
+    const rows = source?.items || order.order_items || [];
+    if (!rows.length) {
+      setError("Cannot copy this invoice: original line items are missing. Restore them first.");
+      setActiveActions(null);
+      return;
+    }
+    const copy = {
+      ...order, ...source, id:null, status:"draft", payment_status:"pending",
+      order_items:rows.map(i=>({...i, product_id:i.product_id||null, variant_id:i.variant_id||null})),
+      invoice_document_meta:{...(source?.invoice_document_meta || order.invoice_document_meta || {})},
+      invoice_due_date:order.invoice_due_date || null,
+      notes:(order.notes||"").replace(/INVOICE PREPARATION — NOT ISSUED/g,"").trim(),
+    };
+    setEditingDraft(copy);setEditorOpen(true);setActiveActions(null);setError("");
+  };
+  const deleteDraft = async (order) => {
+    if (order.status !== "draft" || issued[order.id]) return;
+    if (!window.confirm(`Permanently delete draft ${order.order_number}? This cannot be undone.`)) return;
+    setError("");setActiveActions(null);
+    try {await adminDraftOrdersApi.deleteDraft(order.id);await load();}
+    catch(err){setError(err?.message||"Could not delete draft. No other orders were changed.");}
+  };
+  const openDraftEditor = (order) => {
+    setEditingDraft(order);setEditorOpen(true);setActiveActions(null);
+  };
+  const saveDocumentMeta = async () => {
+    if (!selected || selected.status !== "draft" || issued[selected.id]) return;
+    setDocumentSaving(true); setError("");
+    try {
+      const { error: saveError } = await supabase.rpc("save_admin_invoice_layout_dates", {p_order_id:selected.id,p_meta:documentMeta,p_due_date:documentDueDate||null});
+      if(saveError) throw saveError;
+      setOrders(old=>old.map(o=>o.id===selected.id ? {...o,invoice_document_meta:documentMeta,invoice_due_date:documentDueDate||null}:o));
+      setSelected(old=>({...old,invoice_document_meta:documentMeta,invoice_due_date:documentDueDate||null}));
+      setSavedDocumentMeta(documentMeta);
+      setDocumentEditing(false);
+    } catch(err) {setError(err?.message||"Unable to save invoice document");}
+    finally {setDocumentSaving(false);}
+  };
+  const requestIssueConfirmation = (order) => {
+    setError("");
+    setIssueSuccess("");
+    if (issuingRef.current || issuing) return;
+    if (invoiceMfaStatus !== "verified") {
+      setError("Invoice issuance requires a verified MFA (AAL2) session. Choose Verify MFA session first.");
+      return;
+    }
+    if (order.status === "cancelled" || issued[order.id]) {
+      setError("This order cannot be issued again from this preview.");
+      return;
+    }
+    const validationError = invoiceValidationMessage(order);
+    if (validationError) {
+      setError(`Invoice issuance blocked: ${validationError}`);
+      return;
+    }
+    setIssueConfirmOpen(true);
+  };
+  const issue = async (order) => {
+    if (issuingRef.current || !issueConfirmOpen) return;
+    issuingRef.current = true;
+    setIssuing(true);
+    setError("");
+    try {
+      const validationError = invoiceValidationMessage(order);
+      if (validationError) throw new Error(`Invoice issuance blocked: ${validationError}`);
+      if (order.status === "cancelled" || issued[order.id]) {
+        throw new Error("This invoice is already issued or the order cannot be issued.");
+      }
+      // Verify the real session immediately before the privileged database RPC.
+      const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assuranceError) throw assuranceError;
+      if (assurance?.currentLevel !== "aal2") {
+        setInvoiceMfaStatus("required");
+        throw new Error("Invoice MFA verification expired. Complete your authenticator challenge and verify again.");
+      }
+      const { data, error: issueError } = await supabase.rpc("issue_admin_invoice_from_draft", { p_order_id: order.id });
+      if (issueError) throw issueError;
+      if (!data?.invoice_number || !data?.id) throw new Error("The invoice was submitted but the server did not return a valid confirmation. Refresh the invoice list before trying again.");
+      setIssued((old) => ({ ...old, [order.id]: data }));
+      setOrders((old) => old.map(o => o.id === order.id ? {...o,status:"pending_payment",payment_status:o.payment_status === "paid" ? "paid" : "pending"} : o));
+      setSelected((old) => old?.id === order.id ? { ...old, ...(data.snapshot || {}), created_at: data.snapshot?.order_date || old.created_at, payment_status: data.snapshot?.payment_status_at_issue || old.payment_status, order_items: data.snapshot?.items || old.order_items } : old);
+      setIssueSuccess(`Invoice ${data.invoice_number} issued successfully. No payment was collected.`);
+      setIssueConfirmOpen(false);
+    } catch (err) {
+      setError(err?.message || "Invoice issuance failed. Your draft was not changed.");
+    } finally {
+      issuingRef.current = false;
+      setIssuing(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+  const statusOf = (order) => issued[order.id] ? (paidStatus(order) ? "paid" : "issued") : order.status === "draft" ? "draft" : paidStatus(order) ? "paid" : "unpaid";
+  const customers = [...new Set(orders.map(o => o.customer_email).filter(Boolean))].sort();
+  const counts = {draft:0,unpaid:0,issued:0,paid:0};
+  orders.forEach(o => {const status=statusOf(o);counts[status]=(counts[status]||0)+1;});
+  const pendingAmount = orders.filter(o => ["unpaid","issued"].includes(statusOf(o))).reduce((n,o)=>n+Number(o.total||0),0);
+  const visible = orders.filter(order => {
+    const matchText = [order.order_number, issued[order.id]?.invoice_number, order.customer_name, order.customer_email].join(" ").toLowerCase().includes(filter.toLowerCase());
+    const matchStatus = statusFilter === "all" || statusOf(order) === statusFilter;
+    const matchCustomer = customerFilter === "all" || order.customer_email === customerFilter;
+    const date = String(order.created_at || "").slice(0,10);
+    return matchText && matchStatus && matchCustomer && (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
+  });
+  return <div className="space-y-6 px-4 py-5 sm:px-6">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><h2 className="text-2xl font-semibold">Invoices</h2><p className="text-sm text-slate-500">Manage online and local orders, previews, and issued invoices.</p></div>
+      <div className="flex gap-2"><button type="button" onClick={()=>{setEditingDraft(null);setEditorOpen(true);}} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create invoice</button><Link to="/admin/draft-orders" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create local draft order</Link><button type="button" onClick={load} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Refresh</button></div>
+    </div>
+    <div className="grid grid-cols-2 gap-3 rounded-xl border bg-white p-4 lg:grid-cols-4">
+      <div><p className="text-xs text-slate-500">Draft orders</p><p className="text-xl font-semibold">{counts.draft}</p></div>
+      <div><p className="text-xs text-slate-500">Unpaid orders</p><p className="text-xl font-semibold">{counts.unpaid}</p></div>
+      <div><p className="text-xs text-slate-500">Issued invoices</p><p className="text-xl font-semibold">{counts.issued + counts.paid}</p></div>
+      <div><p className="text-xs text-slate-500">Open order value</p><p className="text-xl font-semibold">{cad(pendingAmount)}</p></div>
+    </div>
+    <div className="grid gap-2 md:grid-cols-4">
+      <select aria-label="Filter customer" className="rounded-lg border p-2 text-sm" value={customerFilter} onChange={e=>setCustomerFilter(e.target.value)}><option value="all">All customers</option>{customers.map(c=><option key={c} value={c}>{c}</option>)}</select>
+      <input aria-label="From date" type="date" className="rounded-lg border p-2 text-sm" value={fromDate} onChange={e=>setFromDate(e.target.value)}/>
+      <input aria-label="To date" type="date" className="rounded-lg border p-2 text-sm" value={toDate} onChange={e=>setToDate(e.target.value)}/>
+      <input aria-label="Search invoice, order or customer" className="rounded-lg border p-2 text-sm" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Search invoice # or customer"/>
+    </div>
+    <div className="flex flex-wrap gap-2 border-b pb-3">{[{id:"all",name:"All"},{id:"unpaid",name:"Unpaid"},{id:"draft",name:"Draft"},{id:"issued",name:"Issued"},{id:"paid",name:"Paid"}].map(tab=><button key={tab.id} type="button" aria-pressed={statusFilter===tab.id} onClick={()=>setStatusFilter(tab.id)} className={`rounded-full px-4 py-2 text-sm ${statusFilter===tab.id?"bg-slate-900 text-white":"bg-slate-100 text-slate-700"}`}>{tab.name}{tab.id!=="all" ? ` (${counts[tab.id]})` : ""}</button>)}</div>
+    {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+    {loading ? <p>Loading orders…</p> : <div className="overflow-visible rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-100 text-slate-800"><tr><th className="p-3">Status</th><th className="p-3">Date</th><th className="p-3">Order / Invoice #</th><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Actions</th></tr></thead><tbody>{visible.map((order,index) => <tr className="border-t" key={order.id}><td className="p-3 capitalize">{statusOf(order)}</td><td className="p-3">{cleanDate(order.created_at)}</td><td className="p-3">{issued[order.id]?.invoice_number || order.order_number}</td><td className="p-3">{order.customer_name || order.customer_email || "Guest"}</td><td className="p-3">{cad(order.total)}</td><td className="p-3"><div className="flex items-center gap-2"><button type="button" className="inline-flex items-center gap-1 underline" onClick={()=>openPreview(order)}><FileText size={15}/>{issued[order.id]?.invoice_number || "View"}</button><div className="relative"><button type="button" aria-label={`Actions for ${order.order_number}`} aria-expanded={activeActions===order.id} onClick={()=>setActiveActions(v=>v===order.id?null:order.id)} className="rounded border px-2 py-1">▾</button>{activeActions===order.id && <div className={`absolute right-0 z-50 w-52 ${index >= visible.length-3 ? "bottom-full mb-1" : "top-full mt-1"} rounded-lg border bg-white py-1 text-slate-900 shadow-xl`}>
+  <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openPreview(order)}>View</button>
+  {order.status==="draft" && !issued[order.id] ? <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openDraftEditor(order)}>Edit draft</button> : <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>duplicateDraft(order)}>Edit as new draft (original locked)</button>}
+  <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>duplicateDraft(order)}>Duplicate as new draft</button>
+  <button className="block w-full px-3 py-2 text-left text-slate-500" disabled title="Payment reconciliation is not implemented">Record payment (coming soon)</button>
+  <button className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={()=>openPreview(order)}>Export as PDF / Print</button>
+  <div className="my-1 border-t"/>
+  {order.status==="draft" && !issued[order.id] ? <button className="block w-full px-3 py-2 text-left text-red-700 hover:bg-red-50" onClick={()=>deleteDraft(order)}>Delete draft</button> : <span className="block px-3 py-2 text-slate-400">Issued / active orders cannot be deleted</span>}
+</div>}</div></div></td></tr>)}{visible.length === 0 && <tr><td colSpan={6} className="p-6 text-center">No matching orders in the most recent 200.</td></tr>}</tbody></table></div>}
+    {editorOpen && <CreateInvoiceEditor draft={editingDraft} onClose={()=>{setEditorOpen(false);setEditingDraft(null);}} onCreated={()=>{setEditorOpen(false);setEditingDraft(null);load();}}/>}
+    {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
+      <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}
+        <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
+          <span role="status" aria-live="polite" className="rounded bg-white px-3 py-2 text-xs font-medium text-slate-900">
+            {invoiceMfaStatus==="verified" ? "Invoice MFA: Verified (AAL2)" :
+             invoiceMfaStatus==="required" ? "Invoice MFA: Not verified (AAL1)" :
+             invoiceMfaStatus==="error" ? "Invoice MFA: Unable to verify" :
+             invoiceMfaStatus==="checking" ? "Checking MFA session…" :
+             "Invoice MFA: Not checked"}
+          </span>
+          <button type="button" onClick={()=>{void verifyInvoiceMfaSession();}} disabled={invoiceMfaStatus==="checking"} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50">Verify MFA session</button>
+          {selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled" || invoiceMfaStatus !== "verified"} title={invoiceMfaStatus !== "verified" ? "Verify an AAL2 authenticator session before issuing. This check does not issue any invoice." : undefined} onClick={() => requestIssueConfirmation(selected)} className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => {setIssueConfirmOpen(false);setSelected(null);}} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        {issued[selected.id]?.snapshot && !Object.prototype.hasOwnProperty.call(issued[selected.id].snapshot, "invoice_due_date") && <p role="alert" className="rounded-lg border border-amber-300 bg-white p-3 text-xs text-amber-900 print:hidden">This invoice predates immutable due-date snapshots. Verify the payment due date against the originally issued document before relying on it.</p>}
+        {issueSuccess && <div role="status" className="rounded-lg border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 print:hidden">{issueSuccess}</div>}
+        {issueConfirmOpen && !issued[selected.id] && <div role="group" aria-label="Confirm invoice issuance" className="rounded-lg border-2 border-slate-900 bg-white p-4 text-slate-900 shadow-md print:hidden">
+          <h3 className="text-lg font-bold">Confirm official invoice issuance</h3>
+          <p className="mt-2 text-sm">Issue <strong>{selected.reserved_invoice_number || "this invoice"}</strong> for <strong>{cad(selected.total)}</strong>? This permanently locks the invoice snapshot and activates the draft without charging the customer.</p>
+          <p className="mt-2 text-xs text-slate-600">Confirm only after checking customer details, prices, taxes, and payment due date. This action cannot be undone.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={()=>setIssueConfirmOpen(false)} disabled={issuing} className="rounded border border-slate-400 px-4 py-2 text-sm font-semibold disabled:opacity-50">Cancel</button>
+            <button type="button" onClick={()=>{void issue(selected);}} disabled={issuing || invoiceMfaStatus !== "verified"} className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">{issuing ? "Issuing securely…" : "Confirm issue numbered invoice"}</button>
+          </div>
+        </div>}
+        {!readyForInvoiceDocument(selected) && !issued[selected.id] && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 print:hidden">
+          <p className="font-bold">Invoice totals need reconciliation before issuance</p>
+          <p className="mt-1">{invoiceValidationMessage(selected)}</p>
+          {selected.status === "draft" && <button type="button" className="mt-2 rounded border border-amber-700 bg-white px-3 py-2 font-semibold text-amber-950 hover:bg-amber-100" onClick={()=>{setSelected(null);setError("");openDraftEditor(selected);}}>Edit draft to fix amounts</button>}
+        </div>}
+        {documentEditing && <div className="rounded-lg bg-white p-3 text-sm text-slate-700 print:hidden">Edit the highlighted fields directly on the invoice. Changes are only saved when you select Save layout.</div>}
+        {documentEditing && <div className="flex justify-end gap-2 print:hidden"><button onClick={()=>{setDocumentMeta(savedDocumentMeta);setDocumentEditing(false);}} className="rounded bg-white px-4 py-2 text-slate-900">Cancel</button><button disabled={documentSaving} onClick={saveDocumentMeta} className="rounded bg-white px-4 py-2 font-semibold text-slate-900 disabled:opacity-50">{documentSaving?"Saving…":"Save layout"}</button></div>}
+        {invoiceMfaStatus==="required" && <p role="alert" className="rounded-lg border border-amber-300 bg-white p-3 text-xs text-amber-900 print:hidden">Official issuance requires a verified AAL2 authenticator session. Complete the MFA challenge for your local admin account, then select Verify MFA session. Browsing the admin dashboard during enrollment grace does not count as invoice authorization.</p>}
+        {invoiceMfaStatus==="error" && <p role="alert" className="rounded-lg border border-red-300 bg-white p-3 text-xs text-red-900 print:hidden">Unable to read MFA assurance. Check your sign-in/session and retry. The invoice remains unchanged.</p>}
+        <div className="rounded-lg bg-white px-3 py-2 text-xs text-slate-700 print:hidden">For a PDF without localhost, timestamp and browser page numbers: Chrome Print → More settings → uncheck Headers and footers. Short invoices retain blank space on letter-sized paper.</div>
+        <div className="rounded-lg bg-white px-3 py-2 text-xs text-amber-800 print:hidden">Admin reminder: verify tax registration, customer payment status and credit-note requirements before sending a tax invoice.</div>
+        <div id="gdp-invoice-print" className="rounded-xl bg-white p-6 text-slate-900 shadow-lg sm:p-10">
+          <div className="flex justify-between gap-6 border-b-2 border-slate-200 pb-6"><div className="shrink-0"><img src="/images/gdp-logo.webp" alt="GDP Clothing logo" className="h-20 w-28 object-contain object-left"/></div><div className="max-w-sm text-right"><h3 className="text-2xl font-bold tracking-wide" data-print-value={savedDocumentMeta.header || (issued[selected.id] ? "INVOICE" : (paidStatus(selected) ? "ORDER RECEIPT" : "PRO FORMA INVOICE"))}>{documentEditing ? <input aria-label="Invoice heading" className="w-full rounded border border-blue-400 bg-blue-50 p-1 text-right" value={documentMeta.header || ""} placeholder="PRO FORMA INVOICE" onChange={e=>setDocumentMeta(old=>({...old,header:e.target.value}))}/> : (documentMeta.header || (issued[selected.id] ? "INVOICE" : (paidStatus(selected) ? "ORDER RECEIPT" : "PRO FORMA INVOICE")))}</h3><div className="mt-3"><h2 className="text-2xl font-bold" data-print-value={savedDocumentMeta.business_name || "GDP Clothing"}>{documentEditing ? <input type="text" aria-label="GDP Clothing" className="w-full rounded border border-blue-400 bg-blue-50 p-1 text-slate-900" placeholder="GDP Clothing" value={documentMeta.business_name ?? "GDP Clothing"} onChange={e=>setDocumentMeta(old=>({...old,business_name:e.target.value}))}/> : (documentMeta.business_name || "GDP Clothing")}</h2><p className="whitespace-pre-line text-sm" data-print-value={savedDocumentMeta.business_address ?? "601 Avenue S North\nSaskatoon, Saskatchewan S7L 3A2\nCanada"}>{documentEditing ? <textarea aria-label="Business address" rows={3} className="w-full rounded border border-blue-400 bg-blue-50 p-1 text-slate-900" value={documentMeta.business_address ?? "601 Avenue S North\nSaskatoon, Saskatchewan S7L 3A2\nCanada"} placeholder="601 Avenue S North, Saskatoon, Saskatchewan S7L 3A2, Canada" onChange={e=>setDocumentMeta(old=>({...old,business_address:e.target.value}))}/> : (documentMeta.business_address ?? "601 Avenue S North\nSaskatoon, Saskatchewan S7L 3A2\nCanada")}</p></div>{(documentEditing || documentMeta.po_so_number) && <p className="text-sm" data-print-value={`P.O. / S.O.: ${savedDocumentMeta.po_so_number || ""}`}>P.O. / S.O.: {documentEditing ? <input aria-label="PO or SO number" className="min-w-36 rounded border border-slate-400 bg-white p-2 text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Optional PO / SO number" value={documentMeta.po_so_number || ""} onChange={e=>setDocumentMeta(old=>({...old,po_so_number:e.target.value}))}/> : documentMeta.po_so_number}</p>}{issued[selected.id] && <p className="text-sm">Issued: {cleanDate(issued[selected.id].issued_at)}</p>}</div></div>
+          <div className="grid grid-cols-1 gap-5 py-6 text-sm sm:grid-cols-2"><div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Bill to</p><p className="font-semibold">{selected.customer_name || "Customer"}</p><p>{selected.customer_email || ""}</p><p>{selected.customer_phone || ""}</p>{selected.billing_address && typeof selected.billing_address === "object" && <p>{[selected.billing_address.line1,selected.billing_address.city,selected.billing_address.province,selected.billing_address.postal_code].filter(Boolean).join(", ")}</p>}</div><div className="space-y-2 sm:text-right">
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-4"><span className="shrink-0 whitespace-nowrap font-semibold">Invoice Number:</span><span>{issued[selected.id]?.invoice_number || selected.reserved_invoice_number || "Generated on save"}</span></div>
+              <div className="flex items-center justify-between gap-4"><span className="shrink-0 whitespace-nowrap font-semibold">Invoice Date:</span><span>{documentEditing && !issued[selected.id] ? <input type="date" aria-label="Invoice Date" className="rounded border border-blue-400 bg-blue-50 p-1" value={documentMeta.invoice_date || ""} onChange={e=>setDocumentMeta(old=>({...old,invoice_date:e.target.value}))}/> : (documentMeta.invoice_date || cleanDate(selected.created_at))}</span></div>
+              <div className="flex items-center justify-between gap-4"><span className="shrink-0 whitespace-nowrap font-semibold">Payment Due:</span><span>{documentEditing && selected.status==="draft" && !issued[selected.id] ? <input type="date" aria-label="Payment Due" className="rounded border border-blue-400 bg-blue-50 p-1" value={documentDueDate} onChange={e=>setDocumentDueDate(e.target.value)}/> : (selected.invoice_due_date ? cleanDate(selected.invoice_due_date) : "Due on receipt")}</span></div>
+              <div className="flex items-center justify-between gap-4 bg-slate-100 px-2 py-2 font-semibold"><span className="shrink-0 whitespace-nowrap">Amount Due (CAD):</span><span>{cad(paidStatus(selected)?0:selected.total)}</span></div>
+            </div>
+          </div></div>
+          <table className="w-full text-sm"><thead className="bg-slate-800 text-white"><tr className="text-left text-white"><th className="px-3 py-3 font-bold tracking-wide text-white">Item</th><th className="px-3 py-3 text-right font-bold tracking-wide text-white">Qty</th><th className="px-3 py-3 text-right font-bold tracking-wide text-white">Price</th><th className="px-3 py-3 text-right font-bold tracking-wide text-white">Amount</th></tr></thead><tbody>{(selected.order_items || []).map((item, i) => <tr key={i} className="border-b"><td className="py-2">{item.name}<div className="text-xs text-slate-500">{[item.variant, item.size, item.color].filter(Boolean).join(" · ")}</div></td><td className="py-2 text-right">{item.quantity}</td><td className="py-2 text-right">{cad(item.unit_price)}</td><td className="py-2 text-right">{cad(Number(item.unit_price || 0) * Number(item.quantity || 0))}</td></tr>)}</tbody></table>
+          <div className="ml-auto mt-5 max-w-xs space-y-2 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{cad(selected.subtotal)}</span></div><div className="flex justify-between"><span>Discount</span><span>{cad(Math.abs(Number(selected.discount || 0)))}</span></div><div className="flex justify-between"><span>Shipping</span><span>{cad(selected.shipping)}</span></div>{hasTaxSplit(selected) ? <>{Number(selected.gst_hst_tax||0)>0 && <div className="flex justify-between"><span>GST/HST</span><span>{cad(selected.gst_hst_tax)}</span></div>}{Number(selected.pst_tax||0)>0 && <div className="flex justify-between"><span>PST</span><span>{cad(selected.pst_tax)}</span></div>}</> : Number(selected.tax||0)>0 ? <div className="flex justify-between"><span>Tax (combined; breakdown unavailable)</span><span>{cad(selected.tax)}</span></div> : null}<div className="flex justify-between border-t pt-2 text-lg font-bold"><span>Total CAD</span><span>{cad(selected.total)}</span></div></div>
+          
+          {(documentEditing || documentMeta.footer) && (documentEditing ? <div data-invoice-footer={savedDocumentMeta.footer || ""} className="mt-7 whitespace-pre-line text-sm"><textarea aria-label="Invoice footer" rows={3} className="mt-7 w-full rounded border border-blue-400 bg-blue-50 p-2 text-sm" value={documentMeta.footer || ""} placeholder="Invoice notes / footer" onChange={e=>setDocumentMeta(old=>({...old,footer:e.target.value}))}/></div> : <p data-invoice-footer={savedDocumentMeta.footer || ""} className="mt-7 whitespace-pre-line text-sm">{documentMeta.footer}</p>)}
+
+        </div>
+      </div>
+      <style>{`@media print { @page { size: auto; margin: 10mm; } html, body, #root { height: auto !important; min-height: 0 !important; overflow: visible !important; } body { margin: 0 !important; } body * { visibility: hidden !important; } #gdp-invoice-print, #gdp-invoice-print * { visibility: visible !important; } #gdp-invoice-print { position: absolute !important; top: 0 !important; left: 0 !important; width: calc(100% - 20mm) !important; max-width: none !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 0 !important; break-inside: auto !important; } #gdp-invoice-print tr { break-inside: avoid; } }`}</style>
+    </div>}
+  </div>;
+}
