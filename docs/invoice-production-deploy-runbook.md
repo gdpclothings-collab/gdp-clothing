@@ -22,6 +22,15 @@ Review head at runbook creation: `18d2939065d2b395ae6abb8ee278fa6b33a29798` (rec
 - Supabase physical backup inventory last verified from owner dashboard screenshot: 2026-10-11 09:29:19 UTC, restore available. Restore not exercised; Storage objects excluded.
 - Post-database release gates remain: verify live health/checkout in non-mutating mode, recheck final PR CI/head, then obtain *separate* frontend release authorization. Never use a blanket `supabase db push` while migration histories are divergent.
 
+## Production read-only smoke and permission finding — 2026-10-11
+
+- **PASSED:** GDP Clothing Supabase remains `ACTIVE_HEALTHY`; consolidated invoice migration `20261011161818` is recorded. `gdp_invoices` has RLS, an admin-read policy, 2 unique constraints, an immutable update/delete trigger, and **0 issued invoices**.
+- **PASSED:** Both issuance RPCs are `SECURITY DEFINER`, deny anonymous EXECUTE, enforce admin/step-up and JWT `aal2`, and lock the order row. Existing checkout gateway/order validation/finance triggers remain enabled. The checkout, checkout-gateway, stripe-webhook, payment-session, payment-preflight and admin-mfa-security Edge Functions are listed as ACTIVE (availability only, not full end-to-end payment smoke).
+- **PENDING SECURITY HARDENING:** Read-only SQL exposed `rwU` (`SELECT`, `UPDATE`, `USAGE`) sequence privileges granted to **anon** and **authenticated** on `public.gdp_invoice_number_seq` via platform sequence defaults. They do not need to call `nextval` or `setval` directly. This finding does not establish browser exploitability, but is excessive privilege.
+- **FORWARD-ONLY PATCH COMMITTED, NOT DEPLOYED:** `supabase/migrations/20261011170000_invoice_sequence_least_privilege.sql` revokes only these direct sequence grants from PUBLIC, anon and authenticated, while preserving service role and the privileged security-definer function owner. It includes a post-check that aborts the SQL transaction if the rights remain.
+- **Release condition:** Obtain explicit separate production approval for this correction, apply it via a migration action (NOT blanket `supabase db push`), verify `has_sequence_privilege` for both roles is false, and review all checks on the final PR head. Do not mark PR ready for review until least privilege is corrected and confirmed.
+- The owner requested the DATABASESMOKE as **read-only**; no production permission changes were executed.
+
 ## Read-only preflight findings, 2026-10-11
 - Production: `orders`, `order_items`, `profiles`, `admin_mfa_enrollment_state`, `tax_rules`, `checkout_rate_limits`, `order_inventory_reservations`, and `artwork_library` exist with RLS.
 - Existing order has GST/HST and PST components; auth admin/step-up helpers are present.
