@@ -12,7 +12,9 @@ SELECT set_config(
 ) FROM public.gdp_qa_concurrency_fixture;
 INSERT INTO public.gdp_qa_concurrency_calls(order_id)
   SELECT order_id FROM public.gdp_qa_concurrency_fixture;
-SELECT invoice_number FROM public.issue_admin_invoice_from_draft(
+INSERT INTO public.gdp_qa_concurrency_results(order_id,invoice_id,invoice_number)
+SELECT v.order_id,v.id,v.invoice_number
+FROM public.issue_admin_invoice_from_draft(
   (SELECT order_id FROM public.gdp_qa_concurrency_fixture)
-);
+) AS v;
 COMMIT;
