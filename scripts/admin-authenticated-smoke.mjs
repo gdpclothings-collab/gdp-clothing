@@ -214,7 +214,8 @@ async function main() {
         results: [],
       };
       await fs.writeFile(path.join(OUT, "admin-authenticated-smoke.json"), JSON.stringify(report, null, 2));
-      console.warn("SKIP admin smoke - Cloudflare security verification blocked the GitHub Actions browser before the admin app rendered.");
+      console.error("BLOCKED admin smoke - Cloudflare security verification prevented authenticated coverage. Failing closed.");
+      process.exitCode = 1;
       return;
     }
 
@@ -244,6 +245,22 @@ async function main() {
       const settings = page.getByRole("button", { name: /Store settings/i }).first();
       await settings.waitFor();
       assert(await settings.getAttribute("aria-current") === "page", "Store settings lost aria-current=page.");
+    }));
+
+    results.push(await runCheck(browser, "invoice editor read-only", DESKTOP, storageState, async (page) => {
+      await nav(page, "/admin/invoices");
+      await page.getByRole("heading", { name: "Invoices", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Create invoice", exact: true }).click();
+      const editor = page.getByRole("dialog", { name: "Create invoice" });
+      await editor.waitFor();
+      await editor.getByLabel("Customer name").waitFor();
+      await editor.getByLabel("Invoice Date:").waitFor();
+      await editor.getByRole("button", { name: "Preview", exact: true }).click();
+      await page.getByText("Unsaved preview — not issued, not a payment receipt.").waitFor();
+      await page.getByRole("button", { name: "Back to editing" }).click();
+      await editor.getByRole("button", { name: "Cancel" }).click();
+      await editor.waitFor({ state: "hidden" });
+      // Intentionally never save, create a customer, issue, or print a live record.
     }));
 
     results.push(await runCheck(browser, "mobile quick actions", MOBILE, storageState, async (page) => {
