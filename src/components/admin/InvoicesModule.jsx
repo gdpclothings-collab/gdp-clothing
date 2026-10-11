@@ -89,22 +89,37 @@ const printInvoiceDocument = (compact = false) => {
     #gdp-invoice-print > div:first-child, #gdp-invoice-print > div:nth-child(2), #gdp-invoice-print > div:nth-child(4), #gdp-invoice-print > div:nth-child(5) { break-inside:avoid; }
     @media print { body { margin:0 !important; } }
   `;
-  // Compact mode uses a shorter fixed sheet for short invoices, with automatic
-  // continuation onto further pages if the invoice exceeds that height.
-  // Browser-generated URL/date/page headers still require Chrome's setting to be off.
-  const finalCss = compact
-    ? printCss.replace("@page { size: letter portrait; margin: 13mm 15mm; }",
-        "@page { size: 8.5in 6in; margin: 10mm 13mm; }")
-    : printCss;
+  // Calculate compact paper height from the actual rendered invoice, not a
+  // fixed paper size. Keep Letter for long invoices to preserve pagination.
   doc.open();
-  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>GDP invoice</title><style>' + printCss + '</style></head><body>' + source.outerHTML + '</body></html>');
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>GDP invoice</title><style>' + printCss + '</style><style id="gdp-page-size"></style></head><body>' + source.outerHTML + '</body></html>');
   doc.close();
-  let printed = false;
-  const runPrint = () => {
-    if (printed) return;
-    printed = true;
-    frame.contentWindow?.focus();
-    frame.contentWindow?.print();
+  let printStarted = false;
+  const runPrint = async () => {
+    if (printStarted) return;
+    printStarted = true;
+    try {
+      await doc.fonts?.ready;
+      await Promise.all([...doc.images].map(img => img.complete ? Promise.resolve() : new Promise(resolve => {
+        img.addEventListener("load", resolve, {once:true});
+        img.addEventListener("error", resolve, {once:true});
+      })));
+      if (compact) {
+        const root = doc.getElementById("gdp-invoice-print");
+        // Layout pixels to mm (CSS specifies 96px/in). Reserve 12mm of space
+        // beneath the footer plus 20mm for the compact page's vertical margins.
+        const heightMm = Math.ceil((root?.getBoundingClientRect().height || 0) * 25.4 / 96 + 32);
+        const pageHeightMm = Math.max(115, heightMm);
+        if (pageHeightMm <= 260) {
+          doc.getElementById("gdp-page-size").textContent =
+            "@page { size: 215.9mm " + pageHeightMm + "mm; margin: 10mm 13mm; }";
+        }
+        // Longer documents retain Letter so rows paginate without clipping.
+      }
+    } finally {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    }
   };
   frame.onload = runPrint;
   setTimeout(runPrint, 700);
