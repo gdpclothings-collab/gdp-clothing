@@ -31,6 +31,19 @@ Review head at runbook creation: `18d2939065d2b395ae6abb8ee278fa6b33a29798` (rec
 - **Release condition:** Obtain explicit separate production approval for this correction, apply it via a migration action (NOT blanket `supabase db push`), verify `has_sequence_privilege` for both roles is false, and review all checks on the final PR head. Do not mark PR ready for review until least privilege is corrected and confirmed.
 - The owner requested the DATABASESMOKE as **read-only**; no production permission changes were executed.
 
+## Production sequence least-privilege hardening — deployed 2026-10-11
+
+**Deployed with the owner's separate explicit authorization** (`APPROVE SEQUENCE HARDEN`).
+
+- Applied the reviewed SQL in `supabase/migrations/20261011170000_invoice_sequence_least_privilege.sql` as one separate hosted migration.
+- Supabase migration record: **`20261011162951`**, name `gdp_invoice_sequence_least_privilege_20261011`.
+- Post-apply read-only SQL confirmed `anon` and `authenticated` have **no SELECT, UPDATE, or USAGE** privilege on `public.gdp_invoice_number_seq`.
+- `postgres` (invoice RPC definer owner) and `service_role` retain sequence USAGE; resulting ACL is `{postgres=rwU/postgres,service_role=rwU/postgres}`.
+- The invoice ledger still contains **zero issued invoices**, ledger immutability trigger remains enabled, and all three checkout/finance/order-workflow guards remain enabled.
+- Supabase project was `ACTIVE_HEALTHY`; PR #481 was still draft and unmerged immediately after deployment. No Stripe operations or frontend production deployment.
+- The two production migrations are **one consolidated 11-file invoice schema migration** (`20261011161818`) and **one follow-up sequence hardening migration** (`20261011162951`). Future CLI workflows must reconcile this hosted history before any blanket migration action.
+- **Not proven by permission SQL alone:** a full browser-level admin invoice issuance after the hardening. Local QA previously verified SECURITY DEFINER invocation; repeat a non-mutating AAL2/login preview check after frontend approval, and arrange a separately authorized harmless invoice issuance test if necessary.
+
 ## Read-only preflight findings, 2026-10-11
 - Production: `orders`, `order_items`, `profiles`, `admin_mfa_enrollment_state`, `tax_rules`, `checkout_rate_limits`, `order_inventory_reservations`, and `artwork_library` exist with RLS.
 - Existing order has GST/HST and PST components; auth admin/step-up helpers are present.
