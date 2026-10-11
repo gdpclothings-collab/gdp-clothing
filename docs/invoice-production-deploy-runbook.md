@@ -99,6 +99,22 @@ Interim states are **not** release-ready; the original issuance definitions are 
 - Confirm original store checkout, Stripe server-side session creation, webhook processing, stock reservations, guest checkout, and tax settings have not regressed. **Do not create a live payment or issue a real tax invoice for smoke testing without explicit authorization.**
 - If DB verification fails, do **not** mark PR ready. Prefer a minimal forward-only repair migration to a destructive revert.
 
+## Non-payment checkout regression gate (2026-10-11)
+
+**Tested, non-mutating checks:** PR #481 does not change `src/pages/CheckoutTwoStep.jsx`, `src/lib/customerApi.js`, checkout/payment Supabase Edge Functions, Stripe webhook handlers, shipping-rate engine, or cart pricing logic. The admin draft RPC and tax-readiness view DO change; they are isolated from shopper checkout and leave Stripe payment confirmation/webhook authority intact.
+
+The `standalone-build` CI job includes:
+- Existing shipping zone/profile/weight tests, cart pricing, payment-finalization authority, and production-hardening checks.
+- `node --test scripts/verify-invoice-checkout-isolation.mjs`: ensures no shopper invoice RPC calls, no Stripe checkout commands in invoice admin code, real admin/AAL2 gating for issuance, and no paid inventory/coupon redemption from invoice issuance.
+- `node scripts/verify-checkout-terms-hotfix.mjs`: checkout terms consent and payment submission order.
+- `node scripts/verify-michaels-style-payment.mjs`: deferred Payment Element, server-authoritative PaymentIntent, webhook inventory/coupon finalization.
+- `node scripts/verify-payment-fast-start.mjs`: payment entry timing, card visibility and checkout policy gate.
+- `node scripts/check-tax-breakdown.mjs`: SK GST/PST and ON HST calculation with shipping.
+
+All explicit regression commands above passed in the PR CI job for head `6e80119617232cee5099a1e38fc5d4a4ca2ade26`, before this documentation-only update. Reconfirm the final head SHA and CI before production.
+
+**Not tested by these checks:** a complete real-payment purchase and live Stripe gateway/webhook event, a signed-in full-browser staging checkout, or production payment readiness. Do not claim live checkout parity based on static/unit CI tests. Run non-mutating Stripe `payment-preflight` and production/staging browser checkout UI smoke in the final window; real charges, refunds and invoice issuance require separate explicit approval. `Ready for review` remains forbidden before production database-first rollout and approval.
+
 ## Frontend release AFTER verified database rollout
 1. Confirm owner accepts scope and known compliance limitations (no credit notes, payment reconciliation, emailed/stored PDFs, tax registration number configuration).
 2. Confirm checkout/regression smoke, mobile invoice preview, admin vs non-admin access, normal and compact PDF, customer details, ledger read, MFA gating, and payment not collected on issuance.
