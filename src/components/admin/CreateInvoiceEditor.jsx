@@ -61,7 +61,7 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
   const effectiveDiscount=discountEnabled?Number(discount||0):0;
   const effectiveShipping=shippingEnabled?Number(shipping||0):0;
   const taxable=Math.max(0,subtotal-Math.min(subtotal,effectiveDiscount));
-  const tax=supported?components.reduce((acc,c)=>{if(!taxEnabled[c.bucket])return acc;const v=round((taxable+(c.tax_shipping?Number(shipping||0):0))*Number(c.rate||0));acc[c.bucket]=round(acc[c.bucket]+v);return acc;},{gst_hst:0,pst:0}):{gst_hst:0,pst:0};
+  const tax=supported?components.reduce((acc,c)=>{if(!taxEnabled[c.bucket])return acc;const v=round((taxable+(c.tax_shipping?effectiveShipping:0))*Number(c.rate||0));acc[c.bucket]=round(acc[c.bucket]+v);return acc;},{gst_hst:0,pst:0}):{gst_hst:0,pst:0};
   const total=round(taxable+effectiveShipping+tax.gst_hst+tax.pst);
   const update=(i,change)=>setLines(prev=>prev.map((line,n)=>i===n?{...line,...change}:line));
   async function save() {
