@@ -14,6 +14,7 @@ import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
 
 const CONTAINER = "supabase_db_gdp-clothing";
+const RESTORE_ROLE = "supabase_admin";
 const token = randomBytes(4).toString("hex");
 const database = "gdp_invoice_qa_" + token;
 const backupPath = "/tmp/gdp_invoice_qa_" + token + ".dump";
@@ -67,6 +68,19 @@ try {
   }
 
   dockerInside(["sh", "-lc", "command -v pgbench >/dev/null && command -v pg_dump >/dev/null && command -v pg_restore >/dev/null"], "Postgres test-tool preflight", { silent: true });
+  // In the Supabase development image, postgres often cannot set superuser
+  // configuration values found in pg_dump function definitions. Use the
+  // existing local supabase_admin role ONLY for the disposable clone.
+  // Do not change grants, roles, or server settings in the source database.
+  const privilegeProbe = spawnSync("docker", [
+    "exec", CONTAINER, "psql", "-X", "-w", "-At", "-U",
+    RESTORE_ROLE, "-d", "postgres",
+    "-c", "SELECT rolsuper FROM pg_roles WHERE rolname = current_user",
+  ], { encoding: "utf8", windowsHide: true, timeout: 12000 });
+  if (privilegeProbe.status !== 0 || privilegeProbe.stdout.trim() !== "t") {
+    throw new Error("A local superuser connection as supabase_admin is unavailable. Cannot safely restore a full Supabase database clone. No test database was created.");
+  }
+  console.log("PASS: local-only privileged restore role verified (no roles or settings modified).");
   for (const [file] of testFiles) {
     if (!existsSync(resolve(localDir, file))) {
       throw new Error("Missing test file: " + file + ". Run git pull --ff-only first.");
@@ -78,19 +92,19 @@ try {
   console.log("[2/6] Creating temporary isolated test database...");
   dockerInside(["createdb", "-U", "postgres", database], "Create QA database", { silent: true });
   databaseCreated = true;
-  dockerInside(["pg_restore", "-U", "postgres", "-d", database, "--no-owner", "--no-acl", "--exit-on-error", backupPath], "Restore cloned QA database", { silent: true });
+  dockerInside(["pg_restore", "-U", RESTORE_ROLE, "-d", database, "--no-owner", "--no-acl", "--exit-on-error", backupPath], "Restore cloned QA database", { silent: true });
 
   console.log("[3/6] Installing fictional invoice and temporary delay in clone...");
   for (const [file, target] of testFiles) {
     execDocker(["cp", resolve(localDir, file), CONTAINER + ":" + target], "Copy " + file, { silent: true });
   }
-  dockerInside(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", database, "-f", testFiles[0][1]], "Create QA fixture");
+  dockerInside(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", RESTORE_ROLE, "-d", database, "-f", testFiles[0][1]], "Create QA fixture");
 
   console.log("[4/6] Issuing same draft from TWO simultaneous database clients...");
-  dockerInside(["pgbench", "-n", "-c", "2", "-j", "2", "-t", "1", "-f", testFiles[1][1], "-U", "postgres", "-d", database], "Concurrent invoice requests");
+  dockerInside(["pgbench", "-n", "-c", "2", "-j", "2", "-t", "1", "-f", testFiles[1][1], "-U", RESTORE_ROLE, "-d", database], "Concurrent invoice requests");
 
   console.log("[5/6] Verifying overlapping calls and a single immutable invoice...");
-  dockerInside(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", database, "-f", testFiles[2][1]], "Validate concurrency result");
+  dockerInside(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", RESTORE_ROLE, "-d", database, "-f", testFiles[2][1]], "Validate concurrency result");
   console.log("PASS: two concurrent issuance calls produced exactly one invoice.");
 } catch (error) {
   failed = true;
