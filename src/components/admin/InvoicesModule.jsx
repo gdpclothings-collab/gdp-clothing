@@ -140,6 +140,8 @@ export default function InvoicesModule() {
   const [editingDraft,setEditingDraft]=useState(null);
   const [issued, setIssued] = useState({});
   const [issuing, setIssuing] = useState(false);
+  // Read-only real Supabase Auth assurance status. Never display JWTs or codes.
+  const [invoiceMfaStatus, setInvoiceMfaStatus] = useState("unchecked");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
@@ -166,12 +168,23 @@ export default function InvoicesModule() {
       setLoading(false);
     }
   };
+  const verifyInvoiceMfaSession = async () => {
+    setInvoiceMfaStatus("checking");
+    try {
+      const { data, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaError) throw mfaError;
+      setInvoiceMfaStatus(data?.currentLevel === "aal2" ? "verified" : "required");
+    } catch {
+      setInvoiceMfaStatus("error");
+    }
+  };
   const openPreview = (order) => {
     const snapshot = issued[order.id]?.snapshot;
     const meta = snapshot?.invoice_document_meta || order.invoice_document_meta || {};
     setDocumentMeta(meta); setSavedDocumentMeta(meta); setDocumentDueDate((snapshot?.invoice_due_date || order.invoice_due_date || "").slice(0,10)); setDocumentEditing(false);
     setSelected(snapshot ? {...order,...snapshot,created_at:snapshot.order_date||order.created_at,payment_status:snapshot.payment_status_at_issue||order.payment_status,order_items:snapshot.items||order.order_items}:order);
     setActiveActions(null);
+    void verifyInvoiceMfaSession();
   };
   const duplicateDraft = (order) => {
     // All statuses may be copied, but the original invoice/order is never changed.
@@ -272,10 +285,21 @@ export default function InvoicesModule() {
     {editorOpen && <CreateInvoiceEditor draft={editingDraft} onClose={()=>{setEditorOpen(false);setEditingDraft(null);}} onCreated={()=>{setEditorOpen(false);setEditingDraft(null);load();}}/>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
       <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}
-        <div className="flex justify-end gap-2 print:hidden">{selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
+          <span role="status" aria-live="polite" className="rounded bg-white px-3 py-2 text-xs font-medium text-slate-900">
+            {invoiceMfaStatus==="verified" ? "Invoice MFA: Verified (AAL2)" :
+             invoiceMfaStatus==="required" ? "Invoice MFA: Not verified (AAL1)" :
+             invoiceMfaStatus==="error" ? "Invoice MFA: Unable to verify" :
+             invoiceMfaStatus==="checking" ? "Checking MFA session…" :
+             "Invoice MFA: Not checked"}
+          </span>
+          <button type="button" onClick={()=>{void verifyInvoiceMfaSession();}} disabled={invoiceMfaStatus==="checking"} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50">Verify MFA session</button>
+          {selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled" || invoiceMfaStatus !== "verified"} title={invoiceMfaStatus !== "verified" ? "Verify an AAL2 authenticator session before issuing. This check does not issue any invoice." : undefined} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
         {!hasValidItems(selected) && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 print:hidden">This historical draft has no items or an inconsistent subtotal. Printing and invoice issuance are blocked until its line items are restored. Open Draft Orders to repair the draft; do not invent item descriptions from its total.</div>}
         {documentEditing && <div className="rounded-lg bg-white p-3 text-sm text-slate-700 print:hidden">Edit the highlighted fields directly on the invoice. Changes are only saved when you select Save layout.</div>}
         {documentEditing && <div className="flex justify-end gap-2 print:hidden"><button onClick={()=>{setDocumentMeta(savedDocumentMeta);setDocumentEditing(false);}} className="rounded bg-white px-4 py-2 text-slate-900">Cancel</button><button disabled={documentSaving} onClick={saveDocumentMeta} className="rounded bg-white px-4 py-2 font-semibold text-slate-900 disabled:opacity-50">{documentSaving?"Saving…":"Save layout"}</button></div>}
+        {invoiceMfaStatus==="required" && <p role="alert" className="rounded-lg border border-amber-300 bg-white p-3 text-xs text-amber-900 print:hidden">Official issuance requires a verified AAL2 authenticator session. Complete the MFA challenge for your local admin account, then select Verify MFA session. Browsing the admin dashboard during enrollment grace does not count as invoice authorization.</p>}
+        {invoiceMfaStatus==="error" && <p role="alert" className="rounded-lg border border-red-300 bg-white p-3 text-xs text-red-900 print:hidden">Unable to read MFA assurance. Check your sign-in/session and retry. The invoice remains unchanged.</p>}
         <div className="rounded-lg bg-white px-3 py-2 text-xs text-slate-700 print:hidden">For a PDF without localhost, timestamp and browser page numbers: Chrome Print → More settings → uncheck Headers and footers. Short invoices retain blank space on letter-sized paper.</div>
         <div className="rounded-lg bg-white px-3 py-2 text-xs text-amber-800 print:hidden">Admin reminder: verify tax registration, customer payment status and credit-note requirements before sending a tax invoice.</div>
         <div id="gdp-invoice-print" className="rounded-xl bg-white p-6 text-slate-900 shadow-lg sm:p-10">
