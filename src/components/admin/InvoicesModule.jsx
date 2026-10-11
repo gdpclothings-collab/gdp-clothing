@@ -204,7 +204,11 @@ export default function InvoicesModule() {
   const openPreview = (order) => {
     const snapshot = issued[order.id]?.snapshot;
     const meta = snapshot?.invoice_document_meta || order.invoice_document_meta || {};
-    setDocumentMeta(meta); setSavedDocumentMeta(meta); setDocumentDueDate((snapshot?.invoice_due_date || order.invoice_due_date || "").slice(0,10)); setDocumentEditing(false);
+    setDocumentMeta(meta); setSavedDocumentMeta(meta);
+    // New ledgers freeze due dates. Older issued rows predate this snapshot field.
+    const hasFrozenDueDate = snapshot && Object.prototype.hasOwnProperty.call(snapshot, "invoice_due_date");
+    const dueDateAtIssue = hasFrozenDueDate ? snapshot.invoice_due_date : order.invoice_due_date;
+    setDocumentDueDate(String(dueDateAtIssue || "").slice(0,10)); setDocumentEditing(false);
     setSelected(snapshot ? {...order,...snapshot,created_at:snapshot.order_date||order.created_at,payment_status:snapshot.payment_status_at_issue||order.payment_status,order_items:snapshot.items||order.order_items}:order);
     setActiveActions(null);
     setIssueConfirmOpen(false);
@@ -359,6 +363,7 @@ export default function InvoicesModule() {
           </span>
           <button type="button" onClick={()=>{void verifyInvoiceMfaSession();}} disabled={invoiceMfaStatus==="checking"} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50">Verify MFA session</button>
           {selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled" || invoiceMfaStatus !== "verified"} title={invoiceMfaStatus !== "verified" ? "Verify an AAL2 authenticator session before issuing. This check does not issue any invoice." : undefined} onClick={() => requestIssueConfirmation(selected)} className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => {setIssueConfirmOpen(false);setSelected(null);}} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        {issued[selected.id]?.snapshot && !Object.prototype.hasOwnProperty.call(issued[selected.id].snapshot, "invoice_due_date") && <p role="alert" className="rounded-lg border border-amber-300 bg-white p-3 text-xs text-amber-900 print:hidden">This invoice predates immutable due-date snapshots. Verify the payment due date against the originally issued document before relying on it.</p>}
         {issueSuccess && <div role="status" className="rounded-lg border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 print:hidden">{issueSuccess}</div>}
         {issueConfirmOpen && !issued[selected.id] && <div role="group" aria-label="Confirm invoice issuance" className="rounded-lg border-2 border-slate-900 bg-white p-4 text-slate-900 shadow-md print:hidden">
           <h3 className="text-lg font-bold">Confirm official invoice issuance</h3>
