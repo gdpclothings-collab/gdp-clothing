@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, Printer, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
@@ -160,6 +160,9 @@ export default function InvoicesModule() {
   const [editingDraft,setEditingDraft]=useState(null);
   const [issued, setIssued] = useState({});
   const [issuing, setIssuing] = useState(false);
+  const issuingRef = useRef(false);
+  const [issueConfirmOpen, setIssueConfirmOpen] = useState(false);
+  const [issueSuccess, setIssueSuccess] = useState("");
   // Read-only real Supabase Auth assurance status. Never display JWTs or codes.
   const [invoiceMfaStatus, setInvoiceMfaStatus] = useState("unchecked");
   const [loading, setLoading] = useState(false);
@@ -204,6 +207,9 @@ export default function InvoicesModule() {
     setDocumentMeta(meta); setSavedDocumentMeta(meta); setDocumentDueDate((snapshot?.invoice_due_date || order.invoice_due_date || "").slice(0,10)); setDocumentEditing(false);
     setSelected(snapshot ? {...order,...snapshot,created_at:snapshot.order_date||order.created_at,payment_status:snapshot.payment_status_at_issue||order.payment_status,order_items:snapshot.items||order.order_items}:order);
     setActiveActions(null);
+    setIssueConfirmOpen(false);
+    setIssueSuccess("");
+    setError("");
     void verifyInvoiceMfaSession();
   };
   const duplicateDraft = (order) => {
@@ -247,19 +253,57 @@ export default function InvoicesModule() {
     } catch(err) {setError(err?.message||"Unable to save invoice document");}
     finally {setDocumentSaving(false);}
   };
+  const requestIssueConfirmation = (order) => {
+    setError("");
+    setIssueSuccess("");
+    if (issuingRef.current || issuing) return;
+    if (invoiceMfaStatus !== "verified") {
+      setError("Invoice issuance requires a verified MFA (AAL2) session. Choose Verify MFA session first.");
+      return;
+    }
+    if (order.status === "cancelled" || issued[order.id]) {
+      setError("This order cannot be issued again from this preview.");
+      return;
+    }
+    const validationError = invoiceValidationMessage(order);
+    if (validationError) {
+      setError(`Invoice issuance blocked: ${validationError}`);
+      return;
+    }
+    setIssueConfirmOpen(true);
+  };
   const issue = async (order) => {
-    if (!readyForInvoiceDocument(order)) { setError(`Invoice issuance blocked: ${invoiceValidationMessage(order)}`); return; }
-    if (!window.confirm("Issue this invoice permanently? Drafts will be activated without charging the customer. The invoice snapshot cannot be edited afterward.")) return;
+    if (issuingRef.current || !issueConfirmOpen) return;
+    issuingRef.current = true;
     setIssuing(true);
     setError("");
     try {
+      const validationError = invoiceValidationMessage(order);
+      if (validationError) throw new Error(`Invoice issuance blocked: ${validationError}`);
+      if (order.status === "cancelled" || issued[order.id]) {
+        throw new Error("This invoice is already issued or the order cannot be issued.");
+      }
+      // Verify the real session immediately before the privileged database RPC.
+      const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assuranceError) throw assuranceError;
+      if (assurance?.currentLevel !== "aal2") {
+        setInvoiceMfaStatus("required");
+        throw new Error("Invoice MFA verification expired. Complete your authenticator challenge and verify again.");
+      }
       const { data, error: issueError } = await supabase.rpc("issue_admin_invoice_from_draft", { p_order_id: order.id });
       if (issueError) throw issueError;
+      if (!data?.invoice_number || !data?.id) throw new Error("The invoice was submitted but the server did not return a valid confirmation. Refresh the invoice list before trying again.");
       setIssued((old) => ({ ...old, [order.id]: data }));
       setOrders((old) => old.map(o => o.id === order.id ? {...o,status:"pending_payment",payment_status:o.payment_status === "paid" ? "paid" : "pending"} : o));
       setSelected((old) => old?.id === order.id ? { ...old, ...(data.snapshot || {}), created_at: data.snapshot?.order_date || old.created_at, payment_status: data.snapshot?.payment_status_at_issue || old.payment_status, order_items: data.snapshot?.items || old.order_items } : old);
-    } catch (err) { setError(err?.message || "Invoice issuance failed."); }
-    finally { setIssuing(false); }
+      setIssueSuccess(`Invoice ${data.invoice_number} issued successfully. No payment was collected.`);
+      setIssueConfirmOpen(false);
+    } catch (err) {
+      setError(err?.message || "Invoice issuance failed. Your draft was not changed.");
+    } finally {
+      issuingRef.current = false;
+      setIssuing(false);
+    }
   };
   useEffect(() => { load(); }, []);
   const statusOf = (order) => issued[order.id] ? (paidStatus(order) ? "paid" : "issued") : order.status === "draft" ? "draft" : paidStatus(order) ? "paid" : "unpaid";
@@ -314,7 +358,17 @@ export default function InvoicesModule() {
              "Invoice MFA: Not checked"}
           </span>
           <button type="button" onClick={()=>{void verifyInvoiceMfaSession();}} disabled={invoiceMfaStatus==="checking"} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50">Verify MFA session</button>
-          {selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled" || invoiceMfaStatus !== "verified"} title={invoiceMfaStatus !== "verified" ? "Verify an AAL2 authenticator session before issuing. This check does not issue any invoice." : undefined} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+          {selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled" || invoiceMfaStatus !== "verified"} title={invoiceMfaStatus !== "verified" ? "Verify an AAL2 authenticator session before issuing. This check does not issue any invoice." : undefined} onClick={() => requestIssueConfirmation(selected)} className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => {setIssueConfirmOpen(false);setSelected(null);}} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        {issueSuccess && <div role="status" className="rounded-lg border border-slate-300 bg-white p-3 text-sm font-semibold text-slate-900 print:hidden">{issueSuccess}</div>}
+        {issueConfirmOpen && !issued[selected.id] && <div role="group" aria-label="Confirm invoice issuance" className="rounded-lg border-2 border-slate-900 bg-white p-4 text-slate-900 shadow-md print:hidden">
+          <h3 className="text-lg font-bold">Confirm official invoice issuance</h3>
+          <p className="mt-2 text-sm">Issue <strong>{selected.reserved_invoice_number || "this invoice"}</strong> for <strong>{cad(selected.total)}</strong>? This permanently locks the invoice snapshot and activates the draft without charging the customer.</p>
+          <p className="mt-2 text-xs text-slate-600">Confirm only after checking customer details, prices, taxes, and payment due date. This action cannot be undone.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={()=>setIssueConfirmOpen(false)} disabled={issuing} className="rounded border border-slate-400 px-4 py-2 text-sm font-semibold disabled:opacity-50">Cancel</button>
+            <button type="button" onClick={()=>{void issue(selected);}} disabled={issuing || invoiceMfaStatus !== "verified"} className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">{issuing ? "Issuing securely…" : "Confirm issue numbered invoice"}</button>
+          </div>
+        </div>}
         {!readyForInvoiceDocument(selected) && !issued[selected.id] && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 print:hidden">
           <p className="font-bold">Invoice totals need reconciliation before issuance</p>
           <p className="mt-1">{invoiceValidationMessage(selected)}</p>
