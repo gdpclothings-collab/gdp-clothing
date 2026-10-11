@@ -13,6 +13,7 @@ DECLARE
   v_issued_number text;
   v_issued_by uuid;
   v_issued_id uuid;
+  v_ledger_snapshot jsonb;
   v_return_count integer;
   v_distinct_return_ids integer;
   v_distinct_return_numbers integer;
@@ -40,14 +41,20 @@ BEGIN
   IF v_invoice_count<>1 THEN
     RAISE EXCEPTION 'Concurrency failure: expected exactly one invoice, found %',v_invoice_count;
   END IF;
-  SELECT id,invoice_number,issued_by
-  INTO STRICT v_issued_id,v_issued_number,v_issued_by
+  SELECT id,invoice_number,issued_by,snapshot
+  INTO STRICT v_issued_id,v_issued_number,v_issued_by,v_ledger_snapshot
   FROM public.gdp_invoices WHERE order_id=v_order;
   IF v_issued_number IS DISTINCT FROM v_reserved
      OR v_issued_by IS DISTINCT FROM v_actor THEN
     RAISE EXCEPTION 'Concurrency failure: reserved invoice number or issuer mismatched';
   END IF;
   RAISE NOTICE 'PASS: exactly one invoice ledger row; reserved number and actor preserved';
+  IF NOT (v_ledger_snapshot ? 'invoice_due_date')
+     OR v_ledger_snapshot->>'invoice_due_date' IS DISTINCT FROM '2026-10-31'
+     OR v_ledger_snapshot->>'invoice_payment_terms' IS DISTINCT FROM 'Net 7' THEN
+    RAISE EXCEPTION 'Invoice snapshot missing immutable payment due date or terms. Apply local migration 20261011043000 before retesting.';
+  END IF;
+  RAISE NOTICE 'PASS: original payment due date and terms frozen in invoice snapshot';
 
   SELECT count(*),count(DISTINCT invoice_id),count(DISTINCT invoice_number),
          count(*) FILTER (
