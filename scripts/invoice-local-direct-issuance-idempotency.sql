@@ -46,6 +46,8 @@ BEGIN
     '', now(), now(), now()
   );
   PERFORM set_config('request.jwt.claim.sub', v_test_user::text, true);
+  -- Simulated AAL2 claim required by the strict invoice issuance guards.
+  PERFORM set_config('request.jwt.claims', jsonb_build_object('sub',v_test_user::text,'aal','aal2','role','authenticated')::text, true);
   PERFORM set_config('gdp.qa_admin', 'yes', true);
   PERFORM set_config('gdp.qa_mfa', 'yes', true);
 
