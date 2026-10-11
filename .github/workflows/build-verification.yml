@@ -90,8 +90,10 @@ jobs:
           node scripts/verify-photo-bootleg-desktop.mjs
           node scripts/verify-storefront-seo-ux.mjs
 
-      - name: Verify immutable invoice ledger and AAL2 guard contract
-        run: node --test scripts/verify-invoice-ledger.mjs
+      - name: Verify immutable invoice ledger and atomic migration manifest
+        run: |
+          node --test scripts/verify-invoice-ledger.mjs
+          node --test scripts/verify-invoice-atomic-bundle.mjs
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
