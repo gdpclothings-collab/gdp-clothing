@@ -111,17 +111,27 @@ async function authenticate(browser) {
     "Cloudflare Access credentials may only be sent to the GDP production hostname."
   );
   const context = await browser.newContext({
-    ...(accessId ? {
-      extraHTTPHeaders: {
-        "CF-Access-Client-Id": accessId,
-        "CF-Access-Client-Secret": accessSecret,
-      },
-    } : {}),
     viewport: DESKTOP,
     locale: "en-CA",
     timezoneId: "America/Regina",
     colorScheme: "light",
   });
+  if (accessId) {
+    await context.route("**/*", async (route) => {
+      const request = route.request();
+      if (new URL(request.url()).origin !== target.origin) {
+        await route.continue();
+        return;
+      }
+      await route.continue({
+        headers: {
+          ...request.headers(),
+          "CF-Access-Client-Id": accessId,
+          "CF-Access-Client-Secret": accessSecret,
+        },
+      });
+    });
+  }
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
 
