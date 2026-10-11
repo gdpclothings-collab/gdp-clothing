@@ -16,6 +16,15 @@ Review head at runbook creation: `18d2939065d2b395ae6abb8ee278fa6b33a29798` (rec
 - Historical local-recovery migrations at `20260907230000`, `20260912214000`, and `20261003031000` are NOT part of the production release; their target tables/function already exist in production. Two older migration renames align with already recorded hosted versions and must not be replayed.
 - CI runs are not proof that production schemas have been migrated.
 
+## Scheduled backup evidence (2026-10-11 — owner dashboard screenshot)
+- **Verified available in Supabase Dashboard:** `Database → Backups → Scheduled` shows physical backups with visible Restore actions.
+- Latest displayed restore point: **2026-10-11 09:29:19 UTC** (03:29:19 in Saskatoon, UTC−06). Earlier daily restore points are listed.
+- GDP organization is on the Pro plan; Supabase documents up to seven days of daily backup retention for Pro.
+- **Backup presence is confirmed, but a restore has NOT been executed or independently validated**. This is not proof that every backup will restore successfully.
+- Restore is whole-project database recovery: any customer orders, payment events, inventory mutations, or other DB changes after the chosen backup may be lost. Backups do not include Supabase Storage objects (artwork/files).
+- PITR entitlement or enablement is **not** confirmed. Do not enable paid PITR or click Restore as part of this preflight.
+- Before production SQL: reconfirm a recent restore point, project accessibility, downtime/recovery owner, and whether a fresh pre-deploy logical backup is feasible. Prefer additive forward-only SQL repair to rolling the whole database back after issuance or customer activity.
+
 ## Automatic deployment hazard
 `.github/workflows/safe-auto-merge.yml` listens to `ready_for_review` for owner-created PRs and **squash merges automatically when required checks pass**. A main-branch merge may deploy Cloudflare production and trigger production smoke. **Keep PR #481 as draft** until database changes are in place and release owner explicitly authorizes production deployment. Do not mark ready merely to request a review. The auto-merge path is an existing repo-wide behavior; do not modify it as an invoice-only shortcut.
 
