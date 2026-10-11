@@ -86,11 +86,11 @@ BEGIN
   INSERT INTO public.orders (
     id, order_number, customer_email, customer_name,
     subtotal,discount,shipping,tax,gst_hst_tax,pst_tax,total,
-    status,payment_status,reserved_invoice_number
+    status,payment_status,reserved_invoice_number,invoice_due_date,invoice_payment_terms
   ) VALUES (
     v_order,'GDP-LOCAL-CONCURRENT-'||substr(replace(v_order::text,'-',''),1,12),
     'invoice-concurrency-qa@example.invalid','CONCURRENCY QA FAKE CUSTOMER',
-    40,0,0,4.40,2.00,2.40,44.40,'draft','pending',v_number
+    40,0,0,4.40,2.00,2.40,44.40,'draft','pending',v_number,date '2026-10-31','Net 7'
   );
   INSERT INTO public.order_items(order_id,name,quantity,unit_price)
   VALUES(v_order,'LOCAL QA TEST GARMENT',2,20);
