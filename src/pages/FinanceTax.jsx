@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowLeft, RefreshCw, ReceiptText, Save } from "lucide-r
 import { Link } from "react-router-dom";
 import { adminTaxApi } from "@/lib/adminTaxApi";
 import TaxFilingControls from "@/components/admin/TaxFilingControls";
+import { loadSharedTaxConfiguration, summarizeTaxAlignment } from "@/lib/sharedTaxConfiguration";
 
 const RANGE_OPTIONS = [
   ["today", "Today"],
@@ -41,6 +42,9 @@ export default function FinanceTax() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState("");
+  const [taxAlignment, setTaxAlignment] = useState(null);
+  const [alignmentError, setAlignmentError] = useState("");
+  useEffect(() => {let active=true; loadSharedTaxConfiguration().then(data=>{if(active)setTaxAlignment(summarizeTaxAlignment(data));}).catch(err=>{if(active)setAlignmentError(err?.message||"Could not read tax configuration");});return()=>{active=false};},[]);
 
   const load = async (selectedRange = range) => {
     setLoading(true);
@@ -117,6 +121,7 @@ export default function FinanceTax() {
           <div className="mt-1 text-xs">GST/HST ITCs are deducted from the estimate only when you explicitly mark an expense ITC eligible. Saskatchewan PST paid on business expenses is shown separately and is not treated as an ITC. Registration and filing-period controls are available below; GDP records filing status but does not submit returns to CRA or Saskatchewan.</div>
         </div>
 
+        <section className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="font-semibold">Shared tax collection readiness — local invoices and online checkout</h2><p className="mt-1 text-sm text-slate-600">Read-only audit: registration and active checkout tax rules. This does not modify what shoppers are charged.</p>{alignmentError&&<p role="alert" className="mt-2 text-sm text-red-700">{alignmentError}</p>}{taxAlignment?.map(row=><p key={row.type} className="mt-2 text-sm"><strong>{row.type==="gst_hst"?"GST/HST":"PST"}:</strong> {row.registered?"Registered":"Not registered"} · Checkout collection {row.collectionEnabled?"enabled":"disabled"} · {row.needsReview?"Requires review":row.status}</p>)}</section>
         <TaxFilingControls />
 
         {unclassified > 0 && !loading && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3"><AlertTriangle size={18} className="shrink-0 mt-0.5" /><div><span className="font-semibold">Tax classification incomplete:</span> {money(unclassified)} is still combined/unclassified. Review the affected records before relying on a filing estimate.</div></div>}
