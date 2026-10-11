@@ -45,3 +45,13 @@ test("final issuer in atomic package enforces MFA AAL2 and frozen financial term
   assert.match(final, /for update/);
   assert.match(final, /grant execute on function public\.issue_admin_order_invoice\(uuid\) to authenticated/);
 });
+
+test("concurrency fixtures permit both isolated QA types but reject main database", () => {
+  const files = ["scripts/invoice-concurrency-setup.sql", "scripts/invoice-concurrency-check.sql"];
+  for (const file of files) {
+    const sql = readFileSync(resolve(file), "utf8");
+    assert.match(sql, /\^\(gdp_invoice_qa\|gdp_invoice_atomic\)_\[0-9a-f\]\{8\}\$/);
+    assert.match(sql, /inet_server_addr\(\) IS NOT NULL/);
+    assert.doesNotMatch(sql, /current_database\(\)\s*<>\s*'postgres'/);
+  }
+});
