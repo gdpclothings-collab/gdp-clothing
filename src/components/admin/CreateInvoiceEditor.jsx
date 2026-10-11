@@ -24,7 +24,7 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
   const [shippingAddress,setShippingAddress]=useState(draft?.shipping_address || {});
   const [customerName,setCustomerName]=useState(draft?.customer_name || "");
   const [customerEmail,setCustomerEmail]=useState(draft?.customer_email || "");
-  const [province,setProvince]=useState(draft?.shipping_address?.province || "Saskatchewan");
+  const [province,setProvince]=useState(draft?.shipping_address?.province || draft?.billing_address?.province || "Saskatchewan");
   const [lines,setLines]=useState(draft?.order_items?.length ? draft.order_items.map(i=>({name:i.name,quantity:i.quantity,unitPrice:i.unit_price,productId:i.product_id,variantId:i.variant_id,variant:i.variant,size:i.size,color:i.color,image:i.image,fulfillmentMode:i.fulfillment_mode})) : [emptyLine()]);
   const [catalog,setCatalog]=useState([]);
   const [catalogSearch,setCatalogSearch]=useState("");
@@ -41,7 +41,7 @@ export default function CreateInvoiceEditor({onClose,onCreated,draft=null}) {
   const [error,setError]=useState("");
   useEffect(()=>{let mounted=true;setCustomerLoading(true);adminCustomersApi.list({pageSize:100}).then(result=>{if(mounted)setCustomerOptions(result.customers||[]);}).catch(()=>{}).finally(()=>{if(mounted)setCustomerLoading(false)});return()=>{mounted=false};},[]);
   const selectCustomer=(c)=>{setCustomerName(c.name||"");setCustomerEmail(c.email||"");setCustomerPhone(c.phone||"");setCustomerPanel(false);};
-  const updateAddress=(kind,key,value)=>{const setter=kind==="billing"?setBilling:setShippingAddress;setter(old=>({...old,[key]:value}));};
+  const updateAddress=(kind,key,value)=>{const setter=kind==="billing"?setBilling:setShippingAddress;setter(old=>({...old,[key]:value}));if(kind==="shipping"&&key==="province")setProvince(value);};
   useEffect(()=>{let mounted=true;supabase.from("tax_rules").select("region_code,config,priority").eq("country_code","CA").eq("active",true)
     .then(({data,error})=>{if(!mounted)return;if(error)setTaxError("Configured tax rules are unavailable.");else setTaxRules(data||[]);});return()=>{mounted=false};},[]);
   useEffect(()=>{let active=true;adminDraftOrdersApi.catalog().then(rows=>{if(active)setCatalog(rows);}).catch(()=>{if(active)setCatalogError("Catalog unavailable; manual line items remain available.");});return()=>{active=false};},[]);
