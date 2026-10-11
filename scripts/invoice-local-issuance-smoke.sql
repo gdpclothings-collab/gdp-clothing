@@ -24,6 +24,7 @@ DECLARE
   v_blocked boolean;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+  PERFORM set_config('request.jwt.claims', jsonb_build_object('sub','11111111-1111-4111-8111-111111111111','aal','aal2','role','authenticated')::text, true);
   PERFORM set_config('gdp.test_admin','yes',true);
   PERFORM set_config('gdp.test_mfa','yes',true);
 
