@@ -32,6 +32,15 @@ CREATE TABLE public.gdp_qa_concurrency_calls (
 GRANT SELECT ON public.gdp_qa_concurrency_fixture TO authenticated;
 GRANT INSERT ON public.gdp_qa_concurrency_calls TO authenticated;
 
+-- Persist each client's RPC return value inside the disposable clone.
+-- Successful transactions must both report the SAME invoice ID and number.
+CREATE TABLE public.gdp_qa_concurrency_results (
+  order_id uuid not null,
+  invoice_id uuid not null,
+  invoice_number text not null
+);
+GRANT INSERT ON public.gdp_qa_concurrency_results TO authenticated;
+
 -- Hold the FIRST ledger INSERT for 2.5s, so second connection arrives
 -- while first holds the order lock. This trigger exists in the clone only.
 CREATE FUNCTION public.gdp_qa_concurrency_delay() RETURNS trigger
