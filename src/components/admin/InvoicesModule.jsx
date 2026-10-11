@@ -19,7 +19,7 @@ const readyForInvoiceDocument = (order) => hasValidItems(order) && hasConsistent
 const cleanDate = (value) => value ? new Date(value).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }) : "—";
 
 
-const printInvoiceDocument = () => {
+const printInvoiceDocument = (compact = false) => {
   const invoice = document.getElementById("gdp-invoice-print");
   if (!invoice) return;
   // An isolated frame avoids printing the Admin shell or duplicating its page flow.
@@ -89,6 +89,13 @@ const printInvoiceDocument = () => {
     #gdp-invoice-print > div:first-child, #gdp-invoice-print > div:nth-child(2), #gdp-invoice-print > div:nth-child(4), #gdp-invoice-print > div:nth-child(5) { break-inside:avoid; }
     @media print { body { margin:0 !important; } }
   `;
+  // Compact mode uses a shorter fixed sheet for short invoices, with automatic
+  // continuation onto further pages if the invoice exceeds that height.
+  // Browser-generated URL/date/page headers still require Chrome's setting to be off.
+  const finalCss = compact
+    ? printCss.replace("@page { size: letter portrait; margin: 13mm 15mm; }",
+        "@page { size: 8.5in 6in; margin: 10mm 13mm; }")
+    : printCss;
   doc.open();
   doc.write('<!doctype html><html><head><meta charset="utf-8"><title>GDP invoice</title><style>' + printCss + '</style></head><body>' + source.outerHTML + '</body></html>');
   doc.close();
@@ -249,7 +256,7 @@ export default function InvoicesModule() {
     {editorOpen && <CreateInvoiceEditor draft={editingDraft} onClose={()=>{setEditorOpen(false);setEditingDraft(null);}} onCreated={()=>{setEditorOpen(false);setEditingDraft(null);load();}}/>}
     {selected && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Order invoice preview">
       <div className="mx-auto max-w-3xl space-y-3">{error && <p role="alert" className="rounded-lg bg-white p-3 text-sm text-red-700 print:hidden">{error}</p>}
-        <div className="flex justify-end gap-2 print:hidden">{selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={printInvoiceDocument} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        <div className="flex justify-end gap-2 print:hidden">{selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "draft" || selected.status === "cancelled"} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
         {!hasValidItems(selected) && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 print:hidden">This historical draft has no items or an inconsistent subtotal. Printing and invoice issuance are blocked until its line items are restored. Open Draft Orders to repair the draft; do not invent item descriptions from its total.</div>}
         {documentEditing && <div className="rounded-lg bg-white p-3 text-sm text-slate-700 print:hidden">Edit the highlighted fields directly on the invoice. Changes are only saved when you select Save layout.</div>}
         {documentEditing && <div className="flex justify-end gap-2 print:hidden"><button onClick={()=>{setDocumentMeta(savedDocumentMeta);setDocumentEditing(false);}} className="rounded bg-white px-4 py-2 text-slate-900">Cancel</button><button disabled={documentSaving} onClick={saveDocumentMeta} className="rounded bg-white px-4 py-2 font-semibold text-slate-900 disabled:opacity-50">{documentSaving?"Saving…":"Save layout"}</button></div>}
