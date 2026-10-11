@@ -8,6 +8,20 @@ Hosted Supabase: `GDP Clothing`, project ref `mcmancxsqlhxnjhlnfkz`
 Frontend: Cloudflare Pages, `https://gdpclothing.ca`
 Review head at runbook creation: `18d2939065d2b395ae6abb8ee278fa6b33a29798` (recheck before deployment)
 
+## Production invoice database deployment record — 2026-10-11
+
+**Database-only migration applied with the business owner's explicit authorization. Frontend remains DRAFT/UNMERGED.**
+
+- Supabase project: `mcmancxsqlhxnjhlnfkz` (GDP Clothing, Canada Central).
+- Reviewed PR code SHA used for the atomic package: `48c058ce4501c6657f35ed0544ff5173c909a805`.
+- Applied as one explicit `BEGIN ... COMMIT` SQL transaction using Supabase's migration action, from the exact 11 previously verified Git blob SHAs.
+- Supabase migration history entry: **`20261011161818`**, name `gdp_invoice_pr481_atomic_aal2_20261011`. The individually sourced 11 migration files are bundled in this *one* hosted migration record. **Future schema tooling must NOT attempt to reapply those 11 migrations or rewrite the hosted history without review.**
+- Deployment response: `success: true`, with a new ledger table, numbering sequence, draft metadata columns and issuance functions.
+- Post-deploy read-only SQL verified: ledger and sequence exist; all 4 order columns exist; both issuance RPCs have strict JWT `aal2` plus admin/step-up checks and row locking; anonymous EXECUTE denied; ledger RLS and admin-read policy enabled; 2 unique ledger constraints and immutability trigger active; original 3 checkout/finance/order-workflow triggers preserved.
+- **No official invoices were created during deployment** (`gdp_invoices` count = 0). No Stripe charge, order mutation, data restore, or production frontend release executed.
+- Supabase physical backup inventory last verified from owner dashboard screenshot: 2026-10-11 09:29:19 UTC, restore available. Restore not exercised; Storage objects excluded.
+- Post-database release gates remain: verify live health/checkout in non-mutating mode, recheck final PR CI/head, then obtain *separate* frontend release authorization. Never use a blanket `supabase db push` while migration histories are divergent.
+
 ## Read-only preflight findings, 2026-10-11
 - Production: `orders`, `order_items`, `profiles`, `admin_mfa_enrollment_state`, `tax_rules`, `checkout_rate_limits`, `order_inventory_reservations`, and `artwork_library` exist with RLS.
 - Existing order has GST/HST and PST components; auth admin/step-up helpers are present.
