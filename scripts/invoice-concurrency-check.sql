@@ -12,6 +12,11 @@ DECLARE
   v_total numeric;
   v_issued_number text;
   v_issued_by uuid;
+  v_issued_id uuid;
+  v_return_count integer;
+  v_distinct_return_ids integer;
+  v_distinct_return_numbers integer;
+  v_matching_returns integer;
   v_actor uuid;
 BEGIN
   IF current_database() !~ '^gdp_invoice_qa_[0-9a-f]{8}$' THEN
@@ -30,15 +35,32 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: two independent issuance clients overlapped by design (start gap: % ms)',round(v_gap_ms);
 
-  SELECT count(*),max(invoice_number),max(issued_by)
-  INTO v_invoice_count,v_issued_number,v_issued_by
+  SELECT count(*) INTO v_invoice_count
   FROM public.gdp_invoices WHERE order_id=v_order;
-  IF v_invoice_count<>1 OR v_issued_number IS DISTINCT FROM v_reserved
+  IF v_invoice_count<>1 THEN
+    RAISE EXCEPTION 'Concurrency failure: expected exactly one invoice, found %',v_invoice_count;
+  END IF;
+  SELECT id,invoice_number,issued_by
+  INTO STRICT v_issued_id,v_issued_number,v_issued_by
+  FROM public.gdp_invoices WHERE order_id=v_order;
+  IF v_issued_number IS DISTINCT FROM v_reserved
      OR v_issued_by IS DISTINCT FROM v_actor THEN
-    RAISE EXCEPTION 'Concurrency failure: ledger count %, invoice %, actor match %',
-      v_invoice_count,v_issued_number,v_issued_by IS NOT DISTINCT FROM v_actor;
+    RAISE EXCEPTION 'Concurrency failure: reserved invoice number or issuer mismatched';
   END IF;
   RAISE NOTICE 'PASS: exactly one invoice ledger row; reserved number and actor preserved';
+
+  SELECT count(*),count(DISTINCT invoice_id),count(DISTINCT invoice_number),
+         count(*) FILTER (
+           WHERE invoice_id=v_issued_id AND invoice_number=v_reserved
+         )
+  INTO v_return_count,v_distinct_return_ids,v_distinct_return_numbers,v_matching_returns
+  FROM public.gdp_qa_concurrency_results WHERE order_id=v_order;
+  IF v_return_count<>2 OR v_distinct_return_ids<>1
+     OR v_distinct_return_numbers<>1 OR v_matching_returns<>2 THEN
+    RAISE EXCEPTION 'Concurrency failure: RPC results differed: count %, IDs %, numbers %, matching %',
+      v_return_count,v_distinct_return_ids,v_distinct_return_numbers,v_matching_returns;
+  END IF;
+  RAISE NOTICE 'PASS: BOTH overlapping RPCs returned the SAME invoice ID and number';
 
   SELECT status,payment_status,total
   INTO STRICT v_order_status,v_payment_status,v_total
