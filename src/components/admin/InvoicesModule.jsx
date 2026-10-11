@@ -36,26 +36,24 @@ const printInvoiceDocument = () => {
     element.textContent = element.getAttribute("data-print-value") || "";
   });
   source.querySelectorAll("input,textarea,button").forEach(element => element.remove());
-  // Rebuild the footer as plain saved text. Never print a form field or its styled wrapper.
-  source.querySelectorAll("[data-invoice-footer]").forEach((element) => {
-    const value = element.getAttribute("data-invoice-footer") || "";
-    if (!value.trim()) { element.remove(); return; }
-    const plain = doc.createElement("p");
-    plain.className = "invoice-print-footer";
-    plain.textContent = value;
-    element.replaceWith(plain);
+  // Hard-remove ALL footer/editor markup from the clone, then reconstruct a single
+  // plain-text node. This avoids printing any cached textarea, overlay or wrapper.
+  source.querySelectorAll("[data-invoice-footer], textarea, input, button, [contenteditable], iframe").forEach(node => node.remove());
+  source.querySelectorAll("[data-print-value]").forEach(element => {
+    if (!element.textContent.trim()) element.remove();
+    else element.removeAttribute("data-print-value");
   });
-  source.querySelectorAll("[data-print-value]").forEach(element => { if(!element.textContent.trim()) element.remove(); });
-  source.querySelectorAll("[data-print-value]").forEach(element=>element.removeAttribute("data-print-value"));
-  // Strip non-document descendants and normalize the footer to one compact text-only node.
-  source.querySelectorAll("textarea,input,button,[contenteditable],iframe").forEach(node=>node.remove());
-  const footerNodes=[...source.querySelectorAll("[data-invoice-footer]")];
-  footerNodes.forEach(node=>{
-    const text=node.getAttribute("data-invoice-footer")||"";
-    const plain=doc.createElement("p");
-    plain.className="invoice-print-footer";
-    plain.textContent=text;
-    node.replaceWith(plain);
+  const footerText = invoice.querySelector("[data-invoice-footer]")?.getAttribute("data-invoice-footer") || "";
+  if (footerText.trim()) {
+    const footer = doc.createElement("p");
+    footer.className = "invoice-print-footer";
+    footer.textContent = footerText;
+    source.appendChild(footer);
+  }
+  // Invoice root has: header, customer/payment, items, totals, terms, footer.
+  // Do not pass any other accidental editor DOM into the print frame.
+  [...source.children].forEach((child, index) => {
+    if (index >= 5 && !child.classList.contains("invoice-print-footer")) child.remove();
   });
   const styles = [...document.head.querySelectorAll('style,link[rel="stylesheet"]')]
     .map((node) => node.outerHTML).join("");
