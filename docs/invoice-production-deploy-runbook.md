@@ -37,7 +37,11 @@ Review head at runbook creation: `18d2939065d2b395ae6abb8ee278fa6b33a29798` (rec
 6. Obtain explicit approval for production migration execution. Do not infer permission from `DEPLOYPREP`.
 
 ## Controlled database-FIRST rollout (after approval)
-Never run SQL on production as an exploratory step. Apply *only* the following new invoice-specific migration SQL, one at a time in exact order using a supported Supabase migration action. Check success and migration ledger for each; stop immediately on any error. Do not re-run a partially applied migration without inspecting its state.
+**ATOMIC ALL-OR-NOTHING ROLLOUT REQUIRED.** The intermediate migrations include temporary official-issuance RPC definitions with a weaker MFA gate (the admin enrollment-grace helper), superseded by the final strict JWT AAL2 guards. Applying the 11 scripts as separately committed production migrations could briefly expose those intermediate RPCs to authenticated callers. **Do not deploy them one by one.**
+
+After explicit owner approval, prepare one carefully reviewed invoice-only SQL migration, concatenating the exact 11 files below **in timestamp order in a single database transaction**. Verify the deployment mechanism truly rolls the entire batch back on any SQL error and records it as one migration. No transaction-breaking commands or DDL with autocommit requirements are expected in the 11 invoice scripts, but validate this on an isolated staging clone before production. Supabase's migration recording must reflect the new consolidated deployment; **do not fake or auto-repair historical remote migration versions**. Store a verified SHA/manifest of each source SQL file in release evidence. Recheck that the final RPC guards contain `auth.jwt()->>'aal' = 'aal2'` before committing. If atomic application cannot be guaranteed, this release is **NO-GO** pending a different gated migration plan.
+
+This is a new deployment-only package; preserve the individual source migrations in Git for local replay, audit, and developer workflows. The atomic bundle must be regenerated from the current PR head immediately before deployment rather than copied from an older commit.
 
 1. `20261010021500_admin_invoice_ledger.sql` — sequence, immutable invoice ledger, row-lock issuance foundation.
 2. `20261010173000_invoice_draft_metadata.sql` — draft due-date metadata.
@@ -51,7 +55,7 @@ Never run SQL on production as an exploratory step. Apply *only* the following n
 10. `20261011033000_invoice_issuance_strict_aal2.sql` — enforce AAL2 regardless of onboarding grace.
 11. `20261011043000_invoice_issued_terms_snapshot.sql` — freeze due date and payment terms on new issued invoices.
 
-Interim states are **not** release-ready; in particular, the early issuance definitions are intentionally superseded by the final strict-AAL2 migration. Apply as a controlled sequence, then validate all guards before frontend exposure. Fresh-local recovery migrations and historic rename files must not be executed against production merely because they appear in this PR.
+Interim states are **not** release-ready; the original issuance definitions are intentionally superseded by the strict-AAL2 definitions. The entire group must commit atomically; validate final guards before frontend exposure. Fresh-local recovery migrations and historic rename files must not be executed against production merely because they appear in this PR.
 
 ## Read-only production verification, AFTER database rollout
 - Confirm `gdp_invoices` exists, has RLS, unique constraints on `order_id` and `invoice_number`, immutable update/delete trigger, admin-only SELECT policy and no anonymous EXECUTE on privileged RPCs.
