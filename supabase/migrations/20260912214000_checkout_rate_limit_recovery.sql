@@ -1,14 +1,21 @@
 -- Recover a historical checkout rate-limit prerequisite for fresh local builds.
 -- Existing hosted function/table are not overwritten.
-create table if not exists public.checkout_rate_limits (
-  rate_key text primary key,
-  window_started_at timestamptz not null default now(),
-  request_count integer not null default 0,
-  updated_at timestamptz not null default now()
-);
-alter table public.checkout_rate_limits enable row level security;
-revoke all on public.checkout_rate_limits from public, anon, authenticated;
-
+do $create_table$
+begin
+  -- Fresh local databases need this table; existing hosted tables and grants
+  -- must NOT be changed as a side effect of an unrelated invoice release.
+  if to_regclass('public.checkout_rate_limits') is null then
+    create table public.checkout_rate_limits (
+      rate_key text primary key,
+      window_started_at timestamptz not null default now(),
+      request_count integer not null default 0,
+      updated_at timestamptz not null default now()
+    );
+    alter table public.checkout_rate_limits enable row level security;
+    revoke all on public.checkout_rate_limits from public, anon, authenticated;
+  end if;
+end
+$create_table$;
 do $recovery$
 begin
   if to_regprocedure('public.consume_checkout_rate_limit(text,integer,integer)') is null then
@@ -50,9 +57,11 @@ begin
       end
       $function$;
     $ddl$;
+    -- The fresh local fallback function must only be callable by trusted
+    -- server-side checkout. Existing hosted function grants remain untouched.
+    revoke all on function public.consume_checkout_rate_limit(text,integer,integer) from public, anon, authenticated;
+    grant execute on function public.consume_checkout_rate_limit(text,integer,integer) to service_role;
   end if;
 end;
 $recovery$;
 
-revoke all on function public.consume_checkout_rate_limit(text,integer,integer) from public, anon, authenticated;
-grant execute on function public.consume_checkout_rate_limit(text,integer,integer) to service_role;
