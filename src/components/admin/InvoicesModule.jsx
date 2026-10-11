@@ -55,13 +55,38 @@ const printInvoiceDocument = () => {
   [...source.children].forEach((child, index) => {
     if (index >= 5 && !child.classList.contains("invoice-print-footer")) child.remove();
   });
-  const styles = [...document.head.querySelectorAll('style,link[rel="stylesheet"]')]
-    .map((node) => node.outerHTML).join("");
+  // Do not copy the admin application's print CSS or pseudo-elements into the
+  // isolated invoice frame. They can introduce a full-width gray editor panel.
+  const printCss = `
+    @page { size: auto; margin: 12mm; }
+    * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    html,body { margin:0; padding:0; background:#fff !important; color:#111827; font-family:Arial,Helvetica,sans-serif; font-size:12px; }
+    #gdp-invoice-print { width:100%; padding:0; margin:0; background:#fff; box-shadow:none; border:0; }
+    #gdp-invoice-print * { box-shadow:none !important; }
+    #gdp-invoice-print > div:first-child { display:flex; justify-content:space-between; gap:24px; border-bottom:2px solid #e2e8f0; padding-bottom:24px; }
+    #gdp-invoice-print > div:first-child > div:last-child { text-align:right; }
+    #gdp-invoice-print h2,#gdp-invoice-print h3 { font-size:22px; line-height:1.15; margin:0 0 4px; font-weight:700; }
+    #gdp-invoice-print p { margin:3px 0; line-height:1.35; }
+    #gdp-invoice-print > div:nth-child(2) { display:grid; grid-template-columns:1fr 1fr; gap:24px; padding:24px 0; }
+    #gdp-invoice-print > div:nth-child(2) > div:last-child { text-align:right; }
+    #gdp-invoice-print table { width:100%; border-collapse:collapse; margin-top:4px; }
+    #gdp-invoice-print thead { background:#1e293b; color:#fff; }
+    #gdp-invoice-print th { padding:10px 12px; }
+    #gdp-invoice-print th:first-child { text-align:left; }
+    #gdp-invoice-print th:not(:first-child) { text-align:right; }
+    #gdp-invoice-print td { padding:9px 0; border-bottom:1px solid #e5e7eb; }
+    #gdp-invoice-print td:not(:first-child) { text-align:right; }
+    #gdp-invoice-print > div:nth-child(4) { margin:20px 0 0 auto; max-width:285px; }
+    #gdp-invoice-print > div:nth-child(4) > div { display:flex; justify-content:space-between; margin:8px 0; }
+    #gdp-invoice-print > div:nth-child(4) > div:last-child { border-top:1px solid #cbd5e1; padding-top:12px; font-size:16px; font-weight:700; }
+    #gdp-invoice-print > div:nth-child(5) { margin-top:22px; border-top:1px solid #d1d5db; padding-top:12px; }
+    #gdp-invoice-print .invoice-print-footer { margin:18px 0 0 !important; padding:0 !important; background:none !important; border:0 !important; min-height:0 !important; height:auto !important; white-space:pre-line; }
+    #gdp-invoice-print input,#gdp-invoice-print textarea,#gdp-invoice-print button { display:none!important; }
+    #gdp-invoice-print tr { break-inside:avoid; }
+    @media print { body { margin:0 !important; } }
+  `;
   doc.open();
-  doc.write('<!doctype html><html><head><meta charset="utf-8"><base href="' +
-    document.baseURI.replace(/"/g, "&quot;") + '">' + styles +
-    '<style>@page{size:auto;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}html,body{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important}#gdp-invoice-print{position:static!important;width:100%!important;max-width:none!important;box-shadow:none!important;border-radius:0!important;padding:0!important;margin:0!important}#gdp-invoice-print textarea,#gdp-invoice-print input,#gdp-invoice-print button{display:none!important}#gdp-invoice-print .invoice-print-footer{display:block!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0!important;height:auto!important;max-height:none!important;padding:0!important;margin:18px 0 0!important;white-space:pre-line!important;break-inside:avoid!important}#gdp-invoice-print .invoice-print-footer::before,#gdp-invoice-print .invoice-print-footer::after{display:none!important;content:none!important}tr{break-inside:avoid}</style>' +
-    '</head><body>' + source.outerHTML + '</body></html>');
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>GDP invoice</title><style>' + printCss + '</style></head><body>' + source.outerHTML + '</body></html>');
   doc.close();
   let printed = false;
   const runPrint = () => {
