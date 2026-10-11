@@ -58,31 +58,33 @@ const printInvoiceDocument = () => {
   // Do not copy the admin application's print CSS or pseudo-elements into the
   // isolated invoice frame. They can introduce a full-width gray editor panel.
   const printCss = `
-    @page { size: auto; margin: 12mm; }
+    @page { size: letter portrait; margin: 13mm 15mm; }
     * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    html,body { margin:0; padding:0; background:#fff !important; color:#111827; font-family:Arial,Helvetica,sans-serif; font-size:12px; }
+    html,body { margin:0; padding:0; background:#fff !important; color:#111827; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.45; }
     #gdp-invoice-print { width:100%; padding:0; margin:0; background:#fff; box-shadow:none; border:0; }
     #gdp-invoice-print * { box-shadow:none !important; }
-    #gdp-invoice-print > div:first-child { display:flex; justify-content:space-between; gap:24px; border-bottom:2px solid #e2e8f0; padding-bottom:24px; }
+    #gdp-invoice-print > div:first-child { display:flex; justify-content:space-between; gap:28px; border-bottom:2px solid #e2e8f0; padding-bottom:28px; }
     #gdp-invoice-print > div:first-child > div:last-child { text-align:right; }
-    #gdp-invoice-print h2,#gdp-invoice-print h3 { font-size:22px; line-height:1.15; margin:0 0 4px; font-weight:700; }
-    #gdp-invoice-print p { margin:3px 0; line-height:1.35; }
-    #gdp-invoice-print > div:nth-child(2) { display:grid; grid-template-columns:1fr 1fr; gap:24px; padding:24px 0; }
+    #gdp-invoice-print h2,#gdp-invoice-print h3 { font-size:24px; line-height:1.2; margin:0 0 5px; font-weight:700; }
+    #gdp-invoice-print p { margin:4px 0; line-height:1.45; }
+    #gdp-invoice-print > div:nth-child(2) { display:grid; grid-template-columns:1fr 1fr; gap:28px; padding:28px 0; }
     #gdp-invoice-print > div:nth-child(2) > div:last-child { text-align:right; }
     #gdp-invoice-print table { width:100%; border-collapse:collapse; margin-top:4px; }
     #gdp-invoice-print thead { background:#1e293b; color:#fff; }
-    #gdp-invoice-print th { padding:10px 12px; }
+    #gdp-invoice-print th { padding:11px 12px; }
     #gdp-invoice-print th:first-child { text-align:left; }
     #gdp-invoice-print th:not(:first-child) { text-align:right; }
-    #gdp-invoice-print td { padding:9px 0; border-bottom:1px solid #e5e7eb; }
+    #gdp-invoice-print td { padding:11px 0; border-bottom:1px solid #e5e7eb; }
     #gdp-invoice-print td:not(:first-child) { text-align:right; }
-    #gdp-invoice-print > div:nth-child(4) { margin:20px 0 0 auto; max-width:285px; }
-    #gdp-invoice-print > div:nth-child(4) > div { display:flex; justify-content:space-between; margin:8px 0; }
-    #gdp-invoice-print > div:nth-child(4) > div:last-child { border-top:1px solid #cbd5e1; padding-top:12px; font-size:16px; font-weight:700; }
-    #gdp-invoice-print > div:nth-child(5) { margin-top:22px; border-top:1px solid #d1d5db; padding-top:12px; }
-    #gdp-invoice-print .invoice-print-footer { margin:18px 0 0 !important; padding:0 !important; background:none !important; border:0 !important; min-height:0 !important; height:auto !important; white-space:pre-line; }
+    #gdp-invoice-print > div:nth-child(4) { margin:24px 0 0 auto; max-width:300px; }
+    #gdp-invoice-print > div:nth-child(4) > div { display:flex; justify-content:space-between; margin:9px 0; }
+    #gdp-invoice-print > div:nth-child(4) > div:last-child { border-top:1px solid #cbd5e1; padding-top:13px; font-size:17px; font-weight:700; }
+    #gdp-invoice-print > div:nth-child(5) { margin-top:26px; border-top:1px solid #d1d5db; padding-top:14px; }
+    #gdp-invoice-print .invoice-print-footer { margin:20px 0 0 !important; padding:0 !important; background:none !important; border:0 !important; min-height:0 !important; height:auto !important; white-space:pre-line; }
     #gdp-invoice-print input,#gdp-invoice-print textarea,#gdp-invoice-print button { display:none!important; }
-    #gdp-invoice-print tr { break-inside:avoid; }
+    #gdp-invoice-print thead { display:table-header-group; } 
+    #gdp-invoice-print tr { break-inside:avoid; page-break-inside:avoid; }
+    #gdp-invoice-print > div:first-child, #gdp-invoice-print > div:nth-child(2), #gdp-invoice-print > div:nth-child(4), #gdp-invoice-print > div:nth-child(5) { break-inside:avoid; }
     @media print { body { margin:0 !important; } }
   `;
   doc.open();
