@@ -36,6 +36,42 @@ Review head at runbook creation: `18d2939065d2b395ae6abb8ee278fa6b33a29798` (rec
 5. Verify local migration `20261011043000_invoice_issued_terms_snapshot.sql` and local concurrency QA passed, including frozen `invoice_due_date` and `invoice_payment_terms` (screenshot from 2026-10-11).
 6. Obtain explicit approval for production migration execution. Do not infer permission from `DEPLOYPREP`.
 
+## Atomic bundle generation and rehearsal (local-only)
+
+PR #481 includes a deterministic generator and a one-command QA runner. These commands
+**never target hosted Supabase** and must run against the existing local Docker database
+`supabase_db_gdp-clothing` with its migration set already applied:
+
+```powershell
+cd $HOME\gdp-clothing
+git pull --ff-only
+node .\scripts\invoice-local-atomic-bundle-qa.mjs
+```
+
+The runner prepares an invoice-free baseline **inside a disposable local clone**
+named `gdp_invoice_atomic_<8 hex>`. It generates the SQL bundle and SHA-256 manifest
+from the 11 approved invoice migrations, injects a controlled exception immediately
+before COMMIT, and verifies no invoice schema survives the aborted transaction.
+It then applies the whole unmodified bundle in one transaction, verifies final RLS,
+uniqueness, MFA AAL2 and payment-date snapshots, and runs two overlapping issuance
+requests with a single ledger result. The clone, dump and temporary files are removed
+even after a failure. Failure to delete the clone is explicitly reported.
+
+Expected last line on successful local validation:
+`FINAL RESULT: ATOMIC INVOICE BUNDLE QA PASSED (LOCAL ONLY; NOT DEPLOYED).`
+
+**Important:** This proves rollback/commit behavior using local PostgreSQL clients
+and a production-like invoice-free **schema** reconstructed from the local database.
+It is *not* a complete copy of the current hosted production environment and does not
+test deployment through the Supabase Management API. The hosted database's independent
+schema and migration-history differences still require production preflight. No package
+should be applied to production merely because this local test passed.
+
+To generate an auditable, *non-deployed* SQL + JSON SHA-256 manifest separately:
+`node .\scripts\invoice-build-atomic-bundle.mjs .\invoice-release-review`
+(keep this folder private, inspect hashes, and do not commit generated artifacts
+or use a blanket `supabase db push`).
+
 ## Controlled database-FIRST rollout (after approval)
 **ATOMIC ALL-OR-NOTHING ROLLOUT REQUIRED.** The intermediate migrations include temporary official-issuance RPC definitions with a weaker MFA gate (the admin enrollment-grace helper), superseded by the final strict JWT AAL2 guards. Applying the 11 scripts as separately committed production migrations could briefly expose those intermediate RPCs to authenticated callers. **Do not deploy them one by one.**
 
