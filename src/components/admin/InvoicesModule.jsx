@@ -16,6 +16,26 @@ const hasConsistentTotals = (order) => {
     hasTaxSplit(order) && Math.abs(subtotal-discount+shipping+tax-total)<0.02;
 };
 const readyForInvoiceDocument = (order) => hasValidItems(order) && hasConsistentTotals(order);
+const invoiceValidationMessage = (order) => {
+  if (!order) return "Invoice is unavailable.";
+  if (!Array.isArray(order.order_items) || order.order_items.length === 0)
+    return "No saved line items were found. Open the draft and add the original items.";
+  if (!hasValidItems(order))
+    return "Saved line items do not match the subtotal. Review item quantities and prices, then save the draft.";
+  if (!hasTaxSplit(order))
+    return "GST/HST and PST do not add up to the saved total tax. Review tax settings and save the draft.";
+  const subtotal = Number(order.subtotal);
+  const discount = Number(order.discount || 0);
+  const shipping = Number(order.shipping || 0);
+  const tax = Number(order.tax || 0);
+  const total = Number(order.total);
+  if (![subtotal, discount, shipping, tax, total].every(Number.isFinite))
+    return "One or more saved invoice amounts are invalid. Review and save the draft.";
+  const expected = subtotal - discount + shipping + tax;
+  if (!hasConsistentTotals(order))
+    return `Saved total ${cad(total)} does not match ${cad(expected)} calculated from subtotal ${cad(subtotal)} − discount ${cad(discount)} + shipping ${cad(shipping)} + tax ${cad(tax)}. Open Edit draft to reconcile and save the amounts before issuing.`;
+  return "";
+};
 const cleanDate = (value) => value ? new Date(value).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }) : "—";
 
 
@@ -228,7 +248,7 @@ export default function InvoicesModule() {
     finally {setDocumentSaving(false);}
   };
   const issue = async (order) => {
-    if (!readyForInvoiceDocument(order)) { setError("Invoice issuance blocked: line items, tax components, or totals are inconsistent. Reconcile the order first."); return; }
+    if (!readyForInvoiceDocument(order)) { setError(`Invoice issuance blocked: ${invoiceValidationMessage(order)}`); return; }
     if (!window.confirm("Issue this invoice permanently? Drafts will be activated without charging the customer. The invoice snapshot cannot be edited afterward.")) return;
     setIssuing(true);
     setError("");
@@ -294,8 +314,12 @@ export default function InvoicesModule() {
              "Invoice MFA: Not checked"}
           </span>
           <button type="button" onClick={()=>{void verifyInvoiceMfaSession();}} disabled={invoiceMfaStatus==="checking"} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50">Verify MFA session</button>
-          {selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled" || invoiceMfaStatus !== "verified"} title={invoiceMfaStatus !== "verified" ? "Verify an AAL2 authenticator session before issuing. This check does not issue any invoice." : undefined} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 text-black disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
-        {!hasValidItems(selected) && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 print:hidden">This historical draft has no items or an inconsistent subtotal. Printing and invoice issuance are blocked until its line items are restored. Open Draft Orders to repair the draft; do not invent item descriptions from its total.</div>}
+          {selected.status === "draft" && !issued[selected.id] && <button type="button" onClick={()=>setDocumentEditing(v=>!v)} className="rounded-lg bg-white px-3 py-2 text-black">Edit document layout</button>}{!issued[selected.id] && <button type="button" disabled={issuing || selected.status === "cancelled" || invoiceMfaStatus !== "verified"} title={invoiceMfaStatus !== "verified" ? "Verify an AAL2 authenticator session before issuing. This check does not issue any invoice." : undefined} onClick={() => issue(selected)} className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{issuing ? "Issuing…" : "Issue numbered invoice"}</button>}<button type="button" onClick={()=>printInvoiceDocument(false)} disabled={!readyForInvoiceDocument(selected)} title={!readyForInvoiceDocument(selected) ? "Reconcile missing line items, tax split, or totals before printing" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-black disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16}/> Print / Save PDF</button><button type="button" onClick={()=>printInvoiceDocument(true)} disabled={!readyForInvoiceDocument(selected)} className="rounded-lg bg-white px-3 py-2 text-black disabled:opacity-50" title="Compact 8.5 × 6 inch PDF for short invoices; long invoices may use additional pages">Compact PDF</button><button type="button" onClick={() => setSelected(null)} aria-label="Close preview" className="rounded-lg bg-white p-2 text-black"><X size={20}/></button></div>
+        {!readyForInvoiceDocument(selected) && !issued[selected.id] && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 print:hidden">
+          <p className="font-bold">Invoice totals need reconciliation before issuance</p>
+          <p className="mt-1">{invoiceValidationMessage(selected)}</p>
+          {selected.status === "draft" && <button type="button" className="mt-2 rounded border border-amber-700 bg-white px-3 py-2 font-semibold text-amber-950 hover:bg-amber-100" onClick={()=>{setSelected(null);setError("");openDraftEditor(selected);}}>Edit draft to fix amounts</button>}
+        </div>}
         {documentEditing && <div className="rounded-lg bg-white p-3 text-sm text-slate-700 print:hidden">Edit the highlighted fields directly on the invoice. Changes are only saved when you select Save layout.</div>}
         {documentEditing && <div className="flex justify-end gap-2 print:hidden"><button onClick={()=>{setDocumentMeta(savedDocumentMeta);setDocumentEditing(false);}} className="rounded bg-white px-4 py-2 text-slate-900">Cancel</button><button disabled={documentSaving} onClick={saveDocumentMeta} className="rounded bg-white px-4 py-2 font-semibold text-slate-900 disabled:opacity-50">{documentSaving?"Saving…":"Save layout"}</button></div>}
         {invoiceMfaStatus==="required" && <p role="alert" className="rounded-lg border border-amber-300 bg-white p-3 text-xs text-amber-900 print:hidden">Official issuance requires a verified AAL2 authenticator session. Complete the MFA challenge for your local admin account, then select Verify MFA session. Browsing the admin dashboard during enrollment grace does not count as invoice authorization.</p>}
