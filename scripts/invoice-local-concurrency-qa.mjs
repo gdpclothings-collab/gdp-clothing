@@ -37,8 +37,17 @@ function execDocker(args, task, { silent = false, allowFailure = false } = {}) {
   const output = (result.stdout || "") + "\n" + (result.stderr || "");
   if (result.error || result.status !== 0) {
     if (allowFailure) return false;
-    const detail = result.error?.message || output.trim().slice(-1800) || ("exit code " + result.status);
-    throw new Error(task + " failed: " + detail);
+    // pg_restore can print a multi-page CREATE FUNCTION after an error.
+    // Report the actual PostgreSQL error lines rather than the SQL tail.
+    const lines = output.split(/\r?\n/);
+    const diagnostic = lines
+      .filter((line) => /^(?:pg_restore: error:|pg_dump: error:|psql:.*ERROR:|ERROR:|FATAL:|DETAIL:|HINT:|pgbench: error:|createdb: error:|dropdb: error:)/i.test(line.trim()))
+      .slice(0, 8)
+      .map((line) => line.trim());
+    const detail = result.error?.message
+      || (diagnostic.length ? diagnostic.join("\n") : output.trim().slice(0, 1400))
+      || ("exit code " + result.status);
+    throw new Error(task + " failed (exit " + result.status + "):\n" + detail);
   }
   if (!silent && output.trim()) console.log(output.trim());
   return true;
