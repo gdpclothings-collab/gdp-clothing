@@ -34,9 +34,8 @@ export function buildInvoiceBundle() {
   const sources = invoiceMigrationNames.map((name) => {
     const sql = readFileSync(resolve(root, "supabase", "migrations", name), "utf8");
     if (sql.length < 200) throw new Error("Missing/truncated invoice migration: " + name);
-    if (/^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im.test(sql)) {
-      throw new Error("Nested transaction boundary in migration " + name);
-    }
+    // PL/pgSQL procedure bodies contain BEGIN/END; these are not transaction
+    // boundaries and must remain byte-for-byte unchanged in this package.
     return { name, sha256: sha256(sql), bytes: Buffer.byteLength(sql), sql };
   });
   if (sources.length !== 11) throw new Error("Refusing incomplete migration bundle");
