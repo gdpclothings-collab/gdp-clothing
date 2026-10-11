@@ -26,7 +26,7 @@ const printInvoiceDocument = (compact = false) => {
   const frame = document.createElement("iframe");
   frame.setAttribute("title", "GDP invoice print");
   frame.setAttribute("aria-hidden", "true");
-  frame.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
+  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:720px;height:2px;border:0;opacity:0;pointer-events:none";
   document.body.appendChild(frame);
   const doc = frame.contentDocument;
   if (!doc) { frame.remove(); return; }
@@ -114,7 +114,7 @@ const printInvoiceDocument = (compact = false) => {
           doc.getElementById("gdp-page-size").textContent =
             "@page { size: 215.9mm " + pageHeightMm + "mm; margin: 10mm 13mm; }";
         }
-        // Longer documents retain Letter so rows paginate without clipping.
+        // Longer documents retain Letter so rows paginate without clipping.\n        // The offscreen frame must have nonzero width so the measurement is realistic.
       }
     } finally {
       frame.contentWindow?.focus();
