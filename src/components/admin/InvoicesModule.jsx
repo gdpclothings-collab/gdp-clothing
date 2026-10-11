@@ -31,7 +31,7 @@ const printInvoiceDocument = (compact = false) => {
   const doc = frame.contentDocument;
   if (!doc) { frame.remove(); return; }
   // Print the saved values rather than controls from an unsaved editor session.
-  const source = invoice.cloneNode(true);
+  const source = /** @type {HTMLElement} */ (invoice.cloneNode(true));
   source.querySelectorAll("[data-print-value]").forEach((element) => {
     element.textContent = element.getAttribute("data-print-value") || "";
   });
@@ -133,8 +133,8 @@ export default function InvoicesModule() {
   const [activeActions,setActiveActions] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [documentEditing,setDocumentEditing] = useState(false);
-  const [savedDocumentMeta,setSavedDocumentMeta] = useState({});
-  const [documentMeta,setDocumentMeta] = useState({});
+  const [savedDocumentMeta,setSavedDocumentMeta] = useState(/** @type {Record<string, any>} */ ({}));
+  const [documentMeta,setDocumentMeta] = useState(/** @type {Record<string, any>} */ ({}));
   const [documentSaving,setDocumentSaving] = useState(false);
   const [documentDueDate,setDocumentDueDate] = useState("");
   const [editingDraft,setEditingDraft]=useState(null);
