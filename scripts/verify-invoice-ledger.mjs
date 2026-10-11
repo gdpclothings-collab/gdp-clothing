@@ -6,6 +6,7 @@ const ledger = readFileSync("supabase/migrations/20261010021500_admin_invoice_le
 const issuer = readFileSync("supabase/migrations/20261011033000_invoice_issuance_strict_aal2.sql", "utf8");
 const terms = readFileSync("supabase/migrations/20261011043000_invoice_issued_terms_snapshot.sql", "utf8");
 const ui = readFileSync("src/components/admin/InvoicesModule.jsx", "utf8");
+const sequenceHardening = readFileSync("supabase/migrations/20261011170000_invoice_sequence_least_privilege.sql", "utf8");
 
 test("official invoice ledger has unique invoice and order IDs", () => {
   assert.match(ledger, /order_id uuid not null unique/);
@@ -44,4 +45,12 @@ test("MFA review and issuance use separate, explicit confirmation controls", () 
   assert.match(ui, /requestIssueConfirmation/);
   assert.match(ui, /issue_admin_invoice_from_draft/);
   assert.match(ui, /predates immutable due-date snapshots/);
+});
+
+test("invoice sequence denies direct nextval/setval access to customer roles", () => {
+  assert.match(sequenceHardening, /REVOKE ALL PRIVILEGES ON SEQUENCE public\.gdp_invoice_number_seq/);
+  assert.match(sequenceHardening, /FROM PUBLIC, anon, authenticated/);
+  assert.match(sequenceHardening, /has_sequence_privilege\('anon','public\.gdp_invoice_number_seq','USAGE'\)/);
+  assert.match(sequenceHardening, /has_sequence_privilege\('authenticated','public\.gdp_invoice_number_seq','UPDATE'\)/);
+  assert.match(terms, /security definer/);
 });
