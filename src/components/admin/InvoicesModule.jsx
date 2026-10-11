@@ -41,18 +41,28 @@ const printInvoiceDocument = () => {
     const value = element.getAttribute("data-invoice-footer") || "";
     if (!value.trim()) { element.remove(); return; }
     const plain = doc.createElement("p");
-    plain.className = "mt-5 whitespace-pre-line text-sm";
+    plain.className = "invoice-print-footer";
     plain.textContent = value;
     element.replaceWith(plain);
   });
   source.querySelectorAll("[data-print-value]").forEach(element => { if(!element.textContent.trim()) element.remove(); });
   source.querySelectorAll("[data-print-value]").forEach(element=>element.removeAttribute("data-print-value"));
+  // Strip non-document descendants and normalize the footer to one compact text-only node.
+  source.querySelectorAll("textarea,input,button,[contenteditable],iframe").forEach(node=>node.remove());
+  const footerNodes=[...source.querySelectorAll("[data-invoice-footer]")];
+  footerNodes.forEach(node=>{
+    const text=node.getAttribute("data-invoice-footer")||"";
+    const plain=doc.createElement("p");
+    plain.className="invoice-print-footer";
+    plain.textContent=text;
+    node.replaceWith(plain);
+  });
   const styles = [...document.head.querySelectorAll('style,link[rel="stylesheet"]')]
     .map((node) => node.outerHTML).join("");
   doc.open();
   doc.write('<!doctype html><html><head><meta charset="utf-8"><base href="' +
     document.baseURI.replace(/"/g, "&quot;") + '">' + styles +
-    '<style>@page{size:auto;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}html,body{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important}#gdp-invoice-print{position:static!important;width:100%!important;max-width:none!important;box-shadow:none!important;border-radius:0!important;padding:0!important;margin:0!important}tr{break-inside:avoid}</style>' +
+    '<style>@page{size:auto;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}html,body{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important}#gdp-invoice-print{position:static!important;width:100%!important;max-width:none!important;box-shadow:none!important;border-radius:0!important;padding:0!important;margin:0!important}#gdp-invoice-print textarea,#gdp-invoice-print input,#gdp-invoice-print button{display:none!important}#gdp-invoice-print .invoice-print-footer{display:block!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0!important;height:auto!important;max-height:none!important;padding:0!important;margin:18px 0 0!important;white-space:pre-line!important;break-inside:avoid!important}#gdp-invoice-print .invoice-print-footer::before,#gdp-invoice-print .invoice-print-footer::after{display:none!important;content:none!important}tr{break-inside:avoid}</style>' +
     '</head><body>' + source.outerHTML + '</body></html>');
   doc.close();
   let printed = false;
