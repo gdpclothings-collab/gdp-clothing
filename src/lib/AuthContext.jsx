@@ -1,30 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { hydrateAuthUser } from "@/lib/hydrateAuthUser";
 import { supabase } from "@/lib/supabaseClient";
 
 const AuthContext = createContext(/** @type {any} */ (null));
 
-async function hydrateUser(authUser) {
-  if (!authUser) return null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, role, phone")
-    .eq("id", authUser.id)
-    .maybeSingle();
-
-  return {
-    ...authUser,
-    email: authUser.email,
-    display_name:
-      profile?.display_name ||
-      authUser.user_metadata?.full_name ||
-      authUser.user_metadata?.name ||
-      authUser.email?.split("@")[0] ||
-      "Customer",
-    role: profile?.role || "customer",
-    phone: profile?.phone || authUser.phone || null,
-  };
-}
+const hydrateUser = (authUser) => hydrateAuthUser(supabase, authUser);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
