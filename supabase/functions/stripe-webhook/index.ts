@@ -312,9 +312,8 @@ Deno.serve(async (req: Request) => {
         if (lookupError) throw lookupError;
         const welcome = String(existing?.discount_code || "").trim().toUpperCase() === "WELCOME10";
         if (welcome) {
-          if (Deno.env.get("WELCOME10_PROMO_ENABLED") !== "true") {
-            throw new Error("WELCOME10 paid order encountered while integration is disabled.");
-          }
+          // Disabling new WELCOME10 checkouts must NEVER strand a customer who
+          // already paid with a reservation. Existing paid orders are honored.
           const binding = verifyWelcomePaymentBinding({ event, order: existing, signatureVerified: true });
           if (!binding.verified && binding.reason === "checkout_session_confirmation_required") {
             // A standalone PaymentIntent event may precede checkout.session.completed.
