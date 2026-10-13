@@ -3,7 +3,7 @@
 // identity proof, and reconciliation are deployed and tested.
 export async function redeemWelcomeOrder({
   service, orderId, order, signedStripeEventVerified = false,
-  paymentLinkVerified = false, integrationEnabled = false,
+  paymentLinkVerified = false, integrationEnabled = false, signedPaidAt = null,
 }) {
   if (String(order?.discount_code || "").trim().toUpperCase() !== "WELCOME10") {
     return { handled: false, reason: "ordinary_coupon" };
@@ -11,11 +11,12 @@ export async function redeemWelcomeOrder({
   if (!integrationEnabled || !signedStripeEventVerified || !paymentLinkVerified) {
     return { handled: true, redeemed: false, reason: "welcome_not_ready" };
   }
-  if (!service?.rpc || !orderId || order?.id !== orderId || order?.payment_status !== "paid") {
+  if (!service?.rpc || !orderId || order?.id !== orderId || order?.payment_status !== "paid" ||
+      !signedPaidAt || !Number.isFinite(Date.parse(signedPaidAt))) {
     return { handled: true, redeemed: false, reason: "invalid_paid_order" };
   }
   try {
-    const { data, error } = await service.rpc("redeem_welcome10_coupon", { p_order_id: orderId });
+    const { data, error } = await service.rpc("redeem_welcome10_coupon", { p_order_id: orderId, p_signed_paid_at: signedPaidAt });
     if (error || data?.redeemed !== true) {
       return { handled: true, redeemed: false, reason: "reconciliation_required" };
     }
