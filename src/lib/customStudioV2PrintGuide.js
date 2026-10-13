@@ -4,14 +4,17 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
 }
 
-function garmentKind(product) {
+function garmentKind(product, size) {
   const token = [product?.name, product?.type, product?.category, product?.slug]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
 
   if (/(baby|bodysuit|onesie|infant)/.test(token)) return 'baby';
-  if (token.includes('toddler')) return 'toddler';
+  // Mixed Kids catalogs offer both toddler (2T-5T) and youth variants.
+  // Classify by the selected size before the generic Kids/Youth product name;
+  // otherwise a toddler tee gets a youth-sized, too-high neckline placement.
+  if (/^[2-5]T$/.test(normalizeSize(size)) || token.includes('toddler')) return 'toddler';
   if (/(youth|kids|kid)/.test(token)) return 'youth';
   if (/(hoodie|hooded)/.test(token)) return 'hoodie';
   if (/(crewneck|crew neck|sweatshirt|sweater)/.test(token) && !/(t-shirt|t shirt|tee|long sleeve)/.test(token)) return 'crewneck';
@@ -125,7 +128,7 @@ function configuredPreviewPrintArea(product, side) {
 }
 
 function resolveDisplayGeometry(product, size, side) {
-  const kind = garmentKind(product);
+  const kind = garmentKind(product, size);
   const defaults = DISPLAY_GEOMETRY[kind] || DISPLAY_GEOMETRY.adult;
   const bodyWidthIn =
     configuredBodyWidthIn(product, size, side) ||
