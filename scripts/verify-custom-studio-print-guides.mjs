@@ -57,4 +57,33 @@ if (!mockup.includes('resolveStudioV2PrintGuide(product, size, side)')) fail('Cu
 if (mockup.includes('canvas.width * 0.42')) fail('Legacy fixed 42% customer-mockup scale is still active.');
 if (!mockup.includes('printHeightIn / printWidthIn')) fail('Customer mockup is not preserving the physical print-area aspect ratio.');
 
+// Functional regression: a mixed Kids product must use the toddler neck/chest
+// calibration for 2T–5T without moving its YS/YM youth counterparts.
+const isolatedPrintGuide = helper.replace(
+  "import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';",
+  "const resolveStudioV2PrintProfile = (_product, size) => /^[2-5]T$/.test(String(size)) ? { widthIn: 5.5, heightIn: 5.5 } : { widthIn: 10.5, heightIn: 10.5 };"
+);
+const { resolveStudioV2PrintGuide } = await import(
+  `data:text/javascript;base64,${Buffer.from(isolatedPrintGuide).toString('base64')}`
+);
+const mixedKidsTee = { name: 'Kids Custom Tee', type: 'Kids' };
+for (const toddlerSize of ['2T', '3T', '4T', '5T']) {
+  const preview = resolveStudioV2PrintGuide(mixedKidsTee, toddlerSize, 'front');
+  if (preview.displayCalibration.garmentKind !== 'toddler' || preview.displayCalibration.topPercent !== 28) {
+    fail(`The ${toddlerSize} print box must sit at the toddler neckline-safe front offset.`);
+  }
+}
+const youthPreview = resolveStudioV2PrintGuide(mixedKidsTee, 'YS', 'front');
+if (youthPreview.displayCalibration.garmentKind !== 'youth' || youthPreview.displayCalibration.topPercent !== 25) {
+  fail('Youth sizes must retain their independent youth neckline alignment.');
+}
+const unchangedOverride = resolveStudioV2PrintGuide(
+  { ...mixedKidsTee, customization: { preview: { printArea: { front: { width: 22, top: 31 } } } } },
+  '2T',
+  'front'
+);
+if (unchangedOverride.displayCalibration.topPercent !== 31 || unchangedOverride.displayCalibration.printWidthPercent !== 22) {
+  fail('Explicit product mockup calibration must remain authoritative.');
+}
+
 console.log('Custom Studio recommended print guide verification passed.');
