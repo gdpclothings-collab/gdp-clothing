@@ -26,7 +26,15 @@ begin
     raise exception 'WELCOME_RESERVATION_EXPIRY_INVALID';
   end if;
 
-  -- Serializes ALL WELCOME10 reservations using the campaign row lock.
+  -- Lock order: ORDER then DISCOUNT. This matches the legacy redemption RPC.
+  -- The campaign row still serializes all WELCOME10 reservations.
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found or lower(btrim(coalesce(v_order.customer_email,''))) <> v_email
+     or upper(btrim(coalesce(v_order.discount_code,''))) <> 'WELCOME10'
+     or v_order.payment_status <> 'pending' then
+    raise exception 'WELCOME_ORDER_MISMATCH';
+  end if;
+
   select * into v_discount from public.discounts
   where id = p_discount_id for update;
   if not found or upper(btrim(v_discount.code)) <> 'WELCOME10'
@@ -35,13 +43,6 @@ begin
      or (v_discount.ends_at is not null and v_discount.ends_at < now())
      or v_discount.type <> 'percentage' or v_discount.value <> 10 then
     raise exception 'WELCOME_CAMPAIGN_UNAVAILABLE';
-  end if;
-
-  select * into v_order from public.orders where id = p_order_id for update;
-  if not found or lower(btrim(coalesce(v_order.customer_email,''))) <> v_email
-     or upper(btrim(coalesce(v_order.discount_code,''))) <> 'WELCOME10'
-     or v_order.payment_status <> 'pending' then
-    raise exception 'WELCOME_ORDER_MISMATCH';
   end if;
 
   -- Match BOTH verified email and user_id when available.
@@ -118,3 +119,5 @@ grant execute on function public.reserve_welcome10_coupon(uuid,uuid,timestamptz,
 -- 4. Current webhook logs coupon RPC errors; it must fail/alert safely for welcome redemptions.
 -- 5. Add a DB constraint/trigger against out-of-band WELCOME10 redemption paths.
 -- 6. Rehearse concurrent transactions and rollback in disposable PostgreSQL.
+-- 7. Audit every other RPC touching these rows for consistent lock ordering.
+-- 8. This lock-order change alone does not solve webhook identity proof or recovery.
