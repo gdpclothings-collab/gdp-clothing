@@ -1,0 +1,46 @@
+name: WELCOME10 Production Inactive Smoke
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/welcome10-live-safe-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production-disabled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check deployed checkout responds with promotion disabled
+        env:
+          EDGE_URL: https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --retry 2 --max-time 20 \
+            -H 'Content-Type: application/json' \
+            -H 'Origin: https://gdpclothing.ca' \
+            --data '{"action":"welcomePromotionStatus"}' \
+            "$EDGE_URL" > /tmp/welcome-status.json
+          node -e 'const d=require("/tmp/welcome-status.json"); if(d.enabled!==false){console.error(d);process.exit(1)} console.log("PASS: live WELCOME10 is inactive");'
+      - name: Verify WELCOME10 validation fails closed
+        env:
+          EDGE_URL: https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --retry 2 --max-time 20 \
+            -H 'Content-Type: application/json' \
+            -H 'Origin: https://gdpclothing.ca' \
+            --data '{"action":"validateCoupon","code":"WELCOME10","purchase":100}' \
+            "$EDGE_URL" > /tmp/welcome-validation.json
+          node -e 'const d=require("/tmp/welcome-validation.json"); if(d.active!==false||d.reason!=="promotion_not_enabled"){console.error(d);process.exit(1)} console.log("PASS: live WELCOME10 cannot be redeemed");'
+      - name: Verify ordinary invalid coupon still fails closed
+        env:
+          EDGE_URL: https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --retry 2 --max-time 20 \
+            -H 'Content-Type: application/json' \
+            -H 'Origin: https://gdpclothing.ca' \
+            --data '{"action":"validateCoupon","code":"GDP-NOT-A-REAL-CODE-20261013","purchase":100}' \
+            "$EDGE_URL" > /tmp/ordinary-validation.json
+          node -e 'const d=require("/tmp/ordinary-validation.json"); if(d.active!==false){console.error(d);process.exit(1)} console.log("PASS: unknown coupons remain ineligible");'
