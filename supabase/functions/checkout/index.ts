@@ -994,15 +994,16 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "welcomePromotionStatus") {
-      const enabled = Deno.env.get("WELCOME10_PROMO_ENABLED") === "true";
-      const campaign = enabled ? await getWelcomeCampaign(service) : null;
+      // The active discount row is the server-controlled switch. An inactive
+      // or missing campaign cannot be promoted, even if old frontend is cached.
+      const campaign = await getWelcomeCampaign(service);
       return respond(req, { enabled: Boolean(campaign) });
     }
 
     if (action === "validateCoupon") {
       const code = String(body?.code || "").trim().toUpperCase();
       const isWelcome = code === "WELCOME10";
-      if (isWelcome && Deno.env.get("WELCOME10_PROMO_ENABLED") !== "true") {
+      if (isWelcome && !(await getWelcomeCampaign(service))) {
         return respond(req, { active: false, reason: "promotion_not_enabled" });
       }
       if (isWelcome) {
@@ -1793,7 +1794,7 @@ Deno.serve(async (req: Request) => {
 
     const couponCode = String(body?.discountCode || customer.discountCode || "").trim().toUpperCase();
     const welcomeRequested = couponCode === "WELCOME10";
-    if (welcomeRequested && Deno.env.get("WELCOME10_PROMO_ENABLED") !== "true") {
+    if (welcomeRequested && !(await getWelcomeCampaign(service))) {
       return respond(req, { error: true, message: "WELCOME10 is not available yet." }, 400);
     }
     // A verified Supabase account is necessary to prove email ownership. Guest
