@@ -1,21 +1,27 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { customerApi } from "@/lib/customerApi";
 
-// Intentionally off until server-side first-order eligibility, discount cap,
-// and non-stacking checks have been verified and the coupon is activated.
-const ENABLED = import.meta.env.VITE_WELCOME10_ENABLED === "true";
 const KEY = "gdp-welcome10-dismissed-at";
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 export default function Welcome10Popup() {
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    if (!ENABLED || window.location.pathname !== "/") return;
-    try {
-      const last = Number(window.localStorage.getItem(KEY) || 0);
-      if (last && Date.now() - last < WEEK) return;
-    } catch { /* private browsing */ }
-    const timer = window.setTimeout(() => setOpen(true), 5000);
-    return () => window.clearTimeout(timer);
+    if (window.location.pathname !== "/") return;
+    let cancelled = false;
+    let timer;
+    // Runtime API check ensures a dormant campaign never displays an unusable code.
+    customerApi.getWelcome10Status().then(({ enabled }) => {
+      if (cancelled || !enabled) return;
+      try {
+        const last = Number(window.localStorage.getItem(KEY) || 0);
+        if (last && Date.now() - last < WEEK) return;
+      } catch { /* private browsing */ }
+      timer = window.setTimeout(() => {
+        if (!cancelled) setOpen(true);
+      }, 5000);
+    }).catch(() => {});
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, []);
   const dismiss = () => {
     setOpen(false);
@@ -35,7 +41,7 @@ export default function Welcome10Popup() {
         <p className="text-xs font-bold uppercase tracking-[.25em]">Good People. Dope Clothes.</p>
         <h2 id="welcome10-title" className="mt-5 text-3xl font-black uppercase">Welcome to GDP Clothing</h2>
         <p className="mt-3 text-4xl font-black">10% OFF</p>
-        <p className="mt-2">Your first eligible order. Maximum discount C$15. Cannot be combined with other offers.</p>
+        <p className="mt-2">Your first eligible order. Maximum discount C$15. Cannot be combined with other offers. Verified email sign-in required.</p>
         <div className="mt-5 rounded-lg border-2 border-dashed border-neutral-400 p-3 font-bold tracking-widest">WELCOME10</div>
         <button type="button" className="mt-3 text-sm underline" onClick={() => navigator.clipboard?.writeText("WELCOME10")}>Copy code</button>
         <Link to="/shop" onClick={dismiss} className="mt-5 block rounded-lg bg-black px-5 py-3 font-bold text-white">Shop now</Link>
