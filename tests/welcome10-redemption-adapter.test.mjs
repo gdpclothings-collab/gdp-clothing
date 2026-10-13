@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { redeemWelcomeOrder } from "../supabase/functions/stripe-webhook/welcome-redemption-adapter.mjs";
 const order = { id: "order-1", discount_code: "WELCOME10", payment_status: "paid" };
-const verified = { signedStripeEventVerified: true, paymentLinkVerified: true, integrationEnabled: true };
+const verified = { signedStripeEventVerified: true, paymentLinkVerified: true, integrationEnabled: true, signedPaidAt: "2026-10-12T18:00:00.000Z" };
 test("ordinary coupons are unaffected", async () => {
   const result = await redeemWelcomeOrder({ order: { ...order, discount_code: "SAVE5" } });
   assert.equal(result.handled, false);
@@ -25,7 +25,7 @@ test("paid order ID must match", async () => {
 test("dedicated RPC success", async () => {
   const service = { rpc: async (name, args) => {
     assert.equal(name, "redeem_welcome10_coupon");
-    assert.deepEqual(args, { p_order_id: order.id });
+    assert.deepEqual(args, { p_order_id: order.id, p_signed_paid_at: verified.signedPaidAt });
     return { data: { redeemed: true, existing: false } };
   }};
   const result = await redeemWelcomeOrder({ ...verified, service, order, orderId: order.id });
