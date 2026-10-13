@@ -1,0 +1,14 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { verifyWelcomePaymentBinding as verify } from "../supabase/functions/stripe-webhook/welcome-payment-binding.mjs";
+const order = { id:"order-1", payment_mode:"test", stripe_payment_intent_id:"pi_1", stripe_checkout_session_id:"cs_1" };
+const event = { id:"evt_1", type:"checkout.session.completed", livemode:false, data:{ object:{ id:"cs_1", payment_intent:"pi_1", payment_status:"paid", metadata:{order_id:"order-1"} } } };
+test("verified paid session matches",()=>assert.equal(verify({event,order,signatureVerified:true}).verified,true));
+test("unsigned event rejected",()=>assert.equal(verify({event,order}).verified,false));
+test("wrong order rejected",()=>assert.equal(verify({event,order:{...order,id:"other"},signatureVerified:true}).verified,false));
+test("wrong mode rejected",()=>assert.equal(verify({event,order:{...order,payment_mode:"live"},signatureVerified:true}).verified,false));
+test("wrong intent rejected",()=>assert.equal(verify({event,order:{...order,stripe_payment_intent_id:"pi_other"},signatureVerified:true}).verified,false));
+test("wrong session rejected",()=>assert.equal(verify({event,order:{...order,stripe_checkout_session_id:"cs_other"},signatureVerified:true}).verified,false));
+test("unpaid event rejected",()=>assert.equal(verify({event:{...event,data:{object:{...event.data.object,payment_status:"unpaid"}}},order,signatureVerified:true}).verified,false));
+test("unsupported event rejected",()=>assert.equal(verify({event:{...event,type:"charge.refunded"},order,signatureVerified:true}).verified,false));
+test("verified intent event matches",()=>assert.equal(verify({event:{id:"evt_2",type:"payment_intent.succeeded",livemode:false,data:{object:{id:"pi_1",metadata:{order_id:"order-1"}}}},order,signatureVerified:true}).verified,true));
