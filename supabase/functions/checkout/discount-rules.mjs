@@ -2,6 +2,8 @@ const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) *
 
 export function couponIsUsable(row, purchase = null) {
   if (!row || row.active !== true) return false;
+  // Fail closed until first-paid-order and guest redemption protections are implemented.
+  if (String(row.code || "").trim().toUpperCase() === "WELCOME10") return false;
   const now = Date.now();
   if (row.starts_at && new Date(row.starts_at).getTime() > now) return false;
   if (row.ends_at && new Date(row.ends_at).getTime() < now) return false;
