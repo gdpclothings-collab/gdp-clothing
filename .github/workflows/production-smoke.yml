@@ -98,6 +98,10 @@ jobs:
         if: success()
         run: node scripts/payment-preflight-smoke.mjs
       - name: Run authenticated admin smoke
+        id: admin_smoke
+        # Keep the security gate red if Cloudflare challenges automation, but do not
+        # suppress unrelated Custom Studio/checkout read-only regression coverage.
+        continue-on-error: true
         if: success() && env.GDP_ADMIN_SMOKE_EMAIL != '' && env.GDP_ADMIN_SMOKE_PASSWORD != ''
         run: node scripts/admin-authenticated-smoke.mjs
       - name: Note authenticated admin smoke not configured
@@ -163,6 +167,11 @@ jobs:
         run: |
           if [[ -f "${SMOKE_ARTIFACT_DIR}/report.json" ]] && jq -e '.mode == "maintenance"' "${SMOKE_ARTIFACT_DIR}/report.json" >/dev/null; then exit 0; fi
           node scripts/production-checkout-fast-start-smoke.mjs
+      - name: Enforce authenticated admin security smoke gate
+        if: always() && steps.admin_smoke.outcome == 'failure'
+        run: |
+          echo "::error title=Authenticated admin smoke blocked::Admin login verification failed or was challenged by Cloudflare. All independent canaries were still attempted; do not treat this run as an all-clear."
+          exit 1
       - name: Upload production smoke evidence
         if: always()
         uses: actions/upload-artifact@v5
