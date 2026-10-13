@@ -971,6 +971,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "validateCoupon") {
       const code = String(body?.code || "").trim().toUpperCase();
+      if (code === "WELCOME10") return respond(req, { active: false, reason: "promotion_not_enabled" });
       if (!code) return respond(req, { active: false, reason: "missing_code" });
 
       const { data } = await service
