@@ -4,6 +4,7 @@ import StoreNav from "./StoreNav";
 import StoreFooter from "./StoreFooter";
 import AIAssistant from "./AIAssistant";
 import CookiePreferences from "./CookiePreferences";
+import Welcome10Popup from "./Welcome10Popup";
 import ProductPageEnhancements from "./ProductPageEnhancements";
 import SeasonalMobileReviewEnhancer from "./SeasonalMobileReviewEnhancer";
 import SeasonalStudioRuntimeGuard from "./SeasonalStudioRuntimeGuard";
@@ -54,6 +55,7 @@ export default function Layout() {
       )}
       {!cartActive && <AIAssistant />}
       <CookiePreferences />
+      <Welcome10Popup />
     </div>
   );
 }

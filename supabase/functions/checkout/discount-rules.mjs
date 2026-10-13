@@ -2,6 +2,8 @@ const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) *
 
 export function couponIsUsable(row, purchase = null) {
   if (!row || row.active !== true) return false;
+  // Fail closed until first-paid-order and guest redemption protections are implemented.
+  if (String(row.code || "").trim().toUpperCase() === "WELCOME10") return false;
   const now = Date.now();
   if (row.starts_at && new Date(row.starts_at).getTime() > now) return false;
   if (row.ends_at && new Date(row.ends_at).getTime() < now) return false;
@@ -15,7 +17,9 @@ export function couponAmountForBase(coupon, eligibleSubtotal) {
   if (!coupon || base <= 0) return 0;
   if (coupon.type === "percentage") {
     const percent = Math.min(100, Math.max(0, Number(coupon.value || 0)));
-    return Math.min(base, roundMoney(base * (percent / 100)));
+    const calculated = roundMoney(base * (percent / 100));
+    // WELCOME10 is capped independently of other promotions.
+    return Math.min(base, String(coupon.code || "").trim().toUpperCase() === "WELCOME10" ? 15 : calculated, calculated);
   }
   if (coupon.type === "fixed") {
     return Math.min(base, Math.max(0, roundMoney(Number(coupon.value || 0))));

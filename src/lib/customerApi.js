@@ -451,9 +451,17 @@ export const customerApi = {
     return Array.isArray(data?.promotions) ? data.promotions : [];
   },
 
-  async validateCoupon(code, purchase = 0, items = []) {
+  async getWelcome10Status() {
     const { data, error } = await supabase.functions.invoke("checkout", {
-      body: { action: "validateCoupon", code, purchase, items },
+      body: { action: "welcomePromotionStatus" },
+    });
+    if (error) return { enabled: false };
+    return { enabled: data?.enabled === true };
+  },
+
+  async validateCoupon(code, purchase = 0, items = [], email = "") {
+    const { data, error } = await supabase.functions.invoke("checkout", {
+      body: { action: "validateCoupon", code, purchase, items, email },
     });
     if (error) throw error;
     return data;

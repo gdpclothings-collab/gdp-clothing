@@ -1,0 +1,63 @@
+name: WELCOME10 Unit Gates
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/checkout/**'
+      - 'supabase/functions/stripe-webhook/**'
+      - 'supabase/migrations/*welcome10*'
+      - 'tests/welcome10-*.test.mjs'
+      - 'tests/sql/welcome10-*'
+      - '.github/workflows/welcome10-unit-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  welcome10-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: WELCOME10 node tests
+        run: node --test tests/welcome10-*.test.mjs
+      - name: Inactive-by-default migration guard
+        run: |
+          grep -q "values ('WELCOME10','percentage',10,'all',false,0)" supabase/migrations/*welcome10*
+          grep -q "getWelcomeCampaign(service)" supabase/functions/checkout/index.ts
+
+  welcome10-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: welcome10_test
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d welcome10_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: welcome10_test
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm local database client
+        run: command -v psql && psql --version
+      - name: Create synthetic production-schema fixtures
+        run: psql -v ON_ERROR_STOP=1 -f tests/sql/welcome10-fixture.sql
+      - name: Apply real proposed WELCOME10 SQL migration to disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261013000000_welcome10_promotion.sql
+      - name: Validate reservation, redemption, RPC privileges and coupon compatibility
+        run: psql -v ON_ERROR_STOP=1 -f tests/sql/welcome10-migration-qa.sql
+      - name: Run concurrent live PostgreSQL reservation race
+        run: bash tests/sql/welcome10-concurrency.sh
