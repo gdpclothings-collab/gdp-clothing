@@ -1,0 +1,15 @@
+-- Review-only SQL test plan for welcome10-reconciliation.review.sql.
+-- Run ONLY against disposable PostgreSQL with the synthetic orders schema.
+-- 1. Insert paid WELCOME10 order with verified payment mode and intent.
+-- 2. Record event evt_1, then evt_2 for same order+intent: expect ONE row,
+--    attempt_count=2, original event evt_1 remains canonical.
+-- 3. Replay evt_1 for same order+intent: expect ONE row, attempt_count=3.
+-- 4. Reuse evt_1 for different order+intent: expect unique constraint failure.
+-- 5. Record same order with different intent not matching stored order: reject.
+-- 6. Mark row resolved and replay evt_2: expect unchanged resolved row.
+-- 7. Concurrent calls for evt_3 and evt_4 on same order+intent: expect ONE row,
+--    attempt_count increases twice, no unique-order-intent violation.
+-- 8. Confirm anon/authenticated roles cannot execute recorder or read queue.
+-- 9. Validate two events for same order+intent are not separately audited:
+--    canonical first event ID is retained, and no complete event history exists.
+-- 10. Verify recovery worker is NOT yet implemented; no automatic retry claims.
