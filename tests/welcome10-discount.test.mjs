@@ -23,7 +23,7 @@ test("fixed coupon behavior unchanged", () => {
 test("WELCOME10 checkout and popup are server-gated with excluded DTF items", () => {
   const checkout = readFileSync(new URL("../supabase/functions/checkout/index.ts",import.meta.url),"utf8");
   const popup = readFileSync(new URL("../src/components/storefront/Welcome10Popup.jsx",import.meta.url),"utf8");
-  assert.match(checkout,/WELCOME10_PROMO_ENABLED/);
+  assert.match(checkout,/getWelcomeCampaign\(service\)/);
   assert.match(checkout,/verifiedWelcomeAccount\(user, customer\.email\)/);
   assert.match(checkout,/normalizedItems\.filter\(\(item\) => !item\.discountExempt\)/);
   assert.match(checkout,/reserve_welcome10_coupon/);
