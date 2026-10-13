@@ -1737,6 +1737,10 @@ Deno.serve(async (req: Request) => {
     const quantityDiscount = roundMoney(Math.max(0, eligibleSubtotal - eligibleDiscounted));
 
     const couponCode = String(body?.discountCode || customer.discountCode || "").trim().toUpperCase();
+    // Explicitly reject this unfinished promotion rather than silently charging full price.
+    if (couponCode === "WELCOME10") {
+      return respond(req, { error: true, message: "WELCOME10 is not available yet." }, 400);
+    }
     const couponCandidate = (apparelPricing.allowCouponStacking || quantityDiscount <= 0)
       ? await getCoupon(service, couponCode)
       : null;
