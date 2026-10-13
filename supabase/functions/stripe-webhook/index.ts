@@ -1,5 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { handleStripeDispute } from "./disputes.ts";
+import { verifyWelcomePaymentBinding } from "./welcome-payment-binding.mjs";
+import { checkWelcomePaidOrderReservation } from "./welcome-redemption-preflight.mjs";
+import { redeemWelcomeOrder } from "./welcome-redemption-adapter.mjs";
+import { recordWelcomeReconciliation } from "./welcome-reconciliation.mjs";
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
@@ -106,7 +110,7 @@ async function finalizePaidOrder(
 ) {
   const { data: orderRecord, error: orderRecordError } = await service
     .from("orders")
-    .select("payment_mode,test_inventory_workflow")
+    .select("payment_mode,test_inventory_workflow,discount_code")
     .eq("id", orderId)
     .maybeSingle();
   if (orderRecordError) throw orderRecordError;
@@ -218,7 +222,10 @@ async function finalizePaidOrder(
 
   const shortages = Array.isArray(inventoryResult?.shortages) ? inventoryResult.shortages : [];
 
-  const { error: couponError } = applyCommerceWorkflow
+  // WELCOME10 may only use the dedicated verified-payment redemption path
+  // below. The generic legacy coupon RPC must never process WELCOME10.
+  const isWelcome = String(orderRecord.discount_code || "").trim().toUpperCase() === "WELCOME10";
+  const { error: couponError } = applyCommerceWorkflow && !isWelcome
     ? await service.rpc("redeem_order_coupon", { p_order_id: orderId })
     : { error: null };
   if (couponError) console.error("paid-order coupon redemption requires attention", couponError);
@@ -299,7 +306,57 @@ Deno.serve(async (req: Request) => {
         const paymentIntentId = isPaymentIntent
           ? String(paymentObject.id || "") || null
           : String(paymentObject.payment_intent || "") || null;
-        await finalizePaidOrder(service, String(orderId), matchedMode, paymentIntentId);
+        const { data: existing, error: lookupError } = await service.from("orders")
+          .select("id,discount_code,payment_mode,payment_status,stripe_checkout_session_id,stripe_payment_intent_id,test_inventory_workflow")
+          .eq("id", String(orderId)).maybeSingle();
+        if (lookupError) throw lookupError;
+        const welcome = String(existing?.discount_code || "").trim().toUpperCase() === "WELCOME10";
+        if (welcome) {
+          if (Deno.env.get("WELCOME10_PROMO_ENABLED") !== "true") {
+            throw new Error("WELCOME10 paid order encountered while integration is disabled.");
+          }
+          const binding = verifyWelcomePaymentBinding({ event, order: existing, signatureVerified: true });
+          if (!binding.verified && binding.reason === "checkout_session_confirmation_required") {
+            // A standalone PaymentIntent event may precede checkout.session.completed.
+            // Never finalize an unlinked WELCOME10 PaymentIntent based on metadata.
+            return respond({ received: true, awaiting_checkout_session: true });
+          }
+          if (!binding.verified || !paymentIntentId ||
+              paymentIntentId !== binding.paymentIntentId) {
+            throw new Error("WELCOME10 verified payment binding failed.");
+          }
+          await finalizePaidOrder(service, String(orderId), matchedMode, paymentIntentId);
+          const { data: paidOrder, error: paidError } = await service.from("orders")
+            .select("id,discount_code,payment_status,payment_mode,stripe_payment_intent_id")
+            .eq("id", String(orderId)).maybeSingle();
+          if (paidError || !paidOrder || paidOrder.payment_status !== "paid" ||
+              paidOrder.stripe_payment_intent_id !== binding.paymentIntentId) {
+            throw new Error("WELCOME10 persisted payment could not be verified.");
+          }
+          const preflight = await checkWelcomePaidOrderReservation({ service, order: paidOrder });
+          const redemption = preflight.ok
+            ? await redeemWelcomeOrder({
+                service, orderId: String(orderId), order: paidOrder,
+                signedStripeEventVerified: true, paymentLinkVerified: true,
+                integrationEnabled: true,
+              })
+            : { redeemed: false, reason: preflight.reason };
+          if (!redemption.redeemed) {
+            const journal = await recordWelcomeReconciliation({
+              service, orderId: String(orderId),
+              eventId: binding.eventId, paymentIntentId: binding.paymentIntentId,
+              paymentMode: matchedMode, reason: redemption.reason || "redemption_failed",
+              verifiedPaymentBinding: true, integrationEnabled: true,
+            });
+            console.error("WELCOME10 paid order needs reconciliation", {
+              orderId, recorded: journal.recorded, reason: redemption.reason,
+            });
+            // Return 5xx to retain Stripe's retry mechanism as an additional safety net.
+            throw new Error("WELCOME10 redemption requires reconciliation.");
+          }
+        } else {
+          await finalizePaidOrder(service, String(orderId), matchedMode, paymentIntentId);
+        }
       }
     }
 
