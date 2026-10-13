@@ -15,7 +15,9 @@ export function couponAmountForBase(coupon, eligibleSubtotal) {
   if (!coupon || base <= 0) return 0;
   if (coupon.type === "percentage") {
     const percent = Math.min(100, Math.max(0, Number(coupon.value || 0)));
-    return Math.min(base, roundMoney(base * (percent / 100)));
+    const calculated = roundMoney(base * (percent / 100));
+    // WELCOME10 is capped independently of other promotions.
+    return Math.min(base, String(coupon.code || "").trim().toUpperCase() === "WELCOME10" ? 15 : calculated, calculated);
   }
   if (coupon.type === "fixed") {
     return Math.min(base, Math.max(0, roundMoney(Number(coupon.value || 0))));
