@@ -10,6 +10,14 @@ import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { PASSWORD_POLICY_HINT, validatePassword } from "@/lib/passwordPolicy";
 import { privacyApi } from "@/lib/privacyApi";
+import {
+  REGISTRATION_REQUEST_TITLE,
+  REGISTRATION_REQUEST_SUBTITLE,
+  REGISTRATION_REQUEST_DESCRIPTION,
+  REGISTRATION_EXISTING_ACCOUNT_HINT,
+  VERIFICATION_RESEND_FEEDBACK,
+  registrationNextStep,
+} from "@/lib/registrationFeedback.mjs";
 
 const passwordChecks = [
   { label: "12+ characters", test: (value) => value.length >= 12 },
@@ -26,7 +34,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [confirmationSent, setConfirmationSent] = useState(false);
+  const [accountInstructions, setAccountInstructions] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -44,16 +52,17 @@ export default function Register() {
     setResendMessage("");
     try {
       const emailRedirectTo = new URL(returnTo, window.location.origin).toString();
-      const { error: resendError } = await supabase.auth.resend({
+      // Supabase can intentionally return the same result for a registered
+      // address. Neither an OK response nor a rejection proves email delivery.
+      await supabase.auth.resend({
         type: "signup",
-        email,
+        email: email.trim().toLowerCase(),
         options: { emailRedirectTo },
       });
-      if (resendError) throw resendError;
-      setResendMessage("Verification email sent again. Check your inbox and spam folder.");
-    } catch (err) {
-      setResendMessage(err?.message || "We could not resend the email yet. Please try again shortly.");
+    } catch {
+      // Do not expose account existence via different resend responses.
     } finally {
+      setResendMessage(VERIFICATION_RESEND_FEEDBACK);
       setResending(false);
     }
   };
@@ -100,7 +109,7 @@ export default function Register() {
           },
         },
       });
-      if (signUpError) throw signUpError;
+      const nextStep = registrationNextStep({ data, error: signUpError });
 
       if (data?.user?.id) {
         try {
@@ -114,11 +123,13 @@ export default function Register() {
         }
       }
 
-      if (data?.session) {
+      if (nextStep === "signed-in") {
         window.location.href = returnTo === "/" ? "/account" : returnTo;
         return;
       }
-      setConfirmationSent(true);
+      // Covers new signup, obfuscated existing-user response, and explicit
+      // duplicate signup errors without confirming who owns the address.
+      setAccountInstructions(true);
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {
@@ -126,12 +137,12 @@ export default function Register() {
     }
   };
 
-  if (confirmationSent) {
+  if (accountInstructions) {
     return (
       <AuthLayout
         icon={Mail}
-        title="Check your email"
-        subtitle="Verify your email to activate your GDP Clothing account"
+        title={REGISTRATION_REQUEST_TITLE}
+        subtitle={REGISTRATION_REQUEST_SUBTITLE}
         footer={
           <Link to="/login" className="text-primary font-semibold hover:underline">
             Back to log in
@@ -140,16 +151,27 @@ export default function Register() {
       >
         <div className="space-y-5 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
+            <Mail className="h-7 w-7" aria-hidden="true" />
           </div>
           <div className="space-y-2">
             <p className="text-sm text-foreground">
-              We sent a confirmation link to
+              {REGISTRATION_REQUEST_DESCRIPTION}
             </p>
-            <p className="break-all text-sm font-semibold text-foreground">{email}</p>
+            <p className="break-all text-sm font-semibold text-foreground">{email.trim().toLowerCase()}</p>
             <p className="text-xs leading-5 text-muted-foreground">
-              Open the message from GDP Clothing, confirm your email, then you will continue to your account or return to the page you were using.
+              {REGISTRATION_EXISTING_ACCOUNT_HINT}
             </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Link to={returnTo === "/" ? "/login" : "/login?returnTo=" + encodeURIComponent(returnTo)}
+              className="flex min-h-11 items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
+              Sign in
+            </Link>
+            <Link to="/forgot-password"
+              className="flex min-h-11 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground">
+              Forgot password?
+            </Link>
           </div>
 
           <Button
@@ -162,12 +184,12 @@ export default function Register() {
             {resending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sending...
+                Requesting...
               </>
             ) : (
               <>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Resend verification email
+                Request verification email again
               </>
             )}
           </Button>

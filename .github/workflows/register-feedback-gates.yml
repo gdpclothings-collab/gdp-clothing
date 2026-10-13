@@ -1,0 +1,27 @@
+name: Registration Privacy Regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/Register.jsx'
+      - 'src/lib/registrationFeedback.mjs'
+      - 'src/pages/Login.jsx'
+      - 'src/pages/ForgotPassword.jsx'
+      - 'tests/register-feedback.test.mjs'
+      - '.github/workflows/register-feedback-gates.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  registration-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify registration guidance helper syntax
+        run: node --check src/lib/registrationFeedback.mjs
+      - name: Run repeat signup, safe resend, login and recovery regressions
+        run: node --test tests/register-feedback.test.mjs
