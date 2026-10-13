@@ -309,6 +309,30 @@ async function getCoupon(service: any, code: string) {
   return couponIsUsable(data) ? data : null;
 }
 
+// WELCOME10 is gated by a server-side setting, never by a browser flag.
+function welcomeCampaignUsable(row: any, purchase: number | null = null) {
+  if (!row || String(row.code || "").trim().toUpperCase() !== "WELCOME10" ||
+      row.active !== true || row.type !== "percentage" || Number(row.value) !== 10 ||
+      row.applies_to !== "all") return false;
+  const now = Date.now();
+  if (row.starts_at && new Date(row.starts_at).getTime() > now) return false;
+  if (row.ends_at && new Date(row.ends_at).getTime() < now) return false;
+  if (row.usage_limit != null && Number(row.usage_count || 0) >= Number(row.usage_limit)) return false;
+  if (purchase != null && row.min_purchase != null && purchase < Number(row.min_purchase)) return false;
+  return true;
+}
+
+async function getWelcomeCampaign(service: any) {
+  const { data, error } = await service.from("discounts").select("*").eq("code", "WELCOME10").maybeSingle();
+  if (error) throw error;
+  return welcomeCampaignUsable(data) ? data : null;
+}
+
+function verifiedWelcomeAccount(user: any, customerEmail: string) {
+  return Boolean(user?.id && user.email_confirmed_at &&
+    String(user.email || "").trim().toLowerCase() === String(customerEmail || "").trim().toLowerCase());
+}
+
 async function couponTargetProductIds(service: any, coupon: any, candidateProductIds: string[]) {
   const scope = String(coupon?.applies_to || "all");
   if (scope === "all") return null;
@@ -969,9 +993,29 @@ Deno.serve(async (req: Request) => {
       return respond(req, { promotions });
     }
 
+    if (action === "welcomePromotionStatus") {
+      const enabled = Deno.env.get("WELCOME10_PROMO_ENABLED") === "true";
+      const campaign = enabled ? await getWelcomeCampaign(service) : null;
+      return respond(req, { enabled: Boolean(campaign) });
+    }
+
     if (action === "validateCoupon") {
       const code = String(body?.code || "").trim().toUpperCase();
-      if (code === "WELCOME10") return respond(req, { active: false, reason: "promotion_not_enabled" });
+      const isWelcome = code === "WELCOME10";
+      if (isWelcome && Deno.env.get("WELCOME10_PROMO_ENABLED") !== "true") {
+        return respond(req, { active: false, reason: "promotion_not_enabled" });
+      }
+      if (isWelcome) {
+        const account = await optionalUser(req, supabaseUrl, anonKey);
+        if (!verifiedWelcomeAccount(account, String(body?.email || ""))) {
+          return respond(req, { active: false, reason: "verified_account_required" });
+        }
+        const { count, error: historyError } = await service.from("orders").select("id", { count: "exact", head: true })
+          .eq("payment_status", "paid").or(`customer_email.ilike.${account.email},user_id.eq.${account.id}`);
+        if (historyError || (count ?? 1) > 0) {
+          return respond(req, { active: false, reason: historyError ? "eligibility_unavailable" : "not_first_order" });
+        }
+      }
       if (!code) return respond(req, { active: false, reason: "missing_code" });
 
       const { data } = await service
@@ -981,9 +1025,9 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       const purchase = Math.max(0, Number(body?.purchase || 0));
-      const currentlyUsable = couponIsUsable(data);
+      const currentlyUsable = isWelcome ? welcomeCampaignUsable(data) : couponIsUsable(data);
       const eligibleSubtotal = data ? await previewCouponBase(service, data, body?.items, purchase) : 0;
-      const active = currentlyUsable && eligibleSubtotal > 0 && couponIsUsable(data, eligibleSubtotal);
+      const active = currentlyUsable && eligibleSubtotal > 0 && (isWelcome ? welcomeCampaignUsable(data, eligibleSubtotal) : couponIsUsable(data, eligibleSubtotal));
 
       if (!active) {
         const reason = !currentlyUsable
@@ -1738,19 +1782,34 @@ Deno.serve(async (req: Request) => {
     const quantityDiscount = roundMoney(Math.max(0, eligibleSubtotal - eligibleDiscounted));
 
     const couponCode = String(body?.discountCode || customer.discountCode || "").trim().toUpperCase();
-    // Explicitly reject this unfinished promotion rather than silently charging full price.
-    if (couponCode === "WELCOME10") {
+    const welcomeRequested = couponCode === "WELCOME10";
+    if (welcomeRequested && Deno.env.get("WELCOME10_PROMO_ENABLED") !== "true") {
       return respond(req, { error: true, message: "WELCOME10 is not available yet." }, 400);
     }
-    const couponCandidate = (apparelPricing.allowCouponStacking || quantityDiscount <= 0)
-      ? await getCoupon(service, couponCode)
-      : null;
+    // A verified Supabase account is necessary to prove email ownership. Guest
+    // shoppers may continue to checkout without a coupon; WELCOME10 cannot
+    // be used until the guest completes passwordless email verification.
+    if (welcomeRequested && !verifiedWelcomeAccount(user, customer.email)) {
+      return respond(req, { error: true, message: "Please sign in with your verified email before using WELCOME10." }, 403);
+    }
+    if (welcomeRequested && quantityDiscount > 0) {
+      return respond(req, { error: true, message: "WELCOME10 cannot be combined with quantity discounts." }, 409);
+    }
+    const couponCandidate = welcomeRequested
+      ? await getWelcomeCampaign(service)
+      : (apparelPricing.allowCouponStacking || quantityDiscount <= 0)
+        ? await getCoupon(service, couponCode)
+        : null;
     const couponBase = couponCandidate
       ? await couponBaseForNormalizedItems(service, couponCandidate, normalizedItems)
       : 0;
-    const coupon = couponCandidate && couponBase > 0 && couponIsUsable(couponCandidate, couponBase)
+    const coupon = couponCandidate && couponBase > 0 &&
+      (welcomeRequested ? welcomeCampaignUsable(couponCandidate, couponBase) : couponIsUsable(couponCandidate, couponBase))
       ? couponCandidate
       : null;
+    if (welcomeRequested && !coupon) {
+      return respond(req, { error: true, message: "WELCOME10 is not available for this order." }, 409);
+    }
     let couponAmount = 0;
     let freeShipping = false;
 
@@ -1888,12 +1947,19 @@ Deno.serve(async (req: Request) => {
 
     if (coupon?.id) {
       const { error: couponReservationError } = await service.rpc(
-        "reserve_order_coupon",
-        {
-          p_order_id: order.id,
-          p_discount_id: coupon.id,
-          p_expires_at: reservationExpiresAt,
-        }
+        welcomeRequested ? "reserve_welcome10_coupon" : "reserve_order_coupon",
+        welcomeRequested
+          ? {
+              p_order_id: order.id,
+              p_discount_id: coupon.id,
+              p_expires_at: reservationExpiresAt,
+              p_verified_email: String(user.email).trim().toLowerCase(),
+            }
+          : {
+              p_order_id: order.id,
+              p_discount_id: coupon.id,
+              p_expires_at: reservationExpiresAt,
+            }
       );
       if (couponReservationError) {
         await releaseCheckoutReservations(service, order.id);
