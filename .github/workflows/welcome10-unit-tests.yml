@@ -1,0 +1,27 @@
+name: WELCOME10 Unit Gates
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/checkout/**'
+      - 'supabase/functions/stripe-webhook/**'
+      - 'supabase/migrations/*welcome10*'
+      - 'tests/welcome10-*.test.mjs'
+      - '.github/workflows/welcome10-unit-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  welcome10-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: WELCOME10 node tests
+        run: node --test tests/welcome10-*.test.mjs
+      - name: Inactive-by-default migration guard
+        run: |
+          grep -q "values ('WELCOME10','percentage',10,'all',false,0)" supabase/migrations/*welcome10*
+          grep -q "WELCOME10_PROMO_ENABLED" supabase/functions/checkout/index.ts
