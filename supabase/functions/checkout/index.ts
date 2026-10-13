@@ -1010,10 +1010,20 @@ Deno.serve(async (req: Request) => {
         if (!verifiedWelcomeAccount(account, String(body?.email || ""))) {
           return respond(req, { active: false, reason: "verified_account_required" });
         }
-        const { count, error: historyError } = await service.from("orders").select("id", { count: "exact", head: true })
-          .eq("payment_status", "paid").or(`customer_email.ilike.${account.email},user_id.eq.${account.id}`);
-        if (historyError || (count ?? 1) > 0) {
-          return respond(req, { active: false, reason: historyError ? "eligibility_unavailable" : "not_first_order" });
+        const [emailHistory, userHistory] = await Promise.all([
+          service.from("orders").select("id", { count: "exact", head: true })
+            .in("payment_status", ["paid", "refunded", "partially_refunded"])
+            .eq("customer_email", String(account.email).trim().toLowerCase()),
+          service.from("orders").select("id", { count: "exact", head: true })
+            .in("payment_status", ["paid", "refunded", "partially_refunded"])
+            .eq("user_id", account.id),
+        ]);
+        if (emailHistory.error || userHistory.error ||
+            (emailHistory.count ?? 1) > 0 || (userHistory.count ?? 1) > 0) {
+          return respond(req, {
+            active: false,
+            reason: (emailHistory.error || userHistory.error) ? "eligibility_unavailable" : "not_first_order",
+          });
         }
       }
       if (!code) return respond(req, { active: false, reason: "missing_code" });
@@ -1801,7 +1811,11 @@ Deno.serve(async (req: Request) => {
         ? await getCoupon(service, couponCode)
         : null;
     const couponBase = couponCandidate
-      ? await couponBaseForNormalizedItems(service, couponCandidate, normalizedItems)
+      ? await couponBaseForNormalizedItems(
+          service,
+          couponCandidate,
+          welcomeRequested ? normalizedItems.filter((item) => !item.discountExempt) : normalizedItems,
+        )
       : 0;
     const coupon = couponCandidate && couponBase > 0 &&
       (welcomeRequested ? welcomeCampaignUsable(couponCandidate, couponBase) : couponIsUsable(couponCandidate, couponBase))
