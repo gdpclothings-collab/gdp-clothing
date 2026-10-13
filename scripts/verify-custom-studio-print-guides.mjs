@@ -73,6 +73,16 @@ for (const toddlerSize of ['2T', '3T', '4T', '5T']) {
     fail(`The ${toddlerSize} print box must sit at the toddler neckline-safe front offset.`);
   }
 }
+// Both print sides follow the size-specific mockup family; the backend print
+// dimensions remain unchanged while the display box clears the collar.
+const toddlerBack = resolveStudioV2PrintGuide(mixedKidsTee, '2T', 'back');
+const youthBack = resolveStudioV2PrintGuide(mixedKidsTee, 'YS', 'back');
+if (toddlerBack.displayCalibration.garmentKind !== 'toddler' || toddlerBack.displayCalibration.topPercent !== 26) {
+  fail('Toddler back preview must use its separate neckline offset.');
+}
+if (youthBack.displayCalibration.garmentKind !== 'youth' || youthBack.displayCalibration.topPercent !== 24) {
+  fail('Youth back preview must retain its original neckline offset.');
+}
 const youthPreview = resolveStudioV2PrintGuide(mixedKidsTee, 'YS', 'front');
 if (youthPreview.displayCalibration.garmentKind !== 'youth' || youthPreview.displayCalibration.topPercent !== 25) {
   fail('Youth sizes must retain their independent youth neckline alignment.');
