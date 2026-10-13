@@ -276,10 +276,11 @@ begin
 
   select * into v_discount from public.discounts
   where code='WELCOME10' for update;
-  if not found or v_discount.active is not true
-     or v_discount.type <> 'percentage' or v_discount.value <> 10
+  -- Do not require active=true during redemption: paid reservations must
+  -- still be honored if the shop pauses this campaign after checkout.
+  if not found or v_discount.type <> 'percentage' or v_discount.value <> 10
      or v_discount.applies_to <> 'all' then
-    raise exception 'WELCOME_CAMPAIGN_NOT_ACTIVE';
+    raise exception 'WELCOME_CAMPAIGN_MISMATCH';
   end if;
 
   select * into v_existing from public.coupon_redemptions where order_id=p_order_id;
