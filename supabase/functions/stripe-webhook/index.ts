@@ -339,6 +339,8 @@ Deno.serve(async (req: Request) => {
                 service, orderId: String(orderId), order: paidOrder,
                 signedStripeEventVerified: true, paymentLinkVerified: true,
                 integrationEnabled: true,
+                signedPaidAt: Number.isFinite(Number(event.created)) && Number(event.created) > 0
+                  ? new Date(Number(event.created) * 1000).toISOString() : null,
               })
             : { redeemed: false, reason: preflight.reason };
           if (!redemption.redeemed) {
