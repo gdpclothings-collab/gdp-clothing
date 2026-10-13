@@ -9,20 +9,22 @@ export async function reserveWelcomeOrder({
   identityVerified,
   paidHistoryChecked,
   atomicIdentityConstraintEnabled,
+  verifiedEmail,
 }) {
   // Never call the legacy RPC for WELCOME10 without a database-enforced identity lock.
   if (!identityVerified || !paidHistoryChecked || !atomicIdentityConstraintEnabled) {
     return { reserved: false, reason: "welcome_reservation_not_secure" };
   }
-  if (!service?.rpc || !orderId || !discountId || !expiresAt) {
+  if (!service?.rpc || !orderId || !discountId || !expiresAt || !verifiedEmail) {
     return { reserved: false, reason: "invalid_reservation_input" };
   }
-  const { data, error } = await service.rpc("reserve_order_coupon", {
+  const { data, error } = await service.rpc("reserve_welcome10_coupon", {
     p_order_id: orderId,
     p_discount_id: discountId,
     p_expires_at: expiresAt,
+    p_verified_email: verifiedEmail,
   });
-  if (error) return { reserved: false, reason: "reservation_failed" };
+  if (error || data?.reserved !== true) return { reserved: false, reason: "reservation_failed" };
   // A successful RPC is meaningful only once its database implementation
   // atomically enforces welcome identity and paid-order history.
   return { reserved: true, data };
