@@ -18,15 +18,17 @@ begin
             and upper(btrim(coalesce(discount_code,'')))='WELCOME10') then
    raise exception 'WELCOME10_DEDICATED_RPC_REQUIRED';
  end if;
- update public.order_coupon_reservations
- set status='expired',released_at=now()
- where discount_id=p_discount_id and status='active' and expires_at<=now();
+ -- Serialize reservations on the discount row BEFORE expiring holds.
+ -- This removes the legacy reservation-row -> discount-row lock inversion.
  select * into v_discount from public.discounts where id=p_discount_id for update;
  if not found or v_discount.active is not true
     or (v_discount.starts_at is not null and v_discount.starts_at>now())
     or (v_discount.ends_at is not null and v_discount.ends_at<now()) then
    raise exception 'COUPON_NOT_AVAILABLE';
  end if;
+ update public.order_coupon_reservations
+ set status='expired',released_at=now()
+ where discount_id=p_discount_id and status='active' and expires_at<=now();
  if exists(select 1 from public.order_coupon_reservations where order_id=p_order_id) then
    return jsonb_build_object('reserved',true,'existing',true);
  end if;
