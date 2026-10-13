@@ -25,7 +25,7 @@ jobs:
       - name: Inactive-by-default migration guard
         run: |
           grep -q "values ('WELCOME10','percentage',10,'all',false,0)" supabase/migrations/*welcome10*
-          grep -q "WELCOME10_PROMO_ENABLED" supabase/functions/checkout/index.ts
+          grep -q "getWelcomeCampaign(service)" supabase/functions/checkout/index.ts
 
   welcome10-postgres:
     runs-on: ubuntu-latest
