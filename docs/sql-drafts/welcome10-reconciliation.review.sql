@@ -46,7 +46,10 @@ begin
   insert into public.welcome10_reconciliation
     (order_id,stripe_event_id,payment_intent_id,payment_mode,last_error_code)
   values (p_order_id,p_stripe_event_id,p_payment_intent_id,p_payment_mode,p_error_code)
-  on conflict (stripe_event_id) do update
+  -- Coalesce different Stripe event IDs for the same paid order and intent.
+  -- The first event ID remains the canonical identifier; an event ID reused
+  -- for another order still violates event_unique and fails closed.
+  on conflict (order_id,payment_intent_id) do update
     set attempt_count=public.welcome10_reconciliation.attempt_count+1,
         last_seen_at=now(),
         last_error_code=excluded.last_error_code
@@ -58,7 +61,8 @@ end $$;
 revoke all on function public.record_welcome10_reconciliation(uuid,text,text,text,text)
  from public,anon,authenticated;
 grant execute on function public.record_welcome10_reconciliation(uuid,text,text,text,text) to service_role;
--- REVIEW BLOCKERS: exact schema verification; conflict on order+intent from different
--- events requires explicit handling; trusted webhook caller must verify signature
+-- REVIEW BLOCKERS: exact schema verification; canonical first event ID does not
+-- provide a complete per-event audit; event-ID collision across orders must
+-- fail closed; trusted webhook caller must verify signature
 -- and order binding; recovery must be service-only, idempotent, audited, and
 -- require verified payment before invoking redeem_welcome10_coupon.
