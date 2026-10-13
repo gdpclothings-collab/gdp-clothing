@@ -29,7 +29,7 @@ Status: NO-GO. Integration code committed on isolated feature branch. No product
 
 ## Current implementation posture (2026-10-12)
 - Popup polls the checkout server's campaign status and remains invisible unless the server setting and an active database campaign both agree.
-- Checkout rejects WELCOME10 until WELCOME10_PROMO_ENABLED=true is set server-side. The campaign migration inserts the coupon inactive.
+- Checkout rejects WELCOME10 until the WELCOME10 row in public.discounts is active. The migration inserts the coupon inactive. This avoids requiring a separate Edge Function environment variable.
 - Only signed-in, email-confirmed Supabase users can currently use the code. Ordinary guest checkout is unchanged; discount eligibility for email-verified guest-only checkout remains a separate feature.
 - WELCOME10 excludes DTF/gang-sheet items and rejects other quantity discounts; capped at CAD $15.
 - The signed Stripe webhook handles WELCOME10 through a separately verified Checkout session and the dedicated redemption RPC. It queues failed redemptions for reconciliation and returns retryable 500.
