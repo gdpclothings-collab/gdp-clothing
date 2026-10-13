@@ -354,6 +354,15 @@ Deno.serve(async (req: Request) => {
             // Return 5xx to retain Stripe's retry mechanism as an additional safety net.
             throw new Error("WELCOME10 redemption requires reconciliation.");
           }
+          const { error: resolveError } = await service.rpc("resolve_welcome10_reconciliation", {
+            p_order_id: String(orderId),
+            p_payment_intent_id: binding.paymentIntentId,
+          });
+          if (resolveError) {
+            // Redemption itself has already committed. Never redeem a second time
+            // because a separate reconciliation status update failed.
+            console.error("WELCOME10 reconciliation resolution requires attention", resolveError);
+          }
         } else {
           await finalizePaidOrder(service, String(orderId), matchedMode, paymentIntentId);
         }
