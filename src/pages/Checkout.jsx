@@ -203,8 +203,15 @@ export default function Checkout() {
     if (!form.discountCode) return;
     setError("");
     try {
-      const data = await customerApi.validateCoupon(form.discountCode, discounted);
-      if (data?.active) setAppliedDiscount(data); else setError("Invalid or expired code.");
+      const data = await customerApi.validateCoupon(form.discountCode, discounted, [], form.email);
+      if (data?.active) {
+        setAppliedDiscount(data);
+      } else if (String(form.discountCode).trim().toUpperCase() === "WELCOME10" &&
+                 data?.reason === "verified_account_required") {
+        setError("Please sign in with a verified email to use WELCOME10.");
+      } else {
+        setError("Invalid, ineligible or expired code.");
+      }
     } catch { setError("Could not validate code."); }
   };
 
