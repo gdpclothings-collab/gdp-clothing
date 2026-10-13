@@ -12,7 +12,8 @@ export async function checkWelcomePaidOrderReservation({ service, order }) {
     .eq("order_id", order.id)
     .maybeSingle();
   if (error || !data) return { ok: false, reason: "reservation_missing" };
-  if (data.status === "consumed") return { ok: true, reason: "already_consumed" };
+  if (!data.discount_id) return { ok: false, reason: "reservation_discount_missing" };
+  if (data.status === "consumed") return { ok: true, reason: "already_consumed_requires_redemption_check" };
   if (data.status !== "active") return { ok: false, reason: "reservation_not_active" };
   if (!data.expires_at || !Number.isFinite(Date.parse(data.expires_at))) {
     return { ok: false, reason: "reservation_expiry_invalid" };
