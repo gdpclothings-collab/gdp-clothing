@@ -1,0 +1,52 @@
+name: WELCOME10 Short-Lived Sandbox Checkout Smoke
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/welcome10-short-testmode-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-sandbox-checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check promotion gate, guest restrictions and checkout configuration
+        env:
+          URL: https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const endpoint=process.env.URL;
+          async function post(body){
+            const response=await fetch(endpoint,{
+              method:'POST',headers:{'Content-Type':'application/json','Origin':'https://gdpclothing.ca'},
+              body:JSON.stringify(body),signal:AbortSignal.timeout(18000)
+            });
+            const data=await response.json();
+            return {status:response.status,data};
+          }
+          let enabled=false;
+          for(let i=0;i<45;i++){
+            const r=await post({action:'welcomePromotionStatus'});
+            if(r.status===200 && r.data.enabled===true){enabled=true;break;}
+            await new Promise(resolve=>setTimeout(resolve,2000));
+          }
+          assert.ok(enabled,'WELCOME10 activation test window never opened');
+          console.log('PASS: Server accepts active WELCOME10 campaign');
+          const guest=await post({action:'validateCoupon',code:'WELCOME10',purchase:34.99,email:'synthetic@example.invalid'});
+          assert.equal(guest.data.active,false);
+          assert.equal(guest.data.reason,'verified_account_required');
+          console.log('PASS: WELCOME10 cannot be claimed by unverified guest');
+          const config=await post({action:'checkoutConfig',amount:34.99,province:'Saskatchewan',postalCode:'S7K 0A1',shippingMethod:'pickup'});
+          assert.equal(config.status,200);
+          assert.equal(config.data.configured,true);
+          console.log('PASS: Checkout tax/shipping configuration responds');
+          const other=await post({action:'validateCoupon',code:'THIS-IS-NOT-A-COUPON',purchase:34.99});
+          assert.equal(other.data.active,false);
+          console.log('PASS: Invalid ordinary coupon remains rejected');
+          const badOrder=await post({action:'createOrder',cart:[],customer:{email:'synthetic@example.invalid'}});
+          assert.equal(badOrder.status,400);
+          console.log('PASS: Empty-cart checkout remains rejected');
+          JS
