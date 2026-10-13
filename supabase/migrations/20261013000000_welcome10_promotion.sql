@@ -255,7 +255,7 @@ grant execute on function public.record_welcome10_reconciliation(uuid,text,text,
 
 -- Webhook-only operation; verified signature, order binding and paid intent are checked in the webhook.
 -- Lock order always order -> campaign. Reservations serialize on campaign lock.
-create or replace function public.redeem_welcome10_coupon(p_order_id uuid)
+create or replace function public.redeem_welcome10_coupon(p_order_id uuid, p_signed_paid_at timestamptz)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   v_order public.orders%rowtype;
@@ -294,10 +294,12 @@ begin
   if not found or v_hold.discount_id<>v_discount.id or v_hold.status<>'active' then
     raise exception 'WELCOME_ACTIVE_RESERVATION_REQUIRED';
   end if;
-  -- Never silently approve an expired reservation; late signed Stripe confirmations
-  -- must be manually reconciled against the actual payment timestamp.
-  if v_hold.expires_at <= now() then
-    raise exception 'WELCOME_EXPIRED_RESERVATION_REVIEW_REQUIRED';
+  -- A signed Stripe event timestamp is supplied by the verified webhook, never
+  -- by the customer. Delayed webhook delivery alone must not invalidate a
+  -- payment completed before its reservation expired.
+  if p_signed_paid_at is null or p_signed_paid_at < v_hold.created_at
+     or p_signed_paid_at > v_hold.expires_at then
+    raise exception 'WELCOME_PAID_OUTSIDE_RESERVATION_REVIEW_REQUIRED';
   end if;
 
   if exists (
@@ -338,8 +340,8 @@ begin
   return jsonb_build_object('redeemed',true,'existing',false);
 end;
 $$;
-revoke all on function public.redeem_welcome10_coupon(uuid) from public,anon,authenticated;
-grant execute on function public.redeem_welcome10_coupon(uuid) to service_role;
+revoke all on function public.redeem_welcome10_coupon(uuid,timestamptz) from public,anon,authenticated;
+grant execute on function public.redeem_welcome10_coupon(uuid,timestamptz) to service_role;
 
 create or replace function public.resolve_welcome10_reconciliation(p_order_id uuid,p_payment_intent_id text)
 returns boolean language plpgsql security definer set search_path='' as $$
