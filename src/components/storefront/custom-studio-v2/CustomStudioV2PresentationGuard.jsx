@@ -49,6 +49,24 @@ export default function CustomStudioV2PresentationGuard() {
         const side = String(sideMatch?.[1] || 'front').toLowerCase();
         const clone = section.cloneNode(true);
 
+        // Seasonal art is rendered inside moveable buttons. Convert each layer
+        // to an inert positioned element BEFORE stripping editing controls,
+        // otherwise removing buttons also removes the customer's actual design.
+        clone.querySelectorAll('button[data-seasonal-v2-layer]').forEach((layer) => {
+          const staticLayer = clone.ownerDocument.createElement('div');
+          staticLayer.setAttribute('data-gdp-seasonal-review-artwork', 'true');
+          staticLayer.setAttribute('role', 'img');
+          const artworkLabel = (layer.getAttribute('aria-label') || 'Approved seasonal artwork').replace(/, selected$/i, '');
+          staticLayer.setAttribute('aria-label', artworkLabel);
+          staticLayer.className = String(layer.className || '')
+            .replace(/\\bring[^\\s]*/g, '')
+            .replace(/\\bcursor-move\\b/g, 'cursor-default')
+            .replace(/\\btouch-none\\b/g, '')
+            .trim();
+          staticLayer.style.cssText = layer.style.cssText;
+          while (layer.firstChild) staticLayer.appendChild(layer.firstChild);
+          layer.replaceWith(staticLayer);
+        });
         clone.querySelectorAll('button,input,select,textarea').forEach((node) => node.remove());
         clone.querySelectorAll('[data-gdp-print-guide="true"]').forEach((node) => {
           node.style.borderColor = 'transparent';
