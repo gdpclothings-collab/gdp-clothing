@@ -1,0 +1,46 @@
+name: GDP Studio Final Preview Chrome QA (temporary)
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  final-preview:
+    if: github.head_ref == 'fix/studio-final-review-print-guide-chrome-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      PRODUCTION_BASE_URL: https://fix-studio-final-review-prin.gdp-clothing.pages.dev
+      SMOKE_ARTIFACT_DIR: preview-print-guide-qa
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Assert print-guide presentation isolation
+        run: node scripts/verify-custom-studio-final-review-preview.mjs
+      - name: Install isolated browser runner
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify preview reachable
+        run: curl -fsSL --max-time 30 "$PRODUCTION_BASE_URL/custom-studio" -o /dev/null
+      - name: Test Upload Final Review on desktop and mobile
+        run: node scripts/custom-studio-final-review-smoke.mjs
+      - name: Test two-sided Upload Final Review
+        run: node scripts/custom-studio-final-review-two-sided-smoke.mjs
+      - name: Test Seasonal Final Review
+        run: node scripts/custom-studio-seasonal-final-review-smoke.mjs
+      - name: Test Bootleg and Memorial Final Review
+        run: node scripts/custom-studio-protected-final-review-smoke.mjs
+      - name: Upload screenshots and results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: print-guide-preview-qa
+          path: preview-print-guide-qa
+          if-no-files-found: ignore
+          retention-days: 3
