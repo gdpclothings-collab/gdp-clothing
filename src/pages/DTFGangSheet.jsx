@@ -40,6 +40,10 @@ import { advancedNestArtwork } from "@/lib/dtfNesting";
 import { downloadFilmPreview } from "@/lib/dtfFilmExport";
 import { dtfExportAuditApi } from "@/lib/dtfExportAuditApi";
 import { isDtfArtworkDeleteShortcut } from "@/lib/dtfKeyboardShortcuts";
+import {
+  createDtfDeleteSnapshot,
+  restoreDtfDeletedArtwork,
+} from "@/lib/dtfUndoDelete";
 import { customerApi } from "@/lib/customerApi";
 
 const round = (value, decimals = 2) => {
@@ -491,6 +495,42 @@ export default function DTFGangSheet() {
   const [editingArtwork, setEditingArtwork] = useState(false);
   const [filmUsageConfirmationOpen, setFilmUsageConfirmationOpen] = useState(false);
   const [activeCartKey, setActiveCartKey] = useState("");
+  const [undoDeletion, setUndoDeletion] = useState(null);
+  const undoDeletionRef = useRef(null);
+  const undoTimerRef = useRef(null);
+  const activeArtworksRef = useRef(artworks);
+  const activeModeRef = useRef(mode);
+  activeArtworksRef.current = artworks;
+  activeModeRef.current = mode;
+
+  const clearUndoDeletion = (token = null, restored = false) => {
+    const pending = undoDeletionRef.current;
+    if (!pending || (token && pending.token !== token)) return null;
+    if (undoTimerRef.current != null) window.clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = null;
+    undoDeletionRef.current = null;
+    setUndoDeletion(null);
+
+    // Only discard an object URL after the undo window; other copies may share it.
+    const previewUrl = pending.item.previewUrl;
+    const usedByCurrentMode = activeArtworksRef.current.some((item) => item.previewUrl === previewUrl);
+    const usedByOtherMode = Object.entries(modeWorkspacesRef.current).some(
+      ([workspaceMode, workspace]) =>
+        workspaceMode !== activeModeRef.current &&
+        workspace?.artworks?.some((item) => item.previewUrl === previewUrl)
+    );
+    if (!restored && previewUrl?.startsWith("blob:") && !usedByCurrentMode && !usedByOtherMode) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    return pending;
+  };
+
+  useEffect(() => () => {
+    if (undoTimerRef.current != null) window.clearTimeout(undoTimerRef.current);
+    const pending = undoDeletionRef.current;
+    if (pending?.item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(pending.item.previewUrl);
+    undoDeletionRef.current = null;
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -658,6 +698,7 @@ export default function DTFGangSheet() {
 
   const changeMode = (nextMode) => {
     if (nextMode === mode) return;
+    clearUndoDeletion();
     modeWorkspacesRef.current[mode] = { artworks, sheetWidth, sheetLength, selectedId };
     const restored = modeWorkspacesRef.current[nextMode];
     setMode(nextMode);
@@ -751,6 +792,7 @@ export default function DTFGangSheet() {
       });
     }
 
+    clearUndoDeletion();
     if (mode === "upload") {
       artworks.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
       setSheetWidth(34);
@@ -970,7 +1012,7 @@ export default function DTFGangSheet() {
 
     const previewIsShared = artworks.some(
       (item) => item.id !== targetId && item.previewUrl === previousPreviewUrl
-    );
+    ) || undoDeletionRef.current?.item.previewUrl === previousPreviewUrl;
     if (previousPreviewUrl && previousPreviewUrl !== nextPreviewUrl && !previewIsShared) {
       URL.revokeObjectURL(previousPreviewUrl);
     }
@@ -1083,22 +1125,42 @@ export default function DTFGangSheet() {
   };
 
   const removeArtwork = (artworkId) => {
-    const target = artworks.find((item) => item.id === artworkId);
-    if (!target) return;
+    const pending = createDtfDeleteSnapshot(artworks, artworkId, { mode, sheetWidth, sheetLength });
+    if (!pending) return;
 
+    // Only the most recently deleted item is undoable.
+    clearUndoDeletion();
     const next = artworks.filter((item) => item.id !== artworkId);
-    if (target.previewUrl && !next.some((item) => item.previewUrl === target.previewUrl)) {
-      URL.revokeObjectURL(target.previewUrl);
-    }
-
     setArtworks(next);
     setSelectedId((current) => (current === artworkId ? "" : current));
     setApproval(false);
     setPageError("");
-    if (!next.length) {
-      setArtworkReviewRequested(false);
-      setNotice("");
+    if (!next.length) setArtworkReviewRequested(false);
+    setNotice("");
+
+    // Keep the original File and preview URL alive until Undo expires.
+    undoDeletionRef.current = pending;
+    setUndoDeletion(pending);
+    undoTimerRef.current = window.setTimeout(() => clearUndoDeletion(pending.token), 10_000);
+  };
+
+  const undoDeletedArtwork = () => {
+    const pending = undoDeletionRef.current;
+    if (!pending) return;
+    const restored = restoreDtfDeletedArtwork(artworks, pending, mode);
+    if (!restored) {
+      clearUndoDeletion(pending.token);
+      return;
     }
+
+    clearUndoDeletion(pending.token, true);
+    setArtworks(restored);
+    setSheetWidth(pending.sheetWidth);
+    setSheetLength(pending.sheetLength);
+    setSelectedId(pending.item.id);
+    setApproval(false);
+    setPageError("");
+    setNotice("Artwork restored to its previous position, size and rotation.");
   };
 
   const removeSelected = () => {
@@ -1146,6 +1208,7 @@ export default function DTFGangSheet() {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     });
     modeWorkspacesRef.current = { build: null, upload: null };
+    clearUndoDeletion();
 
     dragRef.current = null;
     setSheetWidth(mode === "upload" ? 34 : settings.defaultWidth);
@@ -1406,6 +1469,7 @@ export default function DTFGangSheet() {
       return;
     }
 
+    clearUndoDeletion();
     setSaving(true);
     try {
       const uniqueFiles = [...new Set(artworks.map((item) => item.file).filter(Boolean))];
@@ -1568,6 +1632,29 @@ export default function DTFGangSheet() {
           <div className="mb-5 flex items-start gap-3 border border-red-300 bg-red-50 p-4 text-sm text-red-900">
             <AlertTriangle size={17} className="mt-0.5 shrink-0" />
             <div>{pageError}</div>
+          </div>
+        )}
+        {undoDeletion && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-4 right-4 z-[60] flex w-[calc(100%-2rem)] max-w-sm items-center gap-3 border border-white/20 bg-[#181818] p-3 text-white shadow-2xl sm:bottom-6 sm:right-6"
+          >
+            <Trash2 size={16} className="shrink-0 text-white/65" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold">Artwork deleted</div>
+              <div className="truncate text-[11px] text-white/60" title={undoDeletion.item.name}>
+                {undoDeletion.item.name} · Undo within 10 seconds
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={undoDeletedArtwork}
+              aria-label={`Undo deleting ${undoDeletion.item.name}`}
+              className="min-h-11 shrink-0 border border-white/35 px-3 text-xs font-black uppercase tracking-[0.05em] hover:bg-white hover:text-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              Undo
+            </button>
           </div>
         )}
         {notice && (
