@@ -149,6 +149,12 @@
   display: none !important;
 }
 
+/* Approval proof: never draw Step 3 measurement chrome over customer artwork. */
+[data-gdp-final-review-preview="true"] [data-gdp-print-size]::before {
+  content: none !important;
+  display: none !important;
+}
+
 [data-gdp-print-size]::before {
   content: attr(data-gdp-print-size);
   position: absolute;
