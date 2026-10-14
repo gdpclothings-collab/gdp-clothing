@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { parseSizeGuideRows, SIZE_GUIDE_FIELDS, sizeGuideIsDetailed } from '../src/lib/sizeGuideRows.js';
+import { parseSizeGuideRows, SIZE_GUIDE_FIELDS, sizeGuideIsDetailed, sizeGuideVisibleFields } from '../src/lib/sizeGuideRows.js';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const fail = (message) => { throw new Error(message); };
@@ -76,9 +76,14 @@ for (const token of ['onRowsChange', 'onNoteChange', 'Add size row', 'Size guide
   expect(sizeEditor.includes(token), `Missing admin measurement editor feature: ${token}`);
 }
 for (const token of [
-  'SIZE_GUIDE_FIELDS.map((field)',
+  'visibleFields.map((field)',
   'sizeGuideIsDetailed(normalizedRows)',
   'Charted sizes may not all be available to purchase.',
+  'data-gdp-size-guide-mobile',
+  'setSelectedChartSize(row.size)',
+  'aria-pressed={selectedRow?.size === row.size}',
+  'sm:hidden',
+  'hidden sm:block',
   'overflow-x-auto',
 ]) expect(panel.includes(token), `Missing responsive full-size guide feature: ${token}`);
 
@@ -96,8 +101,23 @@ const decoded = parseSizeGuideRows(JSON.stringify(rows));
 expect(decoded.length === 8 && decoded[0].size === 'S' && decoded[7].size === '5XL', 'All eight garment sizes must load.');
 expect(decoded[0].width === '20' && decoded[7].width === '34', 'Chest dimensions must be preserved.');
 expect(decoded[7].sleeve === '40 1/2' && decoded[1].sleeveTolerance === '+/- 3/4', 'Fractional sleeves and tolerances must survive serialization.');
-expect(SIZE_GUIDE_FIELDS.length === 6 && sizeGuideIsDetailed(decoded), 'Six measurement types must be visible.');
+expect(SIZE_GUIDE_FIELDS.length === 7 && sizeGuideIsDetailed(decoded), 'Six standard measurement types plus optional youth numerical sizes must be supported.');
+expect(sizeGuideVisibleFields(decoded).length === 6, 'Adult charts must show only their six supplied measurements.');
 expect(parseSizeGuideRows('S|20|27|33 1/2')[0].width === '20', 'Legacy size guides must remain compatible.');
 expect(!sizeGuideIsDetailed(parseSizeGuideRows('M|22|28|34 1/2')), 'Legacy size guides must preserve legacy table layout.');
+const youth = parseSizeGuideRows(JSON.stringify([
+  { size: 'XS', length: '20 1/2', lengthTolerance: '-/+ 1', chestTolerance: '-/+ 1', width: '16', numericalSizes: '4' },
+  { size: 'XL', length: '26 1/2', lengthTolerance: '-/+ 1', chestTolerance: '-/+ 1', width: '20', numericalSizes: '18-20' },
+]));
+expect(sizeGuideIsDetailed(youth) && youth[1].numericalSizes === '18-20', 'Youth numerical sizing must survive chart JSON parsing.');
+expect(sizeGuideVisibleFields(youth).length === 5, 'Youth charts must exclude unavailable sleeve measurements.');
+const toddler = parseSizeGuideRows(JSON.stringify([
+  { size: '2T', length: '15', lengthTolerance: '-/+ 1', chestTolerance: '-/+ 1', width: '11' },
+  { size: '6T', length: '19', lengthTolerance: '-/+ 1', chestTolerance: '-/+ 1', width: '15' },
+]));
+expect(sizeGuideVisibleFields(toddler).length === 4, 'Toddler chart must not render blank sleeve or numerical size rows.');
+expect(admin.includes('"numericalSizes"'), 'Admin must persist youth numerical size values.');
+expect(sizeEditor.includes('SIZE_GUIDE_FIELDS.map((field)'), 'Admin chart must render every supported measurement field.');
+
 
 console.log('Custom Studio garment information verification passed.');

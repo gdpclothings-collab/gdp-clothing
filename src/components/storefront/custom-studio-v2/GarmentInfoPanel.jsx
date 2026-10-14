@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { resolveColorSwatch } from '@/lib/colorSwatches';
-import { parseSizeGuideRows, SIZE_GUIDE_FIELDS, sizeGuideIsDetailed } from '@/lib/sizeGuideRows';
+import { parseSizeGuideRows, sizeGuideIsDetailed, sizeGuideVisibleFields } from '@/lib/sizeGuideRows';
 
 export const DTF_GARMENT_INFO_DEFAULTS = Object.freeze({
   printMethod: 'DTF',
@@ -124,6 +124,7 @@ function PanelButton({ icon: Icon, label, description, onClick }) {
 }
 
 function SizeGuide({ sizes, rows, note }) {
+  const [selectedChartSize, setSelectedChartSize] = useState('');
   const normalizedRows = rows.map((row) => ({
     ...row,
     size: cleanText(row?.size || row?.label),
@@ -132,49 +133,93 @@ function SizeGuide({ sizes, rows, note }) {
     sleeve: cleanText(row?.sleeve || row?.sleeveLength),
   })).filter((row) => row.size);
   const showDetailed = sizeGuideIsDetailed(normalizedRows);
+  const visibleFields = sizeGuideVisibleFields(normalizedRows);
+  const selectedRow = normalizedRows.find((row) => row.size === selectedChartSize) || normalizedRows[0];
+  const availableSizes = new Set(sizes.map((size) => String(size).toUpperCase()));
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {sizes.map((size) => <span key={size} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700">{size}</span>)}
-      </div>
-      {normalizedRows.length ? (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200" role="region" aria-label="Garment size measurements" tabIndex={0}>
-          {showDetailed ? (
-            <table className="w-full min-w-[860px] border-collapse text-left text-xs">
-              <caption className="sr-only">Garment measurements in inches by size. Charted sizes may not all be available to purchase.</caption>
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th scope="col" className="sticky left-0 z-10 min-w-[230px] border-r border-slate-200 bg-slate-50 px-3 py-3 font-black">Measurement (inches)</th>
-                  {normalizedRows.map((row) => <th key={row.size} scope="col" className="min-w-[75px] px-3 py-3 text-center font-black">{row.size}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {SIZE_GUIDE_FIELDS.map((field) => (
-                  <tr key={field.key} className="border-t border-slate-100">
-                    <th scope="row" className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3 font-semibold text-slate-700">{field.label}</th>
-                    {normalizedRows.map((row) => <td key={row.size} className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-600">{row[field.key] || '—'}</td>)}
-                  </tr>
+    <div className="min-w-0 space-y-4" data-gdp-size-guide="true">
+      {normalizedRows.length > 0 ? (
+        <>
+          {/* Mobile: a single-size measurement card instead of an 860px table. */}
+          <div className="space-y-3 sm:hidden" data-gdp-size-guide-mobile="true">
+            <p className="text-xs font-bold text-slate-600">Choose a chart size</p>
+            <div className="grid grid-cols-4 gap-2" role="group" aria-label="Select chart size">
+              {normalizedRows.map((row) => (
+                <button
+                  key={row.size}
+                  type="button"
+                  aria-pressed={selectedRow?.size === row.size}
+                  onClick={() => setSelectedChartSize(row.size)}
+                  className={`min-h-11 rounded-xl border px-2 text-xs font-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800 ${selectedRow?.size === row.size ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                >
+                  {row.size}
+                </button>
+              ))}
+            </div>
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200" aria-live="polite" aria-atomic="true">
+              <div className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-3">
+                <h4 className="text-sm font-black text-slate-900">Size {selectedRow?.size} · inches</h4>
+                {!availableSizes.has(String(selectedRow?.size || '').toUpperCase()) && (
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-500">Reference only</span>
+                )}
+              </div>
+              <dl className="divide-y divide-slate-100 px-3">
+                {visibleFields.map((field) => (
+                  <div key={field.key} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
+                    <dt className="min-w-0 text-[12px] font-semibold leading-5 text-slate-600">{field.label}</dt>
+                    <dd className="whitespace-nowrap text-right text-[13px] font-black text-slate-900">{selectedRow?.[field.key] || '—'}</dd>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          ) : (
-            <table className="w-full min-w-[520px] text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3 font-black">Size</th><th className="px-3 py-3 font-black">Width / chest</th><th className="px-3 py-3 font-black">Body length</th><th className="px-3 py-3 font-black">Sleeve</th></tr></thead>
-              <tbody>{normalizedRows.map((row) => <tr key={row.size} className="border-t border-slate-100"><td className="px-3 py-3 font-black text-slate-800">{row.size}</td><td className="px-3 py-3 text-slate-600">{row.width || '—'}</td><td className="px-3 py-3 text-slate-600">{row.length || '—'}</td><td className="px-3 py-3 text-slate-600">{row.sleeve || '—'}</td></tr>)}</tbody>
-            </table>
-          )}
+              </dl>
+            </div>
+          </div>
+
+          {/* Desktop/tablet: preserve the familiar full-width comparative chart. */}
+          <div className="hidden sm:block">
+            <p className="mb-2 text-xs font-semibold text-slate-500">Available garment sizes: {sizes.join(', ') || 'See product options'}</p>
+            <div className="overflow-x-auto rounded-2xl border border-slate-200" role="region" aria-label="Garment size measurements" tabIndex={0}>
+              {showDetailed ? (
+                <table className="w-full min-w-[860px] border-collapse text-left text-xs">
+                  <caption className="sr-only">Garment measurements in inches by size. Charted sizes may not all be available to purchase.</caption>
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th scope="col" className="sticky left-0 z-10 min-w-[230px] border-r border-slate-200 bg-slate-50 px-3 py-3 font-black">Measurement (inches)</th>
+                      {normalizedRows.map((row) => <th key={row.size} scope="col" className="min-w-[75px] px-3 py-3 text-center font-black">{row.size}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleFields.map((field) => (
+                      <tr key={field.key} className="border-t border-slate-100">
+                        <th scope="row" className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3 font-semibold text-slate-700">{field.label}</th>
+                        {normalizedRows.map((row) => <td key={row.size} className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-600">{row[field.key] || '—'}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full min-w-[520px] text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3 font-black">Size</th><th className="px-3 py-3 font-black">Width / chest</th><th className="px-3 py-3 font-black">Body length</th><th className="px-3 py-3 font-black">Sleeve</th></tr></thead>
+                  <tbody>{normalizedRows.map((row) => <tr key={row.size} className="border-t border-slate-100"><td className="px-3 py-3 font-black text-slate-800">{row.size}</td><td className="px-3 py-3 text-slate-600">{row.width || '—'}</td><td className="px-3 py-3 text-slate-600">{row.length || '—'}</td><td className="px-3 py-3 text-slate-600">{row.sleeve || '—'}</td></tr>)}</tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {sizes.map((size) => <span key={size} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700">{size}</span>)}
         </div>
-      ) : null}
+      )}
       <p className="text-xs font-medium leading-5 text-slate-500">{note}</p>
-      {showDetailed && <p className="text-xs leading-5 text-slate-500">Chart measurements are for reference only; available purchase sizes are shown above.</p>}
+      {normalizedRows.length > 0 && <p className="text-xs leading-5 text-slate-500">Chart measurements are for reference only; available purchase sizes are shown in the garment options.</p>}
     </div>
   );
 }
 function InfoDialog({ title, eyebrow, onClose, children }) {
   return (
     <div className="fixed inset-0 z-[90] grid items-end bg-slate-950/50 p-2 backdrop-blur-[2px] sm:place-items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-label={title} className="max-h-[88vh] w-full overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl sm:max-w-2xl sm:p-6">
+      <section role="dialog" aria-modal="true" aria-label={title} className="min-w-0 max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-[28px] bg-white p-4 pb-6 shadow-2xl sm:max-h-[88vh] sm:max-w-2xl sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{eyebrow}</p><h3 className="mt-1 text-xl font-black text-slate-950">{title}</h3></div>
           <button type="button" onClick={onClose} aria-label="Close garment information" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"><X size={18} /></button>

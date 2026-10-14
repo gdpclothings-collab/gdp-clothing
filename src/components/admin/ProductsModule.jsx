@@ -1490,7 +1490,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       if (sizeRows.length) {
         metafieldObject.size_guide_rows = JSON.stringify(sizeRows.map((row) => ({
           size: String(row.size || "").trim(),
-          ...Object.fromEntries(["length", "lengthTolerance", "chestTolerance", "width", "sleeve", "sleeveTolerance"].map((key) => [key, String(row[key] || "").trim()])),
+          ...Object.fromEntries(["length", "lengthTolerance", "chestTolerance", "width", "sleeve", "sleeveTolerance", "numericalSizes"].map((key) => [key, String(row[key] || "").trim()])),
         })));
       }
 
