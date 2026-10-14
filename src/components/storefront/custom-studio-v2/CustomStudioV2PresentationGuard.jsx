@@ -4,6 +4,7 @@ import './customStudioV2MobileRepair.css';
 import './customStudioV2ApprovalRefinement.css';
 import './photoBootlegLayerOrder.css';
 import './customStudioV2PresentationCleanup.css';
+import './customStudioV2Premium.css';
 
 /**
  * Presentation-only boundary for the rebuilt Custom Studio.
