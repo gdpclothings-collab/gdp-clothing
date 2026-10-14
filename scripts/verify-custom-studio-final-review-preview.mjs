@@ -33,6 +33,15 @@ assert(guard.includes('/live garment preview|fabric workspace/i'), 'Final Review
 assert(guard.includes("(guide.getAttribute('aria-label') || '').match(/\\b(front|back)\\b/i)"), 'front/back snapshot labels must come from the actual live print guide');
 assert(guard.includes('/drag with|drag to move|dashed fabric box|normalized geometry/i'), 'Final Review should omit the Seasonal edit gesture hint');
 
+assert(seasonalEditor.includes('data-seasonal-v2-layer'), 'Seasonal artwork uses movable button layers in Step 3');
+assert(guard.includes("clone.querySelectorAll('button[data-seasonal-v2-layer]')"), 'Seasonal artwork must be handled before generic editor buttons are removed');
+assert(guard.includes("staticLayer.setAttribute('data-gdp-seasonal-review-artwork', 'true');"), 'Approved artwork must stay visible in its inert Final Review preview');
+assert(guard.includes("staticLayer.style.cssText = layer.style.cssText;"), 'Approved artwork must preserve its exact Step 3 position, size and rotation');
+assert(guard.includes("while (layer.firstChild) staticLayer.appendChild(layer.firstChild);"), 'Approved artwork image must not be discarded with its draggable button');
+assert(guard.indexOf("clone.querySelectorAll('button[data-seasonal-v2-layer]')") < guard.indexOf("clone.querySelectorAll('button,input,select,textarea')"), 'Seasonal artwork must be converted before editor controls are stripped');
+assert(guard.includes(String.raw`/\\bring[^\\s]*/g`) === false, 'Do not escape regex boundaries twice when removing Seasonal selection rings');
+
+
 assert(guard.includes("reviewPreviewSnapshots.set(side, clone.outerHTML);"), 'approved preview snapshots must remain side-aware');
 assert(guard.includes("['front', 'back'].forEach((side) =>"), 'Final Review must preserve front/back ordering when both sides exist');
 
