@@ -89,6 +89,12 @@ async function inspect(browser, viewport) {
     const liveArtwork = await loadedImage(editorLayer.locator('img').first(), `${viewport.name}: live Seasonal artwork`);
     const originalPosition = await editorLayer.getAttribute('style');
 
+    // The measurement badge must remain available while positioning artwork in Step 3.
+    const editingBadge = page.locator('[data-gdp-premium-main-panel="true"] [data-gdp-print-size]').first();
+    await editingBadge.waitFor({ state: 'attached', timeout: 10000 });
+    assert((await editingBadge.getAttribute('data-gdp-print-size') || '').startsWith('Print size ·'),
+      'Step 3 must retain the editable garment print-size guide');
+
     const approvalCard = page.locator('[data-gdp-step3-unified-approval="true"]');
     const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
     await approvalCard.waitFor({ state: 'visible', timeout: 15000 });
