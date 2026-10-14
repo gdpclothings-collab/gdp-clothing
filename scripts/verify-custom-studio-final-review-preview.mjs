@@ -5,6 +5,7 @@ const pagePath = 'src/pages/CustomStudioV2.jsx';
 const guard = fs.readFileSync(guardPath, 'utf8');
 const page = fs.readFileSync(pagePath, 'utf8');
 const seasonalEditor = fs.readFileSync('src/components/storefront/custom-studio-v2/SeasonalEditorV2.jsx', 'utf8');
+const protectedEditor = fs.readFileSync('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', 'utf8');
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -50,6 +51,31 @@ assert(guard.includes("clone.querySelectorAll('button,input,select,textarea').fo
 assert(guard.includes("clone.querySelectorAll('[data-gdp-print-guide=\"true\"]')"), 'Final Review clone must sanitize print-guide UI');
 assert(guard.includes("node.style.borderColor = 'transparent';"), 'Final Review clone must hide print-guide border');
 assert(guard.includes("node.style.background = 'transparent';"), 'Final Review clone must keep garment/artwork visible without print-guide fill');
+
+assert(protectedEditor.includes("const isBootleg = path === 'bootleg';"), 'Bootleg needs the protected preview component');
+assert(protectedEditor.includes("const isMemorial = path === 'memorial';"), 'Memorial needs the same protected preview component');
+assert(protectedEditor.includes("data-gdp-bootleg-template-layer={isBootleg ? 'true' : undefined}"), 'Bootleg template remains in the live artwork composition');
+assert(protectedEditor.includes("data-gdp-memorial-template-layer={isMemorial ? 'true' : undefined}"), 'Memorial template remains in the live artwork composition');
+assert(protectedEditor.includes('data-gdp-bootleg-free-photo-layer'), 'Bootleg photo layers stay inside the preview');
+assert(protectedEditor.includes('data-gdp-memorial-free-photo-layer'), 'Memorial photo layers stay inside the preview');
+assert(protectedEditor.includes('data-gdp-bootleg-text-layer'), 'Bootleg text layers stay inside the preview');
+assert(protectedEditor.includes('data-gdp-memorial-text-layer'), 'Memorial text layers stay inside the preview');
+for (const selector of [
+  '[data-gdp-bootleg-template-layer]',
+  '[data-gdp-memorial-template-layer]',
+  '[data-gdp-bootleg-free-photo-layer]',
+  '[data-gdp-memorial-free-photo-layer]',
+  '[data-gdp-bootleg-text-layer]',
+  '[data-gdp-memorial-text-layer]',
+  '[data-gdp-sticker-layer-id]',
+]) assert(guard.includes(selector), 'Protected preview sanitizer is missing selector: ' + selector);
+assert(guard.includes("clone.querySelectorAll('[data-gdp-bootleg-text-bounds=\"true\"]').forEach((node) => node.remove());"), 'text editor selection rectangles must not appear in Final Review');
+assert(guard.includes(".replace(/\\b(?:active:)?ring[^\\s]*/g, '')"), 'protected artwork selection rings must not appear in Final Review');
+assert(guard.includes(".replace(/\\bcursor-(?:grab|grabbing|move)\\b/g, 'cursor-default')"), 'protected artwork cursors must be noninteractive in Final Review');
+assert(guard.includes('node.className = String(node.className ||'), 'protected artwork review cleanup must preserve each existing positioned node');
+assert(guard.includes('one finger moves|choose a layer first|tap a layer in the list'), 'protected preview must hide drag/pinch instructions');
+assert(guard.indexOf('const clone = section.cloneNode(true);') < guard.indexOf("clone.querySelectorAll('[data-gdp-bootleg-text-bounds"), 'protected preview cleanup must run on a clone instead of mutating the editable canvas');
+
 assert(guard.includes("clone.querySelectorAll('[data-gdp-upload-artwork-layer=\"true\"]')"), 'uploaded artwork selection chrome must be sanitized in Final Review');
 assert(guard.includes(".replace(/\\bring[^\\s]*/g, '')"), 'uploaded artwork selection ring must be removed from Final Review');
 assert(guard.includes("clonedHeading.textContent = `Final garment preview · ${side}`;"), 'Final Review snapshot side label must remain explicit');
