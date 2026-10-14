@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { parseSizeGuideRows, SIZE_GUIDE_FIELDS, sizeGuideIsDetailed } from '../src/lib/sizeGuideRows.js';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const fail = (message) => { throw new Error(message); };
@@ -60,5 +61,43 @@ expect(panel.includes('info.shippingInfo') && panel.includes('info.careInstructi
 
 expect(!page.includes('costPerItem ='), 'Garment information work must not introduce cost mutation in Custom Studio.');
 expect(!panel.includes('product.price ='), 'Garment information panel must remain read-only for pricing.');
+
+
+const admin = read('src/components/admin/ProductsModule.jsx');
+const sizeEditor = read('src/components/admin/SizeGuideEditor.jsx');
+for (const token of [
+  'sizeGuideRows: parseSizeGuideRows(productMetafields.size_guide_rows)',
+  'sizeGuideNote: productMetafields.size_guide_note',
+  'size_guide_rows = JSON.stringify(sizeRows',
+  '<SizeGuideEditor',
+  'size_guide_note: form.sizeGuideNote',
+]) expect(admin.includes(token), `Missing admin size-chart integration: ${token}`);
+for (const token of ['onRowsChange', 'onNoteChange', 'Add size row', 'Size guide note']) {
+  expect(sizeEditor.includes(token), `Missing admin measurement editor feature: ${token}`);
+}
+for (const token of [
+  'SIZE_GUIDE_FIELDS.map((field)',
+  'sizeGuideIsDetailed(normalizedRows)',
+  'Charted sizes may not all be available to purchase.',
+  'overflow-x-auto',
+]) expect(panel.includes(token), `Missing responsive full-size guide feature: ${token}`);
+
+const sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
+const rows = sizes.map((size, index) => ({
+  size,
+  length: String(27 + index),
+  lengthTolerance: '+/-1',
+  chestTolerance: '+/-1',
+  width: String(20 + index * 2),
+  sleeve: `${33 + index} 1/2`,
+  sleeveTolerance: '+/- 3/4',
+}));
+const decoded = parseSizeGuideRows(JSON.stringify(rows));
+expect(decoded.length === 8 && decoded[0].size === 'S' && decoded[7].size === '5XL', 'All eight garment sizes must load.');
+expect(decoded[0].width === '20' && decoded[7].width === '34', 'Chest dimensions must be preserved.');
+expect(decoded[7].sleeve === '40 1/2' && decoded[1].sleeveTolerance === '+/- 3/4', 'Fractional sleeves and tolerances must survive serialization.');
+expect(SIZE_GUIDE_FIELDS.length === 6 && sizeGuideIsDetailed(decoded), 'Six measurement types must be visible.');
+expect(parseSizeGuideRows('S|20|27|33 1/2')[0].width === '20', 'Legacy size guides must remain compatible.');
+expect(!sizeGuideIsDetailed(parseSizeGuideRows('M|22|28|34 1/2')), 'Legacy size guides must preserve legacy table layout.');
 
 console.log('Custom Studio garment information verification passed.');

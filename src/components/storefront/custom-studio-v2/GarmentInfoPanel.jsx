@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { resolveColorSwatch } from '@/lib/colorSwatches';
+import { parseSizeGuideRows, SIZE_GUIDE_FIELDS, sizeGuideIsDetailed } from '@/lib/sizeGuideRows';
 
 export const DTF_GARMENT_INFO_DEFAULTS = Object.freeze({
   printMethod: 'DTF',
@@ -72,24 +73,6 @@ function parseList(value, fallback) {
   return text.split(/\r?\n|\s*\|\s*/).map((item) => item.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
 }
 
-function parseSizeGuideRows(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
-  const text = cleanText(value);
-  if (!text) return [];
-  try {
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) return parsed.filter(Boolean);
-    if (Array.isArray(parsed?.rows)) return parsed.rows.filter(Boolean);
-  } catch {
-    // Fall through to the compact admin-friendly line format below.
-  }
-
-  return text.split(/\r?\n/).map((line) => {
-    const [size, width, length, sleeve] = line.split('|').map((part) => cleanText(part));
-    if (!size) return null;
-    return { size, width, length, sleeve };
-  }).filter(Boolean);
-}
 
 function resolveGarmentInfo(product) {
   const meta = product?.metafields || {};
@@ -142,11 +125,13 @@ function PanelButton({ icon: Icon, label, description, onClick }) {
 
 function SizeGuide({ sizes, rows, note }) {
   const normalizedRows = rows.map((row) => ({
+    ...row,
     size: cleanText(row?.size || row?.label),
     width: cleanText(row?.width || row?.chest || row?.chestWidth),
     length: cleanText(row?.length || row?.bodyLength),
     sleeve: cleanText(row?.sleeve || row?.sleeveLength),
   })).filter((row) => row.size);
+  const showDetailed = sizeGuideIsDetailed(normalizedRows);
 
   return (
     <div className="space-y-4">
@@ -154,18 +139,38 @@ function SizeGuide({ sizes, rows, note }) {
         {sizes.map((size) => <span key={size} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700">{size}</span>)}
       </div>
       {normalizedRows.length ? (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="w-full min-w-[520px] text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3 font-black">Size</th><th className="px-3 py-3 font-black">Width / chest</th><th className="px-3 py-3 font-black">Body length</th><th className="px-3 py-3 font-black">Sleeve</th></tr></thead>
-            <tbody>{normalizedRows.map((row) => <tr key={row.size} className="border-t border-slate-100"><td className="px-3 py-3 font-black text-slate-800">{row.size}</td><td className="px-3 py-3 text-slate-600">{row.width || '—'}</td><td className="px-3 py-3 text-slate-600">{row.length || '—'}</td><td className="px-3 py-3 text-slate-600">{row.sleeve || '—'}</td></tr>)}</tbody>
-          </table>
+        <div className="overflow-x-auto rounded-2xl border border-slate-200" role="region" aria-label="Garment size measurements" tabIndex={0}>
+          {showDetailed ? (
+            <table className="w-full min-w-[860px] border-collapse text-left text-xs">
+              <caption className="sr-only">Garment measurements in inches by size. Charted sizes may not all be available to purchase.</caption>
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th scope="col" className="sticky left-0 z-10 min-w-[230px] border-r border-slate-200 bg-slate-50 px-3 py-3 font-black">Measurement (inches)</th>
+                  {normalizedRows.map((row) => <th key={row.size} scope="col" className="min-w-[75px] px-3 py-3 text-center font-black">{row.size}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {SIZE_GUIDE_FIELDS.map((field) => (
+                  <tr key={field.key} className="border-t border-slate-100">
+                    <th scope="row" className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-3 font-semibold text-slate-700">{field.label}</th>
+                    {normalizedRows.map((row) => <td key={row.size} className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-600">{row[field.key] || '—'}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full min-w-[520px] text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-3 font-black">Size</th><th className="px-3 py-3 font-black">Width / chest</th><th className="px-3 py-3 font-black">Body length</th><th className="px-3 py-3 font-black">Sleeve</th></tr></thead>
+              <tbody>{normalizedRows.map((row) => <tr key={row.size} className="border-t border-slate-100"><td className="px-3 py-3 font-black text-slate-800">{row.size}</td><td className="px-3 py-3 text-slate-600">{row.width || '—'}</td><td className="px-3 py-3 text-slate-600">{row.length || '—'}</td><td className="px-3 py-3 text-slate-600">{row.sleeve || '—'}</td></tr>)}</tbody>
+            </table>
+          )}
         </div>
       ) : null}
       <p className="text-xs font-medium leading-5 text-slate-500">{note}</p>
+      {showDetailed && <p className="text-xs leading-5 text-slate-500">Chart measurements are for reference only; available purchase sizes are shown above.</p>}
     </div>
   );
 }
-
 function InfoDialog({ title, eyebrow, onClose, children }) {
   return (
     <div className="fixed inset-0 z-[90] grid items-end bg-slate-950/50 p-2 backdrop-blur-[2px] sm:place-items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>

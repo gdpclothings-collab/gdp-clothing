@@ -27,6 +27,8 @@ import { adminProductsApi } from "@/lib/adminProductsApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 import { resolveColorSwatch } from "@/lib/colorSwatches";
 import PrintConfigurationPanel from "@/components/admin/PrintConfigurationPanel";
+import SizeGuideEditor from "@/components/admin/SizeGuideEditor";
+import { parseSizeGuideRows } from "@/lib/sizeGuideRows";
 
 const PAGE_SIZE = 25;
 
@@ -57,6 +59,8 @@ const RESERVED_PRODUCT_METAFIELDS = new Set([
   "audience",
   "sleeve_type",
   "neck_style",
+  "size_guide_rows",
+  "size_guide_note",
 ]);
 
 const slugify = (value) =>
@@ -707,6 +711,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     audience: productMetafields.audience || "",
     sleeveType: productMetafields.sleeve_type || "",
     neckStyle: productMetafields.neck_style || "",
+    sizeGuideRows: parseSizeGuideRows(productMetafields.size_guide_rows),
+    sizeGuideNote: productMetafields.size_guide_note || "",
     status: product?.status || "draft",
     type: product?.type || "",
     category: product?.category || "",
@@ -1415,6 +1421,12 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
   };
 
   const saveProduct = async () => {
+    const sizeRows = form.sizeGuideRows || [];
+    const chartSizeLabels = sizeRows.map((row) => String(row.size || "").trim().toUpperCase());
+    if (chartSizeLabels.some((label) => !label) || new Set(chartSizeLabels).size !== chartSizeLabels.length) {
+      requestNotification("Size guide rows must have unique, non-empty size labels.");
+      return false;
+    }
     const optionColors = splitComma(form.colors);
     const optionSizes = splitComma(form.sizes);
     const submittedVariants =
@@ -1466,10 +1478,20 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
         audience: form.audience,
         sleeve_type: form.sleeveType,
         neck_style: form.neckStyle,
+        size_guide_note: form.sizeGuideNote,
       };
       for (const [key, value] of Object.entries(structuredMetafields)) {
         const cleanValue = String(value || "").trim();
         if (cleanValue) metafieldObject[key] = cleanValue;
+      }
+
+      // Size-guide data remains product-specific and never changes saleable variants.
+      // Store structured rows in the existing metadata field.
+      if (sizeRows.length) {
+        metafieldObject.size_guide_rows = JSON.stringify(sizeRows.map((row) => ({
+          size: String(row.size || "").trim(),
+          ...Object.fromEntries(["length", "lengthTolerance", "chestTolerance", "width", "sleeve", "sleeveTolerance"].map((key) => [key, String(row[key] || "").trim()])),
+        })));
       }
 
       const payload = {
@@ -3202,6 +3224,15 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
               )}
 
 
+
+              <EditorSection title="Garment size chart">
+                <SizeGuideEditor
+                  rows={form.sizeGuideRows}
+                  note={form.sizeGuideNote}
+                  onRowsChange={(rows) => set("sizeGuideRows", rows)}
+                  onNoteChange={(note) => set("sizeGuideNote", note)}
+                />
+              </EditorSection>
 
               <EditorSection title="Advanced metafields">
                 <div className="flex items-center justify-between gap-3">
