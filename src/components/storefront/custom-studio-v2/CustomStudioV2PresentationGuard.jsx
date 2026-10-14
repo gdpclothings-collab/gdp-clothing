@@ -75,7 +75,12 @@ export default function CustomStudioV2PresentationGuard() {
           node.removeAttribute('data-gdp-print-size');
         });
         clone.querySelectorAll('[data-gdp-print-guide="true"]').forEach((node) => {
+          // Keep the guide's exact border-box size/position (and therefore
+          // approved artwork coordinates) but remove ALL visible editor chrome.
+          // The original dashed guide also has a subtle outline box shadow.
           node.style.borderColor = 'transparent';
+          node.style.boxShadow = 'none';
+          node.style.outline = 'none';
           node.style.background = 'transparent';
           const badge = node.querySelector(':scope > span');
           if (badge) badge.remove();

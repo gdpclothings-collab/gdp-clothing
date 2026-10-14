@@ -199,6 +199,20 @@ async function inspectViewport(browser, viewport) {
       'custom-studio-final-review-two-sided-smoke.mjs: generated CSS print-size badge is still visible in Final Review');
 
 
+    const printGuideChrome = await finalPreview.locator('[data-gdp-print-guide="true"]').evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        shadow: getComputedStyle(node).boxShadow,
+        outline: getComputedStyle(node).outlineStyle,
+        border: getComputedStyle(node).borderColor,
+        borderWidth: getComputedStyle(node).borderWidth,
+      }))
+    );
+    assert(printGuideChrome.length > 0, 'Final Review must keep its nonvisual print-area coordinate anchor');
+    assert(printGuideChrome.every((guide) =>
+      guide.shadow === 'none' && guide.outline === 'none' &&
+      (guide.border === 'rgba(0, 0, 0, 0)' || guide.border === 'transparent')),
+      'Step 4 approval preview still shows a faint print-box outline or drop-shadow');
+
     const frontCard = finalPreview.locator('[data-gdp-final-review-preview-card="front"]');
     const backCard = finalPreview.locator('[data-gdp-final-review-preview-card="back"]');
     await frontCard.waitFor({ state: "visible", timeout: 10000 });

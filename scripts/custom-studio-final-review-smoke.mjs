@@ -202,6 +202,20 @@ async function inspectViewport(browser, viewport) {
     assert(!/print size/i.test(generatedPrintLabel),
       'custom-studio-final-review-smoke.mjs: generated CSS print-size badge is still visible in Final Review');
 
+    const printGuideChrome = await finalPreview.locator('[data-gdp-print-guide="true"]').evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        shadow: getComputedStyle(node).boxShadow,
+        outline: getComputedStyle(node).outlineStyle,
+        border: getComputedStyle(node).borderColor,
+        borderWidth: getComputedStyle(node).borderWidth,
+      }))
+    );
+    assert(printGuideChrome.length > 0, 'Final Review must keep its nonvisual print-area coordinate anchor');
+    assert(printGuideChrome.every((guide) =>
+      guide.shadow === 'none' && guide.outline === 'none' &&
+      (guide.border === 'rgba(0, 0, 0, 0)' || guide.border === 'transparent')),
+      'Step 4 approval preview still shows a faint print-box outline or drop-shadow');
+
     assert(await finalPreview.getByText(/Your garment with the approved artwork/i).first().isVisible(), `${viewport.name} approved Final Review heading is missing.`);
     assert(await finalPreview.getByText(/Ready for final check/i).first().isVisible(), `${viewport.name} Final Review ready-state copy is missing.`);
     assert(await finalPreview.getByText(/Final garment preview · front/i).first().isVisible(), `${viewport.name} front approved snapshot label is missing.`);

@@ -177,6 +177,17 @@
   pointer-events: none;
 }
 
+/* Step 4 only: eliminate the dashed guide's faint rectangle/shadow.
+ * Keep border width and print-area geometry intact, preserving exact design
+ * placement; the edit workspace in Step 3 is deliberately unaffected.
+ */
+[data-gdp-final-review-preview="true"] [data-gdp-print-guide="true"] {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
 /* Final Review only: keep the approved garment fully visible without making the page excessively tall. */
 [data-gdp-final-review-preview-card] > div:nth-child(2) {
   max-width: 410px !important;

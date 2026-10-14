@@ -51,6 +51,10 @@ assert(guard.includes("['front', 'back'].forEach((side) =>"), 'Final Review must
 assert(guard.includes("clone.querySelectorAll('button,input,select,textarea').forEach((node) => node.remove());"), 'Final Review clone must remove editor controls');
 assert(guard.includes("clone.querySelectorAll('[data-gdp-print-guide=\"true\"]')"), 'Final Review clone must sanitize print-guide UI');
 assert(guard.includes("node.style.borderColor = 'transparent';"), 'Final Review clone must hide print-guide border');
+assert(guard.includes("node.style.boxShadow = 'none';"), 'Final Review clone must remove faint print-guide rectangle shadow');
+assert(guard.includes("node.style.outline = 'none';"), 'Final Review clone must remove print-guide outline');
+assert(presentationCss.includes('[data-gdp-final-review-preview="true"] [data-gdp-print-guide="true"] {'), 'shadow suppression must target Final Review only');
+assert(presentationCss.includes('box-shadow: none !important;'), 'Final Review must never show a print-guide drop-shadow');
 assert(guard.includes("node.style.background = 'transparent';"), 'Final Review clone must keep garment/artwork visible without print-guide fill');
 assert(guard.includes("clone.querySelectorAll('[data-gdp-print-size]').forEach((node) => {"), 'Final Review clone must remove CSS-generated print-size label attributes');
 assert(guard.includes("node.removeAttribute('data-gdp-print-size');"), 'Final Review must prevent the floating print-size badge from rendering');
