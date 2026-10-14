@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   CircleHelp,
@@ -226,7 +227,28 @@ export default function GarmentInfoPanel({ product, sizes = [] }) {
 
       {activePanel === 'files' && <InfoDialog title="DTF file guidelines" eyebrow="Must follow before printing" onClose={() => setActivePanel('')}><div className="rounded-2xl border border-slate-200 p-4"><p className="mb-3 text-xs font-black uppercase tracking-[.1em] text-slate-500">File requirements</p><BulletList items={info.fileGuidelines} /></div><div className="mt-4 rounded-2xl bg-emerald-50 p-4"><p className="mb-3 text-xs font-black uppercase tracking-[.1em] text-emerald-800">Tips for best result</p><BulletList items={info.bestResultTips} /></div><div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-black uppercase tracking-[.1em] text-amber-800">DTF printing disclaimer</p><p className="mt-2 text-sm font-medium leading-6 text-amber-900/80">{info.dtfDisclaimer}</p></div></InfoDialog>}
 
-      {activePanel === 'shipping' && <InfoDialog title="Shipping & print care" eyebrow="After you order" onClose={() => setActivePanel('')}><div className="rounded-2xl border border-slate-200 p-4"><p className="mb-2 text-xs font-black uppercase tracking-[.1em] text-slate-500">Shipping</p><p className="text-sm font-medium leading-6 text-slate-600">{info.shippingInfo}</p></div><div className="mt-4 rounded-2xl bg-slate-50 p-4"><div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[.1em] text-slate-500"><WashingMachine size={15} /> DTF print care</div><BulletList items={info.careInstructions} /></div></InfoDialog>}
+      {activePanel === 'shipping' && (
+        <InfoDialog title="Shipping & print care" eyebrow="After you order" onClose={() => setActivePanel('')}>
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <p className="mb-2 text-xs font-black uppercase tracking-[.1em] text-slate-500">Shipping</p>
+            <p className="text-sm font-medium leading-6 text-slate-600">{info.shippingInfo}</p>
+            <nav aria-label="Shipping and returns policies" className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+              <Link to="/pages/shipping-delivery" className="inline-flex min-h-11 items-center gap-1 text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-950 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700">
+                Shipping & Delivery Policy <ArrowRight size={13} aria-hidden="true" />
+              </Link>
+              <Link to="/pages/returns-refunds" className="inline-flex min-h-11 items-center gap-1 text-xs font-bold text-slate-700 underline underline-offset-4 hover:text-slate-950 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700">
+                Returns & Refunds Policy <ArrowRight size={13} aria-hidden="true" />
+              </Link>
+            </nav>
+          </div>
+          <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[.1em] text-slate-500">
+              <WashingMachine size={15} /> DTF print care
+            </div>
+            <BulletList items={info.careInstructions} />
+          </div>
+        </InfoDialog>
+      )}
 
       {activePanel === 'order' && <InfoDialog title="How to order" eyebrow="Custom Studio" onClose={() => setActivePanel('')}><ol className="space-y-3">{info.howToOrder.map((item, index) => <li key={`${index}-${item}`} className="flex gap-3 rounded-2xl bg-slate-50 p-3"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-[11px] font-black text-white">{index + 1}</span><span className="pt-1 text-sm font-medium leading-6 text-slate-600">{item}</span></li>)}</ol></InfoDialog>}
     </div>
