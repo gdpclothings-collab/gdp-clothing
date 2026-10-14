@@ -211,8 +211,7 @@ function SizeGuide({ sizes, rows, note }) {
           {sizes.map((size) => <span key={size} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700">{size}</span>)}
         </div>
       )}
-      <p className="text-xs font-medium leading-5 text-slate-500">{note}</p>
-      {normalizedRows.length > 0 && <p className="text-xs leading-5 text-slate-500">Chart measurements are for reference only; available purchase sizes are shown in the garment options.</p>}
+      {note && <p data-gdp-size-guide-note="true" className="text-xs font-medium leading-5 text-slate-500">{note}</p>}
     </div>
   );
 }
