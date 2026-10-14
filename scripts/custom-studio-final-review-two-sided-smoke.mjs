@@ -162,19 +162,16 @@ async function inspectViewport(browser, viewport) {
     await frontSide.waitFor({ state: "visible", timeout: 10000 });
     await backSide.waitFor({ state: "visible", timeout: 10000 });
 
-    const finishSide = page.locator('[data-gdp-step3-finish-side="true"]').first();
-    await finishSide.waitFor({ state: "visible", timeout: 10000 });
-    assert(await finishSide.getAttribute("aria-pressed") === "true", `${viewport.name} restored front side is not marked finished.`);
-
     await backSide.click();
-    const backLive = await waitForImage(uploadPreview, `${viewport.name} live back artwork`, "gdp-hero-approved.webp");
-    assert(await finishSide.getAttribute("aria-pressed") === "true", `${viewport.name} restored back side is not marked finished.`);
-
-    const approve = page.getByRole("button", { name: /I approve the final print layout/i }).first();
-    await approve.waitFor({ state: "visible", timeout: 10000 });
-    assert(!(await approve.isDisabled()), `${viewport.name} two-sided final layout approval is unexpectedly disabled.`);
-    await page.waitForTimeout(300);
-    await approve.click();
+    const backLive = await waitForImage(uploadPreview, `${viewport.name}` + ' live back artwork', "gdp-hero-approved.webp");
+    const approveCard = page.locator('[data-gdp-step3-unified-approval="true"]');
+    const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
+    await approveCard.waitFor({ state: 'visible', timeout: 10000 });
+    assert(await page.locator('[data-gdp-approval-sides="true"]').innerText() === 'Front + Back', 'One approval must explicitly cover both designed sides');
+    assert(!(await approvalCheckbox.isChecked()), 'A restored two-sided draft must require fresh approval');
+    await approveCard.click();
+    assert(await approvalCheckbox.isChecked(), 'Unified two-sided approval did not register');
+    assert(await page.locator('[data-gdp-step3-approval="true"] input[type="checkbox"]').count() === 1, 'Only one approval checkbox may appear');
 
     const finalReviewAction = page.getByRole("button", { name: /Final review/i }).last();
     await finalReviewAction.waitFor({ state: "visible", timeout: 10000 });
