@@ -107,14 +107,14 @@ const crewneck = {
     printArea: { front: { top: 30, width: 30 }, back: { top: 30, width: 32 } },
     printAreaByColor: {
       Gray: { front: { top: 27, width: 35 }, back: { top: 25, width: 36 } },
-      Black: { front: { top: 29, width: 33 }, back: { top: 28, width: 34 } },
+      Black: { front: { top: 29, width: 33 }, back: { top: 27, width: 35 } },
     },
   } },
 };
 for (const [color, side, expectedTop, expectedWidth] of [
   ['White', 'front', 30, 30], ['White', 'back', 30, 32],
   ['Gray', 'front', 27, 35], ['Gray', 'back', 25, 36],
-  ['Black', 'front', 29, 33], ['Black', 'back', 28, 34],
+  ['Black', 'front', 29, 33], ['Black', 'back', 27, 35],
   ['gray', 'front', 27, 35], ['Uncalibrated', 'back', 30, 32],
 ]) {
   const guide = resolveStudioV2PrintGuide(crewneck, 'M', side, color);
