@@ -1,0 +1,459 @@
+/* GDP Clothing · Custom Studio V2 Premium
+ * Visual layer only. No print-area geometry, product-state, checkout,
+ * pricing, inventory or editor transforms are modified here.
+ * Scoped to the V2 route so the legacy studio and storefront stay untouched.
+ */
+[data-gdp-premium-studio="true"] {
+  --gdp-ink: #101523;
+  --gdp-red: #d61e30;
+  --gdp-soft-border: #e5e9f1;
+  background:
+    radial-gradient(circle at 92% 5%, rgba(214,30,48,.055), transparent 24rem),
+    linear-gradient(160deg, #f8f9fc 0%, #f0f3f8 100%);
+  color: var(--gdp-ink);
+}
+[data-gdp-premium-studio="true"] > div {
+  padding-top: clamp(12px, 2.5vw, 28px);
+  padding-bottom: clamp(28px, 5vw, 56px);
+}
+
+/* Brand introduction */
+[data-gdp-premium-studio="true"] [data-gdp-premium-hero="true"] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 132px;
+  padding: clamp(19px, 3vw, 34px);
+  gap: 18px;
+  border: 1px solid #202a3a;
+  border-radius: 28px;
+  background: linear-gradient(115deg, #101522 0%, #172338 68%, #202d42 100%);
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(17,24,39,.14), 0 2px 5px rgba(17,24,39,.06);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-hero="true"]::before,
+[data-gdp-premium-studio="true"] [data-gdp-premium-hero="true"]::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-hero="true"]::before {
+  width: 285px;
+  height: 285px;
+  right: 14%;
+  top: -170px;
+  border: 48px solid rgba(255,255,255,.028);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-hero="true"]::after {
+  width: 250px;
+  height: 250px;
+  right: -90px;
+  bottom: -185px;
+  background: rgba(214,30,48,.24);
+  filter: blur(36px);
+}
+[data-gdp-premium-studio="true"] [data-gdp-hero-copy="true"] { position: relative; z-index: 1; max-width: 800px; }
+[data-gdp-premium-studio="true"] .gdp-premium-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  font-size: 10px;
+  letter-spacing: .14em;
+  line-height: 1;
+  font-weight: 900;
+  color: #fff;
+}
+[data-gdp-premium-studio="true"] .gdp-premium-eyebrow svg { color: #ff5362; }
+[data-gdp-premium-studio="true"] .gdp-premium-hero-divider { width: 1px; height: 16px; background: rgba(255,255,255,.24); }
+[data-gdp-premium-studio="true"] .gdp-premium-hero-steps { font-size: 11px; font-weight: 700; color: #c2cad8; }
+[data-gdp-premium-studio="true"] [data-gdp-hero-copy="true"] h1 {
+  margin-top: 15px;
+  font-size: clamp(1.45rem, 3vw, 2.65rem);
+  font-weight: 950;
+  line-height: 1.09;
+  letter-spacing: -.045em;
+  color: #fff;
+}
+[data-gdp-premium-studio="true"] [data-gdp-hero-copy="true"] p {
+  margin-top: 9px;
+  max-width: 520px;
+  color: #d6deeb;
+  font-size: clamp(.77rem, 1vw, .9rem);
+  line-height: 1.65;
+  font-weight: 500;
+}
+[data-gdp-premium-studio="true"] .gdp-premium-reset {
+  position: relative;
+  z-index: 1;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.25);
+  color: #fff;
+  border-radius: 13px;
+  white-space: nowrap;
+  padding: 0 15px;
+}
+[data-gdp-premium-studio="true"] .gdp-premium-reset:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+
+/* Step navigation: clear completion vs active vs unavailable */
+[data-gdp-premium-studio="true"] [data-gdp-premium-workspace="true"] {
+  align-items: start;
+  gap: 16px;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] {
+  border: 1px solid var(--gdp-soft-border);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(16,21,35,.055);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] > div:first-child { color: #637086; letter-spacing: .13em; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] button {
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] button.bg-slate-900 {
+  border-color: #151d2c;
+  background: linear-gradient(120deg, #111829, #283246);
+  box-shadow: 0 7px 17px rgba(19,26,41,.17);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] button.bg-slate-900 > span:first-child {
+  background: #fff; color: #171d2b;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] button:focus-visible,
+[data-gdp-premium-studio="true"] button:focus-visible {
+  outline: 3px solid rgba(214,30,48,.55);
+  outline-offset: 3px;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-main-panel="true"] {
+  border: 1px solid var(--gdp-soft-border);
+  border-radius: 26px;
+  background: rgba(255,255,255,.91);
+  box-shadow: 0 15px 44px rgba(21,30,48,.065);
+}
+
+/* First step and the garment gallery */
+[data-gdp-premium-studio="true"] [data-gdp-garment-intro="true"] { padding: 3px 2px 17px; border-bottom: 1px solid #edf0f4; }
+[data-gdp-premium-studio="true"] [data-gdp-garment-intro="true"] > p:first-child { color: var(--gdp-red); font-size: 10px; letter-spacing: .15em; }
+[data-gdp-premium-studio="true"] [data-gdp-garment-intro="true"] h1 { font-size: clamp(1.55rem, 2.8vw, 2.2rem); letter-spacing: -.045em; color: #101523; }
+[data-gdp-premium-studio="true"] [data-gdp-garment-intro="true"] > p:last-child { line-height: 1.55; max-width: 680px; color: #617085; }
+[data-gdp-premium-studio="true"] [data-gdp-garment-choices="top"] { padding: 0 2px; }
+[data-gdp-premium-studio="true"] [data-gdp-change-garment="true"],
+[data-gdp-premium-studio="true"] [data-gdp-keep-current-garment="true"] {
+  background: #fff;
+  border-radius: 14px;
+  border-color: #dce2eb;
+  color: #101523;
+  box-shadow: 0 5px 14px rgba(16,21,35,.08);
+}
+[data-gdp-premium-studio="true"] [data-gdp-garment-gallery="true"] > div > button {
+  border-color: #e2e7ee;
+  box-shadow: 0 6px 20px rgba(23,30,46,.07);
+}
+[data-gdp-premium-studio="true"] [data-gdp-garment-gallery="true"] > div > button:hover { border-color: #d61e30; }
+[data-gdp-premium-studio="true"] [data-gdp-garment-gallery="true"] > div > button[aria-pressed="true"] { border-color: #d61e30; }
+
+/* Configurator: one clear preview, then actionable selections */
+[data-gdp-premium-studio="true"] [data-gdp-premium-configurator="true"] {
+  padding: clamp(10px, 1.8vw, 22px);
+  gap: 15px;
+  border-radius: 24px;
+  border-color: #e4e9f1;
+  background: linear-gradient(140deg, #f8fafc, #f2f5fa);
+  box-shadow: none;
+}
+[data-gdp-premium-studio="true"] [data-gdp-selected-garment-summary="true"] {
+  border: 1px solid #e6eaf0;
+  border-radius: 23px;
+  background: #fff;
+  box-shadow: 0 7px 22px rgba(23,30,46,.05);
+}
+[data-gdp-premium-studio="true"] [data-gdp-selected-garment-preview="true"] {
+  position: relative;
+  isolation: isolate;
+  background: radial-gradient(circle at 50% 40%, #fff 0%, #f2f4f8 75%);
+  border: 1px solid #e9edf3;
+  border-radius: 19px;
+}
+[data-gdp-premium-studio="true"] [data-gdp-selected-garment-preview="true"]::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gdp-red);
+  box-shadow: 0 0 0 5px rgba(214,30,48,.09);
+}
+[data-gdp-premium-studio="true"] [data-gdp-selected-garment-preview="true"] img {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 10px 12px rgba(12,20,33,.10));
+}
+[data-gdp-premium-studio="true"] [data-gdp-selected-garment-preview="true"] > div:last-child {
+  border: 1px solid #eef0f4;
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(6px);
+}
+[data-gdp-premium-studio="true"] [data-gdp-selected-garment-summary="true"] > div:last-child > div:first-child > p:first-child {
+  color: var(--gdp-red);
+  letter-spacing: .13em;
+}
+[data-gdp-premium-studio="true"] [data-gdp-selected-garment-summary="true"] > div:last-child > div:first-child > p:last-child {
+  color: #68778d;
+  font-weight: 500;
+}
+
+/* Matching selection cards; availability and selected-state remain in React */
+[data-gdp-premium-studio="true"] [data-gdp-premium-variant-grid="true"] {
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, .95fr) minmax(0, .7fr);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-variant-grid="true"] > div {
+  min-width: 0;
+  padding: clamp(13px, 2vw, 20px);
+  border: 1px solid #e4e9f0;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(23,30,46,.045);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-variant-grid="true"] > div > div:first-child {
+  margin-bottom: 13px;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.2;
+  letter-spacing: .035em;
+  text-transform: none;
+}
+[data-gdp-premium-studio="true"] [data-gdp-color-panel="true"] [data-gdp-garment-swatch="true"] {
+  border-radius: 15px;
+  min-height: 48px;
+  box-shadow: 0 3px 9px rgba(20,30,48,.05);
+}
+[data-gdp-premium-studio="true"] [data-gdp-color-panel="true"] [data-gdp-garment-swatch="true"][aria-pressed="true"] {
+  border-color: #dc3142;
+  background: #141a29;
+  box-shadow: 0 0 0 2px rgba(214,30,48,.11), 0 5px 12px rgba(16,21,35,.13);
+}
+[data-gdp-premium-studio="true"] [data-gdp-color-panel="true"] [data-gdp-garment-swatch="true"]:disabled {
+  box-shadow: none;
+  opacity: .68;
+}
+[data-gdp-premium-studio="true"] [data-gdp-size-panel="true"] [data-gdp-garment-size-group="true"] {
+  gap: 8px;
+}
+[data-gdp-premium-studio="true"] [data-gdp-size-panel="true"] button {
+  min-width: 50px;
+  min-height: 48px;
+  border-radius: 14px;
+  box-shadow: 0 3px 9px rgba(20,30,48,.045);
+}
+[data-gdp-premium-studio="true"] [data-gdp-size-panel="true"] button[aria-pressed="true"] {
+  background: linear-gradient(130deg, #121929, #2b3344);
+  border-color: #d61e30;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(214,30,48,.10);
+}
+[data-gdp-premium-studio="true"] [data-gdp-size-panel="true"] button:disabled { box-shadow: none; }
+[data-gdp-premium-studio="true"] [data-gdp-quantity-panel="true"] .gdp-neu-well {
+  overflow: hidden;
+  border: 1px solid #dde3eb;
+  border-radius: 15px;
+  background: #f5f7fb;
+}
+[data-gdp-premium-studio="true"] [data-gdp-quantity-panel="true"] .gdp-neu-well button { color: #141a2a; transition: background .15s ease; }
+[data-gdp-premium-studio="true"] [data-gdp-quantity-panel="true"] .gdp-neu-well button:hover:not(:disabled) { background: #e8edf5; }
+[data-gdp-premium-studio="true"] [data-gdp-quantity-panel="true"] input { background: white; color: #111827; }
+
+/* Illustrated information cards; same existing accessible modal actions */
+[data-gdp-premium-studio="true"] [data-gdp-garment-info="true"] {
+  border: 1px solid #e5e9f1;
+  border-radius: 23px;
+  padding: clamp(14px, 2vw, 22px);
+  background: linear-gradient(155deg, #fff, #fbfcff);
+  box-shadow: 0 8px 22px rgba(20,30,48,.045);
+}
+[data-gdp-premium-studio="true"] [data-gdp-garment-info="true"] > div:first-child > button {
+  display: inline-flex;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border-color: #e3e7ef;
+  background: #f6f8fb;
+  color: #172032;
+}
+[data-gdp-premium-studio="true"] [data-gdp-garment-info="true"] > div:first-child > button::after { font-size: 12px; }
+[data-gdp-premium-studio="true"] .gdp-premium-info-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  margin-bottom: 13px;
+}
+[data-gdp-premium-studio="true"] .gdp-premium-info-heading-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  place-items: center;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, #d61e30, #9f0f22);
+  box-shadow: 0 5px 13px rgba(214,30,48,.16);
+}
+[data-gdp-premium-studio="true"] .gdp-premium-info-heading h2 {
+  color: #111827;
+  font-size: clamp(1rem, 1.6vw, 1.17rem);
+  line-height: 1.3;
+  font-weight: 900;
+}
+[data-gdp-premium-studio="true"] .gdp-premium-info-heading p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #68778c;
+  font-weight: 500;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-grid="true"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"] {
+  min-width: 0;
+  min-height: 76px;
+  border-radius: 18px;
+  border: 1px solid #e3e9f2;
+  box-shadow: 0 3px 11px rgba(20,30,48,.035);
+  background: linear-gradient(140deg, #f1f7ff, #f8fbff);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(2) { background: linear-gradient(140deg, #edfcf4, #f8fffb); border-color: #d8f0e5; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(3) { background: linear-gradient(140deg, #f5f0ff, #fdfbff); border-color: #e8dffb; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(4) { background: linear-gradient(140deg, #fff5ee, #fffdf9); border-color: #f8e6d8; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(5) { background: linear-gradient(140deg, #fff1f5, #fffafe); border-color: #f6dde8; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:hover {
+  transform: translateY(-2px);
+  border-color: #cbd3df;
+  box-shadow: 0 8px 18px rgba(20,30,48,.09);
+}
+[data-gdp-premium-studio="true"] .gdp-info-card-icon { color: #1266c5; background: #dcecff; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(2) .gdp-info-card-icon { color: #0b9558; background: #d5f9e6; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(3) .gdp-info-card-icon { color: #7042c7; background: #eae0ff; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(4) .gdp-info-card-icon { color: #da6b16; background: #ffead5; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:nth-child(5) .gdp-info-card-icon { color: #c72b66; background: #ffe0ec; }
+[data-gdp-premium-studio="true"] .gdp-info-card-arrow { color: #7d8999; transition: transform .17s ease; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"]:hover .gdp-info-card-arrow { transform: translateX(3px); }
+
+/* Contextual, non-sticky completion area */
+[data-gdp-premium-studio="true"] [data-gdp-premium-next="true"] {
+  gap: 12px;
+  padding: 16px;
+  border-radius: 21px;
+  background: linear-gradient(115deg, #121827, #263044);
+  box-shadow: 0 13px 26px rgba(16,21,35,.13);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-next="true"] p {
+  color: #f2f5fc;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-next="true"] [data-gdp-garment-continue="true"] {
+  min-height: 52px;
+  border-radius: 15px;
+  padding: 0 20px;
+  background: #e32a3d;
+  color: #fff;
+  box-shadow: 0 6px 15px rgba(214,30,48,.22);
+}
+[data-gdp-premium-studio="true"] [data-gdp-premium-next="true"] [data-gdp-garment-continue="true"]:hover:not(:disabled) { background: #c91e31; }
+[data-gdp-premium-studio="true"] [data-gdp-premium-next="true"] [data-gdp-garment-continue="true"]:disabled {
+  background: #dae0ea;
+  color: #677285;
+  box-shadow: none;
+}
+
+/* Other steps also get a coherent, unobtrusive premium container */
+[data-gdp-premium-studio="true"] .gdp-custom-studio-v2-actions {
+  border-radius: 19px;
+  border-color: #e2e7ef;
+  box-shadow: 0 9px 28px rgba(19,28,46,.08);
+}
+[data-gdp-premium-studio="true"] .gdp-custom-studio-v2-actions button:not(:disabled):last-child {
+  background: linear-gradient(120deg, #141a29, #283144);
+  color: white;
+}
+[data-gdp-premium-studio="true"] .gdp-custom-studio-v2-actions button:disabled { cursor: not-allowed; }
+
+@media (max-width: 1279px) {
+  [data-gdp-premium-studio="true"] [data-gdp-premium-variant-grid="true"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  [data-gdp-premium-studio="true"] [data-gdp-quantity-panel="true"] { grid-column: 1 / -1; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-info-grid="true"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767px) {
+  [data-gdp-premium-studio="true"] > div { padding: 12px 12px 28px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-hero="true"] {
+    min-height: 0;
+    padding: 19px 17px;
+    border-radius: 22px;
+    gap: 13px;
+    align-items: flex-start;
+  }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-hero="true"]::before { right: -140px; top: -175px; }
+  [data-gdp-premium-studio="true"] [data-gdp-hero-copy="true"] h1 { margin-top: 12px; font-size: clamp(1.5rem, 6.5vw, 2rem); }
+  [data-gdp-premium-studio="true"] .gdp-premium-hero-steps { font-size: 10px; }
+  [data-gdp-premium-studio="true"] .gdp-premium-reset { min-height: 37px; font-size: 11px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-workspace="true"] { gap: 12px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] {
+    padding: 12px;
+    border-radius: 20px;
+  }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] > div:first-child { padding-top: 0; margin-bottom: 9px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] button { min-height: 44px; border-radius: 14px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-rail="true"] button > span:first-child { width: 26px; height: 26px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-main-panel="true"] { padding: 14px; border-radius: 21px; }
+  [data-gdp-premium-studio="true"] [data-gdp-garment-intro="true"] { padding-bottom: 12px; }
+  [data-gdp-premium-studio="true"] [data-gdp-garment-intro="true"] h1 { font-size: 1.55rem; }
+  [data-gdp-premium-studio="true"] [data-gdp-garment-intro="true"] > p:last-child { font-size: 12px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-configurator="true"] { padding: 9px; gap: 11px; border-radius: 19px; }
+  [data-gdp-premium-studio="true"] [data-gdp-selected-garment-summary="true"] { padding: 10px; gap: 13px; border-radius: 18px; }
+  [data-gdp-premium-studio="true"] [data-gdp-selected-garment-preview="true"] { padding: 10px; }
+  [data-gdp-premium-studio="true"] [data-gdp-selected-garment-preview="true"] > div:first-child { height: clamp(200px, 64vw, 260px); }
+  [data-gdp-premium-studio="true"] [data-gdp-selected-garment-summary="true"] > div:last-child > div:first-child > p:last-child { display: none; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-variant-grid="true"] { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  [data-gdp-premium-studio="true"] [data-gdp-quantity-panel="true"] { grid-column: auto; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-variant-grid="true"] > div { padding: 14px; border-radius: 19px; }
+  [data-gdp-premium-studio="true"] [data-gdp-color-panel="true"] [data-gdp-garment-swatch="true"] { min-height: 46px; font-size: 12px; }
+  [data-gdp-premium-studio="true"] [data-gdp-garment-info="true"] { padding: 14px; border-radius: 19px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-info-grid="true"] { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"] { padding: 11px 9px; min-height: 83px; gap: 8px; border-radius: 15px; }
+  [data-gdp-premium-studio="true"] .gdp-info-card-icon { width: 32px; height: 32px; border-radius: 11px; }
+  [data-gdp-premium-studio="true"] .gdp-info-card-icon svg { width: 17px; height: 17px; }
+  [data-gdp-premium-studio="true"] .gdp-info-card-arrow { display: none; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"] span.text-\[13px\] { font-size: 12px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-info-card="true"] span.text-\[11px\] { font-size: 10px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-next="true"] { padding: 13px; border-radius: 17px; }
+  [data-gdp-premium-studio="true"] [data-gdp-premium-next="true"] [data-gdp-garment-continue="true"] { width: 100%; }
+}
+@media (max-width: 359px) {
+  [data-gdp-premium-studio="true"] [data-gdp-premium-info-grid="true"] { grid-template-columns: minmax(0, 1fr); }
+  [data-gdp-premium-studio="true"] .gdp-premium-hero-divider,
+  [data-gdp-premium-studio="true"] .gdp-premium-hero-steps { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-gdp-premium-studio="true"] *,
+  [data-gdp-premium-studio="true"] *::before,
+  [data-gdp-premium-studio="true"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}

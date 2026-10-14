@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  ArrowRight,
   CircleHelp,
   FileCheck2,
   Info,
@@ -128,10 +129,12 @@ function DetailChip({ label, value }) {
   return <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600"><span className="text-slate-400">{label}</span> · {value}</span>;
 }
 
-function PanelButton({ icon: Icon, label, onClick }) {
+function PanelButton({ icon: Icon, label, description, onClick }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
-      <Icon size={15} /> {label}
+    <button data-gdp-premium-info-card="true" type="button" onClick={onClick} className="group inline-flex min-h-16 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50">
+      <span className="gdp-info-card-icon grid h-11 w-11 shrink-0 place-items-center rounded-2xl" aria-hidden="true"><Icon size={21} strokeWidth={2} /></span>
+      <span className="min-w-0 flex-1"><span className="block text-[13px] font-black leading-tight text-slate-900">{label}</span><span className="mt-1 block text-[11px] font-medium leading-snug text-slate-500">{description}</span></span>
+      <ArrowRight className="gdp-info-card-arrow shrink-0" size={16} aria-hidden="true" />
     </button>
   );
 }
@@ -203,12 +206,16 @@ export default function GarmentInfoPanel({ product, sizes = [] }) {
         {detailChips.map(([label, value]) => <DetailChip key={label} label={label} value={value} />)}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <PanelButton icon={Shirt} label="Product details" onClick={() => setActivePanel('details')} />
-        <PanelButton icon={Ruler} label="Size guide" onClick={() => setActivePanel('size')} />
-        <PanelButton icon={FileCheck2} label="File guidelines" onClick={() => setActivePanel('files')} />
-        <PanelButton icon={PackageCheck} label="Shipping & care" onClick={() => setActivePanel('shipping')} />
-        <PanelButton icon={ShoppingBag} label="How to order" onClick={() => setActivePanel('order')} />
+      <div data-gdp-premium-info-heading="true" className="gdp-premium-info-heading">
+        <span className="gdp-premium-info-heading-icon" aria-hidden="true"><Sparkles size={18} /></span>
+        <div><h2>Everything you need</h2><p>Helpful details before you start designing.</p></div>
+      </div>
+      <div data-gdp-premium-info-grid="true" className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+        <PanelButton icon={Shirt} label="Product details" description="Fabric, fit & features" onClick={() => setActivePanel('details')} />
+        <PanelButton icon={Ruler} label="Size guide" description="Find your perfect fit" onClick={() => setActivePanel('size')} />
+        <PanelButton icon={FileCheck2} label="File guidelines" description="Artwork & file specs" onClick={() => setActivePanel('files')} />
+        <PanelButton icon={PackageCheck} label="Shipping & care" description="Delivery & wash tips" onClick={() => setActivePanel('shipping')} />
+        <PanelButton icon={ShoppingBag} label="How to order" description="Simple ordering steps" onClick={() => setActivePanel('order')} />
       </div>
 
       {activePanel === 'dtf' && <InfoDialog title="What is DTF printing?" eyebrow="GDP Clothing · Print method" onClose={() => setActivePanel('')}><p className="text-sm font-medium leading-7 text-slate-600">{info.aboutDtf}</p><div className="mt-4 rounded-2xl bg-slate-50 p-4"><div className="flex items-center gap-2 text-xs font-black uppercase tracking-[.1em] text-slate-500"><Sparkles size={15} /> Why GDP uses it</div><p className="mt-2 text-sm font-medium leading-6 text-slate-600">DTF is well suited to detailed, vibrant custom graphics and lets GDP Clothing print across a wide range of garment fabrics.</p></div></InfoDialog>}
