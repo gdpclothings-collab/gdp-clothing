@@ -59,9 +59,9 @@ export default function CustomStudioV2PresentationGuard() {
           const artworkLabel = (layer.getAttribute('aria-label') || 'Approved seasonal artwork').replace(/, selected$/i, '');
           staticLayer.setAttribute('aria-label', artworkLabel);
           staticLayer.className = String(layer.className || '')
-            .replace(/\\bring[^\\s]*/g, '')
-            .replace(/\\bcursor-move\\b/g, 'cursor-default')
-            .replace(/\\btouch-none\\b/g, '')
+            .replace(/\bring[^\s]*/g, '')
+            .replace(/\bcursor-move\b/g, 'cursor-default')
+            .replace(/\btouch-none\b/g, '')
             .trim();
           staticLayer.style.cssText = layer.style.cssText;
           while (layer.firstChild) staticLayer.appendChild(layer.firstChild);
