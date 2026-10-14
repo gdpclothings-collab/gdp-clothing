@@ -42,6 +42,10 @@ if (Math.abs(hoodieXLPrintCanvasPercent - 25) > 0.1) fail(`Fallback XL hoodie 11
 if (!seasonal.includes('p_side: side')) fail('Seasonal library is not side-aware.');
 if (!seasonal.includes('seasonalCatalogKey(product?.id, size, side)')) fail('Seasonal catalog key does not include product, size and side.');
 if (!seasonal.includes('[product?.id, size, side]')) fail('Seasonal print guide will not recompute when product, size or side changes.');
+for (const [name, source] of [['seasonal', seasonal], ['protected', protectedEditor], ['upload', upload]]) {
+  if (!source.includes('resolveStudioV2PrintGuide(product, size, side, color)')) fail(`${name} print guide must use the active garment color.`);
+}
+if (!studio.includes('color: state.color,\n      });')) fail('Customer mockup does not receive the active garment color.');
 if (!seasonal.includes('[product.id, size, side, requestKey, retryVersion]')) fail('Seasonal side/size change will not refresh its physical artwork area.');
 for (const [name, source] of [['seasonal', seasonal], ['protected', protectedEditor], ['upload', upload]]) {
   if (!source.includes('data-gdp-print-guide="true"')) fail(`${name} editor is missing the calibrated print guide.`);
@@ -53,7 +57,7 @@ for (const token of ['"widthIn":11,"heightIn":10', '"widthIn":4,"heightIn":4', '
 if (!studio.includes('size={state.size} settings={settings}')) fail('Protected editor is not receiving selected size.');
 if (!studio.includes('size={state.size} side={state.side} editor={currentEditor}')) fail('Upload editor is not receiving selected size.');
 if (!studio.includes('product,\n        size: state.size,\n        side: firstSide')) fail('Customer mockup is not receiving the selected garment, size and side.');
-if (!mockup.includes('resolveStudioV2PrintGuide(product, size, side)')) fail('Customer mockup does not use the shared calibrated print guide.');
+if (!mockup.includes('resolveStudioV2PrintGuide(product, size, side, color)')) fail('Customer mockup does not use the shared color-calibrated print guide.');
 if (mockup.includes('canvas.width * 0.42')) fail('Legacy fixed 42% customer-mockup scale is still active.');
 if (!mockup.includes('printHeightIn / printWidthIn')) fail('Customer mockup is not preserving the physical print-area aspect ratio.');
 
@@ -94,6 +98,34 @@ const unchangedOverride = resolveStudioV2PrintGuide(
 );
 if (unchangedOverride.displayCalibration.topPercent !== 31 || unchangedOverride.displayCalibration.printWidthPercent !== 22) {
   fail('Explicit product mockup calibration must remain authoritative.');
+}
+
+const crewneck = {
+  name: 'Gildan® Crewneck Adult Sweatshirt',
+  type: 'Crewneck Sweatshirt',
+  customization: { preview: {
+    printArea: { front: { top: 30, width: 30 }, back: { top: 30, width: 32 } },
+    printAreaByColor: {
+      Gray: { front: { top: 27, width: 35 }, back: { top: 25, width: 36 } },
+      Black: { front: { top: 29, width: 33 }, back: { top: 28, width: 34 } },
+    },
+  } },
+};
+for (const [color, side, expectedTop, expectedWidth] of [
+  ['White', 'front', 30, 30], ['White', 'back', 30, 32],
+  ['Gray', 'front', 27, 35], ['Gray', 'back', 25, 36],
+  ['Black', 'front', 29, 33], ['Black', 'back', 28, 34],
+  ['gray', 'front', 27, 35], ['Uncalibrated', 'back', 30, 32],
+]) {
+  const guide = resolveStudioV2PrintGuide(crewneck, 'M', side, color);
+  if (guide.displayCalibration.topPercent !== expectedTop || guide.displayCalibration.printWidthPercent !== expectedWidth) {
+    fail(`Color-specific ${color} ${side} crewneck calibration did not match approved photograph framing.`);
+  }
+}
+const reference = resolveStudioV2PrintGuide(crewneck, 'M', 'front', 'White');
+const dark = resolveStudioV2PrintGuide(crewneck, 'M', 'front', 'Black');
+if (reference.widthIn !== dark.widthIn || reference.heightIn !== dark.heightIn) {
+  fail('Color-specific preview calibration must not alter actual production dimensions.');
 }
 
 console.log('Custom Studio recommended print guide verification passed.');
