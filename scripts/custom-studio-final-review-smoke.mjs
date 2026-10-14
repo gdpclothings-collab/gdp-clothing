@@ -150,16 +150,14 @@ async function inspectViewport(browser, viewport) {
     await artworkLayer.waitFor({ state: "visible", timeout: 15000 });
     await waitForImage(artworkLayer.locator('img[alt="Uploaded artwork preview"]'), `${viewport.name} live approved artwork`);
 
-    const finishSide = page.locator('[data-gdp-step3-finish-side="true"]').first();
-    await finishSide.waitFor({ state: "visible", timeout: 10000 });
-    await finishSide.waitFor({ state: "attached", timeout: 10000 });
-    assert(await finishSide.getAttribute("aria-pressed") === "true", `${viewport.name} restored front artwork is not marked finished.`);
-
-    const approve = page.getByRole("button", { name: /I approve the final print layout/i }).first();
-    await approve.waitFor({ state: "visible", timeout: 10000 });
-    assert(!(await approve.isDisabled()), `${viewport.name} final layout approval is unexpectedly disabled.`);
-    await page.waitForTimeout(300);
-    await approve.click();
+    const approveCard = page.locator('[data-gdp-step3-unified-approval="true"]');
+    const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
+    await approveCard.waitFor({ state: 'visible', timeout: 10000 });
+    assert(await approvalCheckbox.isEnabled(), `${viewport.name}` + ': design approval should be enabled for an uploaded artwork');
+    assert(!(await approvalCheckbox.isChecked()), `${viewport.name}` + ': restored design must require renewed approval');
+    assert(await page.locator('[data-gdp-step3-approval="true"] input[type="checkbox"]').count() === 1, 'Only one Step 3 approval checkbox is allowed');
+    await approveCard.click();
+    assert(await approvalCheckbox.isChecked(), 'Combined layout-and-rights checkbox did not register');
 
     const finalReviewAction = page.getByRole("button", { name: /Final review/i }).last();
     await finalReviewAction.waitFor({ state: "visible", timeout: 10000 });
