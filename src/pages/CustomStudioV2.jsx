@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, Loader2, RotateCcw, ShieldCheck, Sparkles, Star } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
@@ -226,32 +226,55 @@ function PrintSideControl({ state, onChange }) {
 }
 
 function CustomizeApprovalPanel({ state, dispatch }) {
-  const rightsRequired = state.designPath !== 'seasonal';
   const sides = studioV2PrintableSides(state);
-  const currentEditor = state?.[state.designPath]?.sides?.[state.side];
-  const currentHasContent = studioV2SideHasContent(state, state.side);
-  const currentConfirmed = Boolean(currentEditor?.confirmed);
-  const sidesConfirmed = Boolean(sides.length) && sides.every((side) => Boolean(state?.[state.designPath]?.sides?.[side]?.confirmed));
-  const toggleCurrentConfirmation = () => {
-    if (!currentHasContent) return;
-    if (state.designPath === 'seasonal') dispatch({ type: 'CONFIRM_SEASONAL', side: state.side, value: !currentConfirmed });
-    else dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value: !currentConfirmed });
-  };
+  const rightsRequired = state.designPath !== 'seasonal';
+  const hasArtwork = sides.length > 0;
+  const approved = hasArtwork &&
+    sides.every((side) => Boolean(state?.[state.designPath]?.sides?.[side]?.confirmed)) &&
+    Boolean(state.approval.finalDesignApproved) &&
+    (!rightsRequired || Boolean(state.approval.rightsConfirmed));
+  const selectedSides = sides.map((side) => side === 'front' ? 'Front' : 'Back').join(' + ');
 
-  return <div id="gdp-step3-approval" data-gdp-step3-approval="true" className="mt-5 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-5">
+  return <div id="gdp-step3-approval" data-gdp-step3-approval="true" className="mt-5 rounded-3xl border border-slate-200 bg-slate-50/90 p-4 shadow-inner sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 3 · Finish & approve</p><h2 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">Finish your design and approve it here</h2><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Finish your design and approve the final print layout before moving to Final Review.</p></div>
-      <div className="flex flex-wrap gap-2">{['front', 'back'].map((side) => { const hasContent = studioV2SideHasContent(state, side); const confirmed = Boolean(state?.[state.designPath]?.sides?.[side]?.confirmed); return hasContent ? <span key={side} className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] ${confirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{side} · {confirmed ? 'Finished' : 'Needs finish'}</span> : null; })}</div>
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 3 · Finish & approve</p>
+        <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">One final confirmation</h2>
+        <p className="mt-2 max-w-2xl text-sm font-medium leading-5 text-slate-600">Review your placement, then confirm your finished design before Final Review.</p>
+      </div>
+      {hasArtwork && <span data-gdp-approval-sides="true" className="rounded-full bg-slate-200/80 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-slate-700">{selectedSides}</span>}
     </div>
-
-    <div className="mt-4 grid grid-cols-2 gap-3">
-      <button type="button" data-gdp-step3-finish-side="true" disabled={!currentHasContent} onClick={toggleCurrentConfirmation} aria-pressed={currentConfirmed} className={`flex min-h-[96px] w-full items-start gap-3 rounded-2xl border-2 p-3 text-left transition sm:p-4 ${currentConfirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'} disabled:cursor-not-allowed disabled:opacity-40`}><span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 ${currentConfirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={16} strokeWidth={3} /></span><span><span className="block text-xs font-black sm:text-sm">I’m done customizing this {state.side} design</span><span className="mt-1 block text-[11px] font-medium leading-4 opacity-70 sm:text-xs">Confirm this side’s artwork and placement.</span></span></button>
-      <button type="button" disabled={!sidesConfirmed} onClick={() => dispatch({ type: 'SET_APPROVAL', patch: { finalDesignApproved: !state.approval.finalDesignApproved } })} aria-disabled={!sidesConfirmed} className={`flex min-h-[96px] w-full items-start gap-3 rounded-2xl border-2 p-3 text-left transition sm:p-4 ${state.approval.finalDesignApproved ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white'} ${sidesConfirmed ? 'hover:border-slate-500' : 'cursor-not-allowed'}`}><span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 ${state.approval.finalDesignApproved ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 bg-white text-transparent'}`}><Check size={16} strokeWidth={3} /></span><span><span className="block text-xs font-black text-slate-900 sm:text-sm">I approve the final print layout</span><span className="mt-1 block text-[11px] font-medium leading-4 text-slate-600 sm:text-xs">Available after every designed side is finished.</span></span></button>
-    </div>
-
-    {!sidesConfirmed && sides.length > 0 && <p className="mt-3 text-xs font-bold text-amber-700">Finish every designed print side before final layout approval becomes available.</p>}
-
-    {rightsRequired && <div className="mt-4"><button type="button" disabled={!sidesConfirmed} onClick={() => dispatch({ type: 'SET_APPROVAL', patch: { rightsConfirmed: !state.approval.rightsConfirmed } })} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${state.approval.rightsConfirmed ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${state.approval.rightsConfirmed ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{state.approval.rightsConfirmed ? <Check size={18} /> : null}</span><span><span className="block text-sm font-black text-slate-900">I have permission to use this artwork/photo</span><span className="mt-1 block text-xs font-medium text-slate-500">I own it or have authorization to print it.</span></span></button></div>}
+    <label
+      data-gdp-step3-unified-approval="true"
+      className={[
+        'mt-4 flex min-h-[94px] w-full items-start gap-4 rounded-2xl border-2 bg-white p-4 text-left transition sm:items-center',
+        approved ? 'border-emerald-500 bg-emerald-50 shadow-[0_6px_16px_rgba(5,150,105,.10)]' : 'border-slate-300',
+        hasArtwork ? 'cursor-pointer hover:border-emerald-500' : 'cursor-not-allowed opacity-60',
+      ].join(' ')}
+    >
+      <input
+        data-gdp-step3-approval-checkbox="true"
+        type="checkbox"
+        className="peer sr-only"
+        checked={approved}
+        disabled={!hasArtwork}
+        onChange={(event) => dispatch({ type: 'CONFIRM_FINAL_LAYOUT', value: event.target.checked })}
+      />
+      <span aria-hidden="true" className={[
+        'mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border-2 shadow-sm transition peer-focus-visible:outline peer-focus-visible:outline-4 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-emerald-300 sm:mt-0',
+        approved ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-500 bg-white text-transparent',
+      ].join(' ')}><Check size={21} strokeWidth={3} /></span>
+      <span className="min-w-0">
+        <span className="block text-sm font-black leading-5 text-slate-950 sm:text-base">I have finished my design and approve it for printing.</span>
+        <span className="mt-1.5 block text-xs font-medium leading-5 text-slate-600">
+          {rightsRequired
+            ? 'I also confirm that I own or have permission to print any photos or artwork I provided.'
+            : 'This confirms the final artwork and placement on every designed side.'}
+        </span>
+      </span>
+    </label>
+    {!hasArtwork && <p role="status" className="mt-3 text-xs font-bold text-amber-700">Add artwork to the Front or Back print area to enable approval.</p>}
+    {hasArtwork && <p className="mt-3 text-xs font-medium leading-5 text-slate-500">Your one confirmation covers {selectedSides.toLowerCase()} {sides.length > 1 ? 'designs' : 'design'}. Editing any approved artwork will require confirmation again.</p>}
   </div>;
 }
 
@@ -314,7 +337,26 @@ export default function CustomStudioV2() {
   const [finalizeError, setFinalizeError] = useState('');
   const [finalizeStage, setFinalizeStage] = useState('');
   const finalizationLock = useRef(false);
+  const studioPanelRef = useRef(null);
+  const previousStepRef = useRef(state.step);
   const dispatch = (action) => setState((current) => studioV2Reducer(current, action));
+
+  // Changing a step replaces content at its old scroll position. On phones the
+  // shorter next step could otherwise leave the viewport at the page bottom.
+  // Reposition after React commits, below the sticky storefront navigation.
+  useLayoutEffect(() => {
+    if (previousStepRef.current === state.step) return undefined;
+    previousStepRef.current = state.step;
+    const frame = window.requestAnimationFrame(() => {
+      const panel = studioPanelRef.current;
+      if (!panel) return;
+      const headerInset = window.innerWidth < 768 ? 132 : 110;
+      const nextTop = Math.max(0, Math.round(window.scrollY + panel.getBoundingClientRect().top - headerInset));
+      window.scrollTo({ top: nextTop, left: 0, behavior: 'instant' });
+      panel.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [state.step]);
 
   useEffect(() => {
     const draft = location.state?.studioV2Draft;
@@ -360,6 +402,7 @@ export default function CustomStudioV2() {
 
   const finalizeToCart = async () => {
     if (!product || finalizationLock.current || finalizing || !state.approval.finalDesignApproved) return;
+    if (!studioV2CanContinue({ ...state, step: 'customize' })) return;
     finalizationLock.current = true;
     setFinalizing(true);
     setFinalizeError('');
@@ -562,7 +605,7 @@ export default function CustomStudioV2() {
       <button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="gdp-premium-reset inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button>
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
-    <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm sm:p-5">
+    <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} onContinue={next} canContinue={canContinue} />}
       {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
