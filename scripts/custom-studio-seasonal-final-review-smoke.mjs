@@ -124,6 +124,20 @@ async function inspect(browser, viewport) {
     assert(!/print size/i.test(generatedPrintLabel),
       'custom-studio-seasonal-final-review-smoke.mjs: generated CSS print-size badge is still visible in Final Review');
 
+    const printGuideChrome = await approved.locator('[data-gdp-print-guide="true"]').evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        shadow: getComputedStyle(node).boxShadow,
+        outline: getComputedStyle(node).outlineStyle,
+        border: getComputedStyle(node).borderColor,
+        borderWidth: getComputedStyle(node).borderWidth,
+      }))
+    );
+    assert(printGuideChrome.length > 0, 'Final Review must keep its nonvisual print-area coordinate anchor');
+    assert(printGuideChrome.every((guide) =>
+      guide.shadow === 'none' && guide.outline === 'none' &&
+      /^(?:rgba?\\(0, 0, 0, 0\\)|transparent)$/.test(guide.border)),
+      'Step 4 approval preview still shows a faint print-box outline or drop-shadow');
+
     const staticLayer = approved.locator('[data-gdp-seasonal-review-artwork="true"]').first();
     await staticLayer.waitFor({ state: 'visible', timeout: 15000 });
     const approvedArtwork = await loadedImage(staticLayer.locator('img').first(), `${viewport.name}: approved Seasonal artwork`);
