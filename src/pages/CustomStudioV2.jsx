@@ -460,6 +460,7 @@ export default function CustomStudioV2() {
         product,
         size: state.size,
         side: firstSide,
+        color: state.color,
       });
       const mockupFile = new File(
         [customerMockup.blob],

@@ -459,7 +459,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const radius = zone.shape === 'circle' || zone.shape === 'oval' ? '50%' : `${Number(zone.radius || 0)}%`;
   const stickerById = Object.fromEntries(stickers.map((item) => [item.id, item]));
   const garmentPreview = studioV2GarmentPreview(product, color, side);
-  const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
+  const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side, color), [product, size, side, color]);
   const templateTransform = resolveBootlegTemplateTransform(legacyStyle);
   const templateEditing = usesLayerLab && activeLayer === 'template';
   const layoutWidth = 1000;
@@ -632,7 +632,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const stickerLayers = Array.isArray(editor.stickers) ? editor.stickers : [];
   const activeSticker = stickerLayers.find((layer) => layer.id === editor.activeStickerId) || null;
   const activeStickerOption = activeSticker ? stickerLibrary.find((item) => item.id === activeSticker.stickerId) || null : null;
-  const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
+  const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side, color), [product, size, side, color]);
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
   const rawTextPosition = resolveBootlegTextPosition(rawTextStyle, textZone);

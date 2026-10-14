@@ -64,6 +64,7 @@ export async function renderStudioV2CustomerMockup({
   product = null,
   size = '',
   side = 'front',
+  color = '',
 }) {
   if (!productionBlob) throw new Error('Approved artwork is missing from the customer preview.');
 
@@ -88,7 +89,7 @@ export async function renderStudioV2CustomerMockup({
   }
   if (!garmentDrawn) drawNeutralGarment(ctx);
 
-  const printGuide = resolveStudioV2PrintGuide(product, size, side);
+  const printGuide = resolveStudioV2PrintGuide(product, size, side, color);
   const widthPercent = percentValue(printGuide?.style?.width, 28);
   const topPercent = percentValue(printGuide?.style?.top, 24);
   const printWidthIn = Math.max(0.01, Number(printGuide?.widthIn || 1));

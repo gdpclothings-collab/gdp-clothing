@@ -115,8 +115,15 @@ function configuredBodyVisualWidthPercent(product, side) {
   return Number.isFinite(value) && value > 0 ? clamp(value, 28, 70) : 0;
 }
 
-function configuredPreviewPrintArea(product, side) {
-  const area = product?.customization?.preview?.printArea?.[side] || null;
+function configuredPreviewPrintArea(product, side, color = '') {
+  const byColor = product?.customization?.preview?.printAreaByColor;
+  const normalizedColor = String(color || '').trim().toLowerCase();
+  const selected = normalizedColor && byColor && typeof byColor === 'object'
+    ? Object.entries(byColor).find(([name]) => name.trim().toLowerCase() === normalizedColor)?.[1]?.[side]
+    : null;
+  // A calibrated photographic color variant takes priority, while all existing
+  // products and uncalibrated colors keep their authoritative base print area.
+  const area = selected || product?.customization?.preview?.printArea?.[side] || null;
   if (!area) return null;
   const widthPercent = Number(area.width);
   const topPercent = Number(area.top);
@@ -170,11 +177,11 @@ function formatInches(value) {
  * - printGuide[side].garmentWidthIn / bodyWidthIn
  * - preview.printGuide.visualGeometry[side].bodyWidthPercent
  */
-export function resolveStudioV2PrintGuide(product, size, side = 'front') {
+export function resolveStudioV2PrintGuide(product, size, side = 'front', color = '') {
   const normalizedSide = side === 'back' ? 'back' : 'front';
   const profile = resolveStudioV2PrintProfile(product, size, normalizedSide);
   const geometry = resolveDisplayGeometry(product, size, normalizedSide);
-  const configuredArea = configuredPreviewPrintArea(product, normalizedSide);
+  const configuredArea = configuredPreviewPrintArea(product, normalizedSide, color);
   const physicalRatio = clamp(Number(profile.widthIn) / Math.max(1, geometry.bodyWidthIn), 0.18, 0.78);
   const fallbackWidthPercent = Math.round(geometry.bodyVisualWidthPercent * physicalRatio * 10) / 10;
   const widthPercent = configuredArea?.widthPercent ?? fallbackWidthPercent;
