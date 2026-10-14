@@ -1012,7 +1012,7 @@ export default function DTFGangSheet() {
 
     const previewIsShared = artworks.some(
       (item) => item.id !== targetId && item.previewUrl === previousPreviewUrl
-    );
+    ) || undoDeletionRef.current?.item.previewUrl === previousPreviewUrl;
     if (previousPreviewUrl && previousPreviewUrl !== nextPreviewUrl && !previewIsShared) {
       URL.revokeObjectURL(previousPreviewUrl);
     }
