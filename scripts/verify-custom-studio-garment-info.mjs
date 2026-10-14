@@ -61,6 +61,13 @@ expect(panel.includes('info.shippingInfo') && panel.includes('info.careInstructi
 
 expect(!page.includes('costPerItem ='), 'Garment information work must not introduce cost mutation in Custom Studio.');
 expect(!panel.includes('product.price ='), 'Garment information panel must remain read-only for pricing.');
+expect(panel.includes('data-gdp-size-guide-note="true"'), 'Keep the admin-editable note visible in the size guide.');
+expect(panel.includes('{note && <p data-gdp-size-guide-note'), 'Do not show empty notes in the size guide.');
+expect(!panel.includes('Chart measurements are for reference only; available purchase sizes are shown in the garment options.'), 'Size guides must not repeat the admin note with a second disclaimer.');
+expect((panel.match(/data-gdp-size-guide-note="true"/g) || []).length === 1, 'Render exactly one size guide note.');
+expect(panel.includes('data-gdp-size-guide-mobile="true"') && panel.includes('setSelectedChartSize(row.size)'), 'Keep the mobile selected-size layout intact.');
+expect(panel.includes('Reference only') && panel.includes('Charted sizes may not all be available to purchase.'), 'Preserve reference-only size labels and screen-reader guidance.');
+
 
 
 const admin = read('src/components/admin/ProductsModule.jsx');
