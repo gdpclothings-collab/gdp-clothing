@@ -167,7 +167,7 @@ async function inspectViewport(browser, viewport) {
     const approveCard = page.locator('[data-gdp-step3-unified-approval="true"]');
     const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
     await approveCard.waitFor({ state: 'visible', timeout: 10000 });
-    assert(await page.locator('[data-gdp-approval-sides="true"]').innerText() === 'Front + Back', 'One approval must explicitly cover both designed sides');
+    assert((await page.locator('[data-gdp-approval-sides="true"]').textContent()).trim() === 'Front + Back', 'One approval must explicitly cover both designed sides');
     assert(!(await approvalCheckbox.isChecked()), 'A restored two-sided draft must require fresh approval');
     await approveCard.click();
     assert(await approvalCheckbox.isChecked(), 'Unified two-sided approval did not register');
