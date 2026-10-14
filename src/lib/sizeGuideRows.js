@@ -6,6 +6,7 @@ export const SIZE_GUIDE_FIELDS = Object.freeze([
   { key: 'width', label: 'Chest Width (Laid Flat)' },
   { key: 'sleeve', label: 'Sleeve Length (From Center Back)' },
   { key: 'sleeveTolerance', label: 'Sleeve Tolerance' },
+  { key: 'numericalSizes', label: 'Numerical Sizes' },
 ]);
 
 const clean = (value) => String(value ?? '').trim();
@@ -36,9 +37,14 @@ export function parseSizeGuideRows(value) {
     lengthTolerance: clean(row.lengthTolerance ?? row.bodyLengthTolerance),
     chestTolerance: clean(row.chestTolerance),
     sleeveTolerance: clean(row.sleeveTolerance),
+    numericalSizes: clean(row.numericalSizes ?? row.numericSize),
   })).filter((row) => row.size);
 }
 
 export function sizeGuideIsDetailed(rows) {
-  return rows.some((row) => Boolean(row.lengthTolerance || row.chestTolerance || row.sleeveTolerance));
+  return rows.some((row) => Boolean(row.lengthTolerance || row.chestTolerance || row.sleeveTolerance || row.numericalSizes));
+}
+
+export function sizeGuideVisibleFields(rows) {
+  return SIZE_GUIDE_FIELDS.filter(({ key }) => rows.some((row) => Boolean(clean(row?.[key]))));
 }
