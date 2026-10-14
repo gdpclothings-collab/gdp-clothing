@@ -1,0 +1,46 @@
+name: GDP Studio Final Review UI Isolation QA (temporary)
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  final-review-ui:
+    if: github.head_ref == 'fix/studio-final-review-editor-status-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      PRODUCTION_BASE_URL: https://fix-studio-final-review-edit.gdp-clothing.pages.dev
+      SMOKE_ARTIFACT_DIR: final-review-editor-ui-qa
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Verify presentation and protected artwork contract
+        run: node scripts/verify-custom-studio-final-review-preview.mjs
+      - name: Install isolated Playwright browser runner
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify Cloudflare branch preview is reachable
+        run: curl -fsSL --max-time 30 "$PRODUCTION_BASE_URL/custom-studio" -o /dev/null
+      - name: Test Bootleg and Memorial Step 3 vs Step 4 on desktop and mobile
+        run: node scripts/custom-studio-protected-final-review-smoke.mjs
+      - name: Test upload Final Review on desktop and mobile
+        run: node scripts/custom-studio-final-review-smoke.mjs
+      - name: Test two-sided upload Final Review
+        run: node scripts/custom-studio-final-review-two-sided-smoke.mjs
+      - name: Test Seasonal Final Review
+        run: node scripts/custom-studio-seasonal-final-review-smoke.mjs
+      - name: Save isolated QA screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: final-review-ui-isolation-qa
+          path: final-review-editor-ui-qa
+          if-no-files-found: ignore
+          retention-days: 3
