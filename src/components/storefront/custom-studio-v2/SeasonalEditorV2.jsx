@@ -187,7 +187,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   const layersRef = useRef(layers || []);
   const requestKeyRef = useRef(requestKey);
   const garmentPreview = studioV2GarmentPreview(product, color, side);
-  const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side), [product, size, side]);
+  const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side, color), [product, size, side, color]);
   const catalog = catalogRecord.key === requestKey ? catalogRecord.data : (seasonalCatalogCache.get(requestKey) || null);
   const libraryBusy = libraryLoading || (!catalog && !error);
 
