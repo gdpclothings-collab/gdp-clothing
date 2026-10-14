@@ -49,6 +49,21 @@ assert(guard.includes("['front', 'back'].forEach((side) =>"), 'Final Review must
 
 // Review copies must be presentation-only: no interactive editor chrome or print-guide overlays.
 assert(guard.includes("clone.querySelectorAll('button,input,select,textarea').forEach((node) => node.remove());"), 'Final Review clone must remove editor controls');
+const protectedUiSelectors = [
+  '[data-gdp-bootleg-active-layer]',
+  '[data-gdp-memorial-active-layer]',
+  '[data-gdp-bootleg-active-status]',
+  '[data-gdp-memorial-active-status]',
+  '[data-gdp-bootleg-confirm-action]',
+  '[data-gdp-memorial-confirm-action]',
+  '[data-gdp-bootleg-upload-status]',
+];
+for (const selector of protectedUiSelectors) {
+  assert(guard.includes(selector), 'Final Review must strip protected editing-only node: ' + selector);
+}
+assert(guard.includes("].join(',')).forEach((node) => node.remove());"), 'protected editor-only panels must be removed rather than visually hidden');
+assert(guard.indexOf('const clone = section.cloneNode(true);') < guard.indexOf("'[data-gdp-bootleg-active-status]'"), 'protected editor chrome must be removed only after cloning Step 3');
+assert(guard.indexOf("'[data-gdp-bootleg-active-status]'") < guard.indexOf('reviewPreviewSnapshots.set(side, clone.outerHTML);'), 'protected editor controls must be stripped before snapshotting Final Review');
 assert(guard.includes("clone.querySelectorAll('[data-gdp-print-guide=\"true\"]')"), 'Final Review clone must sanitize print-guide UI');
 assert(guard.includes("node.style.borderColor = 'transparent';"), 'Final Review clone must hide print-guide border');
 assert(guard.includes("node.style.boxShadow = 'none';"), 'Final Review clone must remove faint print-guide rectangle shadow');
@@ -73,6 +88,8 @@ assert(protectedEditor.includes('data-gdp-bootleg-free-photo-layer'), 'Bootleg p
 assert(protectedEditor.includes('data-gdp-memorial-free-photo-layer'), 'Memorial photo layers stay inside the preview');
 assert(protectedEditor.includes('data-gdp-bootleg-text-layer'), 'Bootleg text layers stay inside the preview');
 assert(protectedEditor.includes('data-gdp-memorial-text-layer'), 'Memorial text layers stay inside the preview');
+assert(protectedEditor.includes('data-gdp-bootleg-active-status={isBootleg ? \'true\' : undefined}'), 'Step 3 Bootleg must retain its live layer status');
+assert(protectedEditor.includes('data-gdp-memorial-active-status={isMemorial ? \'true\' : undefined}'), 'Step 3 Memorial must retain its live layer status');
 for (const selector of [
   '[data-gdp-bootleg-template-layer]',
   '[data-gdp-memorial-template-layer]',

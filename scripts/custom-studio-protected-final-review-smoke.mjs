@@ -89,6 +89,15 @@ async function inspect(browser, testCase, viewport) {
     const templateStyle = await template.getAttribute('style');
     const photoStyle = await photo.getAttribute('style');
 
+    // Step 3 editing UI stays available. Only the Step 4 DOM snapshot is sanitized.
+    const activeStatus = page.locator('[' + id + '-active-status="true"]').first();
+    const activeToolbar = page.locator('[' + id + '-active-layer="true"]').first();
+    await activeStatus.waitFor({ state: 'visible', timeout: 15000 });
+    await activeToolbar.waitFor({ state: 'visible', timeout: 15000 });
+    assert(/Editing Photo/i.test(await activeStatus.innerText()), testCase.name + '/' + viewport.name + ': Step 3 must still show selected photo');
+    assert(await activeToolbar.getByRole('button', { name: /^Photo$/i }).isVisible(),
+      testCase.name + '/' + viewport.name + ': Step 3 layer selector was unexpectedly removed');
+
     const approvalCard = page.locator('[data-gdp-step3-unified-approval="true"]');
     const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
     await approvalCard.waitFor({ state: 'visible', timeout: 15000 });
@@ -130,6 +139,17 @@ async function inspect(browser, testCase, viewport) {
       guide.shadow === 'none' && guide.outline === 'none' &&
       (guide.border === 'rgba(0, 0, 0, 0)' || guide.border === 'transparent')),
       'Step 4 approval preview still shows a faint print-box outline or drop-shadow');
+
+    // Layer selection tabs, active "Editing Photo" summary, and editing
+    // instructions are not customer-facing artwork. They must never leak into Step 4.
+    assert(await preview.locator('[' + id + '-active-status],[' + id + '-active-layer]').count() === 0,
+      testCase.name + '/' + viewport.name + ': Step 4 still contains layer selection/status panels');
+    assert(await preview.getByText(/Editing (?:Photo|Template|Text|Sticker)\b/i).count() === 0,
+      testCase.name + '/' + viewport.name + ': Step 4 still shows the active editing status');
+    assert(await preview.locator('p').filter({ hasText: /choose a layer first|tap a layer in the list|one finger moves|layer selected/i }).count() === 0,
+      testCase.name + '/' + viewport.name + ': Step 4 still shows editor movement instructions');
+    assert(await preview.locator('[data-gdp-bootleg-confirm-action],[data-gdp-memorial-confirm-action]').count() === 0,
+      testCase.name + '/' + viewport.name + ': Step 4 includes side confirmation editing controls');
 
     const approvedTemplate = preview.locator('[' + id + '-template-layer="true"]').first();
     const approvedPhoto = preview.locator('[' + id + '-free-photo-layer="true"]').first();

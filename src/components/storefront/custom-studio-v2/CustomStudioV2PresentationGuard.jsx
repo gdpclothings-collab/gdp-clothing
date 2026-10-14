@@ -67,6 +67,20 @@ export default function CustomStudioV2PresentationGuard() {
           while (layer.firstChild) staticLayer.appendChild(layer.firstChild);
           layer.replaceWith(staticLayer);
         });
+        // Protected Photo Bootleg and Memorial previews include a layer
+        // selector and an "Editing Photo/Template/Text/Sticker" status panel.
+        // They guide editing in Step 3 but must never be copied into the
+        // read-only Step 4 approval mockup. Remove these only from the clone;
+        // actual canvas artwork and saved transforms stay untouched.
+        clone.querySelectorAll([
+          '[data-gdp-bootleg-active-layer]',
+          '[data-gdp-memorial-active-layer]',
+          '[data-gdp-bootleg-active-status]',
+          '[data-gdp-memorial-active-status]',
+          '[data-gdp-bootleg-confirm-action]',
+          '[data-gdp-memorial-confirm-action]',
+          '[data-gdp-bootleg-upload-status]',
+        ].join(',')).forEach((node) => node.remove());
         clone.querySelectorAll('button,input,select,textarea').forEach((node) => node.remove());
         // Approved previews show only garment + artwork, never Step 3 print
         // boundaries or measurement labels. Removing data-gdp-print-size also
