@@ -82,6 +82,30 @@ export default function CustomStudioV2PresentationGuard() {
             .trim();
         });
 
+        // Photo Bootleg and Memorial Tribute artwork is already in div/img/svg layers.
+        // Keep every transform and visual element, but remove active editing outlines
+        // and drag cursors from the customer-facing, read-only approval preview.
+        clone.querySelectorAll([
+          '[data-gdp-bootleg-template-layer]',
+          '[data-gdp-memorial-template-layer]',
+          '[data-gdp-bootleg-free-photo-layer]',
+          '[data-gdp-memorial-free-photo-layer]',
+          '[data-gdp-bootleg-text-layer]',
+          '[data-gdp-memorial-text-layer]',
+          '[data-gdp-sticker-layer-id]',
+        ].join(',')).forEach((node) => {
+          node.className = String(node.className || '')
+            .replace(/\b(?:active:)?ring[^\s]*/g, '')
+            .replace(/\bcursor-(?:grab|grabbing|move)\b/g, 'cursor-default')
+            .replace(/\s+/g, ' ')
+            .trim();
+        });
+        // Selection geometry is an editing aid, not part of the approved design.
+        clone.querySelectorAll('[data-gdp-bootleg-text-bounds="true"]').forEach((node) => node.remove());
+        clone.querySelectorAll('p').forEach((node) => {
+          if (/one finger moves|choose a layer first|tap a layer in the list/i.test(node.textContent || '')) node.remove();
+        });
+
         const clonedHeading = Array.from(clone.querySelectorAll('p')).find((node) => /live garment preview|fabric workspace/i.test(node.textContent || ''));
         if (clonedHeading) clonedHeading.textContent = `Final garment preview · ${side}`;
         const helper = Array.from(clone.querySelectorAll('p')).find((node) => /drag with|drag to move|dashed fabric box|normalized geometry/i.test(node.textContent || ''));
