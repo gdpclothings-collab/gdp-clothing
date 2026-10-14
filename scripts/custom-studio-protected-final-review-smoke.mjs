@@ -104,6 +104,19 @@ async function inspect(browser, testCase, viewport) {
     await page.getByRole('heading', { name: /^Final review$/i }).waitFor({ state: 'visible', timeout: 15000 });
     const preview = page.locator('[data-gdp-final-review-preview="true"]');
     await preview.waitFor({ state: 'visible', timeout: 15000 });
+    // Final Review must show the approved garment/artwork only. The editing
+    // print-size badge and dashed-boundary explanation belong to Step 3.
+    assert(await preview.locator('[data-gdp-print-size]').count() === 0,
+      'custom-studio-protected-final-review-smoke.mjs: print-size badge attribute leaked into Final Review');
+    assert(await preview.locator('p').filter({ hasText: /drag with one finger|drag to move|dashed fabric box|dashed boundary|normalized geometry/i }).count() === 0,
+      'custom-studio-protected-final-review-smoke.mjs: editor-only fabric guidance leaked into Final Review');
+    const generatedPrintLabel = await preview.locator('[data-gdp-print-guide="true"]').first().evaluate((node) => {
+      const frame = node.parentElement;
+      return frame ? getComputedStyle(frame, '::before').content : '';
+    });
+    assert(!/print size/i.test(generatedPrintLabel),
+      'custom-studio-protected-final-review-smoke.mjs: generated CSS print-size badge is still visible in Final Review');
+
     const approvedTemplate = preview.locator('[' + id + '-template-layer="true"]').first();
     const approvedPhoto = preview.locator('[' + id + '-free-photo-layer="true"]').first();
     await approvedTemplate.waitFor({ state: 'attached', timeout: 15000 });

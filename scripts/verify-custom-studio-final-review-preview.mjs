@@ -6,6 +6,7 @@ const guard = fs.readFileSync(guardPath, 'utf8');
 const page = fs.readFileSync(pagePath, 'utf8');
 const seasonalEditor = fs.readFileSync('src/components/storefront/custom-studio-v2/SeasonalEditorV2.jsx', 'utf8');
 const protectedEditor = fs.readFileSync('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', 'utf8');
+const presentationCss = fs.readFileSync('src/components/storefront/custom-studio-v2/customStudioV2PresentationCleanup.css', 'utf8');
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -32,7 +33,7 @@ assert(seasonalEditor.includes('data-gdp-seasonal-canvas-stable="true"'), 'Seaso
 assert(seasonalEditor.includes('Fabric workspace'), 'Seasonal canvas uses a distinct title that the snapshot collector must support');
 assert(guard.includes('/live garment preview|fabric workspace/i'), 'Final Review must collect both Seasonal and standard Studio previews');
 assert(guard.includes("(guide.getAttribute('aria-label') || '').match(/\\b(front|back)\\b/i)"), 'front/back snapshot labels must come from the actual live print guide');
-assert(guard.includes('/drag with|drag to move|dashed fabric box|normalized geometry/i'), 'Final Review should omit the Seasonal edit gesture hint');
+assert(guard.includes('/drag with one finger|drag to move|dashed fabric box|dashed boundary|normalized geometry/i'), 'Final Review must remove every workspace edit hint, including the dashed fabric box explanation');
 
 assert(seasonalEditor.includes('data-seasonal-v2-layer'), 'Seasonal artwork uses movable button layers in Step 3');
 assert(guard.includes("clone.querySelectorAll('button[data-seasonal-v2-layer]')"), 'Seasonal artwork must be handled before generic editor buttons are removed');
@@ -51,6 +52,14 @@ assert(guard.includes("clone.querySelectorAll('button,input,select,textarea').fo
 assert(guard.includes("clone.querySelectorAll('[data-gdp-print-guide=\"true\"]')"), 'Final Review clone must sanitize print-guide UI');
 assert(guard.includes("node.style.borderColor = 'transparent';"), 'Final Review clone must hide print-guide border');
 assert(guard.includes("node.style.background = 'transparent';"), 'Final Review clone must keep garment/artwork visible without print-guide fill');
+assert(guard.includes("clone.querySelectorAll('[data-gdp-print-size]').forEach((node) => {"), 'Final Review clone must remove CSS-generated print-size label attributes');
+assert(guard.includes("node.removeAttribute('data-gdp-print-size');"), 'Final Review must prevent the floating print-size badge from rendering');
+assert(guard.includes("if (guide.closest('[data-gdp-final-review-preview=\"true\"]')) return;"), 'measurement sync must skip Final Review clones');
+assert(presentationCss.includes('[data-gdp-final-review-preview="true"] [data-gdp-print-size]::before'), 'Final Review must have a scoped CSS safeguard against regenerated measurement badges');
+assert(presentationCss.includes('content: none !important;'), 'approved previews must not render a measurement pseudo-element');
+assert(presentationCss.includes('[data-gdp-print-size]::before'), 'Step 3 must retain its useful editable print-size badge');
+assert(guard.includes("clone.querySelectorAll('p').forEach((node) => {"), 'every editor guidance paragraph needs to be evaluated');
+assert(guard.includes('clone.setAttribute(\'data-gdp-final-review-preview-card\', side);'), 'sanitization must occur only on the approved preview clone');
 
 assert(protectedEditor.includes("const isBootleg = path === 'bootleg';"), 'Bootleg needs the protected preview component');
 assert(protectedEditor.includes("const isMemorial = path === 'memorial';"), 'Memorial needs the same protected preview component');
