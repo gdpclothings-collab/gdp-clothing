@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { accessHeadersForRequest, cloudflareChallengeDetails, publicPathOnly } from "./admin-smoke-cloudflare.mjs";
 
 const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
 const OUT = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
@@ -49,6 +50,11 @@ function totp(secret, timestamp = Date.now()) {
 async function nav(page, route) {
   const url = new URL(route, BASE_URL).toString();
   const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  const challenge = cloudflareChallengeDetails(bodyText);
+  if (challenge) {
+    throw new Error(`Cloudflare security verification challenged ${route} (Ray ID: ${challenge.rayId || "not available"}).`);
+  }
   assert(response && response.status() < 400, `${url} returned HTTP ${response?.status() ?? "no response"}`);
   await page.locator("body").waitFor({ state: "visible", timeout: 15000 });
 }
@@ -98,79 +104,83 @@ async function waitForAdminOrMfa(page) {
   throw new Error("Authenticated admin dashboard did not become available.");
 }
 
+function cloudflareAccessCredentials() {
+  const id = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_ID || "").trim();
+  const secret = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_SECRET || "").trim();
+  assert(Boolean(id) === Boolean(secret), "Cloudflare Access smoke credentials must be supplied as a pair.");
+  const target = new URL(BASE_URL);
+  assert(!id || (target.protocol === "https:" && target.hostname === "gdpclothing.ca"),
+    "Cloudflare Access credentials may only be sent to the GDP production hostname.");
+  return { id, secret };
+}
+
+// Install on every independent Playwright context, including post-login checks.
+// Never send service-token headers to Supabase, Stripe or other third parties.
+async function installCloudflareAccessRoute(context, credentials) {
+  if (!credentials?.id) return;
+  await context.route("**/*", async (route) => {
+    const request = route.request();
+    const headers = accessHeadersForRequest(request.url(), BASE_URL, request.headers(), credentials);
+    if (!headers) {
+      await route.continue();
+      return;
+    }
+    await route.continue({ headers });
+  });
+}
+
 async function authenticate(browser) {
   assert(EMAIL, "GDP_ADMIN_SMOKE_EMAIL is required.");
   assert(PASSWORD, "GDP_ADMIN_SMOKE_PASSWORD is required.");
 
-  const accessId = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_ID || "").trim();
-  const accessSecret = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_SECRET || "").trim();
-  assert(Boolean(accessId) === Boolean(accessSecret), "Cloudflare Access smoke credentials must be supplied as a pair.");
-  const target = new URL(BASE_URL);
-  assert(
-    !accessId || (target.protocol === "https:" && target.hostname === "gdpclothing.ca"),
-    "Cloudflare Access credentials may only be sent to the GDP production hostname."
-  );
+  const credentials = cloudflareAccessCredentials();
   const context = await browser.newContext({
     viewport: DESKTOP,
     locale: "en-CA",
     timezoneId: "America/Regina",
     colorScheme: "light",
   });
-  if (accessId) {
-    await context.route("**/*", async (route) => {
-      const request = route.request();
-      if (new URL(request.url()).origin !== target.origin) {
-        await route.continue();
-        return;
-      }
-      await route.continue({
-        headers: {
-          ...request.headers(),
-          "CF-Access-Client-Id": accessId,
-          "CF-Access-Client-Secret": accessSecret,
-        },
-      });
-    });
-  }
+  await installCloudflareAccessRoute(context, credentials);
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
 
-  await nav(page, "/login?returnTo=%2Fadmin");
-  await page.locator("#email").fill(EMAIL);
-  await page.locator("#password").fill(PASSWORD);
-  await page.getByRole("button", { name: /^Log in$/i }).click();
-
-  const loginError = page.getByRole("alert");
-  await Promise.race([
-    page.waitForURL(/\/admin(?:\/|$)/, { timeout: 30000 }),
-    loginError.waitFor({ state: "visible", timeout: 30000 }).then(async () => {
-      throw new Error(`Admin login failed: ${await loginError.innerText()}`);
-    }),
-  ]);
-
   try {
+    await nav(page, "/login?returnTo=%2Fadmin");
+    await page.locator("#email").fill(EMAIL);
+    await page.locator("#password").fill(PASSWORD);
+    await page.getByRole("button", { name: /^Log in$/i }).click();
+
+    const loginError = page.getByRole("alert");
+    await Promise.race([
+      page.waitForURL(/\/admin(?:\/|$)/, { timeout: 30000 }),
+      loginError.waitFor({ state: "visible", timeout: 30000 }).then(async () => {
+        throw new Error(`Admin login failed: ${await loginError.innerText()}`);
+      }),
+    ]);
     await waitForAdminOrMfa(page);
   } catch (error) {
-    const bodyText = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 1200);
-    const currentUrl = page.url();
-    console.error(`Admin auth diagnostic: url=${currentUrl} body=${bodyText || "[empty]"}`);
+    const bodyText = (await page.locator("body").innerText().catch(() => "")).slice(0, 2500);
+    const challenge = cloudflareChallengeDetails(bodyText);
+    const route = publicPathOnly(page.url());
+    console.error(`Admin auth diagnostic: path=${route} error=${error?.message || "unknown"}`);
     await page.screenshot({
       path: path.join(OUT, "admin-authentication-FAILED.png"),
       fullPage: true,
     }).catch(() => {});
 
-    const blockedByCloudflare =
-      /performing security verification|protect against malicious bots|performance and security by cloudflare|ray id:/i.test(bodyText);
-
-    if (blockedByCloudflare) {
+    if (challenge) {
+      console.error(`Cloudflare challenge on ${route}; Ray ID: ${challenge.rayId || "unavailable"}. Check Cloudflare Security Events for the matching rule. Cloudflare Access service tokens alone do not skip WAF challenges.`);
       await context.close();
       return {
         blocked: true,
-        reason: "cloudflare-security-verification",
-        url: currentUrl,
+        reason: challenge.reason,
+        path: route,
+        rayId: challenge.rayId,
+        cfAccessConfigured: Boolean(credentials.id),
       };
     }
 
+    await context.close();
     throw error;
   }
 
@@ -187,6 +197,7 @@ async function runCheck(browser, name, viewport, storageState, test) {
     timezoneId: "America/Regina",
     colorScheme: "light",
   });
+  await installCloudflareAccessRoute(context, cloudflareAccessCredentials());
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
   const startedAt = Date.now();
@@ -230,7 +241,9 @@ async function main() {
         authenticated: false,
         status: "blocked",
         blocker: authResult.reason,
-        url: authResult.url,
+        path: authResult.path,
+        rayId: authResult.rayId,
+        cfAccessConfigured: authResult.cfAccessConfigured,
         safetyBoundary: "Authenticated admin smoke was blocked by Cloudflare security verification before the admin app rendered. No commerce mutation was submitted.",
         passed: 0,
         failed: 0,
@@ -238,7 +251,7 @@ async function main() {
         results: [],
       };
       await fs.writeFile(path.join(OUT, "admin-authenticated-smoke.json"), JSON.stringify(report, null, 2));
-      console.error("BLOCKED admin smoke - Cloudflare security verification prevented authenticated coverage. Failing closed.");
+      console.error(`BLOCKED admin smoke - Cloudflare security verification prevented authenticated coverage (Ray ID: ${authResult.rayId || "unavailable"}). Failing closed.`);
       process.exitCode = 1;
       return;
     }
