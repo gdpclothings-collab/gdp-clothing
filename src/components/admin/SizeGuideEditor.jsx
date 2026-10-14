@@ -10,7 +10,7 @@ export default function SizeGuideEditor({ rows, note, onRowsChange, onNoteChange
   };
 
   const addSize = () => {
-    onRowsChange([...rows, { size: '', length: '', lengthTolerance: '', chestTolerance: '', width: '', sleeve: '', sleeveTolerance: '' }]);
+    onRowsChange([...rows, { size: '', length: '', lengthTolerance: '', chestTolerance: '', width: '', sleeve: '', sleeveTolerance: '', numericalSizes: '' }]);
   };
 
   return (
