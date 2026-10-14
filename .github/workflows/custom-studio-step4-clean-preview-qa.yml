@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 16
     env:
-      PRODUCTION_BASE_URL: https://fix-studio-step4-outline-sh.gdp-clothing.pages.dev
+      PRODUCTION_BASE_URL: https://fix-studio-step4-outline-sha.gdp-clothing.pages.dev
       SMOKE_ARTIFACT_DIR: clean-preview-results
     steps:
       - uses: actions/checkout@v5
