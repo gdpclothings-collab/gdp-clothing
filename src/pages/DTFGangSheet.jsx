@@ -1761,6 +1761,11 @@ export default function DTFGangSheet() {
                   >
                     <RotateCcw size={13} /> Reset
                   </button>
+                  {selectedArtwork && (
+                    <button type="button" onClick={removeSelected} aria-label="Delete selected artwork" title="Delete selected artwork" className="grid h-9 w-9 place-items-center border border-white/20 text-white/75 hover:border-red-400 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-sky-400">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1825,8 +1830,8 @@ export default function DTFGangSheet() {
                   >
                     {artworks.map((item) => {
                       const selected = item.id === selectedId;
-                      const quality = getArtworkQuality(item, settings);
-                      const controlsAbove = item.y + item.height > sheetLength * 0.82;
+                      // Keep small designs unobstructed; full measurements remain in Selected Design.
+                      const rotateHandleBelow = (item.y / sheetLength) * displayHeight * canvasZoom < 44;
                       return (
                         <div
                           role="button"
@@ -1877,32 +1882,31 @@ export default function DTFGangSheet() {
                           )}
                           {selected && (
                             <>
-                              {mode === "build" && <span
-                                className="pointer-events-none absolute left-1 top-1 z-30 bg-black/85 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white shadow"
-                                style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
-                              >
-                                {round(item.width, 1)}" × {round(item.height, 1)}" · {round(normalizeArtworkRotation(item.rotation), 1)}°
-                              </span>}
-                              <div
-                                className="absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-black/20 bg-white p-1 text-black shadow-xl"
-                                style={{
-                                  top: controlsAbove ? "auto" : "calc(100% + 6px)",
-                                  bottom: controlsAbove ? "calc(100% + 6px)" : "auto",
-                                  transform: `translateX(-50%) rotate(${-normalizeArtworkRotation(item.rotation)}deg)`,
-                                }}
-                              >
-                                {mode === "build" && (
-                                  <button type="button" aria-label={`Rotate ${item.name} freely`} title="Drag to rotate freely · Hold Shift to snap by 15°" onPointerDown={(event) => onRotatePointerDown(event, item)} className="grid h-8 w-8 cursor-grab place-items-center rounded-full hover:bg-black hover:text-white">
-                                    <RotateCw size={14} />
+                              <span aria-hidden="true" className="pointer-events-none absolute inset-0 border border-sky-400 shadow-[0_0_0_1px_rgba(15,23,42,0.65)]" />
+                              {mode === "build" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    aria-label={`Rotate ${item.name} freely`}
+                                    title="Drag to rotate · Hold Shift to snap by 15°"
+                                    onPointerDown={(event) => onRotatePointerDown(event, item)}
+                                    className="absolute left-1/2 z-30 grid h-9 w-9 cursor-grab place-items-center rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-sky-500"
+                                    style={{ top: rotateHandleBelow ? "calc(100% + 6px)" : "-42px", transform: `translateX(-50%) rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
+                                  >
+                                    <span className="grid h-6 w-6 place-items-center rounded-full border border-black/20 bg-white text-black shadow-md hover:bg-black hover:text-white"><RotateCw size={12} /></span>
                                   </button>
-                                )}
-                                <button type="button" aria-label={`Resize ${item.name}`} title="Drag to resize artwork" onPointerDown={(event) => onResizePointerDown(event, item)} className="grid h-8 w-8 cursor-nwse-resize place-items-center rounded-full hover:bg-black hover:text-white">
-                                  <Maximize2 size={14} />
-                                </button>
-                                <button type="button" aria-label={`Delete ${item.name}`} title="Delete selected artwork" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} onClick={(event) => { event.preventDefault(); event.stopPropagation(); removeArtwork(item.id); }} className="grid h-8 w-8 place-items-center rounded-full text-red-700 hover:bg-red-600 hover:text-white">
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
+                                  <button
+                                    type="button"
+                                    aria-label={`Resize ${item.name}`}
+                                    title="Drag to resize (aspect ratio locked)"
+                                    onPointerDown={(event) => onResizePointerDown(event, item)}
+                                    className="absolute -bottom-5 -right-5 z-30 grid h-9 w-9 cursor-nwse-resize place-items-center rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-sky-500"
+                                    style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
+                                  >
+                                    <span className="grid h-6 w-6 place-items-center rounded-full border border-black/20 bg-white text-black shadow-md hover:bg-black hover:text-white"><Maximize2 size={12} /></span>
+                                  </button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
@@ -2017,7 +2021,7 @@ export default function DTFGangSheet() {
                       ))}
                     </div>
                     <div className="mt-2 text-[9px] leading-4 text-black/40">
-                      Drag the rotation handle above the selected artwork for full 360° control. Hold Shift on desktop to snap in 15° increments.
+                      Drag the compact rotation handle outside the artwork for full 360° control. Hold Shift on desktop to snap in 15° increments.
                     </div>
                   </div>
                 )}
