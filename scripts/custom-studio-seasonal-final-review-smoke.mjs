@@ -105,6 +105,19 @@ async function inspect(browser, viewport) {
 
     const approved = page.locator('[data-gdp-final-review-preview="true"]');
     await approved.waitFor({ state: 'visible', timeout: 15000 });
+    // Final Review must show the approved garment/artwork only. The editing
+    // print-size badge and dashed-boundary explanation belong to Step 3.
+    assert(await approved.locator('[data-gdp-print-size]').count() === 0,
+      'custom-studio-seasonal-final-review-smoke.mjs: print-size badge attribute leaked into Final Review');
+    assert(await approved.locator('p').filter({ hasText: /drag with one finger|drag to move|dashed fabric box|dashed boundary|normalized geometry/i }).count() === 0,
+      'custom-studio-seasonal-final-review-smoke.mjs: editor-only fabric guidance leaked into Final Review');
+    const generatedPrintLabel = await approved.locator('[data-gdp-print-guide="true"]').first().evaluate((node) => {
+      const frame = node.parentElement;
+      return frame ? getComputedStyle(frame, '::before').content : '';
+    });
+    assert(!/print size/i.test(generatedPrintLabel),
+      'custom-studio-seasonal-final-review-smoke.mjs: generated CSS print-size badge is still visible in Final Review');
+
     const staticLayer = approved.locator('[data-gdp-seasonal-review-artwork="true"]').first();
     await staticLayer.waitFor({ state: 'visible', timeout: 15000 });
     const approvedArtwork = await loadedImage(staticLayer.locator('img').first(), `${viewport.name}: approved Seasonal artwork`);
