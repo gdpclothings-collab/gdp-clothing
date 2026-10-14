@@ -1,0 +1,48 @@
+name: GDP Studio Step 4 Clean Preview QA (temporary)
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  clean-preview:
+    if: github.head_ref == 'fix/studio-step4-outline-shadow-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      PRODUCTION_BASE_URL: https://fix-studio-step4-outline-sh.gdp-clothing.pages.dev
+      SMOKE_ARTIFACT_DIR: clean-preview-results
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Verify static boundary and approval checks
+        run: |
+          node scripts/verify-custom-studio-final-review-preview.mjs
+          node scripts/verify-custom-studio-v2-unified-approval.mjs
+      - name: Install read-only Playwright test dependency
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify Cloudflare preview reachable
+        run: curl -fsSL --max-time 30 "$PRODUCTION_BASE_URL/custom-studio" -o /dev/null
+      - name: Check Upload Final Review on desktop and mobile
+        run: node scripts/custom-studio-final-review-smoke.mjs
+      - name: Check two-sided artwork preview
+        run: node scripts/custom-studio-final-review-two-sided-smoke.mjs
+      - name: Check Seasonal garment shadow removal
+        run: node scripts/custom-studio-seasonal-final-review-smoke.mjs
+      - name: Check Photo Bootleg and Memorial
+        run: node scripts/custom-studio-protected-final-review-smoke.mjs
+      - name: Upload isolated QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: step4-clean-preview-qa
+          path: clean-preview-results
+          if-no-files-found: ignore
+          retention-days: 3
