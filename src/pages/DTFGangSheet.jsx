@@ -37,7 +37,7 @@ import {
 } from "@/lib/dtfGangSheet";
 import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
 import { advancedNestArtwork } from "@/lib/dtfNesting";
-import { downloadFilmPreview, drawWatermark, watermarkApplies } from "@/lib/dtfFilmExport";
+import { downloadFilmPreview } from "@/lib/dtfFilmExport";
 import { dtfExportAuditApi } from "@/lib/dtfExportAuditApi";
 import { customerApi } from "@/lib/customerApi";
 
@@ -393,7 +393,7 @@ function loadPreviewImage(source) {
   });
 }
 
-async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings) {
+async function createGangSheetThumbnail(items, sheetWidth, sheetLength) {
   const width = Math.max(1, Number(sheetWidth || 1));
   const length = Math.max(1, Number(sheetLength || 1));
   const previewScale = Math.min(720 / width, 1400 / length);
@@ -451,7 +451,6 @@ async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings
   context.strokeStyle = "#111111";
   context.lineWidth = 3;
   context.strokeRect(1.5, 1.5, outputWidth - 3, outputHeight - 3);
-  if (watermarkApplies(settings, "cart")) drawWatermark(context, outputWidth, outputHeight, settings);
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
@@ -1432,7 +1431,7 @@ export default function DTFGangSheet() {
         ? Number(settings.artworkReviewPrice || 0)
         : 0;
       const linePrice = round(price.price + reviewFee, 2);
-      const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength, settings);
+      const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength);
 
       const configId = activeCartKey.replace(/^dtf_/, "") || createDtfConfigId();
       const cartItem = {
@@ -1470,7 +1469,7 @@ export default function DTFGangSheet() {
           approvalAcknowledged: true,
           approvalTimestamp,
           exportPolicy: {
-            watermarkedPreviewEnabled: settings.watermarkedPreviewEnabled,
+            watermarkedPreviewEnabled: false,
             fullResolutionDownloadAfterPayment: settings.fullResolutionDownloadAfterPayment,
             watermarkText: settings.watermarkText,
           },
@@ -1762,6 +1761,11 @@ export default function DTFGangSheet() {
                   >
                     <RotateCcw size={13} /> Reset
                   </button>
+                  {selectedArtwork && (
+                    <button type="button" onClick={removeSelected} aria-label="Delete selected artwork" title="Delete selected artwork" className="grid h-9 w-9 place-items-center border border-white/20 text-white/75 hover:border-red-400 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-sky-400">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1826,8 +1830,8 @@ export default function DTFGangSheet() {
                   >
                     {artworks.map((item) => {
                       const selected = item.id === selectedId;
-                      const quality = getArtworkQuality(item, settings);
-                      const controlsAbove = item.y + item.height > sheetLength * 0.82;
+                      // Keep small designs unobstructed; full measurements remain in Selected Design.
+                      const rotateHandleBelow = (item.y / sheetLength) * displayHeight * canvasZoom < 44;
                       return (
                         <div
                           role="button"
@@ -1878,40 +1882,36 @@ export default function DTFGangSheet() {
                           )}
                           {selected && (
                             <>
-                              {mode === "build" && <span
-                                className="pointer-events-none absolute left-1 top-1 z-30 bg-black/85 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.06em] text-white shadow"
-                                style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
-                              >
-                                {round(item.width, 1)}" × {round(item.height, 1)}" · {round(normalizeArtworkRotation(item.rotation), 1)}°
-                              </span>}
-                              <div
-                                className="absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-black/20 bg-white p-1 text-black shadow-xl"
-                                style={{
-                                  top: controlsAbove ? "auto" : "calc(100% + 6px)",
-                                  bottom: controlsAbove ? "calc(100% + 6px)" : "auto",
-                                  transform: `translateX(-50%) rotate(${-normalizeArtworkRotation(item.rotation)}deg)`,
-                                }}
-                              >
-                                {mode === "build" && (
-                                  <button type="button" aria-label={`Rotate ${item.name} freely`} title="Drag to rotate freely · Hold Shift to snap by 15°" onPointerDown={(event) => onRotatePointerDown(event, item)} className="grid h-8 w-8 cursor-grab place-items-center rounded-full hover:bg-black hover:text-white">
-                                    <RotateCw size={14} />
+                              <span aria-hidden="true" className="pointer-events-none absolute inset-0 border border-sky-400 shadow-[0_0_0_1px_rgba(15,23,42,0.65)]" />
+                              {mode === "build" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    aria-label={`Rotate ${item.name} freely`}
+                                    title="Drag to rotate · Hold Shift to snap by 15°"
+                                    onPointerDown={(event) => onRotatePointerDown(event, item)}
+                                    className="absolute left-1/2 z-30 grid h-9 w-9 cursor-grab place-items-center rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-sky-500"
+                                    style={{ top: rotateHandleBelow ? "calc(100% + 6px)" : "-42px", transform: `translateX(-50%) rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
+                                  >
+                                    <span className="grid h-6 w-6 place-items-center rounded-full border border-black/20 bg-white text-black shadow-md hover:bg-black hover:text-white"><RotateCw size={12} /></span>
                                   </button>
-                                )}
-                                <button type="button" aria-label={`Resize ${item.name}`} title="Drag to resize artwork" onPointerDown={(event) => onResizePointerDown(event, item)} className="grid h-8 w-8 cursor-nwse-resize place-items-center rounded-full hover:bg-black hover:text-white">
-                                  <Maximize2 size={14} />
-                                </button>
-                                <button type="button" aria-label={`Delete ${item.name}`} title="Delete selected artwork" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} onClick={(event) => { event.preventDefault(); event.stopPropagation(); removeArtwork(item.id); }} className="grid h-8 w-8 place-items-center rounded-full text-red-700 hover:bg-red-600 hover:text-white">
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
+                                  <button
+                                    type="button"
+                                    aria-label={`Resize ${item.name}`}
+                                    title="Drag to resize (aspect ratio locked)"
+                                    onPointerDown={(event) => onResizePointerDown(event, item)}
+                                    className="absolute -bottom-5 -right-5 z-30 grid h-9 w-9 cursor-nwse-resize place-items-center rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-sky-500"
+                                    style={{ transform: `rotate(${-normalizeArtworkRotation(item.rotation)}deg)` }}
+                                  >
+                                    <span className="grid h-6 w-6 place-items-center rounded-full border border-black/20 bg-white text-black shadow-md hover:bg-black hover:text-white"><Maximize2 size={12} /></span>
+                                  </button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
                       );
                     })}
-                    {watermarkApplies(settings, "builder") && artworks.length > 0 && (
-                      <WorkspaceWatermark settings={settings} />
-                    )}
                     {!artworks.length && (
                       <div className={`absolute inset-0 grid place-items-center px-4 text-center ${canvasBackground === "dark" ? "text-white" : "text-black"}`}>
                         <div>
@@ -2021,7 +2021,7 @@ export default function DTFGangSheet() {
                       ))}
                     </div>
                     <div className="mt-2 text-[9px] leading-4 text-black/40">
-                      Drag the rotation handle above the selected artwork for full 360° control. Hold Shift on desktop to snap in 15° increments.
+                      Drag the compact rotation handle outside the artwork for full 360° control. Hold Shift on desktop to snap in 15° increments.
                     </div>
                   </div>
                 )}
@@ -2166,8 +2166,8 @@ export default function DTFGangSheet() {
                   onClick={async () => {
                     setPageError("");
                     try {
-                      await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-preview.jpg` });
-                      if (adminPreviewBypass) await dtfExportAuditApi.record({ exportType: "watermarked_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
+                      await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, clean: true, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-preview.png` });
+                      if (adminPreviewBypass) await dtfExportAuditApi.record({ exportType: "clean_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
                     } catch (error) {
                       setPageError(error?.message || "Could not download the film preview.");
                     }
@@ -2176,24 +2176,6 @@ export default function DTFGangSheet() {
                 >
                   <Download size={15} /> {adminPreviewBypass ? "Download proof" : "Download preview"}
                 </button>
-                {adminPreviewBypass && (
-                  <button
-                    type="button"
-                    disabled={!artworks.length || Boolean(validation.errors.length)}
-                    onClick={async () => {
-                      setPageError("");
-                      try {
-                        await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, clean: true, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-clean-preview.jpg` });
-                        await dtfExportAuditApi.record({ exportType: "clean_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
-                      } catch (error) {
-                        setPageError(error?.message || "Could not download the clean film preview.");
-                      }
-                    }}
-                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 border border-black bg-black text-[9px] font-black uppercase tracking-[0.1em] text-white hover:bg-white hover:text-black disabled:opacity-30"
-                  >
-                    <Download size={15} /> Download clean preview
-                  </button>
-                )}
                 {adminPreviewBypass && <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.05em] text-emerald-700">Admin bypass active · downloads are logged</div>}
                 </>
               ) : (
@@ -2372,22 +2354,6 @@ export default function DTFGangSheet() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function WorkspaceWatermark({ settings }) {
-  const text = settings.watermarkText || "GDP Clothing Preview";
-  const common = { opacity: settings.watermarkOpacity, fontSize: `${Math.max(10, settings.watermarkSize * 0.55)}px` };
-  if (settings.watermarkPosition === "corner") {
-    return <div className="pointer-events-none absolute bottom-3 right-3 z-30 font-black uppercase text-black" style={common}>{text}</div>;
-  }
-  if (settings.watermarkPosition === "centered") {
-    return <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 -rotate-[30deg] whitespace-nowrap font-black uppercase text-black" style={common}>{text}</div>;
-  }
-  return (
-    <div className="pointer-events-none absolute inset-0 z-30 grid grid-cols-2 content-around overflow-hidden">
-      {Array.from({ length: 12 }, (_, index) => <span key={index} className="-rotate-[30deg] whitespace-nowrap text-center font-black uppercase text-black" style={common}>{text}</span>)}
     </div>
   );
 }
