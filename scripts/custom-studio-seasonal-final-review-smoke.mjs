@@ -135,7 +135,7 @@ async function inspect(browser, viewport) {
     assert(printGuideChrome.length > 0, 'Final Review must keep its nonvisual print-area coordinate anchor');
     assert(printGuideChrome.every((guide) =>
       guide.shadow === 'none' && guide.outline === 'none' &&
-      /^(?:rgba?\\(0, 0, 0, 0\\)|transparent)$/.test(guide.border)),
+      (guide.border === 'rgba(0, 0, 0, 0)' || guide.border === 'transparent')),
       'Step 4 approval preview still shows a faint print-box outline or drop-shadow');
 
     const staticLayer = approved.locator('[data-gdp-seasonal-review-artwork="true"]').first();
