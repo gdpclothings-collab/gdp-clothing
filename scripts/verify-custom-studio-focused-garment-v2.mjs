@@ -39,7 +39,7 @@ expect(garmentControlsStart >= 0 && garmentStepStart > garmentControlsStart, 'Ga
 expect(garmentStepStart >= 0 && designStepStart > garmentStepStart, 'GarmentStepV2 is present and isolated for inspection');
 expect(reviewStepStart >= 0 && editorHeadingStart > reviewStepStart, 'ReviewStepV2 is present and isolated for inspection');
 expect(finalizeStart >= 0 && loadingStart > finalizeStart, 'finalization flow is isolated for production-boundary inspection');
-expect(/import React, \\{ useEffect, (?:useLayoutEffect, )?useMemo, useRef, useState \\} from 'react';/.test(page), 'focused mode uses local React hooks only');
+expect(/import React, \{ useEffect, (?:useLayoutEffect, )?useMemo, useRef, useState \} from 'react';/.test(page), 'focused mode uses local React hooks only');
 expect(page.includes("import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customStudioV2Preview';"), 'display optimizer is imported beside the canonical garment resolver');
 expect(garmentStep.includes("const [isChoosingGarment, setIsChoosingGarment] = useState(() => !state.productId);"), 'browse/focus state is local UI state');
 expect(garmentStep.includes("const previousProductIdRef = useRef(state.productId);"), 'product changes are observed without duplicating selected product state');
