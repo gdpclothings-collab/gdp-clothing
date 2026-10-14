@@ -39,6 +39,7 @@ import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
 import { advancedNestArtwork } from "@/lib/dtfNesting";
 import { downloadFilmPreview } from "@/lib/dtfFilmExport";
 import { dtfExportAuditApi } from "@/lib/dtfExportAuditApi";
+import { isDtfArtworkDeleteShortcut } from "@/lib/dtfKeyboardShortcuts";
 import { customerApi } from "@/lib/customerApi";
 
 const round = (value, decimals = 2) => {
@@ -568,14 +569,6 @@ export default function DTFGangSheet() {
   const fitLength = fitLengthToArtwork(artworks, settings);
   const displayHeight = Math.min(1600, Math.max(520, (sheetLength / Math.max(1, sheetWidth)) * 500));
   const showUnusedFilmWarning = hasArtwork && utilization < 90;
-
-  useEffect(() => {
-    const clearSelection = (event) => {
-      if (event.key === "Escape") setSelectedId("");
-    };
-    window.addEventListener("keydown", clearSelection);
-    return () => window.removeEventListener("keydown", clearSelection);
-  }, []);
 
   const clampArtworkPosition = (item, x = item.x, y = item.y, rotation = item.rotation) => {
     const candidate = { ...item, x, y, rotation: normalizeArtworkRotation(rotation) };
@@ -1113,6 +1106,23 @@ export default function DTFGangSheet() {
     removeArtwork(selectedArtwork.id);
   };
 
+  useEffect(() => {
+    const onWorkspaceKeyDown = (event) => {
+      if (event.key === "Escape") {
+        if (!event.defaultPrevented) setSelectedId("");
+        return;
+      }
+      if (!selectedArtwork || !isDtfArtworkDeleteShortcut(event)) return;
+      // Do not remove designs while another approval or confirmation dialog is open.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      event.preventDefault();
+      removeArtwork(selectedArtwork.id);
+    };
+
+    window.addEventListener("keydown", onWorkspaceKeyDown);
+    return () => window.removeEventListener("keydown", onWorkspaceKeyDown);
+  }, [selectedArtwork, removeArtwork]);
+
   const resetWorkspace = async () => {
     const hasWorkspaceChanges =
       artworks.length > 0 ||
@@ -1214,6 +1224,7 @@ export default function DTFGangSheet() {
     if (!canvasRef.current) return;
     event.preventDefault();
     event.stopPropagation();
+    event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setSelectedId(item.id);
     const rect = canvasRef.current.getBoundingClientRect();
@@ -1840,15 +1851,14 @@ export default function DTFGangSheet() {
                           draggable={false}
                           onDragStart={(event) => event.preventDefault()}
                           onPointerDown={(event) => onPointerDown(event, item)}
-                          onClick={() => setSelectedId(item.id)}
+                          onClick={(event) => {
+                            event.currentTarget.focus({ preventScroll: true });
+                            setSelectedId(item.id);
+                          }}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") {
                               event.preventDefault();
                               setSelectedId(item.id);
-                            }
-                            if ((event.key === "Delete" || event.key === "Backspace") && selected) {
-                              event.preventDefault();
-                              removeArtwork(item.id);
                             }
                           }}
                           className={`absolute cursor-grab select-none overflow-visible bg-transparent text-left outline-none active:cursor-grabbing ${selected ? "z-20" : "z-10"}`}
