@@ -80,7 +80,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const [legacyArtworkDimensions, setLegacyArtworkDimensions] = useState(null);
   const transform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
-  const printGuide = resolveStudioV2PrintGuide(product, size, side);
+  const printGuide = resolveStudioV2PrintGuide(product, size, side, color);
   const artworkForPlacement = editor.artwork
     && !(Number(editor.artwork.pixelWidth) > 0 && Number(editor.artwork.pixelHeight) > 0)
     && legacyArtworkDimensions?.url === editor.artwork.url
