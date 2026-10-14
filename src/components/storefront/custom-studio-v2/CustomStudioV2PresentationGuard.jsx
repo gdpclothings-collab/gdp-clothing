@@ -68,6 +68,12 @@ export default function CustomStudioV2PresentationGuard() {
           layer.replaceWith(staticLayer);
         });
         clone.querySelectorAll('button,input,select,textarea').forEach((node) => node.remove());
+        // Approved previews show only garment + artwork, never Step 3 print
+        // boundaries or measurement labels. Removing data-gdp-print-size also
+        // removes its CSS-generated ::before badge without touching geometry.
+        clone.querySelectorAll('[data-gdp-print-size]').forEach((node) => {
+          node.removeAttribute('data-gdp-print-size');
+        });
         clone.querySelectorAll('[data-gdp-print-guide="true"]').forEach((node) => {
           node.style.borderColor = 'transparent';
           node.style.background = 'transparent';
@@ -108,8 +114,14 @@ export default function CustomStudioV2PresentationGuard() {
 
         const clonedHeading = Array.from(clone.querySelectorAll('p')).find((node) => /live garment preview|fabric workspace/i.test(node.textContent || ''));
         if (clonedHeading) clonedHeading.textContent = `Final garment preview · ${side}`;
-        const helper = Array.from(clone.querySelectorAll('p')).find((node) => /drag with|drag to move|dashed fabric box|normalized geometry/i.test(node.textContent || ''));
-        if (helper) helper.remove();
+        // A workspace can contain BOTH the touch-gesture hint and the dashed
+        // fabric box description. Remove every editor-only guidance paragraph,
+        // not just the first matching paragraph.
+        clone.querySelectorAll('p').forEach((node) => {
+          if (/drag with one finger|drag to move|dashed fabric box|dashed boundary|normalized geometry/i.test(node.textContent || '')) {
+            node.remove();
+          }
+        });
 
         clone.setAttribute('data-gdp-final-review-preview-card', side);
         clone.className = 'overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4';
@@ -184,6 +196,9 @@ export default function CustomStudioV2PresentationGuard() {
         syncGarmentSizeSemantics();
 
         root.querySelectorAll('[data-gdp-print-guide="true"]').forEach((guide) => {
+          // These labels belong to Step 3 only. The presentation observer
+          // must not recreate the measurement badge inside approved copies.
+          if (guide.closest('[data-gdp-final-review-preview="true"]')) return;
           const source = guide.getAttribute('aria-label') || guide.textContent || '';
           const match = source.match(/(\d+(?:\.\d+)?\s*[×x]\s*\d+(?:\.\d+)?\s*in)/i);
           if (!match) return;
