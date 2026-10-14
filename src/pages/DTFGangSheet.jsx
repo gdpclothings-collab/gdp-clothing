@@ -393,7 +393,7 @@ function loadPreviewImage(source) {
   });
 }
 
-async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings) {
+async function createGangSheetThumbnail(items, sheetWidth, sheetLength) {
   const width = Math.max(1, Number(sheetWidth || 1));
   const length = Math.max(1, Number(sheetLength || 1));
   const previewScale = Math.min(720 / width, 1400 / length);
@@ -1431,7 +1431,7 @@ export default function DTFGangSheet() {
         ? Number(settings.artworkReviewPrice || 0)
         : 0;
       const linePrice = round(price.price + reviewFee, 2);
-      const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength, settings);
+      const layoutThumbnail = await createGangSheetThumbnail(artworks, sheetWidth, sheetLength);
 
       const configId = activeCartKey.replace(/^dtf_/, "") || createDtfConfigId();
       const cartItem = {
