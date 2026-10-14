@@ -4,6 +4,7 @@ const guardPath = 'src/components/storefront/custom-studio-v2/CustomStudioV2Pres
 const pagePath = 'src/pages/CustomStudioV2.jsx';
 const guard = fs.readFileSync(guardPath, 'utf8');
 const page = fs.readFileSync(pagePath, 'utf8');
+const seasonalEditor = fs.readFileSync('src/components/storefront/custom-studio-v2/SeasonalEditorV2.jsx', 'utf8');
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -26,6 +27,12 @@ assert(guard.includes('const snapshotLiveGarmentPreviews = () =>'), 'live Step 3
 assert(guard.includes("root.querySelectorAll('[data-gdp-print-guide=\"true\"]')"), 'snapshot collector must anchor to the live print-guide composition');
 assert(guard.includes("if (guide.closest('[data-gdp-final-review-preview=\"true\"]')) return;"), 'snapshot collector must ignore its own Final Review clones');
 assert(guard.includes('const clone = section.cloneNode(true);'), 'approved preview must clone the already-approved live composition instead of rebuilding geometry');
+assert(seasonalEditor.includes('data-gdp-seasonal-canvas-stable="true"'), 'Seasonal Design Lab must keep its stable live garment preview');
+assert(seasonalEditor.includes('Fabric workspace'), 'Seasonal canvas uses a distinct title that the snapshot collector must support');
+assert(guard.includes('/live garment preview|fabric workspace/i'), 'Final Review must collect both Seasonal and standard Studio previews');
+assert(guard.includes("(guide.getAttribute('aria-label') || '').match(/\\b(front|back)\\b/i)"), 'front/back snapshot labels must come from the actual live print guide');
+assert(guard.includes('/drag with|drag to move|dashed fabric box|normalized geometry/i'), 'Final Review should omit the Seasonal edit gesture hint');
+
 assert(guard.includes("reviewPreviewSnapshots.set(side, clone.outerHTML);"), 'approved preview snapshots must remain side-aware');
 assert(guard.includes("['front', 'back'].forEach((side) =>"), 'Final Review must preserve front/back ordering when both sides exist');
 
