@@ -45,7 +45,7 @@ function variantFor(product, color, size) {
 function StudioStepRail({ currentStep, onStep }) {
   const currentIndex = STUDIO_V2_STEPS.findIndex((step) => step.id === currentStep);
   return (
-    <aside className="gdp-neu-card rounded-3xl border border-slate-200 bg-white p-3 lg:sticky lg:top-24 lg:self-start">
+    <aside data-gdp-premium-rail="true" className="gdp-neu-card rounded-3xl border border-slate-200 bg-white p-3 lg:sticky lg:top-24 lg:self-start">
       <div className="mb-3 px-2 pt-2 text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Custom Studio</div>
       <div className="grid grid-cols-4 gap-1 lg:grid-cols-1">
         {STUDIO_V2_STEPS.map((step, index) => {
@@ -77,7 +77,7 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
     }
   }, [dispatch, selectedColorAvailable, state.color]);
   return (
-    <div className="gdp-neu-well grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 sm:p-4 lg:p-5" data-gdp-selected-garment-options="true" data-gdp-selected-garment-configurator="true">
+    <div data-gdp-premium-configurator="true" className="gdp-neu-well grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 sm:p-4 lg:p-5" data-gdp-selected-garment-options="true" data-gdp-selected-garment-configurator="true">
       <div data-gdp-selected-garment-summary="true" className="gdp-neu-card grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
         <div data-gdp-selected-garment-preview="true" className="min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3">
           <div className="grid h-[220px] place-items-center sm:h-[260px] lg:h-[300px]">
@@ -102,8 +102,8 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr_.65fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+      <div data-gdp-premium-variant-grid="true" className="grid gap-4 lg:grid-cols-[1.35fr_1fr_.65fr]">
+        <div data-gdp-color-panel="true" className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
           <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Color</div>
           <div className="flex flex-wrap gap-2">{colors.map((color) => {
             const available = isProductColorAvailable(product, color);
@@ -134,7 +134,7 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
           })}</div>
         </div>
 
-        <div className={`rounded-2xl border bg-white p-3 sm:p-4 ${sizeRequired ? 'border-amber-300 ring-1 ring-amber-100' : 'border-slate-200'}`}>
+        <div data-gdp-size-panel="true" className={`rounded-2xl border bg-white p-3 sm:p-4 ${sizeRequired ? 'border-amber-300 ring-1 ring-amber-100' : 'border-slate-200'}`}>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Size</div>{sizeRequired && <span className="text-[11px] font-black text-amber-700">Required</span>}</div>
           <div className="flex flex-wrap gap-2">{sizes.map((size) => {
             const sizeVariant = variantFor(product, state.color, size);
@@ -144,7 +144,7 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
           {sizeRequired && <p className="mt-2 text-xs font-bold text-amber-700">Select a size to continue.</p>}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+        <div data-gdp-quantity-panel="true" className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
           <div className="mb-2 text-xs font-black uppercase tracking-[.12em] text-slate-500">Quantity</div>
           <div className="gdp-neu-well inline-flex min-h-11 items-center rounded-xl border-2 border-slate-200 bg-white"><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.max(1, Number(state.quantity || 1) - 1) })} disabled={Number(state.quantity || 1) <= 1} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">−</button><input type="number" min="1" max="99" value={state.quantity} onChange={(event) => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Math.max(1, Number(event.target.value || 1))) })} className="h-11 w-14 border-x border-slate-200 text-center text-base font-black outline-none sm:text-sm" /><button type="button" onClick={() => dispatch({ type: 'SET_QUANTITY', quantity: Math.min(99, Number(state.quantity || 1) + 1) })} disabled={Number(state.quantity || 1) >= 99} className="grid h-11 w-11 place-items-center text-lg font-black disabled:opacity-30">+</button></div>
         </div>
@@ -152,9 +152,9 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
 
       <GarmentInfoPanel product={product} sizes={sizes} />
 
-      <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto]">
+      <div data-gdp-premium-next="true" className="grid items-center gap-2 sm:grid-cols-[1fr_auto]">
         <p className={`text-xs font-bold ${sizeRequired ? 'text-amber-700' : 'text-slate-500'}`}>{sizeRequired ? 'Select a size to continue to your design path.' : `${product?.name} · ${displayVariantLabel(state.color)} · Size ${state.size} is ready to customize.`}</p>
-        <button data-gdp-garment-continue="true" type="button" onClick={onContinue} disabled={!canContinue} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 sm:w-auto">Continue <ArrowRight size={17} /></button>
+        <button data-gdp-garment-continue="true" type="button" onClick={onContinue} disabled={!canContinue} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 sm:w-auto">Continue to design <ArrowRight size={17} /></button>
       </div>
     </div>
   );
@@ -181,8 +181,8 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
   const browseGarments = !selectedProduct || isChoosingGarment;
 
   return (
-    <div className="space-y-5" data-gdp-garment-mode={browseGarments ? 'browse' : 'focused'}>
-      <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">{browseGarments ? 'Choose a garment first. After selection, the gallery collapses so you can focus on colour, size, quantity and DTF details.' : 'Your garment is selected. Configure its colour, size and quantity below, or change the garment without resetting the current selection.'}</p></div>
+    <div data-gdp-premium-garment-step="true" className="space-y-5" data-gdp-garment-mode={browseGarments ? 'browse' : 'focused'}>
+      <div data-gdp-garment-intro="true"><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 1</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose your garment</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">{browseGarments ? 'Choose a garment first. After selection, the gallery collapses so you can focus on colour, size, quantity and DTF details.' : 'Your garment is selected. Configure its colour, size and quantity below, or change the garment without resetting the current selection.'}</p></div>
 
       <div className="flex flex-wrap items-end justify-between gap-3" data-gdp-garment-choices="top">
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{browseGarments ? 'Garment options' : 'Your garment'}</p><p className="mt-1 text-xs font-semibold text-slate-500">{browseGarments ? 'Select a garment below to continue.' : 'Only your selected garment stays visible while you configure it.'}</p></div>
@@ -552,10 +552,17 @@ export default function CustomStudioV2() {
 
   if (loading) return <div className="grid min-h-[60vh] place-items-center bg-slate-50"><div className="text-sm font-black text-slate-500">Loading Custom Studio…</div></div>;
 
-  return <main className="gdp-neu-scope min-h-[70vh] bg-slate-50 text-slate-950"><div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
-    <div className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3"><div className="flex items-center gap-2"><span className="rounded-full bg-slate-900 px-2.5 py-1 text-[9px] font-black uppercase tracking-[.14em] text-white">GDP Custom Studio</span><span className="text-xs font-bold text-slate-400">Create · Preview · Approve</span></div><button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button></div>
+  return <main data-gdp-premium-studio="true" className="gdp-neu-scope min-h-[70vh] bg-slate-50 text-slate-950"><div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
+    <div data-gdp-premium-hero="true" className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3">
+      <div data-gdp-hero-copy="true">
+        <div className="flex items-center gap-2"><span className="gdp-premium-eyebrow"><Sparkles size={13} aria-hidden="true" /> GDP CUSTOM STUDIO</span><span className="gdp-premium-hero-divider" aria-hidden="true" /><span className="gdp-premium-hero-steps">Create · Preview · Approve</span></div>
+        <h1>Made by you. Worn your way.</h1>
+        <p>Choose your garment, pick your colors and fit, then bring your artwork to life.</p>
+      </div>
+      <button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="gdp-premium-reset inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button>
+    </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
-    <div className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm sm:p-5">
+    <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm sm:p-5">
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} onContinue={next} canContinue={canContinue} />}
       {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
