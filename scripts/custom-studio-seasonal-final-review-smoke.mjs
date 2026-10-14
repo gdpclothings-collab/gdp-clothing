@@ -89,11 +89,15 @@ async function inspect(browser, viewport) {
     const liveArtwork = await loadedImage(editorLayer.locator('img').first(), `${viewport.name}: live Seasonal artwork`);
     const originalPosition = await editorLayer.getAttribute('style');
 
-    const finishSide = page.locator('[data-gdp-step3-finish-side="true"]').first();
-    await finishSide.waitFor({ state: 'visible', timeout: 15000 });
-    if (await finishSide.getAttribute('aria-pressed') !== 'true') await finishSide.click();
-    const approve = page.getByRole('button', { name: /I approve the final print layout/i }).first();
-    await approve.click();
+    const approvalCard = page.locator('[data-gdp-step3-unified-approval="true"]');
+    const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
+    await approvalCard.waitFor({ state: 'visible', timeout: 15000 });
+    assert(await approvalCheckbox.isEnabled(), 'Seasonal approval should enable after artwork is placed');
+    assert(!(await approvalCheckbox.isChecked()), 'Unapproved Seasonal artwork must not begin checked');
+    assert(await page.locator('[data-gdp-step3-approval="true"] input[type="checkbox"]').count() === 1, 'Seasonal approval must have one checkbox');
+    await approvalCard.click();
+    assert(await approvalCheckbox.isChecked(), 'Seasonal unified approval not recorded');
+
     const finalAction = page.getByRole('button', { name: /Final review/i }).last();
     await finalAction.waitFor({ state: 'visible', timeout: 15000 });
     await finalAction.click();

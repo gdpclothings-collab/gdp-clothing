@@ -115,6 +115,32 @@ export function studioV2Reducer(state, action) {
       return { ...state, side: validSide(action.side) };
     case 'SET_APPROVAL':
       return { ...state, approval: { ...state.approval, ...(action.patch || {}) } };
+    case 'CONFIRM_FINAL_LAYOUT': {
+      // The UI exposes one checkbox, but the canonical side-specific and
+      // artwork-rights flags must still be recorded for production/checkout.
+      const designPath = state.designPath;
+      const originalSides = state?.[designPath]?.sides;
+      if (!originalSides) return state;
+      const printableSides = studioV2PrintableSides(state);
+      const approved = Boolean(action.value) && printableSides.length > 0;
+      return {
+        ...state,
+        [designPath]: {
+          ...state[designPath],
+          sides: Object.fromEntries(Object.entries(originalSides).map(([side, editor]) => [
+            side,
+            { ...editor, confirmed: approved && printableSides.includes(side) },
+          ])),
+        },
+        approval: {
+          ...state.approval,
+          finalDesignApproved: approved,
+          // The GDP-managed Seasonal library does not require customers to
+          // claim ownership of templates they did not upload.
+          rightsConfirmed: approved && designPath !== 'seasonal',
+        },
+      };
+    }
     case 'SET_SEASONAL_LAYERS': {
       const side = validSide(action.side ?? state.side);
       const current = state.seasonal.sides[side];

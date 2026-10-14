@@ -89,10 +89,15 @@ async function inspect(browser, testCase, viewport) {
     const templateStyle = await template.getAttribute('style');
     const photoStyle = await photo.getAttribute('style');
 
-    const finish = page.locator('[data-gdp-step3-finish-side="true"]').first();
-    await finish.waitFor({ state: 'visible', timeout: 15000 });
-    assert(await finish.getAttribute('aria-pressed') === 'true', 'Expected restored approved side');
-    await page.getByRole('button', { name: /I approve the final print layout/i }).first().click();
+    const approvalCard = page.locator('[data-gdp-step3-unified-approval="true"]');
+    const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
+    await approvalCard.waitFor({ state: 'visible', timeout: 15000 });
+    assert(await approvalCheckbox.isEnabled(), 'Protected design must permit combined approval');
+    assert(!(await approvalCheckbox.isChecked()), 'Restored protected design must require approval');
+    assert(await page.locator('[data-gdp-step3-approval="true"] input[type="checkbox"]').count() === 1, 'Only one checkbox is allowed in Step 3 approval');
+    await approvalCard.click();
+    assert(await approvalCheckbox.isChecked(), 'Protected design and rights approval not recorded');
+
     const next = page.getByRole('button', { name: /Final review/i }).last();
     assert(!(await next.isDisabled()), 'Final Review did not enable for ' + testCase.name);
     await next.click();

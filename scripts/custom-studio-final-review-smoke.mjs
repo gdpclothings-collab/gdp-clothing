@@ -50,6 +50,21 @@ async function assertNoHorizontalOverflow(page, label) {
   return metrics;
 }
 
+async function assertStepOpensAtTop(page, label) {
+  await page.waitForFunction(() => {
+    const panel = document.querySelector('[data-gdp-premium-main-panel="true"]');
+    if (!panel) return false;
+    const top = panel.getBoundingClientRect().top;
+    return top >= -3 && top <= (window.innerWidth < 768 ? 200 : 185);
+  }, null, { timeout: 7000 });
+  const position = await page.locator('[data-gdp-premium-main-panel="true"]').evaluate((node) => ({
+    top: node.getBoundingClientRect().top,
+    scrollY: window.scrollY,
+  }));
+  assert(position.top >= -3, label + ': new step began above the visible viewport');
+  return position;
+}
+
 function approvedUploadDraftState() {
   const protectedSide = () => ({
     templateId: "",
@@ -150,16 +165,14 @@ async function inspectViewport(browser, viewport) {
     await artworkLayer.waitFor({ state: "visible", timeout: 15000 });
     await waitForImage(artworkLayer.locator('img[alt="Uploaded artwork preview"]'), `${viewport.name} live approved artwork`);
 
-    const finishSide = page.locator('[data-gdp-step3-finish-side="true"]').first();
-    await finishSide.waitFor({ state: "visible", timeout: 10000 });
-    await finishSide.waitFor({ state: "attached", timeout: 10000 });
-    assert(await finishSide.getAttribute("aria-pressed") === "true", `${viewport.name} restored front artwork is not marked finished.`);
-
-    const approve = page.getByRole("button", { name: /I approve the final print layout/i }).first();
-    await approve.waitFor({ state: "visible", timeout: 10000 });
-    assert(!(await approve.isDisabled()), `${viewport.name} final layout approval is unexpectedly disabled.`);
-    await page.waitForTimeout(300);
-    await approve.click();
+    const approveCard = page.locator('[data-gdp-step3-unified-approval="true"]');
+    const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
+    await approveCard.waitFor({ state: 'visible', timeout: 10000 });
+    assert(await approvalCheckbox.isEnabled(), `${viewport.name}` + ': design approval should be enabled for an uploaded artwork');
+    assert(!(await approvalCheckbox.isChecked()), `${viewport.name}` + ': restored design must require renewed approval');
+    assert(await page.locator('[data-gdp-step3-approval="true"] input[type="checkbox"]').count() === 1, 'Only one Step 3 approval checkbox is allowed');
+    await approveCard.click();
+    assert(await approvalCheckbox.isChecked(), 'Combined layout-and-rights checkbox did not register');
 
     const finalReviewAction = page.getByRole("button", { name: /Final review/i }).last();
     await finalReviewAction.waitFor({ state: "visible", timeout: 10000 });
@@ -168,9 +181,12 @@ async function inspectViewport(browser, viewport) {
       if (Date.now() >= enabledDeadline) throw new Error(`${viewport.name} Final review action did not enable after approval.`);
       await page.waitForTimeout(100);
     }
+    // Reproduce starting at the very bottom of Step 3 before navigating.
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
     await finalReviewAction.click();
 
     await page.getByRole("heading", { name: /^Final review$/i }).waitFor({ state: "visible", timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Step 3 to Final Review');
     const finalPreview = page.locator('[data-gdp-final-review-preview="true"]');
     await finalPreview.waitFor({ state: "visible", timeout: 10000 });
     assert(await finalPreview.getByText(/Your garment with the approved artwork/i).first().isVisible(), `${viewport.name} approved Final Review heading is missing.`);
@@ -220,6 +236,26 @@ async function inspectViewport(browser, viewport) {
       path: path.join(ARTIFACT_DIR, `custom-studio-final-review-${viewport.name}.png`),
       fullPage: true,
     });
+
+    // Verify forward, backward, and progress-rail navigation from a scrolled editor.
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.getByRole('button', { name: /^Edit design$/i }).first().click();
+    await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Final Review to Edit design');
+
+    await page.locator('[data-gdp-premium-rail="true"] button').first().click();
+    await page.locator('[data-gdp-garment-continue="true"]').waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Customize to Garment');
+
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.locator('[data-gdp-garment-continue="true"]').click();
+    await page.getByRole('heading', { name: /^Choose a design path$/i }).waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Garment to Choose Design');
+
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.getByRole('button', { name: /Upload My Own Artwork/i }).first().click();
+    await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Choose Design to Customize');
 
     return {
       viewport,

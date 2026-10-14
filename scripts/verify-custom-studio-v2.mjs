@@ -149,8 +149,9 @@ assert(protectedEditor.includes('studioV2GarmentPreview'), 'Bootleg/Memorial sid
 assert(uploadEditor.includes('studioV2GarmentPreview'), 'Upload side-aware garment preview is missing');
 
 // Approval and finalization safety.
-assert(page.includes('I have permission to use this artwork/photo'), 'artwork rights confirmation is missing');
-assert(page.includes('I approve the final print layout'), 'final layout approval is missing');
+assert(page.includes('I also confirm that I own or have permission to print any photos or artwork I provided.'), 'customer-supplied artwork rights must remain explicitly acknowledged');
+assert(page.includes('I have finished my design and approve it for printing.'), 'one final layout approval checkbox is missing');
+assert(page.includes('data-gdp-step3-approval-checkbox="true"'), 'Step 3 must use the accessible single checkbox');
 assert(page.includes('Generate, Verify & Add to Cart'), 'final production/cart action is missing');
 assert(page.includes('Approved layout ready to build'), 'review must describe pre-production state truthfully');
 assert(!page.includes('Locked state ready for production'), 'review must not claim production lock before files exist');
