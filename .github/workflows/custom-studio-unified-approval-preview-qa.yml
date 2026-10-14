@@ -1,0 +1,46 @@
+name: GDP Studio Unified Approval Preview QA (temporary)
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  preview-ui:
+    if: github.head_ref == 'fix/studio-unified-approval-and-navigation-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      PRODUCTION_BASE_URL: https://fix-studio-unified-approval.gdp-clothing.pages.dev
+      SMOKE_ARTIFACT_DIR: unified-approval-preview-results
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Verify unified approval reducer and scroll contracts
+        run: node scripts/verify-custom-studio-v2-unified-approval.mjs
+      - name: Install isolated Playwright runner
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.63.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify branch preview is reachable
+        run: curl -fsSL --max-time 30 "$PRODUCTION_BASE_URL/custom-studio" -o /dev/null
+      - name: Verify one-checkbox and all-step mobile navigation
+        run: node scripts/custom-studio-final-review-smoke.mjs
+      - name: Verify one-checkbox two-sided artwork
+        run: node scripts/custom-studio-final-review-two-sided-smoke.mjs
+      - name: Verify Seasonal approval and artwork
+        run: node scripts/custom-studio-seasonal-final-review-smoke.mjs
+      - name: Verify Bootleg and Memorial approval
+        run: node scripts/custom-studio-protected-final-review-smoke.mjs
+      - name: Upload read-only preview QA evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: unified-approval-preview-evidence
+          path: unified-approval-preview-results
+          if-no-files-found: ignore
+          retention-days: 3
