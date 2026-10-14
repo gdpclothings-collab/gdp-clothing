@@ -50,6 +50,21 @@ async function assertNoHorizontalOverflow(page, label) {
   return metrics;
 }
 
+async function assertStepOpensAtTop(page, label) {
+  await page.waitForFunction(() => {
+    const panel = document.querySelector('[data-gdp-premium-main-panel="true"]');
+    if (!panel) return false;
+    const top = panel.getBoundingClientRect().top;
+    return top >= -3 && top <= (window.innerWidth < 768 ? 200 : 185);
+  }, null, { timeout: 7000 });
+  const position = await page.locator('[data-gdp-premium-main-panel="true"]').evaluate((node) => ({
+    top: node.getBoundingClientRect().top,
+    scrollY: window.scrollY,
+  }));
+  assert(position.top >= -3, label + ': new step began above the visible viewport');
+  return position;
+}
+
 function approvedUploadDraftState() {
   const protectedSide = () => ({
     templateId: "",
@@ -166,9 +181,12 @@ async function inspectViewport(browser, viewport) {
       if (Date.now() >= enabledDeadline) throw new Error(`${viewport.name} Final review action did not enable after approval.`);
       await page.waitForTimeout(100);
     }
+    // Reproduce starting at the very bottom of Step 3 before navigating.
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
     await finalReviewAction.click();
 
     await page.getByRole("heading", { name: /^Final review$/i }).waitFor({ state: "visible", timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Step 3 to Final Review');
     const finalPreview = page.locator('[data-gdp-final-review-preview="true"]');
     await finalPreview.waitFor({ state: "visible", timeout: 10000 });
     assert(await finalPreview.getByText(/Your garment with the approved artwork/i).first().isVisible(), `${viewport.name} approved Final Review heading is missing.`);
@@ -218,6 +236,26 @@ async function inspectViewport(browser, viewport) {
       path: path.join(ARTIFACT_DIR, `custom-studio-final-review-${viewport.name}.png`),
       fullPage: true,
     });
+
+    // Verify forward, backward, and progress-rail navigation from a scrolled editor.
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.getByRole('button', { name: /^Edit design$/i }).first().click();
+    await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Final Review to Edit design');
+
+    await page.locator('[data-gdp-premium-rail="true"] button').first().click();
+    await page.locator('[data-gdp-garment-continue="true"]').waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Customize to Garment');
+
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.locator('[data-gdp-garment-continue="true"]').click();
+    await page.getByRole('heading', { name: /^Choose a design path$/i }).waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Garment to Choose Design');
+
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.getByRole('button', { name: /Upload My Own Artwork/i }).first().click();
+    await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible', timeout: 10000 });
+    await assertStepOpensAtTop(page, viewport.name + ' Choose Design to Customize');
 
     return {
       viewport,
