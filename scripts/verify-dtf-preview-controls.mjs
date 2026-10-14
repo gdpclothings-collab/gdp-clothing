@@ -11,7 +11,7 @@ assert.match(page, /data-testid="dtf-film-printable-canvas"/);
 assert.doesNotMatch(page, /WorkspaceWatermark|watermarkApplies\(|drawWatermark\(/);
 
 // Cart proof thumbnails and customer preview downloads remain watermark-free.
-assert.match(page, /createGangSheetThumbnail\(artworks, sheetWidth, sheetLength, settings\)/);
+assert.match(page, /createGangSheetThumbnail\(artworks, sheetWidth, sheetLength\)/);
 assert.match(page, /downloadFilmPreview\(\{[^}]*clean: true/);
 assert.match(page, /exportType: "clean_preview"/);
 assert.doesNotMatch(page, /exportType: "watermarked_preview"/);
