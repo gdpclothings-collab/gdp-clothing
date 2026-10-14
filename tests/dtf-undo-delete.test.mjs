@@ -59,4 +59,5 @@ test("DTF editor renders the 10-second Undo action and keeps preview alive until
   assert.match(page, /setSheetLength\(pending\.sheetLength\)/);
   assert.match(page, /setSelectedId\(pending\.item\.id\)/);
   assert.doesNotMatch(page, /URL\.revokeObjectURL\(target\.previewUrl\)/);
+  assert.match(page, /undoDeletionRef\.current\?\.item\.previewUrl === previousPreviewUrl/);
 });
