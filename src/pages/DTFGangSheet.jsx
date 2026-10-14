@@ -37,7 +37,7 @@ import {
 } from "@/lib/dtfGangSheet";
 import { dtfGangSheetApi } from "@/lib/dtfGangSheetApi";
 import { advancedNestArtwork } from "@/lib/dtfNesting";
-import { downloadFilmPreview, drawWatermark, watermarkApplies } from "@/lib/dtfFilmExport";
+import { downloadFilmPreview } from "@/lib/dtfFilmExport";
 import { dtfExportAuditApi } from "@/lib/dtfExportAuditApi";
 import { customerApi } from "@/lib/customerApi";
 
@@ -451,7 +451,6 @@ async function createGangSheetThumbnail(items, sheetWidth, sheetLength, settings
   context.strokeStyle = "#111111";
   context.lineWidth = 3;
   context.strokeRect(1.5, 1.5, outputWidth - 3, outputHeight - 3);
-  if (watermarkApplies(settings, "cart")) drawWatermark(context, outputWidth, outputHeight, settings);
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
@@ -1470,7 +1469,7 @@ export default function DTFGangSheet() {
           approvalAcknowledged: true,
           approvalTimestamp,
           exportPolicy: {
-            watermarkedPreviewEnabled: settings.watermarkedPreviewEnabled,
+            watermarkedPreviewEnabled: false,
             fullResolutionDownloadAfterPayment: settings.fullResolutionDownloadAfterPayment,
             watermarkText: settings.watermarkText,
           },
@@ -1909,9 +1908,6 @@ export default function DTFGangSheet() {
                         </div>
                       );
                     })}
-                    {watermarkApplies(settings, "builder") && artworks.length > 0 && (
-                      <WorkspaceWatermark settings={settings} />
-                    )}
                     {!artworks.length && (
                       <div className={`absolute inset-0 grid place-items-center px-4 text-center ${canvasBackground === "dark" ? "text-white" : "text-black"}`}>
                         <div>
@@ -2166,8 +2162,8 @@ export default function DTFGangSheet() {
                   onClick={async () => {
                     setPageError("");
                     try {
-                      await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-preview.jpg` });
-                      if (adminPreviewBypass) await dtfExportAuditApi.record({ exportType: "watermarked_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
+                      await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, clean: true, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-preview.png` });
+                      if (adminPreviewBypass) await dtfExportAuditApi.record({ exportType: "clean_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
                     } catch (error) {
                       setPageError(error?.message || "Could not download the film preview.");
                     }
@@ -2176,24 +2172,6 @@ export default function DTFGangSheet() {
                 >
                   <Download size={15} /> {adminPreviewBypass ? "Download proof" : "Download preview"}
                 </button>
-                {adminPreviewBypass && (
-                  <button
-                    type="button"
-                    disabled={!artworks.length || Boolean(validation.errors.length)}
-                    onClick={async () => {
-                      setPageError("");
-                      try {
-                        await downloadFilmPreview({ items: artworks, width: sheetWidth, length: sheetLength, settings, clean: true, filename: `GDP-DTF-${round(sheetWidth, 2)}x${round(sheetLength, 2)}-clean-preview.jpg` });
-                        await dtfExportAuditApi.record({ exportType: "clean_preview", width: sheetWidth, length: sheetLength, artworkCount: artworks.length });
-                      } catch (error) {
-                        setPageError(error?.message || "Could not download the clean film preview.");
-                      }
-                    }}
-                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 border border-black bg-black text-[9px] font-black uppercase tracking-[0.1em] text-white hover:bg-white hover:text-black disabled:opacity-30"
-                  >
-                    <Download size={15} /> Download clean preview
-                  </button>
-                )}
                 {adminPreviewBypass && <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.05em] text-emerald-700">Admin bypass active · downloads are logged</div>}
                 </>
               ) : (
@@ -2372,22 +2350,6 @@ export default function DTFGangSheet() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function WorkspaceWatermark({ settings }) {
-  const text = settings.watermarkText || "GDP Clothing Preview";
-  const common = { opacity: settings.watermarkOpacity, fontSize: `${Math.max(10, settings.watermarkSize * 0.55)}px` };
-  if (settings.watermarkPosition === "corner") {
-    return <div className="pointer-events-none absolute bottom-3 right-3 z-30 font-black uppercase text-black" style={common}>{text}</div>;
-  }
-  if (settings.watermarkPosition === "centered") {
-    return <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 -rotate-[30deg] whitespace-nowrap font-black uppercase text-black" style={common}>{text}</div>;
-  }
-  return (
-    <div className="pointer-events-none absolute inset-0 z-30 grid grid-cols-2 content-around overflow-hidden">
-      {Array.from({ length: 12 }, (_, index) => <span key={index} className="-rotate-[30deg] whitespace-nowrap text-center font-black uppercase text-black" style={common}>{text}</span>)}
     </div>
   );
 }
