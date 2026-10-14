@@ -48,6 +48,16 @@ for (const token of [
   'Do not iron directly over the DTF print.',
 ]) expect(panel.includes(token), `Garment information contract missing: ${token}`);
 
+for (const [label, route] of [
+  ['Shipping & Delivery Policy', '/pages/shipping-delivery'],
+  ['Returns & Refunds Policy', '/pages/returns-refunds'],
+]) {
+  expect(panel.includes(label), `Missing garment policy link label: ${label}`);
+  expect(panel.includes(`<Link to="${route}"`), `Garment policy link has an incorrect route: ${route}`);
+}
+expect((panel.match(/<PanelButton icon=/g) || []).length === 5, 'Garment policy links must not add or remove feature cards.');
+expect(panel.includes('info.shippingInfo') && panel.includes('info.careInstructions'), 'Preserve shipping and wash care content.');
+
 expect(!page.includes('costPerItem ='), 'Garment information work must not introduce cost mutation in Custom Studio.');
 expect(!panel.includes('product.price ='), 'Garment information panel must remain read-only for pricing.');
 
