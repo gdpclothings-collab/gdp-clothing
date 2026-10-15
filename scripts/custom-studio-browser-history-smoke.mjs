@@ -121,7 +121,9 @@ async function verify(browser, viewport) {
       });
       window.__studioLoadingObserver.observe(document.documentElement, { childList: true, subtree: true });
     });
-    await page.getByRole('link', { name: 'GDP Clothing home' }).click();
+    // Both desktop and mobile navigation may render a matching home link.
+    // Use the header's first link so Playwright strict mode remains stable.
+    await page.getByRole('link', { name: 'GDP Clothing home' }).first().click();
     await page.waitForURL((url) => url.pathname === '/', { timeout: 15000 });
     await browserBack('Home to Studio return');
     await gallery(page).waitFor({ state: 'visible', timeout: 15000 });
