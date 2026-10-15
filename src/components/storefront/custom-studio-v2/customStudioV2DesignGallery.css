@@ -1,0 +1,52 @@
+/* Custom Studio V2: design-path gallery presentation only.
+   Does not modify the editors, pricing, checkout, or print geometry. */
+[data-gdp-premium-studio="true"] [data-gdp-v2-design-gallery="true"] button {
+  -webkit-tap-highlight-color: transparent;
+}
+[data-gdp-premium-studio="true"] [data-gdp-v2-design-gallery="true"] button:focus-visible {
+  outline: 3px solid #1889ed;
+  outline-offset: 3px;
+}
+[data-gdp-premium-studio="true"] [data-gdp-v2-design-hero="true"] {
+  background: linear-gradient(115deg, #071529 0%, #0c2038 66%, #161e38 100%);
+}
+[data-gdp-premium-studio="true"] [data-gdp-v2-design-hero="true"]::after {
+  display: none;
+}
+[data-gdp-premium-studio="true"] [data-gdp-v2-design-hero="true"] [data-gdp-hero-copy="true"] {
+  position: relative;
+  z-index: 2;
+}
+[data-gdp-premium-studio="true"] [data-gdp-v2-design-hero="true"] [data-gdp-v2-hero-art="true"] {
+  display: none;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  [data-gdp-premium-studio="true"] [data-gdp-v2-design-hero="true"] {
+    min-height: 169px;
+  }
+  [data-gdp-premium-studio="true"] [data-gdp-v2-design-hero="true"] [data-gdp-hero-copy="true"] {
+    max-width: 64%;
+  }
+  [data-gdp-premium-studio="true"] [data-gdp-v2-design-hero="true"] [data-gdp-v2-hero-art="true"] {
+    display: block;
+    position: absolute;
+    width: min(50%, 660px);
+    height: 100%;
+    right: 1%;
+    top: 0;
+    z-index: 0;
+    opacity: .84;
+  }
+}
+@media (max-width: 639px) {
+  [data-gdp-premium-studio="true"] [data-gdp-v2-design-gallery="true"] [data-gdp-v2-design-path] > span:last-child {
+    min-height: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-gdp-premium-studio="true"] [data-gdp-v2-design-gallery="true"] button {
+    transition-duration: 0ms !important;
+    transform: none !important;
+  }
+}
