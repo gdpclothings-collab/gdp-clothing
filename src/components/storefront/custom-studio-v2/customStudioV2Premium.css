@@ -131,6 +131,8 @@
   outline-offset: 3px;
 }
 [data-gdp-premium-studio="true"] [data-gdp-premium-main-panel="true"] {
+  /* Matching anchor for focus links and browser step restoration. */
+  scroll-margin-top: calc(var(--gdp-store-header-height, 70px) + 14px);
   border: 1px solid var(--gdp-soft-border);
   border-radius: 26px;
   background: rgba(255,255,255,.91);
