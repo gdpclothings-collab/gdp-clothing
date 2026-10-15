@@ -46,7 +46,7 @@ async function verify(browser, viewport) {
         const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
         const target = Math.round(Math.max(0, Math.min(maxScroll, window.scrollY + panel.getBoundingClientRect().top - inset)));
         return Math.abs(target - window.scrollY) <= 18;
-      }, { timeout: 3000 });
+      }, null, { timeout: 3000 });
     } catch {
       const snap = await page.evaluate(() => {
         const panel = document.querySelector('[data-gdp-premium-main-panel="true"]');
