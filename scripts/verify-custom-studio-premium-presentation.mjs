@@ -25,6 +25,12 @@ for (const marker of [
   'data-gdp-premium-next="true"',
   'data-gdp-garment-continue="true"',
 ]) assert(page.includes(marker), `Missing accessible presentation marker: ${marker}`);
+// Preserve the primary action ahead of the optional garment information cards.
+const variantControls = page.slice(page.indexOf('function GarmentVariantControls('), page.indexOf('function GarmentStepV2('));
+const optionsIndex = variantControls.indexOf('data-gdp-quantity-panel="true"');
+const continueIndex = variantControls.indexOf('data-gdp-premium-next="true"');
+const helpIndex = variantControls.indexOf('<GarmentInfoPanel product={product} sizes={sizes} />');
+assert(optionsIndex !== -1 && optionsIndex < continueIndex && continueIndex < helpIndex, 'Step 1 Continue action must appear after garment choices and before optional helpful information');
 assert(css.includes('[data-gdp-premium-studio="true"]'), 'premium styling must stay scoped to V2');
 assert(css.includes('@media (max-width: 767px)'), 'mobile layout breakpoint missing');
 assert(css.includes('@media (prefers-reduced-motion: reduce)'), 'reduced-motion support missing');
