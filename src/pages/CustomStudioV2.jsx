@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import CustomStudioV2GeneratedGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedGallery';
 import CustomStudioV2GeneratedHero from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedHero';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { STUDIO_HISTORY_STATE_KEY, studioHistoryActionStep, studioHistoryDestination, studioHistoryStep } from '@/lib/studioV2StepHistory';
 import { ArrowLeft, ArrowRight, Check, Loader2, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
@@ -338,7 +339,40 @@ export default function CustomStudioV2() {
   const finalizationLock = useRef(false);
   const studioPanelRef = useRef(null);
   const previousStepRef = useRef(state.step);
-  const dispatch = (action) => setState((current) => studioV2Reducer(current, action));
+  const initialStudioStepRef = useRef(state.step);
+  const currentStudioStepRef = useRef(state.step);
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
+  // The wizard changes content in-place, but the browser must see each step
+  // as a history entry. Never use native pushState: React Router owns history.
+  // Other reducer actions (artwork, approval, sizing, etc.) remain unchanged.
+  const dispatch = (action) => {
+    const target = studioHistoryActionStep(action);
+    if (target && target !== currentStudioStepRef.current) {
+      currentStudioStepRef.current = target;
+      const route = locationRef.current;
+      const routeState = route.state && typeof route.state === 'object' ? route.state : {};
+      navigate(studioHistoryDestination(route, target), {
+        state: action.type === 'RESET'
+          ? { [STUDIO_HISTORY_STATE_KEY]: target }
+          : { ...routeState, [STUDIO_HISTORY_STATE_KEY]: target },
+      });
+    }
+    setState((current) => studioV2Reducer(current, action));
+  };
+
+  // Browser Back/Forward (and swipe-back on mobile) must restore the active
+  // wizard step without clearing any in-memory garment or artwork edits.
+  // Entries without our marker are the original entry step, not a guessed
+  // step from a user-editable query string.
+  useEffect(() => {
+    const target = studioHistoryStep(location.state, initialStudioStepRef.current);
+    currentStudioStepRef.current = target;
+    setState((current) => current.step === target
+      ? current
+      : studioV2Reducer(current, { type: 'SET_STEP', step: target }));
+  }, [location.key]);
 
   // Changing a step replaces content at its old scroll position. On phones the
   // shorter next step could otherwise leave the viewport at the page bottom.
