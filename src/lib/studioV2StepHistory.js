@@ -44,3 +44,14 @@ export function studioHistoryStep(routeState, baselineStep = 'garment') {
     ? marker
     : (isStudioStep(baselineStep) ? baselineStep : 'garment');
 }
+
+/**
+ * A hard reload does not recreate editor artwork from arbitrary URL/history
+ * entries. Fall back to the nearest usable step rather than an empty editor.
+ */
+export function studioHistorySafeStep(step, state) {
+  if (!isStudioStep(step) || step === 'garment') return 'garment';
+  if (!state?.productId) return 'garment';
+  if ((step === 'customize' || step === 'review') && !state?.designPath) return 'design';
+  return step;
+}
