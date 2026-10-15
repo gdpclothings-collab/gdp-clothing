@@ -2495,7 +2495,7 @@ export default function CustomStudio() {
         </div>
       </div>}
       <div data-studio-container className="mx-auto w-full min-w-0 max-w-[1540px] px-4 py-6 md:py-10 lg:px-8">
-        <CustomStudioHero />
+        <div data-studio-hero><CustomStudioHero /></div>
 
         <div data-studio-rail className="mb-7">
           <div data-mobile-progress className="md:hidden mb-3">
