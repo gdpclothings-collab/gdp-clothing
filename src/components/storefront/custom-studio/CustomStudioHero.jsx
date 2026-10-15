@@ -5,7 +5,7 @@ import React from "react";
 export default function CustomStudioHero() {
   return (
     <div
-      data-studio-hero
+      data-studio-hero-content
       className="relative mb-6 overflow-hidden rounded-[25px] border border-[#25334B] bg-[linear-gradient(117deg,#061224_0%,#0B1D37_66%,#182345_100%)] px-5 py-7 shadow-[0_17px_40px_rgba(11,20,37,.13)] md:px-9 md:py-9"
     >
       <div className="pointer-events-none absolute inset-y-0 right-0 w-full opacity-40 sm:w-[60%] sm:opacity-75 lg:w-[48%] lg:opacity-100">
