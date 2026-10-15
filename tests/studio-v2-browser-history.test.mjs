@@ -77,3 +77,11 @@ test('the production V2 page uses router navigation and keyed Back/Forward synch
   assert.doesNotMatch(source, /window\.history\.pushState/);
   assert.doesNotMatch(source, /window\.onpopstate\s*=/);
 });
+
+test('cart-edit draft refresh runs only on initial entry, not on browser history steps', () => {
+  const source = fs.readFileSync('src/pages/CustomStudioV2.jsx', 'utf8');
+  assert.match(source, /const initialStudioDraftRef = useRef\(location\.state\?\.studioV2Draft\)/);
+  assert.match(source, /const draft = initialStudioDraftRef\.current/);
+  assert.doesNotMatch(source, /const draft = location\.state\?\.studioV2Draft;/);
+  assert.match(source, /refreshStudioV2DraftAssets\(draft\.state\)/);
+});
