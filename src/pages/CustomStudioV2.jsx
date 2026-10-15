@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import CustomStudioV2GeneratedGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedGallery';
 import CustomStudioV2GeneratedHero from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedHero';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { STUDIO_HISTORY_STATE_KEY, studioHistoryActionStep, studioHistoryDestination, studioHistoryStep } from '@/lib/studioV2StepHistory';
+import { STUDIO_HISTORY_STATE_KEY, studioHistoryActionStep, studioHistoryDestination, studioHistorySafeStep, studioHistoryStep } from '@/lib/studioV2StepHistory';
 import { ArrowLeft, ArrowRight, Check, Loader2, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
@@ -341,6 +341,8 @@ export default function CustomStudioV2() {
   const previousStepRef = useRef(state.step);
   const initialStudioStepRef = useRef(state.step);
   const currentStudioStepRef = useRef(state.step);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const locationRef = useRef(location);
   locationRef.current = location;
 
@@ -367,12 +369,13 @@ export default function CustomStudioV2() {
   // Entries without our marker are the original entry step, not a guessed
   // step from a user-editable query string.
   useEffect(() => {
-    const target = studioHistoryStep(location.state, initialStudioStepRef.current);
+    const historyStep = studioHistoryStep(location.state, initialStudioStepRef.current);
+    const target = studioHistorySafeStep(historyStep, stateRef.current);
     currentStudioStepRef.current = target;
     setState((current) => current.step === target
       ? current
       : studioV2Reducer(current, { type: 'SET_STEP', step: target }));
-  }, [location.key]);
+  }, [location.key, location.state]);
 
   // Changing a step replaces content at its old scroll position. On phones the
   // shorter next step could otherwise leave the viewport at the page bottom.
