@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import CustomStudioV2DesignGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2DesignGallery';
+import CustomStudioV2HeroArt from '@/components/storefront/custom-studio-v2/CustomStudioV2HeroArt';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, Loader2, RotateCcw, ShieldCheck, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
 import UploadArtworkEditorV2 from '@/components/storefront/custom-studio-v2/UploadArtworkEditorV2';
@@ -33,7 +34,6 @@ import {
   studioV2Reducer,
 } from '@/lib/customStudioV2State';
 
-const pathIcons = { seasonal: Sparkles, bootleg: Star, memorial: Heart, upload: ImageUp };
 const normalize = (value) => String(value || '').trim().toLowerCase();
 const displayVariantLabel = (value) => String(value || '').trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -601,6 +601,7 @@ export default function CustomStudioV2() {
         <h1>Made by you. Worn your way.</h1>
         <p>Choose your garment, pick your colors and fit, then bring your artwork to life.</p>
       </div>
+      {state.step === 'design' && <div data-gdp-v2-hero-art="true" aria-hidden="true"><CustomStudioV2HeroArt /></div>}
       <button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="gdp-premium-reset inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button>
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
