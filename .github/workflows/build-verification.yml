@@ -65,6 +65,7 @@ jobs:
           node scripts/verify-custom-studio-canonical-flow.mjs
           node scripts/verify-custom-studio-v2.mjs
           node --test tests/studio-v2-browser-history.test.mjs
+          node --test tests/studio-v2-navigation-polish.test.mjs
           node scripts/verify-custom-studio-premium-presentation.mjs
           node scripts/verify-custom-studio-v2-approval-refinement.mjs
           node scripts/verify-custom-studio-v2-unified-approval.mjs
