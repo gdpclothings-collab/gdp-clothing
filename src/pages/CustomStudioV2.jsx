@@ -341,6 +341,7 @@ export default function CustomStudioV2() {
   const previousStepRef = useRef(state.step);
   const initialStudioStepRef = useRef(state.step);
   const currentStudioStepRef = useRef(state.step);
+  const pendingStudioNavigationRef = useRef(null);
   const stateRef = useRef(state);
   stateRef.current = state;
   const locationRef = useRef(location);
@@ -353,6 +354,7 @@ export default function CustomStudioV2() {
     const target = studioHistoryActionStep(action);
     if (target && target !== currentStudioStepRef.current) {
       currentStudioStepRef.current = target;
+      pendingStudioNavigationRef.current = target;
       const route = locationRef.current;
       const routeState = route.state && typeof route.state === 'object' ? route.state : {};
       navigate(studioHistoryDestination(route, target), {
@@ -370,6 +372,14 @@ export default function CustomStudioV2() {
   // step from a user-editable query string.
   useEffect(() => {
     const historyStep = studioHistoryStep(location.state, initialStudioStepRef.current);
+    // Internal navigation already updated the reducer in the same action.
+    // Skipping that echo prevents an intermediate stale render from
+    // overwriting a newly selected design path.
+    if (pendingStudioNavigationRef.current === historyStep) {
+      pendingStudioNavigationRef.current = null;
+      return;
+    }
+    pendingStudioNavigationRef.current = null;
     const target = studioHistorySafeStep(historyStep, stateRef.current);
     currentStudioStepRef.current = target;
     setState((current) => current.step === target
