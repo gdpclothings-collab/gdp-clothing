@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import CustomStudioV2DesignGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2DesignGallery';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, Loader2, RotateCcw, ShieldCheck, Sparkles, Star } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
@@ -213,9 +214,7 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
 }
 
 function DesignStepV2({ dispatch }) {
-  return <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 2</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose a design path</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Choose the design experience that fits what you want to create. Each path keeps its own artwork and settings.</p>
-    <div className="mt-6 grid gap-4 md:grid-cols-2">{STUDIO_V2_DESIGN_PATHS.map((path) => { const Icon = pathIcons[path.id]; return <button key={path.id} type="button" onClick={() => dispatch({ type: 'SET_DESIGN_PATH', designPath: path.id })} className="gdp-neu-card rounded-3xl border-2 border-slate-200 bg-white p-5 text-left transition hover:border-slate-900"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-900 text-white"><Icon size={20} /></span><div><h2 className="text-lg font-black text-slate-900">{path.label}</h2><p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p></div></div></button>; })}</div>
-  </div>;
+  return <CustomStudioV2DesignGallery paths={STUDIO_V2_DESIGN_PATHS} dispatch={dispatch} />;
 }
 
 function PrintSideControl({ state, onChange }) {
