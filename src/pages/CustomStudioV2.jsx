@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import CustomStudioV2GeneratedGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedGallery';
 import CustomStudioV2GeneratedHero from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedHero';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { STUDIO_HISTORY_STATE_KEY, studioHistoryActionStep, studioHistoryDestination, studioHistorySafeStep, studioHistoryStep } from '@/lib/studioV2StepHistory';
+import { STUDIO_HISTORY_STATE_KEY, STUDIO_GARMENT_VIEW_STATE_KEY, studioHistoryActionStep, studioHistoryActionGarmentView, studioHistoryGarmentView, studioHistoryShouldPush, studioHistoryDestination, studioHistorySafeStep, studioHistoryStep } from '@/lib/studioV2StepHistory';
 import { ArrowLeft, ArrowRight, Check, Loader2, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
@@ -162,25 +162,17 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
   );
 }
 
-function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
+function GarmentStepV2({ catalog, state, dispatch, garmentView, onContinue, canContinue }) {
   const selectedProduct = catalog.find((item) => String(item.id) === String(state.productId)) || null;
-  const previousProductIdRef = useRef(state.productId);
-  const [isChoosingGarment, setIsChoosingGarment] = useState(() => !state.productId);
-
-  useEffect(() => {
-    const previousProductId = previousProductIdRef.current;
-    if (!state.productId) setIsChoosingGarment(true);
-    else if (String(previousProductId || '') !== String(state.productId)) setIsChoosingGarment(false);
-    previousProductIdRef.current = state.productId;
-  }, [state.productId]);
 
   const chooseProduct = (item) => {
     const firstAvailableColor = productColors(item).find((candidate) => isProductColorAvailable(item, candidate)) || '';
     dispatch({ type: 'SELECT_PRODUCT', productId: item.id, color: firstAvailableColor });
-    setIsChoosingGarment(false);
   };
 
-  const browseGarments = !selectedProduct || isChoosingGarment;
+  // Gallery and configurator are separate history views of the same step.
+  // Browser Back/Forward restores the view without clearing garment options.
+  const browseGarments = !selectedProduct || garmentView === 'browse';
 
   return (
     <div data-gdp-premium-garment-step="true" className="space-y-5" data-gdp-garment-mode={browseGarments ? 'browse' : 'focused'}>
@@ -189,8 +181,8 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
       <div className="flex flex-wrap items-end justify-between gap-3" data-gdp-garment-choices="top">
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{browseGarments ? 'Garment options' : 'Your garment'}</p><p className="mt-1 text-xs font-semibold text-slate-500">{browseGarments ? 'Select a garment below to continue.' : 'Only your selected garment stays visible while you configure it.'}</p></div>
         {selectedProduct && (browseGarments
-          ? <button data-gdp-keep-current-garment="true" type="button" onClick={() => setIsChoosingGarment(false)} className="gdp-neu-control inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Keep current garment</button>
-          : <button data-gdp-change-garment="true" type="button" onClick={() => setIsChoosingGarment(true)} className="gdp-neu-control inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Change garment</button>)}
+          ? <button data-gdp-keep-current-garment="true" type="button" onClick={() => dispatch({ type: 'FOCUS_GARMENT' })} className="gdp-neu-control inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Keep current garment</button>
+          : <button data-gdp-change-garment="true" type="button" onClick={() => dispatch({ type: 'BROWSE_GARMENTS' })} className="gdp-neu-control inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Change garment</button>)}
       </div>
 
       {browseGarments ? (
@@ -344,6 +336,10 @@ export default function CustomStudioV2() {
   const initialStudioDraftRef = useRef(location.state?.studioV2Draft);
   const initialStudioStepRef = useRef(state.step);
   const currentStudioStepRef = useRef(state.step);
+  const [garmentView, setGarmentView] = useState(() => state.productId ? 'focused' : 'browse');
+  const initialGarmentViewRef = useRef(state.productId ? 'focused' : 'browse');
+  const currentGarmentViewRef = useRef(initialGarmentViewRef.current);
+  const previousGarmentViewRef = useRef(initialGarmentViewRef.current);
   const pendingStudioNavigationRef = useRef(null);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -355,36 +351,48 @@ export default function CustomStudioV2() {
   // Other reducer actions (artwork, approval, sizing, etc.) remain unchanged.
   const dispatch = (action) => {
     const target = studioHistoryActionStep(action);
-    if (target && target !== currentStudioStepRef.current) {
+    const view = studioHistoryActionGarmentView(action, currentGarmentViewRef.current, stateRef.current.productId);
+    if (target && studioHistoryShouldPush(currentStudioStepRef.current, target, currentGarmentViewRef.current, view)) {
       currentStudioStepRef.current = target;
-      pendingStudioNavigationRef.current = target;
+      if (target === 'garment') currentGarmentViewRef.current = view;
+      pendingStudioNavigationRef.current = { step: target, view };
       const route = locationRef.current;
       const routeState = route.state && typeof route.state === 'object' ? route.state : {};
-      navigate(studioHistoryDestination(route, target), {
+      navigate(studioHistoryDestination(route, target, view), {
         state: action.type === 'RESET'
-          ? { [STUDIO_HISTORY_STATE_KEY]: target }
-          : { ...routeState, [STUDIO_HISTORY_STATE_KEY]: target },
+          ? { [STUDIO_HISTORY_STATE_KEY]: target, [STUDIO_GARMENT_VIEW_STATE_KEY]: 'browse' }
+          : { ...routeState, [STUDIO_HISTORY_STATE_KEY]: target, [STUDIO_GARMENT_VIEW_STATE_KEY]: view },
       });
     }
-    setState((current) => studioV2Reducer(current, action));
+    if (target === 'garment') {
+      currentGarmentViewRef.current = view;
+      setGarmentView(view);
+    }
+    // Browse / Focus only affect presentation history, never order state.
+    if (action.type !== 'BROWSE_GARMENTS' && action.type !== 'FOCUS_GARMENT') {
+      setState((current) => studioV2Reducer(current, action));
+    }
   };
 
-  // Browser Back/Forward (and swipe-back on mobile) must restore the active
-  // wizard step without clearing any in-memory garment or artwork edits.
-  // Entries without our marker are the original entry step, not a guessed
-  // step from a user-editable query string.
+  // Router owns the entire wizard history, including garment gallery/focus.
+  // The selected product and its options remain in React state on Back.
   useEffect(() => {
     const historyStep = studioHistoryStep(location.state, initialStudioStepRef.current);
-    // Internal navigation already updated the reducer in the same action.
-    // Skipping that echo prevents an intermediate stale render from
-    // overwriting a newly selected design path.
-    if (pendingStudioNavigationRef.current === historyStep) {
+    const view = studioHistoryGarmentView(
+      location.state,
+      initialGarmentViewRef.current,
+      stateRef.current.productId,
+    );
+    const pending = pendingStudioNavigationRef.current;
+    if (pending && pending.step === historyStep && (historyStep !== 'garment' || pending.view === view)) {
       pendingStudioNavigationRef.current = null;
       return;
     }
     pendingStudioNavigationRef.current = null;
     const target = studioHistorySafeStep(historyStep, stateRef.current);
     currentStudioStepRef.current = target;
+    currentGarmentViewRef.current = view;
+    setGarmentView(view);
     setState((current) => current.step === target
       ? current
       : studioV2Reducer(current, { type: 'SET_STEP', step: target }));
@@ -394,8 +402,9 @@ export default function CustomStudioV2() {
   // shorter next step could otherwise leave the viewport at the page bottom.
   // Reposition after React commits, below the sticky storefront navigation.
   useLayoutEffect(() => {
-    if (previousStepRef.current === state.step) return undefined;
+    if (previousStepRef.current === state.step && previousGarmentViewRef.current === garmentView) return undefined;
     previousStepRef.current = state.step;
+    previousGarmentViewRef.current = garmentView;
     const frame = window.requestAnimationFrame(() => {
       const panel = studioPanelRef.current;
       if (!panel) return;
@@ -405,7 +414,7 @@ export default function CustomStudioV2() {
       panel.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [state.step]);
+  }, [state.step, garmentView]);
 
   useEffect(() => {
     const draft = initialStudioDraftRef.current;
@@ -656,7 +665,7 @@ export default function CustomStudioV2() {
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
     <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
-      {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} onContinue={next} canContinue={canContinue} />}
+      {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} garmentView={garmentView} onContinue={next} canContinue={canContinue} />}
       {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
       {state.step === 'customize' && state.designPath === 'seasonal' && product && <div><EditorHeading title="Seasonal Design Lab" description="Build each print side independently. Your Front and Back artwork, placement and sizing stay exactly as you set them." /><SeasonalEditorV2 product={product} color={state.color} side={state.side} size={state.size} layers={currentEditor?.layers || []} activeLayerId={currentEditor?.activeLayerId || ''} confirmed={Boolean(currentEditor?.confirmed)} onLayersChange={(layers, activeLayerId) => dispatch({ type: 'SET_SEASONAL_LAYERS', side: state.side, layers, activeLayerId })} onActiveLayerChange={(id) => dispatch({ type: 'SET_SEASONAL_ACTIVE', side: state.side, id })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_SEASONAL', side: state.side, value })} /></div>}
