@@ -43,7 +43,7 @@ export default function CustomStudioV2DesignGallery({ paths, dispatch }) {
           Choose the design experience that fits how you want to create. Each path keeps its own artwork and settings.
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:gap-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-5">
         {paths.map((path) => {
           const style = PATH_STYLE[path.id] || PATH_STYLE.upload;
           const Icon = style.Icon;
@@ -57,12 +57,12 @@ export default function CustomStudioV2DesignGallery({ paths, dispatch }) {
               className="group relative isolate min-w-0 overflow-hidden rounded-[20px] border border-[#E2E6EE]/80 text-left shadow-[0_8px_22px_rgba(18,30,53,.09)] transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-[#9DAFC5] hover:shadow-[0_16px_30px_rgba(18,30,53,.15)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#147DE5] motion-reduce:transform-none"
               aria-label={"Choose " + path.label}
             >
-              <span className="relative block h-[175px] sm:h-[190px] lg:absolute lg:inset-y-0 lg:right-[-12px] lg:h-full lg:w-[59%]" aria-hidden="true">
+              <span className="relative block h-[140px] sm:absolute sm:inset-y-0 sm:right-[-12px] sm:h-full sm:w-[48%] xl:w-[60%]" aria-hidden="true">
                 <span className="absolute inset-0">
                   <DesignPathPreview type={path.id} />
                 </span>
               </span>
-              <span className="relative z-10 flex min-h-[235px] flex-col items-start p-4 sm:p-5 lg:min-h-[245px] lg:w-[66%] xl:min-h-[253px]">
+              <span className="relative z-10 flex min-h-[216px] flex-col items-start p-4 sm:min-h-[235px] sm:w-[64%] sm:p-5 xl:min-h-[251px] xl:w-[66%]">
                 <span className="mb-2.5 flex items-center gap-2.5">
                   <span className={"grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-sm " + style.icon}>
                     <Icon size={21} strokeWidth={2.5} />
