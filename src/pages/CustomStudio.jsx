@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, AlertTriangle, Shirt, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, X, Star, Heart, Sparkles, ShieldCheck, AlertTriangle, Shirt, Maximize2, Move, Ruler, ZoomIn, ZoomOut, Lock, Unlock } from "lucide-react";
 import SeasonalStudio from "@/components/storefront/SeasonalStudio";
 import GarmentStep from "@/components/storefront/custom-studio/GarmentStep";
 import ChooseDesignStep from "@/components/storefront/custom-studio/ChooseDesignStep";
-import CustomStudioHero from "@/components/storefront/custom-studio/CustomStudioHero";
 import TimingApprovalStep from "@/components/storefront/custom-studio/TimingApprovalStep";
 import ReviewStep from "@/components/storefront/custom-studio/ReviewStep";
 import { useCustomStudioWorkflowState } from "@/hooks/useCustomStudioWorkflowState";
@@ -2495,7 +2494,19 @@ export default function CustomStudio() {
         </div>
       </div>}
       <div data-studio-container className="mx-auto w-full min-w-0 max-w-[1540px] px-4 py-6 md:py-10 lg:px-8">
-        <div data-studio-hero><CustomStudioHero /></div>
+        <div data-studio-hero className="relative overflow-hidden rounded-[28px] border border-[#DCE3EA] bg-[linear-gradient(135deg,#FFFFFF_0%,#f3ece2_100%)] px-5 py-7 md:px-9 md:py-9 mb-7 shadow-[0_20px_60px_rgba(32,28,22,.07)]">
+          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-accent/[0.06] blur-3xl pointer-events-none" />
+          <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+            <div>
+              <span className="font-mono text-[10px] md:text-xs uppercase tracking-[0.28em] text-accent">GDP Custom Studio</span>
+              <h1 className="font-display text-4xl md:text-6xl leading-[.94] mt-2 text-[#17324D]">MAKE IT PERSONAL</h1>
+              <p className="text-[#69645d] max-w-2xl mt-3 leading-relaxed">Turn your favorite people, pets and memories into wearable art. Build the concept here, then a real GDP designer reviews it before production.</p>
+            </div>
+            <div className="inline-flex items-center gap-2 self-start lg:self-auto rounded-full border border-[#ded7cd] bg-white/75 px-3.5 py-2 text-[11px] font-semibold text-[#4f4b46] shadow-sm">
+              <ShieldCheck size={15} className="text-accent" /> Designer reviewed · Proof before printing · Secure checkout
+            </div>
+          </div>
+        </div>
 
         <div data-studio-rail className="mb-7">
           <div data-mobile-progress className="md:hidden mb-3">
