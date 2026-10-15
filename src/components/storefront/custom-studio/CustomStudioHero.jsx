@@ -1,4 +1,5 @@
 import React from "react";
+import "./CustomStudioHero.css";
 
 // Brand-led studio hero: restrained dark header, illustrated garment mockups.
 // Decorative drawings are examples rather than order production mockups.
