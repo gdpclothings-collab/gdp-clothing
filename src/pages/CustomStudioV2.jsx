@@ -22,6 +22,7 @@ import {
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { refreshStudioV2DraftAssets } from '@/lib/customStudioV2Assets';
 import { getStudioBrowseSnapshot, refreshStudioBrowseSnapshot } from '@/lib/studioV2BrowseCache';
+import { studioV2ScrollTop, studioV2StickyHeaderHeight } from '@/lib/studioV2ScrollRestoration';
 import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { renderStudioV2CustomerMockup } from '@/lib/customStudioV2Mockup';
 import {
@@ -401,20 +402,35 @@ export default function CustomStudioV2() {
       : studioV2Reducer(current, { type: 'SET_STEP', step: target }));
   }, [location.key, location.state]);
 
-  // Position the next step before the browser paints it. The old animation
-  // frame allowed a single frame at the *previous* step's scroll position,
-  // which looked like an abrupt jump on desktop and mobile.
-  // The global ScrollToTop deliberately ignores same-route wizard history.
+  // Chrome's native Back/Forward restoration can run after React has moved
+  // to the correct Studio step and put the previous step's scroll offset back.
+  // Disable automatic restoration *only while this Studio route is mounted*;
+  // restore the visitor's previous preference when they leave the route.
+  useLayoutEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
+
+  // Scroll to the step heading before paint on internal navigation. Read the
+  // true sticky header height (including optional announcement) and clamp to
+  // the actual document bounds so short steps cannot appear to jump.
   useLayoutEffect(() => {
     if (previousStepRef.current === state.step && previousGarmentViewRef.current === garmentView) return;
     previousStepRef.current = state.step;
     previousGarmentViewRef.current = garmentView;
     const panel = studioPanelRef.current;
     if (!panel) return;
-    const headerInset = window.innerWidth < 768 ? 132 : 110;
     const top = panel.getBoundingClientRect().top;
-    if (Math.abs(top - headerInset) > 6) {
-      const nextTop = Math.max(0, Math.round(window.scrollY + top - headerInset));
+    const headerHeight = studioV2StickyHeaderHeight(document);
+    const nextTop = studioV2ScrollTop({
+      scrollY: window.scrollY,
+      panelTop: top,
+      headerHeight,
+      viewportHeight: window.innerHeight,
+      documentHeight: document.documentElement.scrollHeight,
+    });
+    if (Math.abs(window.scrollY - nextTop) > 3) {
       window.scrollTo({ top: nextTop, left: 0, behavior: 'instant' });
     }
     panel.focus({ preventScroll: true });

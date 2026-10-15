@@ -33,6 +33,30 @@ async function verify(browser, viewport) {
     if (step === 'garment' && view) assert(url.searchParams.get('garmentView') === view, 'Incorrect garment mode: ' + url.toString());
   };
 
+  // A true viewport check, not only a URL/step assertion. Chrome can retain
+  // the previous step's scrollY even while rendering the correct new step.
+  // Allow short pages to clamp against their real maximum scroll position.
+  const assertStudioPanelAligned = async (label) => {
+    try {
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('[data-gdp-premium-main-panel="true"]');
+        if (!panel) return false;
+        const header = document.querySelector('.gdp-storefront > header');
+        const inset = (header?.getBoundingClientRect().height || 70) + 14;
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const target = Math.round(Math.max(0, Math.min(maxScroll, window.scrollY + panel.getBoundingClientRect().top - inset)));
+        return Math.abs(target - window.scrollY) <= 18;
+      }, null, { timeout: 3000 });
+    } catch {
+      const snap = await page.evaluate(() => {
+        const panel = document.querySelector('[data-gdp-premium-main-panel="true"]');
+        const header = document.querySelector('.gdp-storefront > header');
+        return { scrollY: window.scrollY, panelTop: panel?.getBoundingClientRect().top, headerHeight: header?.getBoundingClientRect().height, pageHeight: document.documentElement.scrollHeight, viewportHeight: window.innerHeight };
+      });
+      throw new Error(label + ': active Studio step did not align below the sticky header: ' + JSON.stringify(snap));
+    }
+  };
+
   const browserBack = async (label) => {
     await page.goBack({ timeout: 20000 });
     assert(new URL(page.url()).pathname === '/custom-studio', label + ': browser Back left Studio');
@@ -54,15 +78,18 @@ async function verify(browser, viewport) {
     await cards.first().click();
     await focused(page).waitFor({ state: 'visible' });
     checkUrl('garment', 'focused');
+    await assertStudioPanelAligned('gallery to focused garment');
     result.transitions.push('gallery → focused');
 
     await browserBack('selected garment');
     await gallery(page).waitFor({ state: 'visible' });
+    await assertStudioPanelAligned('Back to garment gallery');
     result.transitions.push('browser Back → gallery');
 
     await browserForward('gallery to selected garment');
     await focused(page).waitFor({ state: 'visible' });
     checkUrl('garment', 'focused');
+    await assertStudioPanelAligned('Forward to garment');
     result.transitions.push('browser Forward → selected garment');
 
     await page.locator('[data-gdp-change-garment="true"]').click();
@@ -86,11 +113,13 @@ async function verify(browser, viewport) {
     await continueButton.click();
     await page.getByRole('heading', { name: /choose a design path/i }).waitFor({ state: 'visible' });
     checkUrl('design');
+    await assertStudioPanelAligned('Garment to Choose Design');
     result.transitions.push('focused → Choose Design');
 
     await browserBack('design to garment');
     await focused(page).waitFor({ state: 'visible' });
     checkUrl('garment', 'focused');
+    await assertStudioPanelAligned('Back to configured garment');
     assert(await page.locator('[data-gdp-selected-garment-summary="true"]').isVisible(), 'Selected garment lost after returning');
     await browserForward('garment to design');
     await page.getByRole('heading', { name: /choose a design path/i }).waitFor({ state: 'visible' });
@@ -100,10 +129,16 @@ async function verify(browser, viewport) {
     await uploadCard.click();
     await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible' });
     checkUrl('customize');
+    await assertStudioPanelAligned('Choose Design to Customize');
+    // A long editor may leave Chrome at an outdated deep scroll offset.
+    // Browser Back must still reveal the correct previous step heading.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await browserBack('customize to design');
     await page.getByRole('heading', { name: /choose a design path/i }).waitFor({ state: 'visible' });
+    await assertStudioPanelAligned('Back from deep artwork editor');
     await browserForward('design to customize');
     await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible' });
+    await assertStudioPanelAligned('Forward to artwork editor');
     result.transitions.push('Choose Design ↔ Customize');
 
     // Returning from Home in the SAME single-page app must reuse the public
