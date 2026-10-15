@@ -10,6 +10,10 @@
  */
 export const STUDIO_HISTORY_STATE_KEY = '__gdpStudioHistoryStep';
 export const STUDIO_HISTORY_QUERY_KEY = 'studioStep';
+export const STUDIO_GARMENT_VIEW_STATE_KEY = '__gdpStudioGarmentView';
+export const STUDIO_GARMENT_VIEW_QUERY_KEY = 'garmentView';
+
+const isGarmentView = (value) => value === 'browse' || value === 'focused';
 
 export const STUDIO_HISTORY_STEPS = Object.freeze([
   'garment',
@@ -22,15 +26,34 @@ const isStudioStep = (value) => STUDIO_HISTORY_STEPS.includes(value);
 
 export function studioHistoryActionStep(action) {
   if (action?.type === 'SET_DESIGN_PATH') return 'customize';
-  if (action?.type === 'RESET' || action?.type === 'SELECT_PRODUCT') return 'garment';
+  if (['RESET', 'SELECT_PRODUCT', 'BROWSE_GARMENTS', 'FOCUS_GARMENT'].includes(action?.type)) return 'garment';
   if (action?.type === 'SET_STEP' && isStudioStep(action.step)) return action.step;
   return null;
 }
 
-export function studioHistoryDestination(location, step) {
+export function studioHistoryActionGarmentView(action, currentView, selectedProductId) {
+  if (action?.type === 'RESET' || action?.type === 'BROWSE_GARMENTS') return 'browse';
+  if (action?.type === 'SELECT_PRODUCT' || action?.type === 'FOCUS_GARMENT') return 'focused';
+  if (action?.type === 'SET_STEP' && action.step === 'garment') return selectedProductId ? 'focused' : 'browse';
+  return isGarmentView(currentView) ? currentView : 'browse';
+}
+
+export function studioHistoryGarmentView(routeState, baselineView = 'browse', selectedProductId = '') {
+  const view = routeState?.[STUDIO_GARMENT_VIEW_STATE_KEY];
+  const desired = isGarmentView(view) ? view : baselineView;
+  return desired === 'focused' && !selectedProductId ? 'browse' : (isGarmentView(desired) ? desired : 'browse');
+}
+
+export function studioHistoryShouldPush(currentStep, nextStep, currentView, nextView) {
+  return currentStep !== nextStep || (nextStep === 'garment' && currentView !== nextView);
+}
+
+export function studioHistoryDestination(location, step, garmentView = 'browse') {
   if (!isStudioStep(step)) return null;
   const params = new URLSearchParams(location?.search || '');
   params.set(STUDIO_HISTORY_QUERY_KEY, step);
+  if (step === 'garment' && isGarmentView(garmentView)) params.set(STUDIO_GARMENT_VIEW_QUERY_KEY, garmentView);
+  else params.delete(STUDIO_GARMENT_VIEW_QUERY_KEY);
   return {
     pathname: location?.pathname || '/custom-studio',
     search: `?${params.toString()}`,

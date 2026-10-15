@@ -8,6 +8,10 @@ import {
   studioHistoryDestination,
   studioHistorySafeStep,
   studioHistoryStep,
+  STUDIO_GARMENT_VIEW_STATE_KEY,
+  studioHistoryActionGarmentView,
+  studioHistoryGarmentView,
+  studioHistoryShouldPush,
 } from '../src/lib/studioV2StepHistory.js';
 import { createInitialStudioV2State, studioV2Reducer } from '../src/lib/customStudioV2State.js';
 
@@ -70,7 +74,7 @@ test('browser step changes never erase previously selected garment or artwork', 
 
 test('the production V2 page uses router navigation and keyed Back/Forward synchronization', () => {
   const source = fs.readFileSync('src/pages/CustomStudioV2.jsx', 'utf8');
-  assert.match(source, /navigate\(studioHistoryDestination\(route, target\)/);
+  assert.match(source, /navigate\(studioHistoryDestination\(route, target, view\)/);
   assert.match(source, /studioHistoryStep\(location.state, initialStudioStepRef.current\)/);
   assert.match(source, /studioHistorySafeStep\(historyStep, stateRef.current\)/);
   assert.match(source, /\[location.key, location.state\]/);
@@ -84,4 +88,50 @@ test('cart-edit draft refresh runs only on initial entry, not on browser history
   assert.match(source, /const draft = initialStudioDraftRef\.current/);
   assert.doesNotMatch(source, /const draft = location\.state\?\.studioV2Draft;/);
   assert.match(source, /refreshStudioV2DraftAssets\(draft\.state\)/);
+});
+
+test('choosing a garment is a browser-history transition even within Step 1', () => {
+  assert.equal(studioHistoryActionStep({ type: 'SELECT_PRODUCT', productId: 'shirt-1' }), 'garment');
+  assert.equal(studioHistoryActionStep({ type: 'BROWSE_GARMENTS' }), 'garment');
+  assert.equal(studioHistoryActionStep({ type: 'FOCUS_GARMENT' }), 'garment');
+  assert.equal(studioHistoryActionGarmentView({ type: 'SELECT_PRODUCT' }, 'browse', ''), 'focused');
+  assert.equal(studioHistoryActionGarmentView({ type: 'BROWSE_GARMENTS' }, 'focused', 'shirt-1'), 'browse');
+  assert.equal(studioHistoryActionGarmentView({ type: 'FOCUS_GARMENT' }, 'browse', 'shirt-1'), 'focused');
+  assert.equal(studioHistoryShouldPush('garment', 'garment', 'browse', 'focused'), true);
+  assert.equal(studioHistoryShouldPush('garment', 'garment', 'focused', 'browse'), true);
+  assert.equal(studioHistoryShouldPush('garment', 'garment', 'focused', 'focused'), false);
+  assert.equal(studioHistoryShouldPush('garment', 'design', 'focused', 'focused'), true);
+});
+
+test('browser Back restores the gallery while keeping the selected garment intact', () => {
+  const selectedProductId = 'shirt-1';
+  const selectedState = studioV2Reducer(createInitialStudioV2State(), { type: 'SELECT_PRODUCT', productId: selectedProductId, color: 'White' });
+  const focusEntry = { [STUDIO_GARMENT_VIEW_STATE_KEY]: 'focused' };
+  const browseEntry = {};
+  assert.equal(studioHistoryGarmentView(focusEntry, 'browse', selectedState.productId), 'focused');
+  assert.equal(studioHistoryGarmentView(browseEntry, 'browse', selectedState.productId), 'browse');
+  assert.equal(selectedState.productId, selectedProductId);
+  assert.equal(selectedState.color, 'White');
+  assert.equal(studioHistoryGarmentView(focusEntry, 'browse', ''), 'browse', 'reload without a selected item must not focus an empty configurator');
+});
+
+test('focused and browse views preserve studio alias and unrelated query params', () => {
+  const base = { pathname: '/design', search: '?source=fb', hash: '#workspace' };
+  const focusUrl = studioHistoryDestination(base, 'garment', 'focused');
+  assert.equal(new URLSearchParams(focusUrl.search).get('garmentView'), 'focused');
+  assert.equal(new URLSearchParams(focusUrl.search).get('source'), 'fb');
+  assert.equal(focusUrl.pathname, '/design');
+  const chooseDesignUrl = studioHistoryDestination(focusUrl, 'design', 'focused');
+  assert.equal(new URLSearchParams(chooseDesignUrl.search).has('garmentView'), false);
+  assert.equal(chooseDesignUrl.pathname, '/design');
+});
+
+test('Step 1 gallery, focus and Keep/Change buttons are bound to router state', () => {
+  const source = fs.readFileSync('src/pages/CustomStudioV2.jsx', 'utf8');
+  assert.match(source, /garmentView === 'browse'/);
+  assert.match(source, /dispatch\(\{ type: 'BROWSE_GARMENTS' \}\)/);
+  assert.match(source, /dispatch\(\{ type: 'FOCUS_GARMENT' \}\)/);
+  assert.match(source, /studioHistoryGarmentView\(/);
+  assert.match(source, /studioHistoryShouldPush\(/);
+  assert.match(source, /\[state\.step, garmentView\]/);
 });
