@@ -106,6 +106,31 @@ async function verify(browser, viewport) {
     await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible' });
     result.transitions.push('Choose Design ↔ Customize');
 
+    // Returning from Home in the SAME single-page app must reuse the public
+    // catalog snapshot instead of painting a fresh "Loading Custom Studio"
+    // screen for one frame. Detect even very short flashes with an observer.
+    await page.goto(BASE + '/custom-studio', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gallery(page).waitFor({ state: 'visible', timeout: 20000 });
+    await page.evaluate(() => {
+      window.__studioLoadingSpotted = false;
+      window.__studioLoadingObserver?.disconnect();
+      window.__studioLoadingObserver = new MutationObserver(() => {
+        if (document.querySelector('[data-gdp-studio-initial-loading="true"]')) {
+          window.__studioLoadingSpotted = true;
+        }
+      });
+      window.__studioLoadingObserver.observe(document.documentElement, { childList: true, subtree: true });
+    });
+    await page.getByRole('link', { name: 'GDP Clothing home' }).click();
+    await page.waitForURL((url) => url.pathname === '/', { timeout: 15000 });
+    await browserBack('Home to Studio return');
+    await gallery(page).waitFor({ state: 'visible', timeout: 15000 });
+    assert(
+      !(await page.evaluate(() => Boolean(window.__studioLoadingSpotted))),
+      'The public Studio catalog flashed a full-page loader when returning from Home',
+    );
+    result.transitions.push('Home → browser Back → Studio without loading flash');
+
     assert(pageErrors.length === 0, 'Page errors: ' + pageErrors.join(' | '));
     result.status = 'passed';
   } catch (e) {
