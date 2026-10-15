@@ -339,6 +339,9 @@ export default function CustomStudioV2() {
   const finalizationLock = useRef(false);
   const studioPanelRef = useRef(null);
   const previousStepRef = useRef(state.step);
+  // Only the initial cart edit draft should be restored; router history
+  // updates must not rehydrate (and reset) the customer's live edits.
+  const initialStudioDraftRef = useRef(location.state?.studioV2Draft);
   const initialStudioStepRef = useRef(state.step);
   const currentStudioStepRef = useRef(state.step);
   const pendingStudioNavigationRef = useRef(null);
@@ -405,7 +408,7 @@ export default function CustomStudioV2() {
   }, [state.step]);
 
   useEffect(() => {
-    const draft = location.state?.studioV2Draft;
+    const draft = initialStudioDraftRef.current;
     if (!draft?.state || draft.version !== 1) return undefined;
     let active = true;
     refreshStudioV2DraftAssets(draft.state)
@@ -415,7 +418,7 @@ export default function CustomStudioV2() {
       })
       .catch(() => { /* Stable paths remain available; final rendering will surface an actionable error if refresh fails. */ });
     return () => { active = false; };
-  }, [location.state]);
+  }, []);
 
   useEffect(() => {
     let active = true;
