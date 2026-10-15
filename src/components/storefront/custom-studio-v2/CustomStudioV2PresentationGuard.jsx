@@ -5,6 +5,7 @@ import './customStudioV2ApprovalRefinement.css';
 import './photoBootlegLayerOrder.css';
 import './customStudioV2PresentationCleanup.css';
 import './customStudioV2Premium.css';
+import './customStudioV2DesignGallery.css';
 
 /**
  * Presentation-only boundary for the rebuilt Custom Studio.

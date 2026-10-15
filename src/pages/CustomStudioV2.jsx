@@ -1,6 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import CustomStudioV2DesignGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2DesignGallery';
+import CustomStudioV2HeroArt from '@/components/storefront/custom-studio-v2/CustomStudioV2HeroArt';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Heart, ImageUp, Loader2, RotateCcw, ShieldCheck, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import SeasonalEditorV2 from '@/components/storefront/custom-studio-v2/SeasonalEditorV2';
 import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2';
 import UploadArtworkEditorV2 from '@/components/storefront/custom-studio-v2/UploadArtworkEditorV2';
@@ -32,7 +34,6 @@ import {
   studioV2Reducer,
 } from '@/lib/customStudioV2State';
 
-const pathIcons = { seasonal: Sparkles, bootleg: Star, memorial: Heart, upload: ImageUp };
 const normalize = (value) => String(value || '').trim().toLowerCase();
 const displayVariantLabel = (value) => String(value || '').trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -213,9 +214,7 @@ function GarmentStepV2({ catalog, state, dispatch, onContinue, canContinue }) {
 }
 
 function DesignStepV2({ dispatch }) {
-  return <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 2</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Choose a design path</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Choose the design experience that fits what you want to create. Each path keeps its own artwork and settings.</p>
-    <div className="mt-6 grid gap-4 md:grid-cols-2">{STUDIO_V2_DESIGN_PATHS.map((path) => { const Icon = pathIcons[path.id]; return <button key={path.id} type="button" onClick={() => dispatch({ type: 'SET_DESIGN_PATH', designPath: path.id })} className="gdp-neu-card rounded-3xl border-2 border-slate-200 bg-white p-5 text-left transition hover:border-slate-900"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-900 text-white"><Icon size={20} /></span><div><h2 className="text-lg font-black text-slate-900">{path.label}</h2><p className="mt-1 text-sm font-medium leading-6 text-slate-500">{path.description}</p></div></div></button>; })}</div>
-  </div>;
+  return <CustomStudioV2DesignGallery paths={STUDIO_V2_DESIGN_PATHS} dispatch={dispatch} />;
 }
 
 function PrintSideControl({ state, onChange }) {
@@ -596,12 +595,13 @@ export default function CustomStudioV2() {
   if (loading) return <div className="grid min-h-[60vh] place-items-center bg-slate-50"><div className="text-sm font-black text-slate-500">Loading Custom Studio…</div></div>;
 
   return <main data-gdp-premium-studio="true" className="gdp-neu-scope min-h-[70vh] bg-slate-50 text-slate-950"><div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
-    <div data-gdp-premium-hero="true" className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3">
+    <div data-gdp-premium-hero="true" data-gdp-v2-design-hero={state.step === 'design' ? 'true' : undefined} className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3">
       <div data-gdp-hero-copy="true">
         <div className="flex items-center gap-2"><span className="gdp-premium-eyebrow"><Sparkles size={13} aria-hidden="true" /> GDP Custom Studio</span><span className="gdp-premium-hero-divider" aria-hidden="true" /><span className="gdp-premium-hero-steps">Create · Preview · Approve</span></div>
         <h1>Made by you. Worn your way.</h1>
         <p>Choose your garment, pick your colors and fit, then bring your artwork to life.</p>
       </div>
+      {state.step === 'design' && <div data-gdp-v2-hero-art="true" aria-hidden="true"><CustomStudioV2HeroArt /></div>}
       <button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="gdp-premium-reset inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button>
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
