@@ -21,6 +21,7 @@ import {
 } from '@/lib/customStudioV2Production';
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { refreshStudioV2DraftAssets } from '@/lib/customStudioV2Assets';
+import { getStudioBrowseSnapshot, refreshStudioBrowseSnapshot } from '@/lib/studioV2BrowseCache';
 import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { renderStudioV2CustomerMockup } from '@/lib/customStudioV2Mockup';
 import {
@@ -321,9 +322,11 @@ export default function CustomStudioV2() {
       approval: { ...(draftState.approval || {}), finalDesignApproved: false },
     };
   });
-  const [catalog, setCatalog] = useState([]);
-  const [settings, setSettings] = useState({ styleTemplates: {}, frontBackFee: 10 });
-  const [loading, setLoading] = useState(true);
+  // A same-session return from Shop/Home should not blank the Studio while
+  // public catalog data refreshes. No customer design state is cached here.
+  const [catalog, setCatalog] = useState(() => getStudioBrowseSnapshot()?.catalog || []);
+  const [settings, setSettings] = useState(() => getStudioBrowseSnapshot()?.settings || { styleTemplates: {}, frontBackFee: 10 });
+  const [loading, setLoading] = useState(() => !getStudioBrowseSnapshot());
   const [error, setError] = useState('');
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState('');
@@ -398,22 +401,23 @@ export default function CustomStudioV2() {
       : studioV2Reducer(current, { type: 'SET_STEP', step: target }));
   }, [location.key, location.state]);
 
-  // Changing a step replaces content at its old scroll position. On phones the
-  // shorter next step could otherwise leave the viewport at the page bottom.
-  // Reposition after React commits, below the sticky storefront navigation.
+  // Position the next step before the browser paints it. The old animation
+  // frame allowed a single frame at the *previous* step's scroll position,
+  // which looked like an abrupt jump on desktop and mobile.
+  // The global ScrollToTop deliberately ignores same-route wizard history.
   useLayoutEffect(() => {
-    if (previousStepRef.current === state.step && previousGarmentViewRef.current === garmentView) return undefined;
+    if (previousStepRef.current === state.step && previousGarmentViewRef.current === garmentView) return;
     previousStepRef.current = state.step;
     previousGarmentViewRef.current = garmentView;
-    const frame = window.requestAnimationFrame(() => {
-      const panel = studioPanelRef.current;
-      if (!panel) return;
-      const headerInset = window.innerWidth < 768 ? 132 : 110;
-      const nextTop = Math.max(0, Math.round(window.scrollY + panel.getBoundingClientRect().top - headerInset));
+    const panel = studioPanelRef.current;
+    if (!panel) return;
+    const headerInset = window.innerWidth < 768 ? 132 : 110;
+    const top = panel.getBoundingClientRect().top;
+    if (Math.abs(top - headerInset) > 6) {
+      const nextTop = Math.max(0, Math.round(window.scrollY + top - headerInset));
       window.scrollTo({ top: nextTop, left: 0, behavior: 'instant' });
-      panel.focus({ preventScroll: true });
-    });
-    return () => window.cancelAnimationFrame(frame);
+    }
+    panel.focus({ preventScroll: true });
   }, [state.step, garmentView]);
 
   useEffect(() => {
@@ -431,9 +435,19 @@ export default function CustomStudioV2() {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    Promise.all([customerApi.getStudioCatalog(), customerApi.getCustomStudioSettings().catch(() => ({}))])
-      .then(([items, studioSettings]) => { if (active) { setCatalog(items || []); setSettings(studioSettings || {}); } })
+    // Every mount revalidates live products/availability, without replacing a
+    // previously painted catalog with a temporary full-page loading screen.
+    if (!getStudioBrowseSnapshot()) setLoading(true);
+    refreshStudioBrowseSnapshot(
+      () => customerApi.getStudioCatalog(),
+      () => customerApi.getCustomStudioSettings(),
+    )
+      .then(({ catalog: items, settings: studioSettings }) => {
+        if (!active) return;
+        setCatalog(items);
+        setSettings(studioSettings);
+        setError('');
+      })
       .catch(() => { if (active) setError('Custom Studio data could not load.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -651,7 +665,23 @@ export default function CustomStudioV2() {
     }
   };
 
-  if (loading) return <div className="grid min-h-[60vh] place-items-center bg-slate-50"><div className="text-sm font-black text-slate-500">Loading Custom Studio…</div></div>;
+  if (loading) return (
+    <main data-gdp-studio-initial-loading="true" aria-busy="true" className="min-h-[70vh] bg-slate-50 px-3 py-4 sm:px-5 lg:px-6">
+      <div className="mx-auto max-w-[1800px] space-y-4 animate-pulse" aria-hidden="true">
+        <div className="h-28 rounded-3xl bg-slate-200/75 sm:h-36" />
+        <div className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]">
+          <div className="h-52 rounded-3xl bg-slate-200/60" />
+          <div className="rounded-3xl bg-white p-4 shadow-sm">
+            <div className="mb-4 h-7 w-52 max-w-full rounded-lg bg-slate-200" />
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              {Array.from({ length: 6 }, (_, index) => <div key={index} className="h-44 rounded-2xl bg-slate-100 sm:h-56" />)}
+            </div>
+          </div>
+        </div>
+      </div>
+      <span role="status" className="sr-only">Loading Custom Studio…</span>
+    </main>
+  );
 
   return <main data-gdp-premium-studio="true" className="gdp-neu-scope min-h-[70vh] bg-slate-50 text-slate-950"><div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
     <div data-gdp-premium-hero="true" data-gdp-v2-design-hero={state.step === 'design' ? 'true' : undefined} className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3">
