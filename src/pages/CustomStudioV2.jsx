@@ -150,12 +150,12 @@ function GarmentVariantControls({ product, state, dispatch, onContinue, canConti
         </div>
       </div>
 
-      <GarmentInfoPanel product={product} sizes={sizes} />
-
       <div data-gdp-premium-next="true" className="grid items-center gap-2 sm:grid-cols-[1fr_auto]">
         <p className={`text-xs font-bold ${sizeRequired ? 'text-amber-700' : 'text-slate-500'}`}>{sizeRequired ? 'Select a size to continue to your design path.' : `${product?.name} · ${displayVariantLabel(state.color)} · Size ${state.size} is ready to customize.`}</p>
         <button data-gdp-garment-continue="true" type="button" onClick={onContinue} disabled={!canContinue} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 sm:w-auto">Continue to design <ArrowRight size={17} /></button>
       </div>
+
+      <GarmentInfoPanel product={product} sizes={sizes} />
     </div>
   );
 }
