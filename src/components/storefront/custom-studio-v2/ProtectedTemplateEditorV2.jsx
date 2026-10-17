@@ -57,10 +57,10 @@ function positiveScale(value, fallback = 100) {
 
 function RangeControl({ label, value, min, max, step = 1, suffix = '', onChange, onReset }) {
   return (
-    <label className="block" onDoubleClick={onReset ? (event) => { event.preventDefault(); onReset(); } : undefined}>
+    <div className="block" onDoubleClick={onReset ? (event) => { event.preventDefault(); onReset(); } : undefined}>
       <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>{label}</span><span className="flex items-center gap-2"><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span>{onReset ? <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onReset(); }} className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" aria-label={`Reset ${label}`}>Reset</button> : null}</span></div>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" />
-    </label>
+    </div>
   );
 }
 
