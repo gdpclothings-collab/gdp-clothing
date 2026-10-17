@@ -55,7 +55,7 @@ function positiveScale(value, fallback = 100) {
   return Math.max(1, numeric);
 }
 
-function RangeControl({ label, value, min, max, step = 1, suffix = '', onChange, onReset }) {
+function RangeControl({ label, value, min, max, step = 1, suffix = '', onChange, onReset = undefined }) {
   return (
     <div className="block" onDoubleClick={onReset ? (event) => { event.preventDefault(); onReset(); } : undefined}>
       <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>{label}</span><span className="flex items-center gap-2"><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span>{onReset ? <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onReset(); }} className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" aria-label={`Reset ${label}`}>Reset</button> : null}</span></div>
@@ -785,6 +785,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       originalUrl: uploaded.file_url,
       originalPath: uploaded.storage_path,
       backgroundMode: 'original',
+      backgroundRemovalWarning: false,
       name: file.name || 'customer-photo',
       type: file.type || 'image/png',
     };
