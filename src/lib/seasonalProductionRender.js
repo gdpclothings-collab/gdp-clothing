@@ -1,4 +1,4 @@
-import { verifySeasonalPrintMaster } from '@/lib/seasonalPrintMaster';
+import { verifySeasonalPrintMaster } from './seasonalPrintMaster.js';
 
 function positiveNumber(value, fallback = 0) {
   const number = Number(value);
