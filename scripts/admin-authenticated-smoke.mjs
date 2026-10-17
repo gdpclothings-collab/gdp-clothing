@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { accessHeadersForRequest, cloudflareChallengeDetails, publicPathOnly } from "./admin-smoke-cloudflare.mjs";
 import { GDP_PAGES_ORIGIN, resolveAdminSmokeOrigin } from "./admin-smoke-origin.mjs";
+import { submitMfaCodeAndAwaitAal2 } from "./admin-smoke-mfa.mjs";
 
 const PRODUCTION_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
 let BASE_URL = PRODUCTION_URL;
@@ -84,9 +85,7 @@ async function waitForAdminOrMfa(page) {
     const codeInput = page.locator("#admin-mfa-code");
     if (await codeInput.isVisible().catch(() => false)) {
       assert(TOTP_SECRET, "Admin MFA challenge requires GDP_ADMIN_SMOKE_TOTP_SECRET.");
-      await codeInput.fill(totp(TOTP_SECRET));
-      await page.getByRole("button", { name: /^Verify$/i }).click();
-      await page.waitForTimeout(900);
+      await submitMfaCodeAndAwaitAal2(page, totp(TOTP_SECRET));
       continue;
     }
 

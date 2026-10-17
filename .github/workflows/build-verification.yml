@@ -138,6 +138,9 @@ jobs:
         run: npx playwright install chromium
         timeout-minutes: 5
 
+      - name: Verify admin MFA Verifying state never repeats submission
+        run: node --test tests/admin-smoke-mfa.browser.test.mjs
+
       - name: Verify built storefront paints before merge
         shell: bash
         run: |
