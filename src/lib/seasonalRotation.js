@@ -35,7 +35,6 @@ const datePart = value => /^\d{2}-\d{2}$/.test(String(value)) && (() => {
 })();
 
 const normalizeCategory = value => String(value || '').normalize('NFKC').replace(/[’‘]/g, "'").trim().toLocaleLowerCase('en-CA');
-const pad = value => String(value).padStart(2, '0');
 
 export function normalizeSeasonalRotation(input) {
   const raw = input && typeof input === 'object' ? input : {};
@@ -74,7 +73,6 @@ export function seasonalToday(now = new Date(), timezone = SEASONAL_TIMEZONE) {
 }
 
 const toDay = date => Date.UTC(date.year, date.month - 1, date.day) / 86400000;
-const fromUtc = value => ({ year: value.getUTCFullYear(), month: value.getUTCMonth() + 1, day: value.getUTCDate() });
 const easterDate = year => {
   const a = year % 19, b = Math.floor(year / 100), c = year % 100;
   const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
