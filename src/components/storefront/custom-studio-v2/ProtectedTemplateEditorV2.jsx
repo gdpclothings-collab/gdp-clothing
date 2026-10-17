@@ -55,34 +55,36 @@ function positiveScale(value, fallback = 100) {
   return Math.max(1, numeric);
 }
 
-function RangeControl({ label, value, min, max, step = 1, suffix = '', onChange }) {
+function RangeControl({ label, value, min, max, step = 1, suffix = '', onChange, onReset = undefined }) {
   return (
-    <label className="block">
-      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>{label}</span><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span></div>
+    <div className="block" onDoubleClick={onReset ? (event) => { event.preventDefault(); onReset(); } : undefined}>
+      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>{label}</span><span className="flex items-center gap-2"><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span>{onReset ? <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onReset(); }} className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" aria-label={`Reset ${label}`}>Reset</button> : null}</span></div>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" />
-    </label>
+    </div>
   );
 }
 
-function PrintAreaTextSizeControl({ value, onChange }) {
+function PrintAreaTextSizeControl({ value, onChange, onReset }) {
   return (
-    <label className="block" data-gdp-bootleg-text-size="print-area-constrained">
-      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>Text size</span><span>Fits print area</span></div>
+    <div className="block" data-gdp-bootleg-text-size="print-area-constrained" onDoubleClick={(event) => { event.preventDefault(); onReset?.(); }}>
+      <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-600"><span>Text size · up to 1000%</span><button type="button" onClick={(event) => { event.stopPropagation(); onReset?.(); }} className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" aria-label="Reset text size">Reset to 100%</button></div>
       <div className="flex min-h-11 items-center overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-slate-500">
         <input
           type="number"
           min="1"
+          max="1000"
           step="1"
           inputMode="decimal"
-          value={positiveScale(value)}
-          onChange={(event) => onChange(positiveScale(event.target.value))}
+          value={Math.min(1000, positiveScale(value))}
+          onChange={(event) => onChange(Math.min(1000, positiveScale(event.target.value)))}
           className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm font-black text-slate-800 outline-none"
           aria-label="Text size constrained to the printable area"
         />
         <span className="px-3 text-xs font-black text-slate-400">%</span>
       </div>
-      <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">Type a size or pinch the text directly. The Studio automatically limits and repositions text so the complete rendered layer stays inside the print area.</p>
-    </label>
+      <input type="range" min="1" max="1000" step="1" value={Math.min(1000, positiveScale(value))} onChange={(event) => onChange(positiveScale(event.target.value))} className="mt-2 h-11 w-full cursor-pointer" aria-label="Text size slider, 1 to 1000 percent" />
+      <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">1–1000% (1% keeps text editable). Double-click or press Reset to restore 100%. The safe print area automatically limits the effective size.</p>
+    </div>
   );
 }
 
@@ -603,6 +605,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 
 export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
+  const inspectorRef = useRef(null);
   const uploadInFlightRef = useRef(false);
   const editorRef = useRef(editor);
   editorRef.current = editor;
@@ -610,6 +613,20 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const [uploadMessage, setUploadMessage] = useState('');
   const [error, setError] = useState('');
   const [activeBootlegLayer, setActiveBootlegLayer] = useState('photo');
+  const revealLayerControls = (layer) => {
+    setActiveBootlegLayer(layer);
+    if (typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      const inspector = inspectorRef.current;
+      if (!inspector) return;
+      const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+      if (window.matchMedia?.('(min-width: 1280px)').matches) {
+        inspector.scrollTo({ top: 0, behavior });
+      } else {
+        inspector.scrollIntoView({ behavior, block: 'start' });
+      }
+    });
+  };
   const isBootleg = path === 'bootleg';
   const isMemorial = path === 'memorial';
   const usesLayerLab = isBootleg || isMemorial;
@@ -734,7 +751,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       };
       editorRef.current = { ...latestEditor, ...patch };
       onPatch(patch);
-      setActiveBootlegLayer('template');
+      revealLayerControls('template');
       return;
     }
     if (isMemorial) {
@@ -752,7 +769,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       };
       editorRef.current = { ...latestEditor, ...patch };
       onPatch(patch);
-      setActiveBootlegLayer('template');
+      revealLayerControls('template');
       return;
     }
     onPatch({ templateId: item.id, ...(nextPhotos.length ? {} : { transform: defaults }) });
@@ -760,16 +777,33 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
   const prepareAsset = async (file) => {
     setUploadMessage(`Uploading ${file.name}…`);
+    // Original file is persisted first; background cleanup is non-destructive.
     const uploaded = await customerApi.uploadArtwork(file);
-    return {
+    const original = {
       url: uploaded.file_url,
       path: uploaded.storage_path,
       originalUrl: uploaded.file_url,
       originalPath: uploaded.storage_path,
       backgroundMode: 'original',
+      backgroundRemovalWarning: false,
       name: file.name || 'customer-photo',
       type: file.type || 'image/png',
     };
+    try {
+      setUploadMessage(`Removing background from ${file.name}…`);
+      const cleaned = await customerApi.removePhotoBackground(file);
+      return {
+        ...original,
+        url: cleaned.cleanedUrl,
+        path: cleaned.cleanedPath,
+        cleanedUrl: cleaned.cleanedUrl,
+        cleanedPath: cleaned.cleanedPath,
+        backgroundMode: 'cleaned',
+      };
+    } catch {
+      // Keep the usable original when the removal function fails.
+      return { ...original, backgroundRemovalWarning: true };
+    }
   };
 
   const uploadPhotos = async (files) => {
@@ -795,11 +829,13 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     setError('');
     const additions = [];
     const failed = [];
+    let backgroundFailures = 0;
 
     try {
       for (const file of selected) {
         try {
           const asset = await prepareAsset(file);
+          if (asset.backgroundRemovalWarning) backgroundFailures += 1;
           const currentCount = currentPhotoLayers(editorRef.current).length + additions.length;
           additions.push(createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
             scale: Number(template.defaultTransform?.scale || 100),
@@ -819,7 +855,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
       if (safeAdditions.length) {
         syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
-        if (usesLayerLab) setActiveBootlegLayer('photo');
+        if (usesLayerLab) revealLayerControls('photo');
         setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}`);
       } else {
         setUploadMessage('');
@@ -828,6 +864,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       if (failed.length) {
         const failedNames = failed.map(({ file }) => file?.name || 'photo').slice(0, 3).join(', ');
         setError(`Could not add ${failedNames}. Existing photos were kept. Please retry ${failed.length === 1 ? 'that file' : 'those files'}.`);
+      } else if (backgroundFailures) {
+        setError(`Automatic background removal couldn't finish for ${backgroundFailures} photo${backgroundFailures === 1 ? '' : 's'}. The original photo${backgroundFailures === 1 ? ' is' : 's are'} safely kept and usable.`);
       }
     } finally {
       uploadInFlightRef.current = false;
@@ -950,7 +988,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   };
   const selectTextLayer = (layer) => {
     if (!layer) return;
-    setActiveBootlegLayer('text');
+    revealLayerControls('text');
     syncTextLayers(bootlegTextLayers, layer.id);
   };
   const addTextLayer = () => {
@@ -964,7 +1002,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       order: bootlegTextLayers.length,
       visible: true,
     };
-    setActiveBootlegLayer('text');
+    revealLayerControls('text');
     syncTextLayers([...bootlegTextLayers, layer], layer.id);
   };
   const duplicateActiveTextLayer = () => {
@@ -978,7 +1016,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       style: { ...style, canvasX: clamp(Number(style.canvasX ?? 50) + 4, 0, 100), canvasY: clamp(Number(style.canvasY ?? 50) + 4, 0, 100) },
       order: bootlegTextLayers.length,
     };
-    setActiveBootlegLayer('text');
+    revealLayerControls('text');
     syncTextLayers([...bootlegTextLayers, duplicate], duplicate.id);
   };
   const deleteActiveTextLayer = () => {
@@ -995,14 +1033,14 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const latestEditor = editorRef.current || editor;
     const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
     if (!current.some((item) => item.id === layer.id)) return;
-    if (usesLayerLab) setActiveBootlegLayer('sticker');
+    if (usesLayerLab) revealLayerControls('sticker');
     syncStickers(current, layer.id);
   };
   const addSticker = (sticker) => {
     const latestEditor = editorRef.current || editor;
     const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
     const layer = createV2StickerLayer(sticker, current.length);
-    if (usesLayerLab) setActiveBootlegLayer('sticker');
+    if (usesLayerLab) revealLayerControls('sticker');
     syncStickers([...current, layer], layer.id);
   };
   const patchActiveSticker = (patch) => {
@@ -1062,12 +1100,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const photoPanel = (
     <div data-gdp-bootleg-panel={isBootleg ? 'photo' : undefined} data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined} className="space-y-3 rounded-2xl border border-slate-100 p-3">
       <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} photo{photos.length === 1 ? '' : 's'} added</p></div><Layers size={16} className="text-slate-400" /></div>
-      <div data-gdp-photo-upload-guidance="transparent-recommended" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Upload artwork with a transparent background when possible. Transparent PNG or WebP is recommended. JPG/JPEG and photos with backgrounds are still accepted and will keep their existing background.</p></div></div></div>
+      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Uploaded photos are automatically cleaned for transparent printing. You can switch back to the untouched original at any time. If automatic cleanup is unavailable, the original stays usable.</p></div></div></div>
       <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
       {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
       {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
-      {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
+      {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) revealLayerControls('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
         <RangeControl label="Photo size" value={activePhoto.transform?.scale || 100} min={30} max={220} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} />
         {usesLayerLab ? <>
@@ -1108,12 +1146,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         <div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected text</p><p className="text-xs font-black text-slate-700">{activeTextLayer.name}</p></div><span className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white">Text layer active</span></div>
         <label className="block text-xs font-black text-slate-600">Your Text<input value={activeTextLayer.text?.headline || ''} onFocus={() => setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
         <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
-        <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} />
-        <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} />
-        <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} />
+        <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
+        <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
+        <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />
         {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">Text is constrained to stay fully inside the printable boundary.</p>}
-        <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} />
-        {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} /> : null}
+        <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
+        {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} onReset={() => patchTextStyle({ curveAmount: 45 })} /> : null}
       </div> : null}
     </div>
   ) : (
@@ -1123,11 +1161,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       <label className="block text-xs font-black text-slate-600">Dates<input value={editor.text?.subline || ''} onChange={(event) => patchText({ subline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
       <label className="block text-xs font-black text-slate-600">Message<textarea value={editor.text?.message || ''} onChange={(event) => patchText({ message: event.target.value })} maxLength={180} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-slate-500" /></label>
       <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
-      <RangeControl label="Text size" value={textStyle.fontScale} min={55} max={180} suffix="%" onChange={(value) => patchTextStyle({ fontScale: value })} />
-      <RangeControl label="Move text left / right" value={textStyle.x || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ x: value })} />
-      <RangeControl label="Move text up / down" value={textStyle.y || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ y: value })} />
-      <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-25} max={25} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} />
-      {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} /> : null}
+      <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
+      <RangeControl label="Move text left / right" value={textStyle.x || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ x: value })} onReset={() => patchTextStyle({ x: 0 })} />
+      <RangeControl label="Move text up / down" value={textStyle.y || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ y: value })} onReset={() => patchTextStyle({ y: 0 })} />
+      <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-25} max={25} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
+      {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} onReset={() => patchTextStyle({ curveAmount: 45 })} /> : null}
     </div>
   );
 
@@ -1148,20 +1186,20 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         {isBootleg ? <div className="max-h-[470px] space-y-3 overflow-y-auto pr-1" data-gdp-bootleg-collections="expandable">{bootlegCollections.map((group) => { const expanded = expandedBootlegCollection === group.id; return <section key={group.id} className="overflow-hidden rounded-2xl border border-slate-200"><button type="button" aria-expanded={expanded} onClick={() => setExpandedBootlegCollection(expanded ? '' : group.id)} className="flex min-h-12 w-full items-center justify-between gap-3 bg-slate-50 px-3 py-3 text-left text-sm font-bold text-slate-900"><span>{group.name} <span className="text-xs font-medium text-slate-500">({group.items.length} colors)</span></span><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{expanded && <div className="grid grid-cols-2 gap-3 p-3">{group.items.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}</section>; })}</div> : <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}
 
         <div className="mt-5 border-t border-slate-100 pt-4"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Photo layers</p><p className="text-xs font-bold text-slate-600">{photos.length} of {BOOTLEG_MAX_PHOTOS} photos</p></div><Layers size={17} className="text-slate-400" /></div>
-          <div className="mt-3 space-y-2">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) setActiveBootlegLayer('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId && (!isBootleg || activeBootlegLayer === 'photo') ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div>
+          <div className="mt-3 space-y-2">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) revealLayerControls('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId && (!isBootleg || activeBootlegLayer === 'photo') ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div>
         </div>
       </section>
 
       <section data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:h-full xl:overflow-hidden' : ''}`}>
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">{isBootleg ? 'Choose a layer first. Only the active layer can move, resize or rotate on the print area.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p></div>
-        {usesLayerLab ? <div data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined} data-gdp-memorial-active-layer={isMemorial ? 'true' : undefined} className="mb-2 grid gap-2 rounded-2xl bg-slate-100 p-1.5" style={{ gridTemplateColumns: `repeat(${bootlegLayerButtons.length}, minmax(0, 1fr))` }}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => setActiveBootlegLayer(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
+        {usesLayerLab ? <div data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined} data-gdp-memorial-active-layer={isMemorial ? 'true' : undefined} className="mb-2 grid gap-2 rounded-2xl bg-slate-100 p-1.5" style={{ gridTemplateColumns: `repeat(${bootlegLayerButtons.length}, minmax(0, 1fr))` }}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => revealLayerControls(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
         {usesLayerLab ? <div data-gdp-bootleg-active-status={isBootleg ? 'true' : undefined} data-gdp-memorial-active-status={isMemorial ? 'true' : undefined} className="mb-3 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-900">{activeLayerSummary}</div> : null}
         {usesLayerLab ? <button type="button" data-gdp-bootleg-confirm-action={isBootleg ? 'persistent' : undefined} data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined} disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={'sticky top-2 z-40 mb-3 flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left shadow-sm transition ' + (editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500') + ' disabled:cursor-not-allowed disabled:opacity-40'}><span className={'grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ' + (editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent')}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm template, photos, layers, text and placement before review.</span></span></button> : null}
         {isBootleg && uploading ? <div data-gdp-bootleg-upload-status="true" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950"><Loader2 size={17} className="shrink-0 animate-spin" /><div><p className="text-xs font-black">Processing photo</p><p className="text-[11px] font-semibold">{uploadMessage || 'Preparing your image…'}</p></div></div> : null}
         <ProtectedPreview product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} activeLayer={usesLayerLab ? activeBootlegLayer : 'photo'} onActiveLayerChange={usesLayerLab ? setActiveBootlegLayer : undefined} />
       </section>
 
-      <section data-gdp-bootleg-inspector-scroll={isBootleg ? 'true' : undefined} data-gdp-bootleg-inspector-active={isBootleg ? activeBootlegLayer : undefined} className={`space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
+      <section ref={inspectorRef} data-gdp-bootleg-inspector-scroll={isBootleg ? 'true' : undefined} data-gdp-bootleg-inspector-active={isBootleg ? activeBootlegLayer : undefined} className={`scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{usesLayerLab ? 'Layer controls' : 'Customer controls'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Personalize</h2>{usesLayerLab ? <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Only the selected layer controls are shown here. Customer photo, protected template placement and text layers remain independent.</p> : null}</div>
 
         {usesLayerLab ? (
