@@ -29,7 +29,7 @@ export const SEASONAL_DATE_MODES = Object.freeze([
   { value: 'victoria', label: 'Victoria Day — Monday before May 25' },
 ]);
 
-const datePart = value => /^\d{2}-\d{2}$/.test(String(value)) && (() => {
+export const isSeasonalMonthDay = value => /^\d{2}-\d{2}$/.test(String(value)) && (() => {
   const [month, day] = value.split('-').map(Number);
   return month >= 1 && month <= 12 && day >= 1 && day <= new Date(Date.UTC(2024, month, 0)).getUTCDate();
 })();
@@ -49,8 +49,8 @@ export function normalizeSeasonalRotation(input) {
     return {
       id, category,
       mode: SEASONAL_DATE_MODES.some(option => option.value === item.mode) ? item.mode : 'fixed',
-      start: datePart(item.start) ? item.start : '11-01',
-      end: datePart(item.end) ? item.end : '12-26',
+      start: isSeasonalMonthDay(item.start) ? item.start : '11-01',
+      end: isSeasonalMonthDay(item.end) ? item.end : '12-26',
       enabled: item.enabled !== false,
       priority: Math.min(1000, Math.max(0, Number(item.priority) || 0)),
       featuredArtworkId: String(item.featuredArtworkId || ''),
