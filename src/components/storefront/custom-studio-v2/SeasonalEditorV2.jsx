@@ -374,6 +374,18 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     });
   };
 
+  // Maximize the selected artwork to its actual garment boundary, retaining
+  // its original aspect ratio and the 200 PPI production minimum.
+  const maximizeLayer = (entry) => {
+    if (!entry?.artwork || !area) return;
+    const maximum = fitSeasonalArtwork(entry.artwork, area, Number.MAX_SAFE_INTEGER);
+    if (!maximum) return;
+    patchLayer(entry.layer.id, {
+      requested: maximum.maxWidth,
+      position: { x: Math.max(0, (area.width - maximum.width) / 2), y: 0 },
+    });
+  };
+
   const nextArtworkNumber = Math.min(MAX_LAYERS, layers.length + 1);
   const choiceLabel = !layers.length ? 'Use artwork' : addingArtwork ? `Add as Artwork ${nextArtworkNumber}` : 'Use this instead';
 
@@ -500,8 +512,16 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
             <label className="block">
               <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>Size</span><span>{Math.round((activeEntry.layout?.width || 0) * 10) / 10} in</span></div>
-              <input type="range" min="0.5" max={Math.max(0.5, Number(activeEntry.layout?.maxWidth || area?.width || 12))} step="0.1" value={Number(activeEntry.layer.requested || activeEntry.layout?.width || 1)} onChange={(event) => patchLayer(activeEntry.layer.id, { requested: Number(event.target.value) })} className="w-full" />
+              <input type="range" min={Math.min(0.5, Number(activeEntry.layout?.maxWidth || 0.5))} max={Math.max(0.5, Number(activeEntry.layout?.maxWidth || area?.width || 12))} step="any" value={Number(activeEntry.layout?.width || 1)} onChange={(event) => patchLayer(activeEntry.layer.id, { requested: Number(event.target.value) })} aria-label="Seasonal artwork print width in inches" className="w-full" />
             </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p data-seasonal-effective-dpi="true" className="text-[11px] font-semibold text-slate-600">
+                {Math.round(Number(activeEntry.layout?.width || 0) * 100) / 100} × {Math.round(Number(activeEntry.layout?.height || 0) * 100) / 100} in · {activeEntry.layout?.effectiveDpi || 300} PPI
+              </p>
+              <button type="button" data-seasonal-max-print-size="true" onClick={() => maximizeLayer(activeEntry)} disabled={!area || !activeEntry.artwork}
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 hover:border-slate-500 disabled:opacity-40">Maximize print area</button>
+            </div>
+            <p className="text-[11px] text-slate-500">Fills as much of the approved print area as the artwork proportions and source resolution allow. 300 PPI preferred · 200 PPI minimum.</p>
 
             <label className="block">
               <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>Rotation</span><span>{Math.round(Number(activeEntry.layer.rotation || 0))}°</span></div>

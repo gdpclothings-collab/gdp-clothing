@@ -33,7 +33,7 @@ const PATH_STYLE = {
   },
 };
 
-export default function CustomStudioV2DesignGallery({ paths, dispatch, seasonalFeature = null }) {
+export default function CustomStudioV2DesignGallery({ paths, dispatch }) {
   return (
     <div data-gdp-v2-design-gallery="true">
       <div className="mb-4">
@@ -60,7 +60,6 @@ export default function CustomStudioV2DesignGallery({ paths, dispatch, seasonalF
               <span className="relative block h-[140px] sm:absolute sm:inset-y-0 sm:right-[-12px] sm:h-full sm:w-[48%] xl:w-[60%]" aria-hidden="true">
                 <span className="absolute inset-0">
                   <DesignPathPreview type={path.id} />
-                  {path.id === 'seasonal' && seasonalFeature && <span data-gdp-seasonal-featured-card="true" className="absolute bottom-3 right-2 grid w-[34%] max-w-[140px] rounded-xl border border-white/90 bg-white/90 p-1.5 shadow-lg"><img src={seasonalFeature.artwork.preview} alt="" className="aspect-square w-full object-contain" /><span className="truncate text-center text-[9px] font-black text-slate-900">{seasonalFeature.category}</span></span>}
                 </span>
               </span>
               <span className="relative z-10 flex min-h-[216px] flex-col items-start p-4 sm:min-h-[235px] sm:w-[64%] sm:p-5 xl:min-h-[251px] xl:w-[66%]">
