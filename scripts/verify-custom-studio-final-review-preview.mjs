@@ -113,10 +113,10 @@ assert(guard.includes("clonedHeading.textContent = `Final garment preview · ${s
 // Final Review insertion contract.
 assert(guard.includes('const syncFinalReviewPreview = () =>'), 'Final Review preview synchronizer is missing');
 assert(guard.includes("/^final review$/i"), 'preview synchronizer must target the Final Review step explicitly');
-assert(guard.includes("container.setAttribute('data-gdp-final-review-preview', 'true');"), 'approved preview needs a stable Final Review marker');
+assert(guard.includes("nextContainer.setAttribute('data-gdp-final-review-preview', 'true');"), 'approved preview needs a stable Final Review marker');
 assert(guard.includes('Your garment with the approved artwork'), 'approved-preview customer heading is missing');
 assert(guard.includes('Ready for final check'), 'approved-preview readiness label is missing');
-assert(guard.includes('reviewRoot.insertBefore(container, reviewGrid);'), 'approved preview must appear before the order-summary/action grid');
+assert(guard.includes('reviewRoot.insertBefore(nextContainer, reviewGrid);'), 'approved preview must appear before the order-summary/action grid');
 assert(guard.includes('syncFinalReviewPreview();'), 'approved preview synchronizer must run during presentation sync');
 assert(guard.includes('new MutationObserver(syncPresentationLabels)'), 'presentation guard must continue reacting to Step 3 → Final Review transitions');
 
@@ -151,4 +151,16 @@ assert(page.includes('garmentUrl: studioV2GarmentPreview(product, state.color, f
 assert(page.indexOf('customerApi.createCustomDesign') < page.indexOf('replaceItem(editCartKey, cartItem)'), 'secure design persistence must still precede edited-cart mutation');
 assert(page.indexOf('customerApi.createCustomDesign') < page.indexOf('else addItem(cartItem)'), 'secure design persistence must still precede new-cart mutation');
 
+// Regression: a back-side library refresh must never overwrite the approved
+// front preview, nor leak its empty/loading message into the customer mockup.
+assert(seasonalEditor.includes('data-gdp-print-side={side}'), 'Seasonal preview must retain an immutable explicit side identifier');
+assert(guard.includes("guide.getAttribute('data-gdp-print-side')"), 'preview snapshots must prefer explicit print-side identity');
+assert(!guard.includes("sideMatch?.[1] || 'front'"), 'unidentified sides must never overwrite front snapshots');
+assert(guard.includes('reviewPreviewSnapshots.delete(side);'), 'blank Seasonal sides must discard stale artwork snapshots');
+assert(guard.includes("printedSides.includes(side) && html"), 'only printed seasonal sides may reuse design snapshots');
+assert(guard.includes('container.replaceWith(nextContainer)'), 'Final Review must update when live snapshots change');
+assert(guard.includes('images.every((img) => img.complete && img.naturalWidth > 0)'), 'Final Review must verify loaded images before signaling readiness');
+assert(guard.includes('setReviewPreviewReady(ready);'), 'Review readiness must reach the React finalization gate');
+assert(page.includes("state.designPath === 'seasonal' && !reviewPreviewReady"), 'Seasonal checkout must wait for a verified customer preview');
+assert(seasonalEditor.includes('data-gdp-seasonal-library-ready'), 'in-flight library data must not be saved as an approved preview');
 console.log('PASS: Custom Studio approved Final Review garment + artwork preview contract');
