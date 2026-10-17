@@ -630,7 +630,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
 
   return (
     <header className="sticky top-0 z-40 h-16 bg-[#111214] text-white border-b border-white/10 shadow-sm">
-      <div className="h-full px-3 md:px-4 flex items-center gap-3">
+      <div className="h-full min-w-0 px-3 md:px-4 flex items-center gap-2 md:gap-3">
         <button
           type="button"
           className="lg:hidden rounded-lg p-2 hover:bg-white/10"
@@ -653,10 +653,10 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
         <button
           type="button"
           onClick={onSearch}
-          className="gdp-admin-neu-dark-control mx-auto w-full max-w-[640px] h-10 px-3.5 rounded-xl bg-white/10 border border-white/10 hover:bg-white/15 flex items-center gap-2.5 text-sm text-white/80 transition-colors"
+          className="gdp-admin-neu-dark-control mx-auto min-w-0 flex-1 max-w-[640px] h-10 px-3.5 rounded-xl bg-white/10 border border-white/10 hover:bg-white/15 flex items-center gap-2.5 text-sm text-white/80 transition-colors"
         >
           <Search size={16} />
-          <span className="truncate">Search orders, products and customers</span>
+          <span className="min-w-0 truncate">Search orders, products and customers</span>
           <span className="ml-auto hidden md:flex items-center gap-1 text-[10px] text-white/45 border border-white/10 rounded px-1.5 py-0.5">
             <Command size={10} /> K
           </span>
@@ -830,7 +830,7 @@ function HomeModule({ data, loading, error, onRetry, onOpen }) {
           />
         </div>
 
-        <div className="mt-6 grid xl:grid-cols-[1.7fr_1fr] gap-6">
+        <div className="mt-6 grid grid-cols-1 xl:grid-cols-[1.7fr_1fr] gap-6">
           <Panel
             title="Recent orders"
             action={
@@ -1054,7 +1054,7 @@ function MetricCard({ icon: Icon, label, value, helper, tone = "neutral" }) {
 
 function Panel({ title, action = null, children }) {
   return (
-    <section className="gdp-admin-neu-panel rounded-xl border border-[#dedede] bg-white overflow-hidden">
+    <section className="gdp-admin-neu-panel min-w-0 rounded-xl border border-[#dedede] bg-white overflow-hidden">
       <div className="min-h-12 px-4 py-3 border-b border-[#e8e8e8] flex items-center justify-between gap-4">
         <h2 className="text-sm font-semibold">{title}</h2>
         {action}
@@ -1080,7 +1080,7 @@ function RecentOrders({ orders, loading, currency }) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="min-w-0 max-w-full overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-[#fafafa] text-[#777] text-xs">
           <tr>

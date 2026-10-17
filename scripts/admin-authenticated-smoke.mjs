@@ -68,6 +68,20 @@ async function noOverflow(page, viewport) {
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
   }));
+  if (metrics.scrollWidth > Math.max(metrics.clientWidth, viewport.width) + 3) {
+    // Narrow diagnostics only: classes, element geometry, never customer text.
+    const elements = await page.evaluate(() => [...document.querySelectorAll("body *")]
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { tag: element.tagName.toLowerCase(),
+          classes: String(element.className?.baseVal || element.className || "").slice(0, 110),
+          right: Math.round(rect.right), width: Math.round(rect.width) };
+      })
+      .filter((entry) => entry.right > window.innerWidth + 3 && entry.width > 0)
+      .sort((left, right) => right.right - left.right)
+      .slice(0, 8));
+    console.error("Admin viewport overflow element geometry:", JSON.stringify(elements));
+  }
   assert(
     metrics.scrollWidth <= Math.max(metrics.clientWidth, viewport.width) + 3,
     `Horizontal overflow: ${metrics.scrollWidth}px in ${metrics.clientWidth}px viewport`
@@ -305,7 +319,7 @@ async function main() {
 
     results.push(await runCheck(browser, "invoice editor read-only", DESKTOP, storageState, async (page) => {
       await nav(page, "/admin/invoices");
-      await page.getByRole("heading", { name: "Invoices", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Invoices", exact: true, level: 1 }).waitFor();
       await page.getByRole("button", { name: "Create invoice", exact: true }).click();
       const editor = page.getByRole("dialog", { name: "Create invoice" });
       await editor.waitFor();
