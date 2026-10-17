@@ -232,7 +232,8 @@ export default function CustomStudioV2PresentationGuard() {
           heading.textContent = `Final garment preview · ${side}`;
           card.appendChild(heading);
           const frame = document.createElement('div');
-          frame.className = 'relative mx-auto aspect-[4/5] w-full max-w-[340px] overflow-hidden rounded-2xl bg-slate-100 p-3';
+          frame.className = 'relative mx-auto aspect-[4/5] w-full overflow-hidden rounded-2xl bg-slate-100 p-3 sm:p-5';
+          frame.style.maxWidth = 'min(620px, max(300px, calc((100vh - 320px) * 0.8)))';
           const imgUrl = reviewRoot.getAttribute(`data-gdp-review-${side}-garment`);
           if (imgUrl) {
             const img = document.createElement('img');
