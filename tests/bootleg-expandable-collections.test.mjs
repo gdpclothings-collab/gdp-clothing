@@ -24,3 +24,7 @@ test('bootleg editor has expandable collections and admin names', () => {
 test('memorial templates remain configured', () => {
   assert.ok(catalogue.includes('id: "memorial-eternal-light"'));
 });
+test('original bootleg templates remain visible', () => {
+  for (const id of ['flame-ice','flame-neon','flame-heatwave','flame-inferno','flame-toxic']) assert.ok(catalogue.includes(`id: "${id}"`));
+  assert.ok(editor.includes("'original-bootleg'"));
+});
