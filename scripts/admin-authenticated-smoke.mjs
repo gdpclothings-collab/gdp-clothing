@@ -100,7 +100,7 @@ async function waitForAdminOrMfa(page) {
       await page.waitForTimeout(350);
       if (await codeInput.isVisible().catch(() => false)) {
         const notice = await page.locator(".text-red-800").first().innerText().catch(() => "");
-        const safeNotice = notice.replace(/\\b\\d{6}\\b/g, "[REDACTED]").slice(0, 180);
+        const safeNotice = notice.replace(/\b\d{6}\b/g, "[REDACTED]").slice(0, 180);
         throw new Error(`Admin MFA did not complete AAL2 verification: ${safeNotice || "verify form remains visible"}`);
       }
       continue;
