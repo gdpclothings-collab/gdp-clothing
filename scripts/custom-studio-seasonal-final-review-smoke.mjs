@@ -123,7 +123,7 @@ async function inspect(browser, viewport) {
 
     const approved = page.locator('[data-gdp-final-review-preview="true"]');
     await approved.waitFor({ state: 'visible', timeout: 15000 });
-    await approved.locator('[data-gdp-review-status="ready"]').waitFor({ state: 'visible', timeout: 20000 });
+    await page.locator('[data-gdp-final-review-preview="true"][data-gdp-review-status="ready"]').waitFor({ state: 'visible', timeout: 20000 });
     const frontCard = approved.locator('[data-gdp-final-review-preview-card="front"]');
     const backCard = approved.locator('[data-gdp-final-review-preview-card="back"]');
     assert(await frontCard.count() === 1 && await backCard.count() === 1,
