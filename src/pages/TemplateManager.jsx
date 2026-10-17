@@ -117,6 +117,11 @@ export default function TemplateManager() {
   }, [settings, category]);
 
   const activeCount = templates.filter((item) => item.enabled !== false).length;
+  const bootlegCollectionNames = settings?.bootlegCollectionNames || {};
+  const updateBootlegCollectionName = (id, value) => setSettings((current) => ({
+    ...(current || {}),
+    bootlegCollectionNames: { ...(current?.bootlegCollectionNames || {}), [id]: value },
+  }));
 
   const flash = (message) => {
     setNotice(message);
@@ -269,6 +274,7 @@ export default function TemplateManager() {
             ))}
           </div>
 
+          {category === "photo_bootleg" && <div className="mt-4 grid gap-3 sm:grid-cols-2">{[['chrome-galaxy', 'Chrome Galaxy'], ['cosmic-storm', 'Cosmic Storm']].map(([id, name]) => <label key={id} className="block text-xs font-semibold text-slate-700">Collection name<input value={bootlegCollectionNames[id] ?? name} onChange={(event) => updateBootlegCollectionName(id, event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>)}</div>}
           {category === "memorial_tribute" && (
             <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">
               <strong>No Template — Upload Only</strong> stays as the safe blank-canvas choice for customers. The five cards below manage only the protected Memorial Tribute artwork choices.
