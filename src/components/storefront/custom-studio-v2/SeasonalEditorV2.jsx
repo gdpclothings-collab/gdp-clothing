@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork } from '@/lib/seasonalArtwork';
+import { orderSeasonalArtworks, resolveSeasonalFeature } from '@/lib/seasonalRotation';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 
@@ -184,6 +185,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
+  const [rotationSettings, setRotationSettings] = useState(null);
   const layersRef = useRef(layers || []);
   const requestKeyRef = useRef(requestKey);
   const garmentPreview = studioV2GarmentPreview(product, color, side);
@@ -233,7 +235,17 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     return () => { active = false; };
   }, [product.id, size, side, requestKey, retryVersion]);
 
+  useEffect(() => {
+    let active = true;
+    Promise.resolve(supabase.from('store_settings').select('custom_studio_settings').eq('id', 1).maybeSingle())
+      .then(({ data, error: failure }) => {
+        if (active && !failure) setRotationSettings(data?.custom_studio_settings?.seasonalRotation || {});
+      }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const artworks = useMemo(() => (catalog?.artworks || []).filter((artwork) => !artwork.requires_name), [catalog]);
+  const seasonalFeature = useMemo(() => resolveSeasonalFeature(rotationSettings, artworks), [rotationSettings, artworks]);
+  const orderedArtworks = useMemo(() => orderSeasonalArtworks(artworks, seasonalFeature), [artworks, seasonalFeature]);
   const area = catalog?.area || null;
 
   useEffect(() => {
@@ -253,7 +265,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
   const activeEntry = resolved.find((entry) => entry.layer.id === activeLayerId) || resolved[resolved.length - 1] || null;
   const categories = [...new Set(artworks.map((artwork) => artwork.category).filter(Boolean))].sort();
-  const filtered = artworks.filter((artwork) => {
+  const filtered = orderedArtworks.filter((artwork) => {
     const matchesCategory = !category || artwork.category === category;
     const haystack = [artwork.title, artwork.category, ...(artwork.tags || [])].join(' ').toLowerCase();
     return matchesCategory && haystack.includes(query.trim().toLowerCase());
@@ -391,6 +403,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
           </div>
         )}
 
+        {seasonalFeature && <div data-gdp-seasonal-featured-library="true" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><img src={seasonalFeature.artwork.preview} alt="" className="h-14 w-14 rounded-lg bg-white object-contain p-1" /><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider text-amber-800">Featured season</p><p className="text-sm font-black text-slate-900">{seasonalFeature.category}</p><p className="text-[11px] text-slate-600">Featured artwork shown first. All collections remain available.</p></div></div>}
         <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search designs" disabled={!catalog} className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400" />
