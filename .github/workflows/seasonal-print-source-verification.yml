@@ -1,0 +1,29 @@
+name: Seasonal Master Source Verification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/functions/seasonal-print-source/**"
+      - "src/lib/seasonalPrintMaster.js"
+      - "src/lib/seasonalProductionRender.js"
+      - "src/lib/customStudioV2Production.js"
+      - "scripts/smoke-seasonal-print-source.mjs"
+      - ".github/workflows/seasonal-print-source-verification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-originals:
+    name: Verified seasonal PNG/SVG originals
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Read-only signed original and SHA-256 smoke
+        run: node scripts/smoke-seasonal-print-source.mjs
