@@ -84,9 +84,25 @@ async function waitForAdminOrMfa(page) {
     const codeInput = page.locator("#admin-mfa-code");
     if (await codeInput.isVisible().catch(() => false)) {
       assert(TOTP_SECRET, "Admin MFA challenge requires GDP_ADMIN_SMOKE_TOTP_SECRET.");
+      // The real admin UI switches Verify -> Verifying… and disables the
+      // button until challengeAndVerify + AAL2 confirmation has completed.
+      // Do not submit a second code or wait for a disappearing Verify label.
       await codeInput.fill(totp(TOTP_SECRET));
-      await page.getByRole("button", { name: /^Verify$/i }).click();
-      await page.waitForTimeout(900);
+      const submit = codeInput.locator("xpath=ancestor::form[1]").locator('button[type="submit"]');
+      await submit.click();
+      await page.waitForTimeout(350);
+      await page.waitForFunction(() => {
+        const input = document.querySelector("#admin-mfa-code");
+        if (!input) return true;
+        const button = input.closest("form")?.querySelector('button[type="submit"]');
+        return Boolean(button && !/Verifying/i.test(button.textContent || ""));
+      }, null, { timeout: 45000 });
+      await page.waitForTimeout(350);
+      if (await codeInput.isVisible().catch(() => false)) {
+        const notice = await page.locator(".text-red-800").first().innerText().catch(() => "");
+        const safeNotice = notice.replace(/\\b\\d{6}\\b/g, "[REDACTED]").slice(0, 180);
+        throw new Error(`Admin MFA did not complete AAL2 verification: ${safeNotice || "verify form remains visible"}`);
+      }
       continue;
     }
 
