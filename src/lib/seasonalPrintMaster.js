@@ -27,9 +27,15 @@ export async function approvedSeasonalPrintSources(supabase, snapshot) {
   for (const source of data.sources) {
     const id = String(source?.artworkId || '');
     const sha = String(source?.sourceSha256 || '').toLowerCase();
+    let safeSourceUrl = false;
+    try {
+      const signed = new URL(String(source?.signedUrl || ''));
+      const api = new URL(String(supabase.supabaseUrl || ''));
+      safeSourceUrl = signed.protocol === 'https:' && signed.origin === api.origin &&
+        signed.pathname.startsWith('/storage/v1/object/sign/artwork-production/');
+    } catch { /* Invalid or foreign storage URL: fail closed. */ }
     if (!requested.has(id) || requested.get(id) !== sha || found.has(id) ||
-        !['png', 'svg'].includes(source?.format) ||
-        typeof source?.signedUrl !== 'string' || !/^https:\/\//.test(source.signedUrl)) {
+        !['png', 'svg'].includes(source?.format) || !safeSourceUrl) {
       throw new Error('The Seasonal source changed during final review. Choose the artwork again.');
     }
     const bbox = source.inkBboxPx;
