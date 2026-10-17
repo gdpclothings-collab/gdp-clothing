@@ -178,6 +178,8 @@ export async function renderSeasonalProductionPng(renderSnapshot, sources = [], 
   const widthIn = positiveNumber(snapshot.printArea?.width, positiveNumber(firstLayer.area_width));
   const heightIn = positiveNumber(snapshot.printArea?.height, positiveNumber(firstLayer.area_height));
   if (!widthIn || !heightIn) throw new Error("The locked Seasonal print area is invalid.");
+  const sourceByArtworkId = new Map((sources || []).map((item) => [String(item?.artworkId || ""), item]));
+  if (sourceByArtworkId.size === 0) throw new Error("Approved Seasonal print masters were not provided. The design has not been changed.");
 
   const safeDpi = Math.max(72, Math.min(600, Math.round(Number(dpi) || 300)));
   const widthPx = Math.max(1, Math.round(widthIn * safeDpi));
@@ -191,8 +193,6 @@ export async function renderSeasonalProductionPng(renderSnapshot, sources = [], 
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  const sourceByArtworkId = new Map((sources || []).map((item) => [String(item?.artworkId || ""), item]));
-  if (sourceByArtworkId.size === 0) throw new Error("Approved Seasonal print masters were not provided. The design has not been changed.");
   const orderedLayers = layers.sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
 
   try {
