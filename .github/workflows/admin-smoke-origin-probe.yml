@@ -1,0 +1,21 @@
+name: GDP Admin Smoke Origin Readiness
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/probe-admin-smoke-origin.mjs"
+      - ".github/workflows/admin-smoke-origin-probe.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-only-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Probe production and Cloudflare Pages admin routes without secrets
+        run: node scripts/probe-admin-smoke-origin.mjs
