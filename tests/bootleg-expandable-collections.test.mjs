@@ -12,7 +12,7 @@ for (const collection of ['chrome-galaxy', 'cosmic-storm']) {
     assert.equal(occurrences.length, 5);
     for (const match of occurrences) {
       const id = match[0].split('"')[1];
-      assert.ok(existsSync(resolve(root, `public/images/gdp-styles/${id}.png`)), `${id} missing`);
+      assert.ok(existsSync(resolve(root, `public/images/gdp-styles/${id}.webp`)), `${id} missing`);
     }
   });
 }
