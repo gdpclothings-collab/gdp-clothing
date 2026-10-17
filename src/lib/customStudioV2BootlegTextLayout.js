@@ -322,13 +322,49 @@ export function constrainBootlegTextStyleToCanvas({
     canvasY: requestedY,
   });
 
-  const probeForScale = (fontScale) => resolveBootlegTextLayout({
+  // Large bootleg headlines can grow vertically without exceeding print width.
+  // Use the same horizontal auto-fit in preview and 300-DPI production renders.
+  // Limit compression to keep the lettering legible; reduce size only if needed.
+  const fitHorizontal = (candidate) => {
+    if (!candidate?.bounds) return { ...candidate, horizontalFit: 1 };
+    const available = safeWidth - boundaryInset * 2;
+    const rawSpan = Math.max(1, candidate.bounds.maxX - candidate.bounds.minX);
+    const horizontalFit = Math.min(1, Math.max(0.35, available / rawSpan));
+    if (horizontalFit >= 1) return { ...candidate, horizontalFit: 1 };
+    const anchorX = candidate.centerX;
+    const bounds = {
+      ...candidate.bounds,
+      minX: anchorX + (candidate.bounds.minX - anchorX) * horizontalFit,
+      maxX: anchorX + (candidate.bounds.maxX - anchorX) * horizontalFit,
+    };
+    const relativeBounds = {
+      ...candidate.relativeBounds,
+      minX: bounds.minX - anchorX,
+      maxX: bounds.maxX - anchorX,
+    };
+    return {
+      ...candidate,
+      bounds,
+      relativeBounds,
+      horizontalFit,
+      overflow: {
+        ...candidate.overflow,
+        left: bounds.minX < 0,
+        right: bounds.maxX > safeWidth,
+        top: bounds.minY < 0,
+        bottom: bounds.maxY > safeHeight,
+        any: bounds.minX < 0 || bounds.maxX > safeWidth || bounds.minY < 0 || bounds.maxY > safeHeight,
+      },
+    };
+  };
+
+  const probeForScale = (fontScale) => fitHorizontal(resolveBootlegTextLayout({
     text,
     zone,
     style: { ...baseStyle, fontScale, canvasX: 50, canvasY: 50 },
     width: safeWidth,
     height: safeHeight,
-  });
+  }));
 
   const fits = (layout) => {
     const relative = layout?.relativeBounds;
@@ -355,13 +391,13 @@ export function constrainBootlegTextStyleToCanvas({
 
   safeScale = Math.max(1, Math.floor(safeScale * 10) / 10);
   let constrainedStyle = /** @type {Record<string, any>} */ ({ ...baseStyle, fontScale: safeScale });
-  let layout = resolveBootlegTextLayout({
+  let layout = fitHorizontal(resolveBootlegTextLayout({
     text,
     zone,
     style: constrainedStyle,
     width: safeWidth,
     height: safeHeight,
-  });
+  }));
 
   if (layout?.bounds) {
     const ranges = resolveBootlegAnchorRanges(layout);
@@ -384,13 +420,13 @@ export function constrainBootlegTextStyleToCanvas({
       canvasX: clamp(anchorX / safeWidth * 100, 0, 100),
       canvasY: clamp(anchorY / safeHeight * 100, 0, 100),
     };
-    layout = resolveBootlegTextLayout({
+    layout = fitHorizontal(resolveBootlegTextLayout({
       text,
       zone,
       style: constrainedStyle,
       width: safeWidth,
       height: safeHeight,
-    });
+    }));
   }
 
   return {
