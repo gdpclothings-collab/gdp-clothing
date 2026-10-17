@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import CustomStudioV2 from '@/pages/CustomStudioV2';
 import './customStudioV2MobileRepair.css';
 import './customStudioV2ApprovalRefinement.css';
@@ -16,6 +16,7 @@ import './customStudioV2DesignGallery.css';
  */
 export default function CustomStudioV2PresentationGuard() {
   const rootRef = useRef(null);
+  const [reviewPreviewReady, setReviewPreviewReady] = useState(false);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -23,6 +24,8 @@ export default function CustomStudioV2PresentationGuard() {
 
     let animationFrame = 0;
     const reviewPreviewSnapshots = new Map();
+    let snapshotContext = '';
+    let renderedReviewSignature = '';
 
     const neutralizePrintingTerms = (value) => String(value || '')
       .replace(/DTF file guidelines/gi, 'File guidelines')
@@ -36,6 +39,13 @@ export default function CustomStudioV2PresentationGuard() {
       .replace(/\bDTF\b/gi, 'printing');
 
     const snapshotLiveGarmentPreviews = () => {
+      // A new garment/colour/size/path must never inherit a previous design's preview.
+      const context = root.querySelector('[data-gdp-premium-studio="true"]')?.getAttribute('data-gdp-preview-context') || '';
+      if (context !== snapshotContext) {
+        reviewPreviewSnapshots.clear();
+        renderedReviewSignature = '';
+        snapshotContext = context;
+      }
       root.querySelectorAll('[data-gdp-print-guide="true"]').forEach((guide) => {
         if (guide.closest('[data-gdp-final-review-preview="true"]')) return;
         const section = guide.closest('section');
@@ -45,9 +55,23 @@ export default function CustomStudioV2PresentationGuard() {
         // Collect both without ever changing the canonical artwork/print-guide geometry.
         const heading = Array.from(section.querySelectorAll('p')).find((node) => /live garment preview|fabric workspace/i.test(node.textContent || ''));
         if (!heading) return;
-        const sideMatch = (guide.getAttribute('aria-label') || '').match(/\b(front|back)\b/i)
+        // The presentation pass rewrites the guide's aria-label to "Print area".
+        // Never infer "front" when its original side label has been removed:
+        // that used to overwrite the front snapshot with the back garment.
+        const sideMatch = (guide.getAttribute('data-gdp-print-side') || '').match(/^(front|back)$/i)
+          || (guide.getAttribute('aria-label') || '').match(/\b(front|back)\b/i)
+          || (section.querySelector('img[alt$=" preview"]')?.getAttribute('alt') || '').match(/\b(front|back) preview$/i)
           || (heading.textContent || '').match(/\b(front|back)\b/i);
-        const side = String(sideMatch?.[1] || 'front').toLowerCase();
+        if (!sideMatch) return;
+        const side = sideMatch[1].toLowerCase();
+        const isSeasonal = section.matches('[data-gdp-seasonal-canvas-stable="true"]');
+        if (isSeasonal && section.getAttribute('data-gdp-seasonal-library-ready') !== 'true') return;
+        // Unprinted sides are rendered from the correct blank garment image
+        // at review time. Do not snapshot the editor's empty/loading text.
+        if (isSeasonal && !guide.querySelector('button[data-seasonal-v2-layer]')) {
+          reviewPreviewSnapshots.delete(side);
+          return;
+        }
         const clone = section.cloneNode(true);
 
         // Seasonal art is rendered inside moveable buttons. Convert each layer
@@ -82,6 +106,7 @@ export default function CustomStudioV2PresentationGuard() {
           '[data-gdp-memorial-confirm-action]',
           '[data-gdp-bootleg-upload-status]',
         ].join(',')).forEach((node) => node.remove());
+        clone.querySelectorAll('[data-gdp-seasonal-empty-overlay="true"],[data-gdp-seasonal-library-loading="true"]').forEach((node) => node.remove());
         clone.querySelectorAll('button,input,select,textarea').forEach((node) => node.remove());
         // Approved previews show only garment + artwork, never Step 3 print
         // boundaries or measurement labels. Removing data-gdp-print-size also
@@ -151,28 +176,105 @@ export default function CustomStudioV2PresentationGuard() {
 
     const syncFinalReviewPreview = () => {
       const finalHeading = Array.from(root.querySelectorAll('h1')).find((node) => /^final review$/i.test((node.textContent || '').trim()));
-      if (!finalHeading || !reviewPreviewSnapshots.size) return;
+      if (!finalHeading) {
+        renderedReviewSignature = '';
+        setReviewPreviewReady(false);
+        return;
+      }
       const reviewRoot = finalHeading.parentElement;
-      if (!reviewRoot || reviewRoot.querySelector('[data-gdp-final-review-preview="true"]')) return;
-      const reviewGrid = Array.from(reviewRoot.children).find((node) => node.classList?.contains('mt-6') && node.classList?.contains('grid'));
-      if (!reviewGrid) return;
-
-      const container = document.createElement('div');
-      container.setAttribute('data-gdp-final-review-preview', 'true');
-      container.className = 'mt-5 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-4';
-      const title = document.createElement('div');
-      title.className = 'mb-3 flex flex-wrap items-end justify-between gap-2 px-1';
-      title.innerHTML = '<div><p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Approved preview</p><h2 class="mt-1 text-lg font-black text-slate-950">Your garment with the approved artwork</h2></div><span class="rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-emerald-800">Ready for final check</span>';
-      container.appendChild(title);
-
-      const cards = document.createElement('div');
-      cards.className = reviewPreviewSnapshots.size > 1 ? 'grid gap-3 md:grid-cols-2' : 'mx-auto max-w-2xl';
-      ['front', 'back'].forEach((side) => {
-        const html = reviewPreviewSnapshots.get(side);
-        if (html) cards.insertAdjacentHTML('beforeend', html);
+      if (!reviewRoot) return;
+      const isSeasonal = reviewRoot.getAttribute('data-gdp-review-design-path') === 'seasonal';
+      if (!isSeasonal && !reviewPreviewSnapshots.size) return;
+      const printedSides = (reviewRoot.getAttribute('data-gdp-review-print-sides') || '')
+        .split(',').filter((side) => side === 'front' || side === 'back');
+      const signature = JSON.stringify({
+        context: snapshotContext,
+        path: reviewRoot.getAttribute('data-gdp-review-design-path'),
+        printedSides,
+        front: reviewPreviewSnapshots.get('front') || '',
+        back: reviewPreviewSnapshots.get('back') || '',
       });
-      container.appendChild(cards);
-      reviewRoot.insertBefore(container, reviewGrid);
+      let container = reviewRoot.querySelector('[data-gdp-final-review-preview="true"]');
+      if (!container || renderedReviewSignature !== signature) {
+        const nextContainer = document.createElement('div');
+        nextContainer.setAttribute('data-gdp-final-review-preview', 'true');
+        nextContainer.className = 'mt-5 rounded-3xl border border-slate-200 bg-slate-50/90 p-3 shadow-inner sm:p-4';
+        const title = document.createElement('div');
+        title.className = 'mb-3 flex flex-wrap items-end justify-between gap-2 px-1';
+        title.innerHTML = '<div><p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Approved preview</p><h2 class="mt-1 text-lg font-black text-slate-950">Your garment with the approved artwork</h2></div><span data-gdp-review-status-label="true" class="rounded-full bg-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-slate-700">Preparing preview</span>';
+        nextContainer.appendChild(title);
+
+        const cards = document.createElement('div');
+        cards.className = isSeasonal || reviewPreviewSnapshots.size > 1
+          ? 'grid gap-3 md:grid-cols-2' : 'mx-auto max-w-2xl';
+        ['front', 'back'].forEach((side) => {
+          const html = reviewPreviewSnapshots.get(side);
+          if (!isSeasonal) {
+            if (html) cards.insertAdjacentHTML('beforeend', html);
+            return;
+          }
+          if (printedSides.includes(side) && html) {
+            cards.insertAdjacentHTML('beforeend', html);
+            return;
+          }
+          // Keep the back of a front-only garment truly blank, without
+          // capturing the editor placeholder or recycling the front/back image.
+          const card = document.createElement('section');
+          card.setAttribute('data-gdp-final-review-preview-card', side);
+          card.className = 'overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4';
+          const heading = document.createElement('p');
+          heading.className = 'mb-3 text-[10px] font-black uppercase tracking-[.14em] text-slate-400';
+          heading.textContent = `Final garment preview · ${side}`;
+          card.appendChild(heading);
+          const frame = document.createElement('div');
+          frame.className = 'relative mx-auto aspect-[4/5] w-full max-w-[340px] overflow-hidden rounded-2xl bg-slate-100 p-3';
+          const imgUrl = reviewRoot.getAttribute(`data-gdp-review-${side}-garment`);
+          if (imgUrl) {
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            img.alt = `Blank ${side} of selected garment`;
+            img.className = 'h-full w-full object-contain';
+            frame.appendChild(img);
+          }
+          card.appendChild(frame);
+          if (printedSides.includes(side)) {
+            const notice = document.createElement('p');
+            notice.setAttribute('role', 'status');
+            notice.className = 'mt-3 text-xs font-semibold text-amber-800';
+            notice.textContent = `The ${side} artwork preview is not ready. Return to Step 3 and open that side before continuing.`;
+            card.appendChild(notice);
+          }
+          cards.appendChild(card);
+        });
+        nextContainer.appendChild(cards);
+        const reviewGrid = Array.from(reviewRoot.children).find((node) => node.classList?.contains('mt-6') && node.classList?.contains('grid'));
+        if (!reviewGrid) return;
+        if (container) container.replaceWith(nextContainer);
+        else reviewRoot.insertBefore(nextContainer, reviewGrid);
+        container = nextContainer;
+        renderedReviewSignature = signature;
+      }
+
+      if (!isSeasonal) return;
+      const missingPrintedSide = printedSides.some((side) => !reviewPreviewSnapshots.has(side));
+      const images = Array.from(container.querySelectorAll('img'));
+      const imagesLoaded = images.length >= 2 && images.every((img) => img.complete && img.naturalWidth > 0);
+      const failedImage = images.some((img) => img.complete && img.naturalWidth === 0);
+      const ready = printedSides.length > 0 && !missingPrintedSide && imagesLoaded;
+      const status = ready ? 'ready' : failedImage ? 'error' : 'pending';
+      if (container.getAttribute('data-gdp-review-status') !== status) {
+        container.setAttribute('data-gdp-review-status', status);
+      }
+      const label = container.querySelector('[data-gdp-review-status-label="true"]');
+      if (label) {
+        const text = ready ? 'Ready for final check' : failedImage ? 'Preview failed to load' : 'Preparing preview';
+        if (label.textContent !== text) label.textContent = text;
+        const classes = ready
+          ? 'rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-emerald-800'
+          : 'rounded-full bg-amber-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-amber-800';
+        if (label.className !== classes) label.className = classes;
+      }
+      setReviewPreviewReady(ready);
     };
 
     const syncGarmentSizeSemantics = () => {
@@ -268,25 +370,29 @@ export default function CustomStudioV2PresentationGuard() {
       });
     };
 
+    root.addEventListener('load', syncPresentationLabels, true);
+    root.addEventListener('error', syncPresentationLabels, true);
     syncPresentationLabels();
     const observer = new MutationObserver(syncPresentationLabels);
     observer.observe(root, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['aria-label', 'class', 'disabled'],
+      attributeFilter: ['aria-label', 'class', 'disabled', 'style'],
       characterData: true,
     });
 
     return () => {
       observer.disconnect();
+      root.removeEventListener('load', syncPresentationLabels, true);
+      root.removeEventListener('error', syncPresentationLabels, true);
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
     };
   }, []);
 
   return (
     <div ref={rootRef} data-gdp-studio-v2-guard="true" className="min-w-0 max-w-full overflow-x-clip">
-      <CustomStudioV2 />
+      <CustomStudioV2 reviewPreviewReady={reviewPreviewReady} />
     </div>
   );
 }
