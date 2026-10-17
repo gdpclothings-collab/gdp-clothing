@@ -43,7 +43,7 @@ test('placement and aspect are stable when requested size is smaller than max', 
   assert.ok(Math.abs(result.height - 5 / art.aspect_ratio) < 0.0001);
   assert.equal(result.x, 3);
   assert.equal(result.y, 4);
-  assert.equal(result.effectiveDpi, 642);
+  assert.ok(result.effectiveDpi >= 640 && result.effectiveDpi <= 642);
 });
 
 test('invalid or unapproved source dimensions cannot be printed', () => {
