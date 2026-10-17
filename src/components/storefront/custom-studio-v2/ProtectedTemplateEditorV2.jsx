@@ -854,7 +854,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
       if (safeAdditions.length) {
         syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
-        if (usesLayerLab) setActiveBootlegLayer('photo');
+        if (usesLayerLab) revealLayerControls('photo');
         setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}`);
       } else {
         setUploadMessage('');
@@ -1001,7 +1001,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       order: bootlegTextLayers.length,
       visible: true,
     };
-    setActiveBootlegLayer('text');
+    revealLayerControls('text');
     syncTextLayers([...bootlegTextLayers, layer], layer.id);
   };
   const duplicateActiveTextLayer = () => {
@@ -1015,7 +1015,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       style: { ...style, canvasX: clamp(Number(style.canvasX ?? 50) + 4, 0, 100), canvasY: clamp(Number(style.canvasY ?? 50) + 4, 0, 100) },
       order: bootlegTextLayers.length,
     };
-    setActiveBootlegLayer('text');
+    revealLayerControls('text');
     syncTextLayers([...bootlegTextLayers, duplicate], duplicate.id);
   };
   const deleteActiveTextLayer = () => {
@@ -1039,7 +1039,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const latestEditor = editorRef.current || editor;
     const current = Array.isArray(latestEditor.stickers) ? latestEditor.stickers : [];
     const layer = createV2StickerLayer(sticker, current.length);
-    if (usesLayerLab) setActiveBootlegLayer('sticker');
+    if (usesLayerLab) revealLayerControls('sticker');
     syncStickers([...current, layer], layer.id);
   };
   const patchActiveSticker = (patch) => {
