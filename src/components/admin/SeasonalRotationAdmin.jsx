@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import {
-  DEFAULT_SEASONAL_WINDOWS, normalizeSeasonalRotation, resolveSeasonalFeature,
+  DEFAULT_SEASONAL_WINDOWS, normalizeSeasonalRotation, resolveSeasonalFeature, isSeasonalMonthDay,
   SEASONAL_DATE_MODES, seasonalToday,
 } from '@/lib/seasonalRotation';
 
@@ -53,7 +53,7 @@ export default function SeasonalRotationAdmin({ rows = [] }) {
     setError('');
     setNotice('');
     if (draft.windows.some(window => window.mode === 'fixed' &&
-      (!/^\d{2}-\d{2}$/.test(window.start) || !/^\d{2}-\d{2}$/.test(window.end)))) {
+      (!isSeasonalMonthDay(window.start) || !isSeasonalMonthDay(window.end)))) {
       setError('Use MM-DD for custom schedule start and end dates.'); return;
     }
     setSaving(true);
