@@ -777,8 +777,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
   const prepareAsset = async (file) => {
     setUploadMessage(`Uploading ${file.name}…`);
+    // Original file is persisted first; background cleanup is non-destructive.
     const uploaded = await customerApi.uploadArtwork(file);
-    return {
+    const original = {
       url: uploaded.file_url,
       path: uploaded.storage_path,
       originalUrl: uploaded.file_url,
@@ -787,6 +788,21 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       name: file.name || 'customer-photo',
       type: file.type || 'image/png',
     };
+    try {
+      setUploadMessage(`Removing background from ${file.name}…`);
+      const cleaned = await customerApi.removePhotoBackground(file);
+      return {
+        ...original,
+        url: cleaned.cleanedUrl,
+        path: cleaned.cleanedPath,
+        cleanedUrl: cleaned.cleanedUrl,
+        cleanedPath: cleaned.cleanedPath,
+        backgroundMode: 'cleaned',
+      };
+    } catch {
+      // Keep the usable original when the removal function fails.
+      return { ...original, backgroundRemovalWarning: true };
+    }
   };
 
   const uploadPhotos = async (files) => {
@@ -812,11 +828,13 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     setError('');
     const additions = [];
     const failed = [];
+    let backgroundFailures = 0;
 
     try {
       for (const file of selected) {
         try {
           const asset = await prepareAsset(file);
+          if (asset.backgroundRemovalWarning) backgroundFailures += 1;
           const currentCount = currentPhotoLayers(editorRef.current).length + additions.length;
           additions.push(createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
             scale: Number(template.defaultTransform?.scale || 100),
@@ -845,6 +863,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       if (failed.length) {
         const failedNames = failed.map(({ file }) => file?.name || 'photo').slice(0, 3).join(', ');
         setError(`Could not add ${failedNames}. Existing photos were kept. Please retry ${failed.length === 1 ? 'that file' : 'those files'}.`);
+      } else if (backgroundFailures) {
+        setError(`Automatic background removal couldn't finish for ${backgroundFailures} photo${backgroundFailures === 1 ? '' : 's'}. The original photo${backgroundFailures === 1 ? ' is' : 's are'} safely kept and usable.`);
       }
     } finally {
       uploadInFlightRef.current = false;
@@ -1079,7 +1099,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const photoPanel = (
     <div data-gdp-bootleg-panel={isBootleg ? 'photo' : undefined} data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined} className="space-y-3 rounded-2xl border border-slate-100 p-3">
       <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} photo{photos.length === 1 ? '' : 's'} added</p></div><Layers size={16} className="text-slate-400" /></div>
-      <div data-gdp-photo-upload-guidance="transparent-recommended" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Upload artwork with a transparent background when possible. Transparent PNG or WebP is recommended. JPG/JPEG and photos with backgrounds are still accepted and will keep their existing background.</p></div></div></div>
+      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Uploaded photos are automatically cleaned for transparent printing. You can switch back to the untouched original at any time. If automatic cleanup is unavailable, the original stays usable.</p></div></div></div>
       <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
       {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
