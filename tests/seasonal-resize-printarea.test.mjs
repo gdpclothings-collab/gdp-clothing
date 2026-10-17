@@ -66,7 +66,7 @@ test('gallery photographs stay unchanged and seasonal rotation remains in the li
 });
 
 test('backend migration retains both source and print boundary validations', () => {
-  const sql = fs.readFileSync('supabase/migrations/20261017152000_seasonal_print_resize_200ppi_floor.sql', 'utf8');
+  const sql = fs.readFileSync('supabase/migrations/20261017150149_seasonal_print_resize_200ppi_floor.sql', 'utf8');
   assert.equal(sql.match(/w > a.max_width_in \* 1\.5 or h > a.max_height_in \* 1\.5/g)?.length, 2);
   assert.ok(sql.includes("x + w > (area->>'width')::numeric + 0.001"));
   assert.ok(sql.includes('SECURITY DEFINER'));
