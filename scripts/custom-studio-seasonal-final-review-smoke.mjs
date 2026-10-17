@@ -107,7 +107,7 @@ async function inspect(browser, viewport) {
     // Reproduce the reported bug: approve front artwork, switch to the EMPTY
     // back workspace, then enter Final Review without switching back.
     const switchToBack = page.locator('[data-gdp-premium-main-panel="true"] button.gdp-neu-control')
-      .filter({ hasText: /^back(?:\\s*✓)?$/i }).first();
+      .filter({ hasText: /^back(?:\s*✓)?$/i }).first();
     await switchToBack.click();
     await page.locator('[data-gdp-seasonal-canvas-stable="true"][data-gdp-seasonal-library-ready="true"]')
       .waitFor({ state: 'visible', timeout: 25000 });
