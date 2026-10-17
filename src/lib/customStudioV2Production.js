@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork } from '@/lib/seasonalArtwork';
 import { renderSeasonalProductionPng } from '@/lib/seasonalProductionRender';
+import { approvedSeasonalPrintSources } from '@/lib/seasonalPrintMaster';
 import { resolveUploadArtworkPlacement } from '@/lib/customStudioV2ArtworkMetrics';
 
 function normalizeToken(value) {
@@ -274,6 +275,7 @@ export async function buildSeasonalStudioV2Snapshot({ productId, size, color, la
       layerId: layer.id,
       artworkId: artwork.id,
       artworkTitle: artwork.title,
+      sourceSha256: artwork.source_sha256,
       x: fitted.x,
       y: fitted.y,
       width: fitted.width,
@@ -296,7 +298,10 @@ export async function buildSeasonalStudioV2Snapshot({ productId, size, color, la
 }
 
 export async function renderSeasonalStudioV2Png(snapshot, dpi = 300) {
-  return renderSeasonalProductionPng(snapshot, [], dpi);
+  // Only verified, short-lived original master sources may reach production.
+  // Never fall back to previewUrl even if signing or downloading fails.
+  const masters = await approvedSeasonalPrintSources(supabase, snapshot);
+  return renderSeasonalProductionPng(snapshot, masters, dpi);
 }
 
 export async function digestStudioV2Snapshot(snapshot) {
