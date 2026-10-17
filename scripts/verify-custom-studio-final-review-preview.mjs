@@ -163,4 +163,12 @@ assert(guard.includes('images.every((img) => img.complete && img.naturalWidth > 
 assert(guard.includes('setReviewPreviewReady(ready);'), 'Review readiness must reach the React finalization gate');
 assert(page.includes("state.designPath === 'seasonal' && !reviewPreviewReady"), 'Seasonal checkout must wait for a verified customer preview');
 assert(seasonalEditor.includes('data-gdp-seasonal-library-ready'), 'in-flight library data must not be saved as an approved preview');
+
+// Visual parity: an unprinted side uses the same garment frame as the
+// Seasonal editor. Customer mockups never inherit canvas print geometry.
+assert(guard.includes("frame.className = 'mx-auto w-full rounded-[28px] bg-slate-100 p-3 sm:p-5';"), 'blank-side frame must match printed Seasonal canvas framing');
+assert(guard.includes("interior.className = 'relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner';"), 'blank-side interior must match printed preview aspect and background');
+assert(guard.includes("img.className = 'absolute inset-0 h-full w-full object-contain opacity-95';"), 'blank-side garment image sizing must match the live print-side preview');
+assert(guard.includes("headingLabel.textContent = `Final garment preview · ${side}`;"), 'blank-side label must stay aligned with printed-side label');
+
 console.log('PASS: Custom Studio approved Final Review garment + artwork preview contract');
