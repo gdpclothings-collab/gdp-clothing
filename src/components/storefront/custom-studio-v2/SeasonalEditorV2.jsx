@@ -398,7 +398,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
             <h2 className="mt-1 text-xl font-black text-slate-900">{!layers.length ? 'Choose artwork' : addingArtwork ? `Add Artwork ${nextArtworkNumber}` : 'Choose replacement'}</h2>
           </div>
           <div className="flex items-center gap-2">
-            {libraryBusy && <span role="status" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500"><span className="h-2.5 w-2.5 animate-spin rounded-full border border-slate-300 border-t-slate-600" aria-hidden="true" />Loading</span>}
+            {libraryBusy && !catalog && <span role="status" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500"><span className="h-2.5 w-2.5 animate-spin rounded-full border border-slate-300 border-t-slate-600" aria-hidden="true" />Loading</span>}
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{layers.length}/{MAX_LAYERS}</span>
           </div>
         </div>
@@ -421,7 +421,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search designs" disabled={!catalog} className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
 
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+        <div data-gdp-seasonal-category-scroll="true" role="group" aria-label="Seasonal design categories" className="mb-4 flex gap-2 overflow-x-auto pb-1">
           <button type="button" onClick={() => setCategory('')} disabled={!catalog} className={`min-h-10 shrink-0 rounded-full px-4 text-xs font-bold disabled:opacity-40 ${!category ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>All</button>
           {categories.map((value) => (
             <button key={value} type="button" onClick={() => setCategory(value)} disabled={!catalog} className={`min-h-10 shrink-0 rounded-full px-4 text-xs font-bold disabled:opacity-40 ${category === value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>{value}</button>
@@ -430,7 +430,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
         {error && <div className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700"><span>{error}</span>{!catalog && <button type="button" onClick={() => setRetryVersion((value) => value + 1)} className="shrink-0 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-black text-red-700">Retry</button>}</div>}
 
-        <div className="grid min-h-[220px] max-h-[min(520px,calc(100vh-420px))] grid-cols-2 content-start gap-3 overflow-y-auto overscroll-contain pb-3 pr-1">
+        <div data-gdp-seasonal-artwork-scroll="true" className="grid min-h-[220px] max-h-[min(520px,calc(100vh-420px))] grid-cols-2 content-start gap-3 overflow-y-auto overscroll-contain pb-3 pr-1">
           {libraryBusy && !catalog && <div className="col-span-2 grid min-h-[180px] place-items-center rounded-2xl bg-slate-50 p-4 text-center text-sm font-semibold text-slate-500"><span><span className="mx-auto mb-3 block h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" aria-hidden="true" />Loading seasonal designs…</span></div>}
           {filtered.map((artwork) => (
             <button key={artwork.id} type="button" onClick={() => chooseArtwork(artwork)} disabled={(addingArtwork && layers.length >= MAX_LAYERS) || Boolean(pendingArtworkId) || libraryBusy || !catalog} aria-busy={String(pendingArtworkId) === String(artwork.id)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-left transition hover:border-slate-400 disabled:opacity-40">
@@ -459,7 +459,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
               {area ? resolved.filter((entry) => entry.layer.visible !== false).map((entry) => (
                 <ArtworkLayer key={entry.layer.id} entry={entry} area={area} active={entry.layer.id === activeLayerId} onSelect={onActiveLayerChange} onTransform={(id, patch) => patchLayer(id, patch)} />
               )) : null}
-              {libraryBusy && !catalog ? <div data-gdp-seasonal-library-loading="true" className="absolute inset-0 grid place-items-center bg-white/20 p-4 text-center text-[10px] font-black uppercase tracking-[.08em] text-slate-500">Refreshing artwork library…</div> : !layers.length ? <div data-gdp-seasonal-empty-overlay="true" className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Choose your first artwork from the library</div> : null}
+              {!layers.length ? <div data-gdp-seasonal-empty-overlay="true" className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">{catalog ? 'Choose your first artwork from the library' : 'No artwork on this side yet'}</div> : null}
             </div>
           </div>
         </div>

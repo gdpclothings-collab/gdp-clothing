@@ -12,7 +12,7 @@
   justify-content: center;
   transform-style: preserve-3d;
   will-change: transform;
-  animation: gdp-logo-3d-spin 9s linear infinite;
+  animation: gdp-logo-3d-spin 8s ease-in-out infinite;
 }
 
 .gdp-logo-3d-spinner::before,
@@ -40,13 +40,16 @@
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
 }
 
-.gdp-logo-3d-stage[data-menu-open="true"] .gdp-logo-3d-spinner {
+.gdp-logo-3d-stage[data-menu-open="true"] .gdp-logo-3d-spinner,
+.gdp-logo-3d-stage:hover .gdp-logo-3d-spinner,
+.gdp-logo-3d-stage:focus-within .gdp-logo-3d-spinner {
   animation-play-state: paused;
 }
 
+/* Retain a gentle 3D effect, but never rotate the flat logo edge-on. */
 @keyframes gdp-logo-3d-spin {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(360deg); }
+  0%, 100% { transform: rotateY(-10deg) rotateX(2deg) translateY(0); }
+  50% { transform: rotateY(10deg) rotateX(-2deg) translateY(-1px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
