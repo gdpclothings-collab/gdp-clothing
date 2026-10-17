@@ -208,8 +208,8 @@ function GarmentStepV2({ catalog, state, dispatch, garmentView, onContinue, canC
   );
 }
 
-function DesignStepV2({ dispatch }) {
-  return <CustomStudioV2GeneratedGallery paths={STUDIO_V2_DESIGN_PATHS} dispatch={dispatch} />;
+function DesignStepV2({ dispatch, product, size }) {
+  return <CustomStudioV2GeneratedGallery paths={STUDIO_V2_DESIGN_PATHS} dispatch={dispatch} product={product} size={size} />;
 }
 
 function PrintSideControl({ state, onChange }) {
@@ -712,7 +712,7 @@ export default function CustomStudioV2() {
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
     <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} garmentView={garmentView} onContinue={next} canContinue={canContinue} />}
-      {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
+      {state.step === 'design' && <DesignStepV2 dispatch={dispatch} product={product} size={state.size} />}
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
       {state.step === 'customize' && state.designPath === 'seasonal' && product && <div><EditorHeading title="Seasonal Design Lab" description="Build each print side independently. Your Front and Back artwork, placement and sizing stay exactly as you set them." /><SeasonalEditorV2 product={product} color={state.color} side={state.side} size={state.size} layers={currentEditor?.layers || []} activeLayerId={currentEditor?.activeLayerId || ''} confirmed={Boolean(currentEditor?.confirmed)} onLayersChange={(layers, activeLayerId) => dispatch({ type: 'SET_SEASONAL_LAYERS', side: state.side, layers, activeLayerId })} onActiveLayerChange={(id) => dispatch({ type: 'SET_SEASONAL_ACTIVE', side: state.side, id })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_SEASONAL', side: state.side, value })} /></div>}
       {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && <div><EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio' : 'Photo Bootleg Studio'} description="Your photo, text and editable details stay separate from the protected template artwork." /><ProtectedTemplateEditorV2 path={state.designPath} product={product} color={state.color} size={state.size} settings={settings} editor={currentEditor} side={state.side} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value })} /></div>}
