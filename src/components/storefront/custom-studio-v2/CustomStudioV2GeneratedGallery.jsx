@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import CustomStudioV2DesignGallery from './CustomStudioV2DesignGallery';
+import { supabase } from '@/lib/supabaseClient';
+import { resolveSeasonalFeature } from '@/lib/seasonalRotation';
 
 const GENERATED_ASSETS = Object.freeze({
   seasonal: '/images/custom-studio/gallery/seasonal-designs.webp',
@@ -9,8 +11,23 @@ const GENERATED_ASSETS = Object.freeze({
   upload: '/images/custom-studio/gallery/upload-artwork.webp',
 });
 
-export default function CustomStudioV2GeneratedGallery({ paths, dispatch }) {
+export default function CustomStudioV2GeneratedGallery({ paths, dispatch, product, size }) {
   const [imagesReady, setImagesReady] = useState(false);
+  const [seasonalFeature, setSeasonalFeature] = useState(null);
+
+  useEffect(() => {
+    if (!product?.id || !size) { setSeasonalFeature(null); return undefined; }
+    let active = true;
+    Promise.all([
+      supabase.from('store_settings').select('custom_studio_settings').eq('id', 1).maybeSingle(),
+      supabase.rpc('list_seasonal_artworks', { p_product: product.id, p_size: size, p_side: 'front' }),
+    ]).then(([settings, catalog]) => {
+      if (!active || settings.error || catalog.error) return;
+      const feature = resolveSeasonalFeature(settings.data?.custom_studio_settings?.seasonalRotation, catalog.data?.artworks || []);
+      setSeasonalFeature(feature);
+    }).catch(() => { if (active) setSeasonalFeature(null); });
+    return () => { active = false; };
+  }, [product?.id, size]);
 
   useEffect(() => {
     let active = true;
@@ -26,7 +43,7 @@ export default function CustomStudioV2GeneratedGallery({ paths, dispatch }) {
   }, [paths]);
 
   if (!imagesReady) {
-    return <CustomStudioV2DesignGallery paths={paths} dispatch={dispatch} />;
+    return <CustomStudioV2DesignGallery paths={paths} dispatch={dispatch} seasonalFeature={seasonalFeature} />;
   }
 
   return (
@@ -49,14 +66,23 @@ export default function CustomStudioV2GeneratedGallery({ paths, dispatch }) {
             aria-label={`Choose ${path.label}. ${path.description}`}
             className="group relative block min-w-0 overflow-hidden rounded-[20px] border border-slate-200 bg-white text-left shadow-[0_7px_22px_rgba(18,30,53,.10)] transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-[0_16px_35px_rgba(18,30,53,.15)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#147DE5] motion-reduce:transform-none"
           >
-            <img
-              src={GENERATED_ASSETS[path.id]}
-              alt=""
-              decoding="async"
-              width="1603"
-              height="756"
-              className="block h-auto w-full select-none"
-            />
+            {path.id === 'seasonal' && seasonalFeature ? (
+              <span data-gdp-seasonal-featured-card="true" data-seasonal-feature-category={seasonalFeature.category}
+                className="relative grid aspect-[1603/756] w-full grid-cols-[1.1fr_.9fr] overflow-hidden bg-gradient-to-br from-[#FFF0D7] via-[#FFE1BE] to-[#C8E7E8]">
+                <span className="flex min-w-0 flex-col items-start justify-center gap-1.5 p-4 sm:gap-3 sm:p-6">
+                  <span className="text-[10px] font-black uppercase tracking-[.12em] text-orange-700 sm:text-xs">Seasonal Designs</span>
+                  <span className="text-xl font-black leading-tight text-slate-900 sm:text-3xl">{seasonalFeature.category}</span>
+                  <span className="text-[11px] font-semibold text-slate-600 sm:text-sm">Featured this season</span>
+                  <span className="mt-1 rounded-full bg-amber-500 px-3 py-2 text-[10px] font-black text-slate-950 sm:text-xs">Choose This Design →</span>
+                </span>
+                <span className="m-3 flex min-w-0 items-center justify-center overflow-hidden rounded-2xl border border-white/80 bg-white/85 p-2 shadow-lg sm:m-5 sm:p-4">
+                  <img src={seasonalFeature.artwork.preview} alt="" decoding="async" className="max-h-full max-w-full object-contain" />
+                </span>
+              </span>
+            ) : (
+              <img src={GENERATED_ASSETS[path.id]} alt="" decoding="async"
+                width="1603" height="756" className="block h-auto w-full select-none" />
+            )}
             <span className="flex min-h-11 items-center justify-between gap-2 bg-white px-4 py-2 text-xs font-extrabold text-slate-900 sm:hidden">
               <span>Choose {path.label}</span>
               <ArrowRight size={17} />
