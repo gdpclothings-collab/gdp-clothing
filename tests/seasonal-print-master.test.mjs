@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, webcrypto } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { approvedSeasonalPrintSources, verifySeasonalPrintMaster } from '../src/lib/seasonalPrintMaster.js';
 import { renderSeasonalProductionPng } from '../src/lib/seasonalProductionRender.js';
@@ -42,7 +42,6 @@ test('deny missing/foreign/changed source, including a thumbnail fallback', asyn
 });
 
 test('verify byte-level source SHA-256 and reject mismatched thumbnail', async () => {
-  globalThis.crypto = webcrypto;
   assert.equal(await verifySeasonalPrintMaster(new Blob([PNG], { type:'image/png' }), expected, 'png'), true);
   await assert.rejects(verifySeasonalPrintMaster(new Blob(['data:image/webp']), expected, 'png'), /not a PNG/);
   const changed = Uint8Array.from([...PNG, 1]);
@@ -50,7 +49,6 @@ test('verify byte-level source SHA-256 and reject mismatched thumbnail', async (
 });
 
 test('signed masters are composited using ORIGINAL ink bounding pixels, not preview thumbnail', async () => {
-  globalThis.crypto = webcrypto;
   globalThis.window = { setTimeout, clearTimeout };
   const seen = [];
   const context = {
