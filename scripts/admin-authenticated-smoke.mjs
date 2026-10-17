@@ -3,8 +3,11 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { accessHeadersForRequest, cloudflareChallengeDetails, publicPathOnly } from "./admin-smoke-cloudflare.mjs";
+import { GDP_PAGES_ORIGIN, resolveAdminSmokeOrigin } from "./admin-smoke-origin.mjs";
 
-const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
+const PRODUCTION_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
+let BASE_URL = PRODUCTION_URL;
+let smokeTarget = { baseUrl: PRODUCTION_URL, mode: "production", challenge: null };
 const OUT = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
 const EMAIL = (process.env.GDP_ADMIN_SMOKE_EMAIL || "").trim();
 const PASSWORD = process.env.GDP_ADMIN_SMOKE_PASSWORD || "";
@@ -109,8 +112,11 @@ function cloudflareAccessCredentials() {
   const secret = (process.env.GDP_SMOKE_CF_ACCESS_CLIENT_SECRET || "").trim();
   assert(Boolean(id) === Boolean(secret), "Cloudflare Access smoke credentials must be supplied as a pair.");
   const target = new URL(BASE_URL);
-  assert(!id || (target.protocol === "https:" && target.hostname === "gdpclothing.ca"),
-    "Cloudflare Access credentials may only be sent to the GDP production hostname.");
+  // Never transmit configured Access credentials to the Pages mirror or
+  // anything other than the exact protected production hostname.
+  if (target.origin !== "https://gdpclothing.ca") return { id: "", secret: "" };
+  assert(!id || target.protocol === "https:",
+    "Cloudflare Access credentials require HTTPS on the GDP production hostname.");
   return { id, secret };
 }
 
@@ -228,6 +234,18 @@ async function runCheck(browser, name, viewport, storageState, test) {
 
 async function main() {
   await fs.mkdir(OUT, { recursive: true });
+  // This pre-authentication check enforces production-build identity; it is
+  // impossible to pass the admin test using a stale/mismatched Pages build.
+  smokeTarget = await resolveAdminSmokeOrigin({
+    productionUrl: PRODUCTION_URL,
+    mirrorUrl: process.env.GDP_ADMIN_SMOKE_MIRROR_URL || GDP_PAGES_ORIGIN,
+  });
+  BASE_URL = smokeTarget.baseUrl;
+  if (smokeTarget.challenge) {
+    console.log(`Production Cloudflare WAF challenge preserved at /admin; Ray ID: ${smokeTarget.challenge.rayId || "not available"}. Authenticated app checks use same-build Pages mirror (${smokeTarget.buildDigest}).`);
+  } else {
+    console.log("Production /admin accepted smoke browser preflight; authenticated checks target production directly.");
+  }
   const browser = await chromium.launch({ headless: true });
   const results = [];
 
@@ -244,6 +262,8 @@ async function main() {
         path: authResult.path,
         rayId: authResult.rayId,
         cfAccessConfigured: authResult.cfAccessConfigured,
+        smokeOriginMode: smokeTarget.mode,
+        productionWafChallenge: smokeTarget.challenge,
         safetyBoundary: "Authenticated admin smoke was blocked by Cloudflare security verification before the admin app rendered. No commerce mutation was submitted.",
         passed: 0,
         failed: 0,
@@ -327,6 +347,9 @@ async function main() {
     baseUrl: BASE_URL,
     generatedAt: new Date().toISOString(),
     authenticated: true,
+    smokeOriginMode: smokeTarget.mode,
+    productionWafChallenge: smokeTarget.challenge,
+    verifiedProductionBuild: smokeTarget.buildDigest || null,
     safetyBoundary: "Read-only admin navigation and search checks; no commerce mutation, refund, pricing, inventory, payment, or customer-data write is submitted.",
     passed: results.length - failed.length,
     failed: failed.length,

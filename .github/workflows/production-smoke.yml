@@ -43,6 +43,9 @@ jobs:
       GDP_ADMIN_SMOKE_TOTP_SECRET: ${{ secrets.GDP_ADMIN_SMOKE_TOTP_SECRET }}
       GDP_SMOKE_CF_ACCESS_CLIENT_ID: ${{ secrets.GDP_SMOKE_CF_ACCESS_CLIENT_ID }}
       GDP_SMOKE_CF_ACCESS_CLIENT_SECRET: ${{ secrets.GDP_SMOKE_CF_ACCESS_CLIENT_SECRET }}
+      # A Pages-served identical production artifact is used only when the
+      # production WAF challenges GitHub runners. No Cloudflare rules bypassed.
+      GDP_ADMIN_SMOKE_MIRROR_URL: https://gdp-clothing.pages.dev
 
     steps:
       - name: Checkout repository
@@ -99,8 +102,9 @@ jobs:
         run: node scripts/payment-preflight-smoke.mjs
       - name: Run authenticated admin smoke
         id: admin_smoke
-        # Keep the security gate red if Cloudflare challenges automation, but do not
-        # suppress unrelated Custom Studio/checkout read-only regression coverage.
+        # Match production bundle+HTML before authenticating via first-party Pages
+        # when WAF challenges /admin. Keep failing closed on every mismatch,
+        # MFA/credential error or challenge at both origins.
         continue-on-error: true
         if: success() && env.GDP_ADMIN_SMOKE_EMAIL != '' && env.GDP_ADMIN_SMOKE_PASSWORD != ''
         run: node scripts/admin-authenticated-smoke.mjs
