@@ -31,15 +31,34 @@ export function normalizeSeasonalTextStyle(style = {}, fallbackColor = '#111111'
   };
 }
 
+// The approved production master records source-ink inches at 300 PPI.
+// DTF production recommends 300 PPI, but allows a carefully bounded 200 PPI minimum.
+// The source pixels are never modified or silently represented as 300 native PPI.
+export const SEASONAL_SOURCE_DPI = 300;
+export const SEASONAL_MIN_PRINT_DPI = 200;
+
 export function fitSeasonalArtwork(artwork, area, requestedWidth, x = 0, y = 0) {
   const ratio = Number(artwork?.aspect_ratio);
-  const maxWidth = Math.min(Number(area?.width), Number(artwork?.max_width_in));
-  const maxHeight = Math.min(Number(area?.height), Number(artwork?.max_height_in));
-  if (![ratio, maxWidth, maxHeight].every(n => Number.isFinite(n) && n > 0)) return null;
+  const sourceWidthIn = Number(artwork?.max_width_in);
+  const sourceHeightIn = Number(artwork?.max_height_in);
+  const areaWidth = Number(area?.width);
+  const areaHeight = Number(area?.height);
+  if (![ratio, sourceWidthIn, sourceHeightIn, areaWidth, areaHeight].every(n => Number.isFinite(n) && n > 0)) return null;
+
+  const enlargement = SEASONAL_SOURCE_DPI / SEASONAL_MIN_PRINT_DPI;
+  const maxWidth = Math.min(areaWidth, sourceWidthIn * enlargement);
+  const maxHeight = Math.min(areaHeight, sourceHeightIn * enlargement);
   const limit = Math.min(maxWidth, maxHeight * ratio);
-  const width = Math.max(Math.min(0.5, limit), Math.min(Number(requestedWidth) || limit * .8, limit));
+  const requested = Number(requestedWidth);
+  const width = Math.max(Math.min(0.5, limit), Math.min(Number.isFinite(requested) && requested > 0 ? requested : limit * .8, limit));
   const height = width / ratio;
-  return { width, height, x: Math.max(0, Math.min(Number(x) || 0, area.width - width)), y: Math.max(0, Math.min(Number(y) || 0, area.height - height)), maxWidth: limit };
+  const effectiveDpi = Math.floor(SEASONAL_SOURCE_DPI * Math.min(sourceWidthIn / width, sourceHeightIn / height));
+  return {
+    width, height,
+    x: Math.max(0, Math.min(Number(x) || 0, areaWidth - width)),
+    y: Math.max(0, Math.min(Number(y) || 0, areaHeight - height)),
+    maxWidth: limit, effectiveDpi,
+  };
 }
 
 export function seasonalSelection(artwork, layout, _text, area, rotation = 0) {
