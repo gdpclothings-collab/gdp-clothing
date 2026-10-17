@@ -246,6 +246,12 @@ function drawBootlegText(context, text = {}, zone = {}, style = {}, widthPx, hei
   const safeStyle = /** @type {Record<string, any>} */ (constrained.style);
   const metrics = resolveTextMetrics(zone, safeStyle, widthPx, heightPx, true);
   const layout = constrained.layout || resolveBootlegTextLayout({ text, zone, style: safeStyle, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
+  context.save();
+  if (layout.horizontalFit < 1) {
+    context.translate(layout.centerX, 0);
+    context.scale(layout.horizontalFit, 1);
+    context.translate(-layout.centerX, 0);
+  }
   const drawItem = (item, weight) => {
     if (!item) return;
     context.save();
@@ -267,6 +273,7 @@ function drawBootlegText(context, text = {}, zone = {}, style = {}, widthPx, hei
   }
   drawItem(layout.subline, 700);
   drawItem(layout.message, 600);
+  context.restore();
 }
 
 function drawStyledText(context, text = {}, zone = {}, style = {}, widthPx, heightPx) {

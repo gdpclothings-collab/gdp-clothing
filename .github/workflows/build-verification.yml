@@ -97,6 +97,7 @@ jobs:
           node scripts/verify-seasonal-artwork.mjs
           node scripts/verify-photo-bootleg-desktop.mjs
           node --test tests/bootleg-expandable-collections.test.mjs
+          node --test tests/bootleg-text-autofit.test.mjs
           node --test tests/studio-layer-tools-wide.test.mjs
           node scripts/verify-storefront-seo-ux.mjs
 

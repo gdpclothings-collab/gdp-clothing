@@ -383,7 +383,6 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
 
 function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, scope = 'bootleg' }) {
   const style = layer?.style || {};
-  const bounds = layout?.bounds || null;
   const rawLimits = layout ? bootlegGestureLimits(layout) : { minX: -50, maxX: 50, minY: -50, maxY: 50 };
   const canvasX = Number.isFinite(Number(style.canvasX)) ? clamp(Number(style.canvasX), 0, 100) : 50;
   const canvasY = Number.isFinite(Number(style.canvasY)) ? clamp(Number(style.canvasY), 0, 100) : 50;
@@ -400,7 +399,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
     containerRef: canvasRef,
     enabled: selected && Boolean(layout) && Boolean(layer?.text?.headline),
     minScale: 1,
-    maxScale: Number.POSITIVE_INFINITY,
+    maxScale: 1000,
     minX: clamp(rawLimits.minX, -50, 50),
     maxX: clamp(rawLimits.maxX, -50, 50),
     minY: clamp(rawLimits.minY, -50, 50),
@@ -424,7 +423,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
       style={gesture.style}
     >
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label={`Editable ${scope === 'memorial' ? 'Memorial Tribute' : 'Photo Bootleg'} ${layer.name || 'text'} layer`}>
-        {selected && bounds ? <rect data-gdp-bootleg-text-bounds="true" x={bounds.minX} y={bounds.minY} width={Math.max(0, bounds.maxX - bounds.minX)} height={Math.max(0, bounds.maxY - bounds.minY)} fill="none" stroke="rgb(34 211 238)" strokeWidth={Math.max(2, layout.width * 0.004)} strokeDasharray={`${Math.max(5, layout.width * 0.009)} ${Math.max(4, layout.width * 0.006)}`} /> : null}
+        <g data-gdp-text-autofit={layout.horizontalFit < 1 ? 'compressed' : 'normal'} transform={layout.horizontalFit < 1 ? `translate(${layout.centerX} 0) scale(${layout.horizontalFit} 1) translate(${-layout.centerX} 0)` : undefined}>
         {layout.headline?.kind === 'straight' ? (
           <text {...common} x={layout.headline.x} y={layout.headline.y} fontSize={layout.headline.fontSize} fontWeight="900" transform={`rotate(${layout.headline.rotation || 0} ${layout.headline.x} ${layout.headline.y})`} style={svgTextEffect(style, layout.headline.fontSize)}>{layout.headline.text}</text>
         ) : null}
@@ -433,6 +432,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
         )) : null}
         {layout.subline ? <text {...common} x={layout.subline.x} y={layout.subline.y} fontSize={layout.subline.fontSize} fontWeight="700" transform={`rotate(${layout.subline.rotation || 0} ${layout.subline.x} ${layout.subline.y})`} style={svgTextEffect(style, layout.subline.fontSize)}>{layout.subline.text}</text> : null}
         {layout.message ? <text {...common} x={layout.message.x} y={layout.message.y} fontSize={layout.message.fontSize} fontWeight="600" transform={`rotate(${layout.message.rotation || 0} ${layout.message.x} ${layout.message.y})`} style={svgTextEffect(style, layout.message.fontSize)}>{layout.message.text}</text> : null}
+        </g>
       </svg>
     </div>
   );
@@ -1149,7 +1149,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
         <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
         <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />
-        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">Text is constrained to stay fully inside the printable boundary.</p>}
+        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">{textLayout?.horizontalFit < 0.999 ? `Letter width auto-fitted to ${Math.round(textLayout.horizontalFit * 100)}% to keep your larger text within the printable area.` : 'Text stays fully inside the printable boundary.'}</p>}
         <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
         {textStyle.curve !== 'straight' ? <RangeControl label="Curve amount" value={textStyle.curveAmount} min={0} max={100} suffix="%" onChange={(value) => patchTextStyle({ curveAmount: value })} onReset={() => patchTextStyle({ curveAmount: 45 })} /> : null}
       </div> : null}
