@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_SEASONAL_WINDOWS, normalizeSeasonalRotation, resolveSeasonalFeature,
+  DEFAULT_SEASONAL_WINDOWS, normalizeSeasonalRotation, resolveSeasonalFeature, isSeasonalMonthDay,
   orderSeasonalArtworks,
 } from '../src/lib/seasonalRotation.js';
 
@@ -61,6 +61,13 @@ test('new artwork is discovered automatically and duplicate IDs are discarded', 
   assert.equal(settings.windows.length, 1);
   const newArt = [artwork('Christmas', 'newly-uploaded')];
   assert.equal(resolveSeasonalFeature(settings, newArt, { year: 2026, month: 11, day: 20 })?.artwork.id, 'newly-uploaded');
+});
+
+test('invalid dates are rejected instead of being silently saved', () => {
+  assert.equal(isSeasonalMonthDay('02-31'), false);
+  assert.equal(isSeasonalMonthDay('13-01'), false);
+  assert.equal(isSeasonalMonthDay('02-29'), true);
+  assert.equal(isSeasonalMonthDay('11-01'), true);
 });
 
 test('default rotation includes both seasonal and Canadian holiday schedules', () => {
