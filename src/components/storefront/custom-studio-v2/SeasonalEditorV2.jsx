@@ -442,7 +442,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         </div>
       </section>
 
-      <section data-gdp-seasonal-canvas-stable="true" className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <section data-gdp-seasonal-canvas-stable="true" data-gdp-seasonal-library-ready={Boolean(catalog) ? "true" : "false"} className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-3 flex items-center justify-between gap-3 px-1">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Fabric workspace</p>
@@ -454,12 +454,12 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         <div className="mx-auto w-full rounded-[28px] bg-slate-100 p-3 sm:p-5" style={{ maxWidth: 'min(620px, max(300px, calc((100vh - 320px) * 0.8)))' }}>
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
             {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain opacity-95" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
-            <div data-gdp-print-guide="true" aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-white/80 bg-black/5 shadow-[0_0_0_1px_rgba(15,23,42,.15)]" style={printGuide.style}>
+            <div data-gdp-print-guide="true" data-gdp-print-side={side} aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-white/80 bg-black/5 shadow-[0_0_0_1px_rgba(15,23,42,.15)]" style={printGuide.style}>
               <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
               {area ? resolved.filter((entry) => entry.layer.visible !== false).map((entry) => (
                 <ArtworkLayer key={entry.layer.id} entry={entry} area={area} active={entry.layer.id === activeLayerId} onSelect={onActiveLayerChange} onTransform={(id, patch) => patchLayer(id, patch)} />
               )) : null}
-              {libraryBusy && !catalog ? <div className="absolute inset-0 grid place-items-center bg-white/20 p-4 text-center text-[10px] font-black uppercase tracking-[.08em] text-slate-500">Refreshing artwork library…</div> : !layers.length ? <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Choose your first artwork from the library</div> : null}
+              {libraryBusy && !catalog ? <div data-gdp-seasonal-library-loading="true" className="absolute inset-0 grid place-items-center bg-white/20 p-4 text-center text-[10px] font-black uppercase tracking-[.08em] text-slate-500">Refreshing artwork library…</div> : !layers.length ? <div data-gdp-seasonal-empty-overlay="true" className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Choose your first artwork from the library</div> : null}
             </div>
           </div>
         </div>

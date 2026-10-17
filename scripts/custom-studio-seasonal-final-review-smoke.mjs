@@ -104,6 +104,18 @@ async function inspect(browser, viewport) {
     await approvalCard.click();
     assert(await approvalCheckbox.isChecked(), 'Seasonal unified approval not recorded');
 
+    // Reproduce the reported bug: approve front artwork, switch to the EMPTY
+    // back workspace, then enter Final Review without switching back.
+    const switchToBack = page.locator('[data-gdp-premium-main-panel="true"] button.gdp-neu-control')
+      .filter({ hasText: /^back(?:\s*✓)?$/i }).first();
+    await switchToBack.click();
+    await page.locator('[data-gdp-seasonal-canvas-stable="true"][data-gdp-seasonal-library-ready="true"]')
+      .waitFor({ state: 'visible', timeout: 25000 });
+    await page.locator('[data-gdp-print-guide="true"][data-gdp-print-side="back"]').first()
+      .waitFor({ state: 'attached', timeout: 10000 });
+    assert(await workspace.locator('button[data-seasonal-v2-layer]').count() === 0,
+      'Back side must remain unprinted when only the front artwork was approved');
+
     const finalAction = page.getByRole('button', { name: /Final review/i }).last();
     await finalAction.waitFor({ state: 'visible', timeout: 15000 });
     await finalAction.click();
@@ -111,6 +123,21 @@ async function inspect(browser, viewport) {
 
     const approved = page.locator('[data-gdp-final-review-preview="true"]');
     await approved.waitFor({ state: 'visible', timeout: 15000 });
+    await page.locator('[data-gdp-final-review-preview="true"][data-gdp-review-status="ready"]').waitFor({ state: 'visible', timeout: 20000 });
+    const frontCard = approved.locator('[data-gdp-final-review-preview-card="front"]');
+    const backCard = approved.locator('[data-gdp-final-review-preview-card="back"]');
+    assert(await frontCard.count() === 1 && await backCard.count() === 1,
+      'Final Review must show exactly one front and one back card');
+    assert(await frontCard.locator('[data-gdp-seasonal-review-artwork="true"]').count() > 0,
+      'Front artwork was lost or replaced after switching to the back editor');
+    assert(await backCard.locator('[data-gdp-seasonal-review-artwork="true"]').count() === 0,
+      'Unprinted back incorrectly inherited the front artwork');
+    await loadedImage(backCard.locator('img[alt="Blank back of selected garment"]'),
+      `${viewport.name}: blank back garment`);
+    assert(!/choose your first artwork|refreshing artwork library/i.test(await approved.innerText()),
+      'Editor placeholder/loading text leaked into final customer preview');
+    assert(await page.getByRole('button', { name: /Generate, Verify & Add to Cart/i }).isEnabled(),
+      'Seasonal finalization must unlock after side-correct images are loaded');
     // Final Review must show the approved garment/artwork only. The editing
     // print-size badge and dashed-boundary explanation belong to Step 3.
     assert(await approved.locator('[data-gdp-print-size]').count() === 0,
