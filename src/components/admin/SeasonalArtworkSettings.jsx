@@ -30,7 +30,7 @@ export default function SeasonalArtworkSettings({ row, onSaved }) {
       if ((draft.studio_visible||draft.ready_print||draft.customizable)&&!eligible) throw new Error('Upload a production master, confirm commercial rights, and approve its digital review or physical print proof before enabling these options.');
       if(draft.studio_visible&&!draft.ready_print&&!draft.customizable) throw new Error('Enable ready-print or personalization before showing this design.');
       if(draft.metadata?.customization_mode==='name-or-monogram-frame'&&draft.ready_print) throw new Error('A personalization frame must use personalization, not ready-print.');
-      const values={status:eligible?'active':'draft',rights_status:draft.rights_status,proof_approved:draft.proof_approved||false,
+      const values={status:eligible?'active':'draft',category:String(draft.category || '').trim() || row.category,rights_status:draft.rights_status,proof_approved:draft.proof_approved||false,
         digital_approved:!!draft.digital_approved,ready_print:!!draft.ready_print,customizable:!!draft.customizable,studio_visible:!!draft.studio_visible,
         production_path:draft.production_path,preview_data_url:draft.preview_data_url,source_sha256:draft.source_sha256,
         aspect_ratio:draft.aspect_ratio,max_width_in:draft.max_width_in,max_height_in:draft.max_height_in,ink_bbox_px:draft.ink_bbox_px,metadata:draft.metadata};
@@ -49,6 +49,7 @@ export default function SeasonalArtworkSettings({ row, onSaved }) {
     <p className="text-xs mb-2">Custom Studio: {row.studio_visible?'Published':'Hidden'}</p>
     <button type="button" onClick={()=>{setOpen(!open);setDraft(row);setError('');}} className="text-sm underline">{open?'Close settings':'Publishing settings'}</button>
     {open&&<div className="space-y-3 mt-3 text-sm">
+      <label className="block">Seasonal collection<input type="text" value={draft.category || ''} onChange={event=>patch({category:event.target.value})} disabled={busy} className="mt-1 block w-full rounded border px-2 py-2" placeholder="Christmas" /></label>
       <p>Upload a transparent PNG master. Its visible artwork determines the 300 ppi print limit. Files stay private. Replacing the master resets both reviews. Customers must still approve their production proof before printing.</p>
       <label className="block">Production PNG<input type="file" accept="image/png" disabled={busy} onChange={e=>upload(e.target.files?.[0])} className="block w-full mt-1"/></label>
       {draft.source_sha256&&<p className="text-xs">Master ready · {Number(draft.max_width_in).toFixed(2)} × {Number(draft.max_height_in).toFixed(2)} in maximum at 300 ppi</p>}
