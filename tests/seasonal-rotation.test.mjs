@@ -66,5 +66,5 @@ test('new artwork is discovered automatically and duplicate IDs are discarded', 
 test('default rotation includes both seasonal and Canadian holiday schedules', () => {
   assert.ok(DEFAULT_SEASONAL_WINDOWS.some(window => window.category === 'Christmas'));
   assert.ok(DEFAULT_SEASONAL_WINDOWS.some(window => window.category === 'Canada Day'));
-  assert.equal(resolveSeasonalFeature(undefined, art, { year: 2026, month: 10, day: 12 })?.category, 'Thanksgiving');
+  assert.equal(resolveSeasonalFeature(undefined, art, { year: 2026, month: 9, day: 20 })?.category, 'Thanksgiving');
 });
