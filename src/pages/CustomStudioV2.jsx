@@ -281,7 +281,7 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, fin
   const garmentPreviewSource = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
   const garmentPreview = studioV2DisplayPreviewUrl(garmentPreviewSource, { width: 480 });
   const frontGarment = studioV2DisplayPreviewUrl(studioV2GarmentPreview(product, state.color, 'front') || garmentPreviewSource, { width: 720 });
-  const backGarment = studioV2DisplayPreviewUrl(studioV2GarmentPreview(product, state.color, 'back') || garmentPreviewSource, { width: 720 });
+  const backGarment = studioV2DisplayPreviewUrl(studioV2GarmentPreview(product, state.color, 'back'), { width: 720 });
   const seasonalPreviewPending = state.designPath === 'seasonal' && !reviewPreviewReady;
   return <div data-gdp-review-design-path={state.designPath} data-gdp-review-print-sides={sides.join(',')} data-gdp-review-front-garment={frontGarment} data-gdp-review-back-garment={backGarment}>
     <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Final review</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Review your choices before the approved 300-DPI production files and customer mockup are generated.</p>
