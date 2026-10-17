@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import CustomStudioV2DesignGallery from './CustomStudioV2DesignGallery';
 
+// Preserve the original full-photo path cards. Seasonal rotation stays in the artwork library.
+
 const GENERATED_ASSETS = Object.freeze({
   seasonal: '/images/custom-studio/gallery/seasonal-designs.webp',
   bootleg: '/images/custom-studio/gallery/photo-bootleg.webp',
