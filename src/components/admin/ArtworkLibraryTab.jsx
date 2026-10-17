@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import SeasonalArtworkSettings from "./SeasonalArtworkSettings";
+import SeasonalRotationAdmin from './SeasonalRotationAdmin';
 
 export default function ArtworkLibraryTab() {
   const [rows, setRows] = useState([]);
@@ -26,7 +27,9 @@ export default function ArtworkLibraryTab() {
   const collections = [...new Set(rows.map(row => row.category))].sort();
   const visible = rows.filter(row => (!collection || row.category === collection) && [row.title, row.category, ...(row.tags || [])].join(" ").toLowerCase().includes(needle))
     .sort((a, b) => a.category.localeCompare(b.category) || (a.metadata?.rank_in_collection || 999) - (b.metadata?.rank_in_collection || 999) || a.title.localeCompare(b.title));
-  return <section className="rounded-xl border bg-white p-5">
+  return <div>
+    <SeasonalRotationAdmin rows={rows} />
+    <section className="rounded-xl border bg-white p-5">
     <h2 className="text-lg font-semibold">Artwork library</h2>
     <p className="text-sm text-gray-600 mt-1">Staff design candidates. Drafts are unavailable to shoppers until rights, production files and print proofs are verified.</p>
     <label className="block mt-4 text-sm">Season or holiday
@@ -58,6 +61,7 @@ export default function ArtworkLibraryTab() {
         </div>
       </article>)}
     </div>
-  </section>;
+  </section>
+  </div>;
 }
 
