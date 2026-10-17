@@ -202,6 +202,11 @@ export default function CustomStudioV2PresentationGuard() {
         const title = document.createElement('div');
         title.className = 'mb-3 flex flex-wrap items-end justify-between gap-2 px-1';
         title.innerHTML = '<div><p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Approved preview</p><h2 class="mt-1 text-lg font-black text-slate-950">Your garment with the approved artwork</h2></div><span data-gdp-review-status-label="true" class="rounded-full bg-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-slate-700">Preparing preview</span>';
+        if (!isSeasonal) {
+          const badge = title.querySelector('[data-gdp-review-status-label="true"]');
+          badge.textContent = 'Ready for final check';
+          badge.className = 'rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.08em] text-emerald-800';
+        }
         nextContainer.appendChild(title);
 
         const cards = document.createElement('div');
@@ -235,6 +240,11 @@ export default function CustomStudioV2PresentationGuard() {
             img.alt = `Blank ${side} of selected garment`;
             img.className = 'h-full w-full object-contain';
             frame.appendChild(img);
+          } else {
+            const silhouette = document.createElement('div');
+            silhouette.setAttribute('aria-label', `Blank ${side} garment silhouette`);
+            silhouette.className = 'absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80';
+            frame.appendChild(silhouette);
           }
           card.appendChild(frame);
           if (printedSides.includes(side)) {
@@ -260,7 +270,9 @@ export default function CustomStudioV2PresentationGuard() {
       const images = Array.from(container.querySelectorAll('img'));
       const imagesLoaded = images.length >= 2 && images.every((img) => img.complete && img.naturalWidth > 0);
       const failedImage = images.some((img) => img.complete && img.naturalWidth === 0);
-      const ready = printedSides.length > 0 && !missingPrintedSide && imagesLoaded;
+      const garmentSidesAvailable = ['front', 'back'].every((side) =>
+        printedSides.includes(side) || Boolean(reviewRoot.getAttribute(`data-gdp-review-${side}-garment`)));
+      const ready = printedSides.length > 0 && !missingPrintedSide && imagesLoaded && garmentSidesAvailable;
       const status = ready ? 'ready' : failedImage ? 'error' : 'pending';
       if (container.getAttribute('data-gdp-review-status') !== status) {
         container.setAttribute('data-gdp-review-status', status);
