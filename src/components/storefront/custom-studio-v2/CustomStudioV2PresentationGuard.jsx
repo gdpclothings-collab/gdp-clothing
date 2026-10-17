@@ -227,26 +227,42 @@ export default function CustomStudioV2PresentationGuard() {
           const card = document.createElement('section');
           card.setAttribute('data-gdp-final-review-preview-card', side);
           card.className = 'overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4';
-          const heading = document.createElement('p');
-          heading.className = 'mb-3 text-[10px] font-black uppercase tracking-[.14em] text-slate-400';
-          heading.textContent = `Final garment preview · ${side}`;
+          // Mirror the read-only Seasonal editor's outer and inner garment
+          // frames. This is visual only: no print guide or artwork geometry
+          // is moved and no source image is modified.
+          const heading = document.createElement('div');
+          heading.className = 'mb-3 flex items-center justify-between gap-3 px-1';
+          const headingCopy = document.createElement('div');
+          const headingLabel = document.createElement('p');
+          headingLabel.className = 'text-[10px] font-black uppercase tracking-[.14em] text-slate-400';
+          headingLabel.textContent = `Final garment preview · ${side}`;
+          headingCopy.appendChild(headingLabel);
+          heading.appendChild(headingCopy);
+          const sidePill = document.createElement('span');
+          sidePill.className = 'hidden rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-600 sm:inline';
+          sidePill.textContent = side;
+          heading.appendChild(sidePill);
           card.appendChild(heading);
+
           const frame = document.createElement('div');
-          frame.className = 'relative mx-auto aspect-[4/5] w-full overflow-hidden rounded-2xl bg-slate-100 p-3 sm:p-5';
+          frame.className = 'mx-auto w-full rounded-[28px] bg-slate-100 p-3 sm:p-5';
           frame.style.maxWidth = 'min(620px, max(300px, calc((100vh - 320px) * 0.8)))';
+          const interior = document.createElement('div');
+          interior.className = 'relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner';
           const imgUrl = reviewRoot.getAttribute(`data-gdp-review-${side}-garment`);
           if (imgUrl) {
             const img = document.createElement('img');
             img.src = imgUrl;
             img.alt = `Blank ${side} of selected garment`;
-            img.className = 'h-full w-full object-contain';
-            frame.appendChild(img);
+            img.className = 'absolute inset-0 h-full w-full object-contain opacity-95';
+            interior.appendChild(img);
           } else {
             const silhouette = document.createElement('div');
             silhouette.setAttribute('aria-label', `Blank ${side} garment silhouette`);
             silhouette.className = 'absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80';
-            frame.appendChild(silhouette);
+            interior.appendChild(silhouette);
           }
+          frame.appendChild(interior);
           card.appendChild(frame);
           if (printedSides.includes(side)) {
             const notice = document.createElement('p');
