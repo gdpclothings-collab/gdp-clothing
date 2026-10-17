@@ -211,3 +211,45 @@
     max-width: 390px !important;
   }
 }
+
+/*
+ * Seasonal gallery scrollbars: calmer, slim rails that remain usable by mouse,
+ * touch, and keyboard. Scope only to library lists, never the artwork canvas.
+ */
+[data-gdp-studio-v2-guard="true"] :is(
+  [data-gdp-seasonal-category-scroll="true"],
+  [data-gdp-seasonal-artwork-scroll="true"]
+) {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.55) transparent;
+}
+
+[data-gdp-studio-v2-guard="true"] :is(
+  [data-gdp-seasonal-category-scroll="true"],
+  [data-gdp-seasonal-artwork-scroll="true"]
+)::-webkit-scrollbar {
+  width: 6px;
+  height: 5px;
+}
+
+[data-gdp-studio-v2-guard="true"] :is(
+  [data-gdp-seasonal-category-scroll="true"],
+  [data-gdp-seasonal-artwork-scroll="true"]
+)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-gdp-studio-v2-guard="true"] :is(
+  [data-gdp-seasonal-category-scroll="true"],
+  [data-gdp-seasonal-artwork-scroll="true"]
+)::-webkit-scrollbar-thumb {
+  background: rgb(148 163 184 / 0.55);
+  border-radius: 999px;
+}
+
+[data-gdp-studio-v2-guard="true"] :is(
+  [data-gdp-seasonal-category-scroll="true"],
+  [data-gdp-seasonal-artwork-scroll="true"]
+)::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139 / 0.78);
+}
