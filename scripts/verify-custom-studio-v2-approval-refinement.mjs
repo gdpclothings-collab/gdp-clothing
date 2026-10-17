@@ -15,7 +15,7 @@ const checks = [
   [state.includes('finalDesignApproved: approved,'), 'unified approval must preserve the canonical final review state'],
   [state.includes("rightsConfirmed: approved && designPath !== 'seasonal'"), 'artwork rights must be confirmed for every customer-supplied design path'],
   [page.includes("useLayoutEffect(() =>"), 'step navigation must reset viewport position after page changes'],
-  [/if \(!product \|\| (?:finalizationLock\.current \|\| )?finalizing \|\| !state\.approval\.finalDesignApproved\) return;/.test(page), 'finalization must still require final design approval'],
+  [/if \(!product \|\| (?:finalizationLock\.current \|\| )?finalizing \|\| !state\.approval\.finalDesignApproved(?: \|\| \(state\.designPath === 'seasonal' && !reviewPreviewReady\))?\) return;/.test(page), 'finalization must still require final design approval'],
   [state.includes("needByDate: ''"), 'backward-compatible needByDate state support must remain intact behind the presentation layer'],
   [page.includes("needByDate: state.approval.needByDate || null"), 'existing needByDate payload compatibility must remain intact'],
   [css.includes('label:has(input[type="date"])'), 'legacy customer-facing Needed by input selector must remain safely date-scoped'],
