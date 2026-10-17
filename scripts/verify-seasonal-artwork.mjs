@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fitSeasonalArtwork, seasonalSelection } from '../src/lib/seasonalArtwork.js';
+import { fitSeasonalArtwork, seasonalSelection, SEASONAL_SOURCE_DPI, SEASONAL_MIN_PRINT_DPI } from '../src/lib/seasonalArtwork.js';
 
 let checks = 0;
 const check = (test, message = 'Seasonal verification failed') => { assert.ok(test, message); checks++; };
@@ -9,7 +9,8 @@ const art = { id: 'fixture', source_sha256: 'version1', aspect_ratio: 2, max_wid
 for (const area of [{ width: 4, height: 5 }, { width: 10, height: 11 }, { width: 6, height: 7 }]) {
   for (const width of [0, .1, 2, 100, -1]) {
     const box = fitSeasonalArtwork(art, area, width, 999, -50);
-    check(box.width <= art.max_width_in && box.height <= art.max_height_in);
+    check(box.width <= art.max_width_in * (SEASONAL_SOURCE_DPI / SEASONAL_MIN_PRINT_DPI) && box.height <= art.max_height_in * (SEASONAL_SOURCE_DPI / SEASONAL_MIN_PRINT_DPI));
+    check(box.effectiveDpi >= SEASONAL_MIN_PRINT_DPI);
     check(box.x >= 0 && box.y >= 0 && box.x + box.width <= area.width + .0001 && box.y + box.height <= area.height + .0001);
     check(Math.abs(box.width / box.height - art.aspect_ratio) < .0001);
   }
