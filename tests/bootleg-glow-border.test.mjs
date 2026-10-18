@@ -87,7 +87,7 @@ test('Glow is composed in three alpha-only layers; source photo always stays sha
     assert.ok(blurred.operations.some((op) => op[0] === 'fillRect') && blurred.globalCompositeOperation === 'source-over', 'halo is colorized');
     assert.ok(inner.operations.some((op) => op[0] === 'drawImage' && op[1] === photo), 'rim uses photo alpha for interior subtraction');
     assert.ok(inner.operations.some((op) => op[0] === 'fillRect'), 'white rim is colorized separately');
-    assert.deepEqual(composite.operations.filter((op) => op[0] === 'drawImage').map((op) => op[1]), [created[2].canvas, created[3].canvas]);
+    assert.deepEqual(composite.operations.filter((op) => op[0] === 'drawImage').map((op) => op[1]), [created[2].canvas, created[1].canvas, created[3].canvas]);
     assert.ok(!composite.operations.some((op) => op[1] === photo), 'original photograph is not blurred into the effect');
     assert.equal(built.opacity, 1);
   } finally {
@@ -96,7 +96,7 @@ test('Glow is composed in three alpha-only layers; source photo always stays sha
 });
 
 test('Cutout effect shares the protected production render path with preview and maintains print-area cropping', () => {
-  assert.match(production, /createPhotoBorderImage\(loaded\.image, loaded\.width, loaded\.height, layer\.border\)/);
+  assert.match(production, /createPhotoBorderImage\\(photoSource\\.image, photoSource\\.width, photoSource\\.height, layer\\.border\\)/);
   assert.match(production, /paint\(output\.context, preparedBorder, 'both'\)/);
   assert.match(production, /paint\(borderOutput\.context, preparedBorder, 'borderOnly'\)/);
   assert.match(production, /if \(returnDesignCanvas\)/);
