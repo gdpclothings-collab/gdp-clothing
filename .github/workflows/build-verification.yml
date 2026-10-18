@@ -83,6 +83,7 @@ jobs:
           node scripts/verify-admin-legacy-retired.mjs
           node scripts/verify-admin-neumorphism-accessibility.mjs
           node scripts/verify-admin-authenticated-smoke.mjs
+          node --test tests/admin-dashboard-settings-read.test.mjs
           node --test tests/admin-smoke-origin.test.mjs
           node --test tests/admin-smoke-mobile-layout.test.mjs
           node scripts/verify-admin-mfa-onboarding.mjs
