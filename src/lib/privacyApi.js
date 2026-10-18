@@ -6,6 +6,23 @@ function throwIfError(result) {
 }
 
 export const privacyApi = {
+  // Read-only status for Google OAuth callback, which runs before admin MFA.
+  // Other privacy pages continue to use their existing RLS-controlled API.
+  async getOwnPolicyAcceptanceStatus() {
+    const { data, error } = await supabase.functions.invoke("own-policy-acceptance-status", {
+      body: {},
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    if (data?.data?.termsAccepted !== true && data?.data?.termsAccepted !== false) {
+      throw new Error("Could not verify saved Terms agreement.");
+    }
+    if (data?.data?.privacyAccepted !== true && data?.data?.privacyAccepted !== false) {
+      throw new Error("Could not verify saved Privacy agreement.");
+    }
+    return data.data;
+  },
+
   async recordMarketingConsent(email, consent, source = "account") {
     const { data, error } = await supabase.functions.invoke("checkout", {
       body: {
