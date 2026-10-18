@@ -397,7 +397,7 @@ async function main() {
       assert(await navDrawer.getByRole("button", { name: "Sign out" }).isVisible(),
         "Mobile navigation must offer Sign out below Security.");
       await noOverflow(page, MOBILE);
-      await page.getByRole("button", { name: "Close navigation" }).click();
+      await navDrawer.getByRole("button", { name: "Close navigation" }).click();
       assert(!(await navDrawer.isVisible()), "Mobile navigation must close.");
       // Do not invalidate the CI admin session.
     }));

@@ -37,5 +37,6 @@ test("production smoke verifies both entrypoints WITHOUT triggering signout", ()
   assert.match(smoke, /getByRole\("button", \{ name: "Admin account menu" \}\)/);
   assert.match(smoke, /getByRole\("button", \{ name: "Sign out" \}\)\.isVisible\(\)/);
   assert.match(smoke, /getByRole\("button", \{ name: "Open navigation" \}\)\.click\(\)/);
+  assert.match(smoke, /navDrawer\.getByRole\("button", \{ name: "Close navigation" \}\)\.click\(\)/);
   assert.doesNotMatch(smoke, /getByRole\("button", \{ name: "Sign out" \}\)\.click\(\)/);
 });
