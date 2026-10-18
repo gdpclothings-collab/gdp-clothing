@@ -89,8 +89,9 @@ export default function AdminDataCleanupModule() {
       setNotice((result?.deleted?.length || 0) + " record(s) deleted. Audit history updated.");
       await load();
     } catch (err) {
-      setError(err?.message || "Cleanup failed safely.");
+      const message = err?.message || "Cleanup failed safely.";
       await load().catch(() => {});
+      setError(message);
     } finally {
       setDeleting(false);
     }
