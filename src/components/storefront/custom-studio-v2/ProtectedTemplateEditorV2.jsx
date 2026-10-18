@@ -1270,6 +1270,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         </>}
         <RangeControl label="Rotation" value={activePhoto.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} />
         {isBootleg ? (
+          <>
           <div data-gdp-bootleg-photo-bottom-fade="selected-photo-only" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
             <RangeControl label="Bottom edge fade" value={activePhotoBorder.bottomFade} min={0} max={80} suffix="%" onChange={(value) => updateActivePhotoBorder({ bottomFade: value })} onReset={() => updateActivePhotoBorder({ bottomFade: 0 })} />
             <p className="text-[11px] font-medium leading-4 text-slate-500">Optional: blend away a hard, straight bottom photo edge. Zero keeps the original image untouched.</p>
@@ -1304,6 +1305,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
               <button type="button" onClick={() => updateActivePhotoBorder({ ...DEFAULT_PHOTO_BORDER })} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700"><RotateCcw size={14} /> Remove border</button>
             </div> : <p className="text-[11px] font-semibold text-slate-500">None (default) — existing photos remain unchanged.</p>}
           </div>
+          </>
         ) : null}
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
         <button type="button" onClick={() => {
