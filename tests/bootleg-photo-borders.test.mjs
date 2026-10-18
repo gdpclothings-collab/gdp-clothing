@@ -18,7 +18,7 @@ test('None is default; absent or invalid borders do not paint existing photos', 
   assert.equal(hasPhotoBorder({ style: 'glow', opacity: 0 }), false);
   assert.equal(hasPhotoBorder({ style: 'rough', thickness: 0 }), false);
   assert.equal(createPhotoBorderImage(null, 200, 200, { style: 'glow' }), null);
-  assert.equal(PHOTO_BORDER_STYLES.length, 4);
+  assert.equal(PHOTO_BORDER_STYLES.length, 5);
 });
 
 test('Settings sanitize untrusted values and preserve admin-configured defaults', () => {
