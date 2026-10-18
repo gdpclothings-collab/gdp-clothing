@@ -424,8 +424,6 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
       data-gdp-memorial-text-layer={scope === 'memorial' ? 'true' : undefined}
       data-gdp-bootleg-text-layer-id={scope === 'bootleg' ? layer.id : undefined}
       data-gdp-memorial-text-layer-id={scope === 'memorial' ? layer.id : undefined}
-      // Bootleg text only captures pointers on visible glyphs. Its empty
-      // full-canvas SVG must not block tapping a different photo underneath.
       className={`absolute inset-0 z-30 ${scope === 'bootleg' ? 'pointer-events-none' : selected ? 'cursor-grab' : 'pointer-events-none'}`}
       style={gesture.style}
     >
