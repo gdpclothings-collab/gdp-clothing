@@ -317,7 +317,9 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
       canvasY: clamp(next.y + 50, 0, 100),
     }),
     containerRef: canvasRef,
-    enabled: selected,
+    // Every Bootleg photo responds on first pointer-down, not only the active
+    // layer. Memorial retains its existing selected-only gesture behavior.
+    enabled: scope === 'bootleg' || selected,
     minScale: 30,
     maxScale: 220,
     minX: -50,
@@ -332,8 +334,8 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
       {...gesture}
       data-gdp-bootleg-free-photo-layer={scope === 'bootleg' ? 'true' : undefined}
       data-gdp-memorial-free-photo-layer={scope === 'memorial' ? 'true' : undefined}
-      onPointerDown={(event) => { onSelect(); gesture.onPointerDown(event); }}
-      className={`absolute origin-center overflow-hidden select-none ${selected ? 'cursor-grab ring-2 ring-cyan-400/90' : 'pointer-events-none'}`}
+      onPointerDown={(event) => { if (!selected) onSelect(); gesture.onPointerDown(event); }}
+      className={`absolute origin-center overflow-hidden select-none ${selected ? 'pointer-events-auto cursor-grab ring-2 ring-cyan-400/90' : scope === 'bootleg' ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`}
       style={{
         ...gesture.style,
         zIndex: 5 + Number(layer.order || 0),
@@ -422,19 +424,19 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
       data-gdp-memorial-text-layer={scope === 'memorial' ? 'true' : undefined}
       data-gdp-bootleg-text-layer-id={scope === 'bootleg' ? layer.id : undefined}
       data-gdp-memorial-text-layer-id={scope === 'memorial' ? layer.id : undefined}
-      className={`absolute inset-0 z-30 ${selected ? 'cursor-grab' : 'pointer-events-none'}`}
+      className={`absolute inset-0 z-30 ${scope === 'bootleg' ? 'pointer-events-none' : selected ? 'cursor-grab' : 'pointer-events-none'}`}
       style={gesture.style}
     >
-      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label={`Editable ${scope === 'memorial' ? 'Memorial Tribute' : 'Photo Bootleg'} ${layer.name || 'text'} layer`}>
+      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className={`h-full w-full overflow-visible ${scope === 'bootleg' ? 'pointer-events-none' : ''}`} role="img" aria-label={`Editable ${scope === 'memorial' ? 'Memorial Tribute' : 'Photo Bootleg'} ${layer.name || 'text'} layer`}>
         <g data-gdp-text-autofit={layout.horizontalFit < 1 ? 'compressed' : 'normal'} transform={layout.horizontalFit < 1 ? `translate(${layout.centerX} 0) scale(${layout.horizontalFit} 1) translate(${-layout.centerX} 0)` : undefined}>
         {layout.headline?.kind === 'straight' ? (
-          <text {...common} x={layout.headline.x} y={layout.headline.y} fontSize={layout.headline.fontSize} fontWeight="900" transform={`rotate(${layout.headline.rotation || 0} ${layout.headline.x} ${layout.headline.y})`} style={svgTextEffect(style, layout.headline.fontSize)}>{layout.headline.text}</text>
+          <text {...common} pointerEvents={selected && scope === 'bootleg' ? 'visiblePainted' : undefined} x={layout.headline.x} y={layout.headline.y} fontSize={layout.headline.fontSize} fontWeight="900" transform={`rotate(${layout.headline.rotation || 0} ${layout.headline.x} ${layout.headline.y})`} style={svgTextEffect(style, layout.headline.fontSize)}>{layout.headline.text}</text>
         ) : null}
         {layout.headline?.kind === 'glyphs' ? layout.headline.glyphs.map((glyph, index) => (
-          <text key={`${glyph.character}-${index}`} {...common} x={glyph.x} y={glyph.y} fontSize={glyph.fontSize} fontWeight="900" transform={`rotate(${glyph.rotation || 0} ${glyph.x} ${glyph.y})`} style={svgTextEffect(style, glyph.fontSize)}>{glyph.character}</text>
+          <text key={`${glyph.character}-${index}`} {...common} pointerEvents={selected && scope === 'bootleg' ? 'visiblePainted' : undefined} x={glyph.x} y={glyph.y} fontSize={glyph.fontSize} fontWeight="900" transform={`rotate(${glyph.rotation || 0} ${glyph.x} ${glyph.y})`} style={svgTextEffect(style, glyph.fontSize)}>{glyph.character}</text>
         )) : null}
-        {layout.subline ? <text {...common} x={layout.subline.x} y={layout.subline.y} fontSize={layout.subline.fontSize} fontWeight="700" transform={`rotate(${layout.subline.rotation || 0} ${layout.subline.x} ${layout.subline.y})`} style={svgTextEffect(style, layout.subline.fontSize)}>{layout.subline.text}</text> : null}
-        {layout.message ? <text {...common} x={layout.message.x} y={layout.message.y} fontSize={layout.message.fontSize} fontWeight="600" transform={`rotate(${layout.message.rotation || 0} ${layout.message.x} ${layout.message.y})`} style={svgTextEffect(style, layout.message.fontSize)}>{layout.message.text}</text> : null}
+        {layout.subline ? <text {...common} pointerEvents={selected && scope === 'bootleg' ? 'visiblePainted' : undefined} x={layout.subline.x} y={layout.subline.y} fontSize={layout.subline.fontSize} fontWeight="700" transform={`rotate(${layout.subline.rotation || 0} ${layout.subline.x} ${layout.subline.y})`} style={svgTextEffect(style, layout.subline.fontSize)}>{layout.subline.text}</text> : null}
+        {layout.message ? <text {...common} pointerEvents={selected && scope === 'bootleg' ? 'visiblePainted' : undefined} x={layout.message.x} y={layout.message.y} fontSize={layout.message.fontSize} fontWeight="600" transform={`rotate(${layout.message.rotation || 0} ${layout.message.x} ${layout.message.y})`} style={svgTextEffect(style, layout.message.fontSize)}>{layout.message.text}</text> : null}
         </g>
       </svg>
     </div>
@@ -621,7 +623,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   );
 
   const bootlegPhotoCanvas = (
-    <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10, pointerEvents: isBootleg && templateEditing ? 'none' : 'auto' }}>
+    <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10, pointerEvents: isBootleg ? 'none' : 'auto' }}>
       {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
       {!photos.length && <div className="absolute grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>Photo zone</div>}
     </div>
@@ -673,7 +675,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
       {bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
-      <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? (activeLayer === 'overlay' ? 'Overlay effect selected · ' : activeLayer === 'template' ? 'Template layer selected · ' : activeLayer === 'photo' ? 'Photo layer selected · ' : activeLayer === 'text' ? 'Text layer selected · ' : 'Sticker layer selected · ') : ''}One finger moves · two fingers pinch/rotate · {String(side || 'front').toUpperCase()} side</p>
+      <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? (activeLayer === 'overlay' ? 'Overlay selected · use the sliders to adjust its effect · ' : activeLayer === 'template' ? 'Template layer selected · ' : activeLayer === 'photo' ? 'Tap any photo to switch · drag to move · pinch to resize/rotate · ' : activeLayer === 'text' ? 'Text layer selected · ' : 'Sticker layer selected · ') : ''}{activeLayer === 'overlay' ? '' : 'One finger moves · two fingers pinch/rotate · '}{String(side || 'front').toUpperCase()} side</p>
     </div>
   );
 }
@@ -1297,8 +1299,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       </section>
 
       <section data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:h-full xl:overflow-hidden' : ''}`}>
-        <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">{isBootleg ? 'Choose a layer first. Only the active layer can move, resize or rotate on the print area.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p></div>
-        {usesLayerLab ? <div data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined} data-gdp-memorial-active-layer={isMemorial ? 'true' : undefined} className="mb-2 grid gap-2 rounded-2xl bg-slate-100 p-1.5" style={{ gridTemplateColumns: `repeat(${bootlegLayerButtons.length}, minmax(0, 1fr))` }}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => revealLayerControls(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
+        <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">{isBootleg ? 'Tap any photo to select and move it immediately. Pinch to resize or rotate; other design layers stay independent.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p></div>
+        {usesLayerLab ? <div data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined} data-gdp-memorial-active-layer={isMemorial ? 'true' : undefined} className={`mb-2 grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1.5 ${bootlegLayerButtons.length === 5 ? 'sm:grid-cols-5' : bootlegLayerButtons.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => revealLayerControls(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
         {usesLayerLab ? <div data-gdp-bootleg-active-status={isBootleg ? 'true' : undefined} data-gdp-memorial-active-status={isMemorial ? 'true' : undefined} className="mb-3 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-900">{activeLayerSummary}</div> : null}
         {usesLayerLab ? <button type="button" data-gdp-bootleg-confirm-action={isBootleg ? 'persistent' : undefined} data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined} disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={'sticky top-2 z-40 mb-3 flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left shadow-sm transition ' + (editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500') + ' disabled:cursor-not-allowed disabled:opacity-40'}><span className={'grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ' + (editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent')}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm template, photos, layers, text and placement before review.</span></span></button> : null}
         {isBootleg && uploading ? <div data-gdp-bootleg-upload-status="true" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950"><Loader2 size={17} className="shrink-0 animate-spin" /><div><p className="text-xs font-black">Processing photo</p><p className="text-[11px] font-semibold">{uploadMessage || 'Preparing your image…'}</p></div></div> : null}
