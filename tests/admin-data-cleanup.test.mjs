@@ -62,6 +62,8 @@ test("backend authenticates AAL2 admin before any service-role operation", () =>
   assert.match(edge, /profile\?\.role !== "admin"/);
   assert.match(edge, /await assertAdmin\(service, url, anon, getBearer\(req\)\)/);
   assert.match(edge, /storage\.from\(bucket\)\.remove\(\[path\]\)/);
+  assert.match(edge, /rpc\("admin_cleanup_list_storage_files"/);
+  assert.doesNotMatch(edge, /folders\.shift\(\)/);
   assert.match(edge, /auth\.admin\.deleteUser\(id\)/);
   assert.match(edge, /admin_cleanup_delete_test_order/);
   assert.doesNotMatch(edge, /DELETE FROM storage\.objects/i);
@@ -87,4 +89,12 @@ test("Settings includes a standalone confirmation-driven, responsive cleanup pan
   assert.match(ui, /Type full email to enable deletion/);
   assert.match(ui, /AdminDataCleanupModule/);
   assert.match(api, /supabase\.functions\.invoke\("admin-data-cleanup"/);
+});
+test("metadata listing is bounded, service-only, and does not delete Storage rows", () => {
+  const listing = readFileSync("supabase/migrations/20261018032000_admin_cleanup_fast_storage_listing.sql", "utf8");
+  assert.match(listing, /p_bucket not in \('customer-uploads','dtf-artwork'\)/);
+  assert.match(listing, /v_total > 2000/);
+  assert.match(listing, /revoke all on function public\.admin_cleanup_list_storage_files\(text\) from public, anon, authenticated/);
+  assert.match(listing, /grant execute on function public\.admin_cleanup_list_storage_files\(text\) to service_role/);
+  assert.doesNotMatch(listing, /delete from storage\.objects/i);
 });
