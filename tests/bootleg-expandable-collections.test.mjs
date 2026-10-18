@@ -28,3 +28,13 @@ test('original bootleg templates remain visible', () => {
   for (const id of ['flame-ice','flame-neon','flame-heatwave','flame-inferno','flame-toxic']) assert.ok(catalogue.includes(`id: "${id}"`));
   assert.ok(editor.includes("'original-bootleg'"));
 });
+
+test('Chrome Galaxy is the featured first and expanded default for new Bootleg sessions', () => {
+  const chrome = editor.indexOf("{ id: 'chrome-galaxy', name:");
+  const original = editor.indexOf("{ id: 'original-bootleg', name:");
+  const cosmic = editor.indexOf("{ id: 'cosmic-storm', name:");
+  assert.ok(chrome >= 0 && original > chrome && cosmic > original, 'Chrome Galaxy must be the first collection');
+  assert.ok(editor.includes(": 'chrome-galaxy';"), 'new customers see Chrome Galaxy expanded');
+  assert.ok(editor.includes("previouslySelected.collection || 'original-bootleg'"), 'existing design selection stays visible');
+  assert.ok(editor.includes('onClick={() => selectTemplate(item)}'), 'choosing a specific asset remains manual');
+});
