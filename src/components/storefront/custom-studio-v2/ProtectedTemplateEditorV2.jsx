@@ -754,7 +754,14 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     if (!isBootleg || !activePhoto) return;
     const latest = editorRef.current || editor;
     const layers = [...currentPhotoLayers(latest)];
-    const normalized = normalizePhotoBorder({ ...activePhotoBorder, ...patch });
+    const useAdminDefaults = patch.style && patch.style !== 'none' && activePhotoBorder.style === 'none';
+    const configured = settings?.photoBorderOptions || {};
+    const initialSettings = useAdminDefaults ? {
+      color: configured.color ?? DEFAULT_PHOTO_BORDER.color,
+      thickness: configured.thickness ?? DEFAULT_PHOTO_BORDER.thickness,
+      softness: configured.softness ?? DEFAULT_PHOTO_BORDER.softness,
+    } : {};
+    const normalized = normalizePhotoBorder({ ...activePhotoBorder, ...initialSettings, ...patch });
     syncPhotos(layers.map((layer) => layer.id === activePhoto.id ? { ...layer, border: normalized } : layer), activePhoto.id);
   };
   const fallbackBootlegTextStyle = defaultV2TextStyle(path);
@@ -1257,7 +1264,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <div data-gdp-bootleg-photo-borders="selected-photo-only" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
             <div><p className="text-xs font-black uppercase tracking-wide text-slate-800">Photo Border Effects</p><p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">Only this photo gets a border. Cutout shapes and transparent areas stay clear; the edge is clipped to the print area.</p></div>
             <div className="grid grid-cols-2 gap-2" role="group" aria-label="Border style for selected photo">
-              {PHOTO_BORDER_STYLES.map((preset) => <button key={preset.id} type="button" onClick={() => updateActivePhotoBorder({ style: preset.id })} aria-pressed={activePhotoBorder.style === preset.id} className={`min-h-11 rounded-xl border px-2 text-xs font-black ${activePhotoBorder.style === preset.id ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{preset.label}</button>)}
+              {PHOTO_BORDER_STYLES.filter((preset) => preset.id === 'none' || preset.id === activePhotoBorder.style || !Array.isArray(settings?.photoBorderOptions?.enabledStyles) || settings.photoBorderOptions.enabledStyles.includes(preset.id)).map((preset) => <button key={preset.id} type="button" onClick={() => updateActivePhotoBorder({ style: preset.id })} aria-pressed={activePhotoBorder.style === preset.id} className={`min-h-11 rounded-xl border px-2 text-xs font-black ${activePhotoBorder.style === preset.id ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{preset.label}</button>)}
             </div>
             {activePhotoBorder.style !== 'none' ? <div className="space-y-3">
               <label className="block text-xs font-black text-slate-600">Border color<input type="color" value={activePhotoBorder.color} onChange={(event) => updateActivePhotoBorder({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
