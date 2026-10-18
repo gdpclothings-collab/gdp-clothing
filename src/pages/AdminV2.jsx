@@ -37,6 +37,7 @@ import {
   CreditCard,
   Truck,
   UserRoundCog,
+  LogOut,
   LifeBuoy,
   Tags,
   Star,
@@ -79,6 +80,7 @@ import {
   AppsModule,
 } from "@/components/admin/BusinessInsightsModules";
 import { useAuth } from "@/lib/AuthContext";
+import { useNotifications } from "@/lib/NotificationContext";
 
 const NAV_GROUPS = [
   {
@@ -264,7 +266,8 @@ export default function AdminV2() {
   const navigate = useNavigate();
   const location = useLocation();
   const { requestAction } = useUnsavedChanges();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const { notify } = useNotifications();
   const section = resolveSection(location.pathname);
 
   const [home, setHome] = useState(null);
@@ -273,11 +276,36 @@ export default function AdminV2() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const openSection = (id) => {
     requestAction(() => {
       navigate(id === "home" ? "/admin" : `/admin/${id}`);
       setSidebarOpen(false);
+    });
+  };
+
+  const signOut = () => {
+    if (signingOut) return;
+    requestAction(() => {
+      setStoreMenuOpen(false);
+      setSidebarOpen(false);
+      setSigningOut(true);
+      // Uses the same Supabase sign-out as the customer portal.
+      // Never redirect on a failed sign-out.
+      void logout(false)
+        .then(() => navigate("/login", { replace: true }))
+        .catch((error) => {
+          notify({
+            tone: "destructive",
+            title: "Sign out failed",
+            description: error?.message || "Please try signing out again.",
+          });
+        })
+        .finally(() => setSigningOut(false));
+    }, {
+      title: "Sign out with unsaved changes?",
+      description: "Save your changes before signing out, discard them, or keep editing.",
     });
   };
 
@@ -326,6 +354,8 @@ export default function AdminV2() {
         onSearch={() => setSearchOpen(true)}
         storeMenuOpen={storeMenuOpen}
         setStoreMenuOpen={setStoreMenuOpen}
+        onSignOut={signOut}
+        signingOut={signingOut}
       />
 
       <div className="flex min-h-[calc(100vh-56px)]">
@@ -333,6 +363,8 @@ export default function AdminV2() {
           active={section}
           onSelect={openSection}
           className="hidden lg:flex"
+          onSignOut={signOut}
+          signingOut={signingOut}
         />
 
         {sidebarOpen && (
@@ -348,6 +380,8 @@ export default function AdminV2() {
               onSelect={openSection}
               className="relative flex w-[290px] max-w-[88vw] h-full shadow-2xl"
               onClose={() => setSidebarOpen(false)}
+              onSignOut={signOut}
+              signingOut={signingOut}
             />
           </div>
         )}
@@ -625,7 +659,7 @@ export default function AdminV2() {
   );
 }
 
-function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }) {
+function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen, onSignOut, signingOut }) {
   const displayName = user?.display_name || user?.email?.split("@")[0] || "Admin";
 
   return (
@@ -675,6 +709,8 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
             <button
               type="button"
               onClick={() => setStoreMenuOpen((open) => !open)}
+              aria-label="Admin account menu"
+              aria-expanded={storeMenuOpen}
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/10"
             >
               <div className="w-7 h-7 rounded-full bg-[#dff7e5] text-[#14532d] grid place-items-center text-xs font-bold">
@@ -693,6 +729,14 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
                 <Link to="/" className="mt-1 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#f2f2f2] text-sm">
                   <ExternalLink size={15} /> View storefront
                 </Link>
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  disabled={signingOut}
+                  className="mt-1 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <LogOut size={15} /> {signingOut ? "Signing out…" : "Sign out"}
+                </button>
               </div>
             )}
           </div>
@@ -702,7 +746,7 @@ function AdminTopBar({ user, onMenu, onSearch, storeMenuOpen, setStoreMenuOpen }
   );
 }
 
-function AdminSidebar({ active, onSelect, className = "", onClose = undefined }) {
+function AdminSidebar({ active, onSelect, onSignOut, signingOut, className = "", onClose = undefined }) {
   return (
     <aside className={`${className} gdp-admin-neu-panel flex-col bg-white border-r border-[#dedfe3] w-[264px] shrink-0`}>
       <div className="lg:hidden h-14 px-4 border-b border-[#ddd] flex items-center justify-between">
@@ -755,6 +799,16 @@ function AdminSidebar({ active, onSelect, className = "", onClose = undefined })
         <button type="button" onClick={() => onSelect("security")} aria-current={active === "security" ? "page" : undefined} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
           <ShieldCheck size={17} /> Security
         </button>
+        <div className="mt-2 border-t border-[#e4e5e8] pt-2">
+          <button
+            type="button"
+            onClick={onSignOut}
+            disabled={signingOut}
+            className="gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            <LogOut size={17} /> {signingOut ? "Signing out…" : "Sign out"}
+          </button>
+        </div>
       </div>
     </aside>
   );
