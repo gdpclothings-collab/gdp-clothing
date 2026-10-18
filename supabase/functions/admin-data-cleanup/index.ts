@@ -126,11 +126,21 @@ async function listAccounts(service: any, actorId: string) {
 async function accountDependencies(service: any, user: any) {
   const owned = Number(required(await service.rpc("admin_cleanup_owned_storage_count", { p_user_id: user.id })) || 0);
   let linked = 0;
-  for (const table of ["orders", "checkout_sessions", "custom_designs", "dtf_export_audit_log", "ai_credit_ledger"]) {
+  for (const table of ["orders", "checkout_sessions", "custom_designs", "dtf_export_audit_log"]) {
     const { count, error } = await service.from(table).select("id", { count: "exact", head: true }).eq("user_id", user.id);
     if (error) throw new Error("Account dependency check failed.");
     linked += count || 0;
   }
+  // Only untouched, free signup AI credits may disappear with a test account.
+  // Purchased, redeemed or otherwise adjusted credits are never auto-deleted.
+  const creditRows = required<any[]>(await service.from("ai_credit_ledger")
+    .select("reason,delta").eq("user_id", user.id));
+  if (creditRows.some((row) => row.reason !== "welcome_verified_email" || Number(row.delta) !== 1))
+    linked += 1;
+  const { data: creditAccount, error: creditError } = await service.from("ai_credit_accounts")
+    .select("balance").eq("user_id", user.id).maybeSingle();
+  if (creditError) throw new Error("Credit balance check failed.");
+  if (creditAccount && Number(creditAccount.balance) !== creditRows.length) linked += 1;
   if (user.email) {
     for (const table of ["orders", "checkout_sessions"]) {
       const { count, error } = await service.from(table).select("id", { count: "exact", head: true }).ilike("customer_email", user.email);
