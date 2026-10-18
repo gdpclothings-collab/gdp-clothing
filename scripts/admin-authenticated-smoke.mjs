@@ -105,7 +105,7 @@ async function assertAdminDashboardHasLoadedData(page, protectedSettingsResponse
     `Step-up-protected dashboard settings RPC failed (HTTP ${response.status()}).`);
   // "0 products total" is a valid empty catalog, unlike the initial loading
   // placeholder. The red error message must be absent after loading settles.
-  await page.getByText(/\\d[\\d,]* products total/).waitFor({ timeout: 30000 });
+  await page.getByText(/\d[\d,]* products total/).waitFor({ timeout: 30000 });
   assert(!(await page.getByText("Admin overview could not load").isVisible()),
     "Admin dashboard displayed a backend data-loading error.");
   assert(!(await page.getByText(/permission denied for table store_settings/i).isVisible()),
