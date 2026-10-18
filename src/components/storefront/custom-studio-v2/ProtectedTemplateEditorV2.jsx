@@ -635,15 +635,17 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const bootlegCollections = useMemo(() => {
     const names = settings?.bootlegCollectionNames || {};
     return [
+      { id: 'chrome-galaxy', name: String(names['chrome-galaxy'] || 'Chrome Galaxy'), items: templates.filter((item) => item.collection === 'chrome-galaxy') },
       { id: 'original-bootleg', name: 'Original Bootleg', items: templates.filter((item) => !item.collection) },
-      ...['chrome-galaxy', 'cosmic-storm'].map((id) => ({
-        id,
-        name: String(names[id] || (id === 'chrome-galaxy' ? 'Chrome Galaxy' : 'Cosmic Storm')),
-        items: templates.filter((item) => item.collection === id),
-      })),
+      { id: 'cosmic-storm', name: String(names['cosmic-storm'] || 'Cosmic Storm'), items: templates.filter((item) => item.collection === 'cosmic-storm') },
     ].filter((group) => group.items.length > 0);
   }, [templates, settings?.bootlegCollectionNames]);
-  const [expandedBootlegCollection, setExpandedBootlegCollection] = useState('original-bootleg');
+  // Feature Chrome Galaxy first on new designs; preserve the visible collection
+  // for customers who reopen a draft with an existing template selection.
+  const [expandedBootlegCollection, setExpandedBootlegCollection] = useState(() => {
+    const previouslySelected = templates.find((item) => item.id === editor?.templateId);
+    return previouslySelected ? (previouslySelected.collection || 'original-bootleg') : 'chrome-galaxy';
+  });
   const template = templates.find((item) => item.id === editor.templateId) || null;
   const stickerLibrary = useMemo(() => normalizeV2StickerLibrary(settings?.stickerLibrary || []), [settings?.stickerLibrary]);
   const photos = [...currentPhotoLayers(editor)].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
