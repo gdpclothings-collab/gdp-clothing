@@ -5,6 +5,7 @@ export const PHOTO_BORDER_STYLES = Object.freeze([
   { id: 'outline', label: 'Classic Outline' },
   { id: 'glow', label: 'Neon Glow' },
   { id: 'rough', label: 'Rough Vintage' },
+  { id: 'bootlegGlow', label: 'Bootleg Glow' },
 ]);
 
 export const DEFAULT_PHOTO_BORDER = Object.freeze({
@@ -14,6 +15,13 @@ export const DEFAULT_PHOTO_BORDER = Object.freeze({
   opacity: 100,
   softness: 55,
   distress: 50,
+  innerColor: '#ffffff',
+  innerThickness: 32,
+  glowColor: '#ee4dff',
+  glowSize: 65,
+  glowOpacity: 85,
+  feather: 72,
+  roughness: 20,
 });
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, Number.isFinite(Number(n)) ? Number(n) : min));
@@ -27,11 +35,21 @@ export function normalizePhotoBorder(border = {}) {
     opacity: clamp(config.opacity ?? 100, 0, 100),
     softness: clamp(config.softness ?? 55, 0, 100),
     distress: clamp(config.distress ?? 50, 0, 100),
+    innerColor: /^#[0-9a-fA-F]{6}$/.test(String(config.innerColor || '')) ? config.innerColor : DEFAULT_PHOTO_BORDER.innerColor,
+    innerThickness: clamp(config.innerThickness ?? DEFAULT_PHOTO_BORDER.innerThickness, 0, 100),
+    glowColor: /^#[0-9a-fA-F]{6}$/.test(String(config.glowColor || '')) ? config.glowColor : DEFAULT_PHOTO_BORDER.glowColor,
+    glowSize: clamp(config.glowSize ?? DEFAULT_PHOTO_BORDER.glowSize, 0, 100),
+    glowOpacity: clamp(config.glowOpacity ?? DEFAULT_PHOTO_BORDER.glowOpacity, 0, 100),
+    feather: clamp(config.feather ?? DEFAULT_PHOTO_BORDER.feather, 0, 100),
+    roughness: clamp(config.roughness ?? DEFAULT_PHOTO_BORDER.roughness, 0, 100),
   };
 }
 
 export function hasPhotoBorder(border) {
   const style = normalizePhotoBorder(border);
+  if (style.style === 'bootlegGlow') {
+    return style.opacity > 0 && (style.innerThickness > 0 || (style.glowSize > 0 && style.glowOpacity > 0));
+  }
   return style.style !== 'none' && style.thickness > 0 && style.opacity > 0;
 }
 
@@ -41,6 +59,85 @@ const createCanvas = (w, h) => {
   canvas.height = h;
   return canvas;
 };
+
+// Dedicated three-pass airbrush treatment; existing outline/glow/rough rendering
+// remains untouched. Only image alpha contributes to these cutout silhouettes.
+// Work at the same bounded source resolution as other photo borders. Output is
+// still drawn at the original photo's transformed size in the 300-DPI export.
+function paintExpandedAlpha(context, image, pad, width, height, radius, roughness = 0) {
+  if (radius <= 0) {
+    context.drawImage(image, pad, pad, width, height);
+    return;
+  }
+  const count = 28;
+  for (let index = 0; index < count; index += 1) {
+    const theta = index * Math.PI * 2 / count;
+    const jitter = 1 + roughness / 100 * (0.12 * Math.sin(index * 11.7) + 0.08 * Math.cos(index * 5.9));
+    context.drawImage(image, pad + Math.cos(theta) * radius * jitter, pad + Math.sin(theta) * radius * jitter, width, height);
+  }
+  context.drawImage(image, pad, pad, width, height);
+}
+
+function createBootlegGlowBorderImage(image, width, height, border) {
+  const extent = Math.max(width, height);
+  const strokeRadius = border.innerThickness > 0 ? Math.max(1, extent * (0.0015 + border.innerThickness * 0.0002)) : 0;
+  const haloRadius = border.glowSize > 0 ? extent * (0.002 + border.glowSize * 0.00038) : 0;
+  const blurRadius = border.feather > 0 ? extent * (0.003 + border.feather * 0.00042) : 0;
+  const padding = Math.ceil(Math.max(strokeRadius, haloRadius) + blurRadius * 3 + 5);
+  const totalW = width + padding * 2;
+  const totalH = height + padding * 2;
+  const composite = createCanvas(totalW, totalH);
+  const compositeCtx = composite.getContext('2d', { alpha: true });
+  if (!compositeCtx) return null;
+
+  // Broad colored halo: spread the alpha cutout, blur the mask once, then
+  // colorize. The source photo is NEVER painted onto the visible border layer.
+  if (border.glowOpacity > 0 && border.glowSize > 0) {
+    const spread = createCanvas(totalW, totalH);
+    const spreadCtx = spread.getContext('2d', { alpha: true });
+    const soft = createCanvas(totalW, totalH);
+    const softCtx = soft.getContext('2d', { alpha: true });
+    if (!spreadCtx || !softCtx) return null;
+
+    paintExpandedAlpha(spreadCtx, image, padding, width, height, haloRadius, border.roughness);
+    // The blur is applied to an alpha mask, not the face or subject details.
+    // Canvas filters are supported on modern Chrome, Firefox and Safari.
+    softCtx.filter = blurRadius > 0 ? 'blur(' + blurRadius.toFixed(2) + 'px)' : 'none';
+    softCtx.drawImage(spread, 0, 0);
+    softCtx.filter = 'none';
+    softCtx.globalCompositeOperation = 'source-in';
+    softCtx.fillStyle = border.glowColor;
+    softCtx.fillRect(0, 0, totalW, totalH);
+    softCtx.globalCompositeOperation = 'source-over';
+    compositeCtx.globalAlpha = border.glowOpacity / 100;
+    compositeCtx.drawImage(soft, 0, 0);
+    compositeCtx.globalAlpha = 1;
+  }
+
+  // Crisp white (or custom color) perimeter nearest the cutout. Subtract the
+  // original alpha from the dilation to avoid whitening the face or clothing.
+  if (strokeRadius > 0) {
+    const rim = createCanvas(totalW, totalH);
+    const rimCtx = rim.getContext('2d', { alpha: true });
+    if (!rimCtx) return null;
+    paintExpandedAlpha(rimCtx, image, padding, width, height, strokeRadius, border.roughness);
+    rimCtx.globalCompositeOperation = 'source-in';
+    rimCtx.fillStyle = border.innerColor;
+    rimCtx.fillRect(0, 0, totalW, totalH);
+    rimCtx.globalCompositeOperation = 'destination-out';
+    rimCtx.drawImage(image, padding, padding, width, height);
+    compositeCtx.drawImage(rim, 0, 0);
+  }
+
+  return {
+    canvas: composite,
+    leftPad: padding / width,
+    topPad: padding / height,
+    widthScale: totalW / width,
+    heightScale: totalH / height,
+    opacity: border.opacity / 100,
+  };
+}
 
 // A small, deterministic radial dilation around the actual source transparency.
 // Destination-out removes the interior, leaving only an exterior colored border.
@@ -55,6 +152,7 @@ export function createPhotoBorderImage(image, sourceWidth, sourceHeight, input) 
   const ratio = Math.min(1, 1280 / Math.max(srcW, srcH));
   const w = Math.max(1, Math.round(srcW * ratio));
   const h = Math.max(1, Math.round(srcH * ratio));
+  if (border.style === 'bootlegGlow') return createBootlegGlowBorderImage(image, w, h, border);
   const extent = Math.max(w, h);
   const baseRadius = Math.max(1, Math.round(extent * (0.003 + border.thickness * 0.00035)));
   const glow = border.style === 'glow';
