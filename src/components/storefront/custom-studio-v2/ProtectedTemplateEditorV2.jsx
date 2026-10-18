@@ -1253,6 +1253,22 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} />
         </>}
         <RangeControl label="Rotation" value={activePhoto.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} />
+        {isBootleg ? (
+          <div data-gdp-bootleg-photo-borders="selected-photo-only" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
+            <div><p className="text-xs font-black uppercase tracking-wide text-slate-800">Photo Border Effects</p><p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">Only this photo gets a border. Cutout shapes and transparent areas stay clear; the edge is clipped to the print area.</p></div>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Border style for selected photo">
+              {PHOTO_BORDER_STYLES.map((preset) => <button key={preset.id} type="button" onClick={() => updateActivePhotoBorder({ style: preset.id })} aria-pressed={activePhotoBorder.style === preset.id} className={`min-h-11 rounded-xl border px-2 text-xs font-black ${activePhotoBorder.style === preset.id ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{preset.label}</button>)}
+            </div>
+            {activePhotoBorder.style !== 'none' ? <div className="space-y-3">
+              <label className="block text-xs font-black text-slate-600">Border color<input type="color" value={activePhotoBorder.color} onChange={(event) => updateActivePhotoBorder({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
+              <RangeControl label="Thickness" value={activePhotoBorder.thickness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ thickness: value })} onReset={() => updateActivePhotoBorder({ thickness: DEFAULT_PHOTO_BORDER.thickness })} />
+              <RangeControl label="Opacity" value={activePhotoBorder.opacity} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ opacity: value })} onReset={() => updateActivePhotoBorder({ opacity: 100 })} />
+              {activePhotoBorder.style === 'glow' ? <RangeControl label="Glow softness" value={activePhotoBorder.softness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ softness: value })} /> : null}
+              {activePhotoBorder.style === 'rough' ? <RangeControl label="Distress amount" value={activePhotoBorder.distress} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ distress: value })} /> : null}
+              <button type="button" onClick={() => updateActivePhotoBorder({ ...DEFAULT_PHOTO_BORDER })} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700"><RotateCcw size={14} /> Remove border</button>
+            </div> : <p className="text-[11px] font-semibold text-slate-500">None (default) — existing photos remain unchanged.</p>}
+          </div>
+        ) : null}
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
         <button type="button" onClick={() => {
           const resetTransform = { scale: template?.defaultTransform?.scale || 100, rotation: 0, x: Number(template?.defaultTransform?.offset?.x || 0), y: Number(template?.defaultTransform?.offset?.y || 0) };
