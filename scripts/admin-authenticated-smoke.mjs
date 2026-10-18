@@ -343,6 +343,23 @@ async function main() {
       assert(await settings.getAttribute("aria-current") === "page", "Store settings lost aria-current=page.");
     }));
 
+    results.push(await runCheck(browser, "admin data cleanup preview only", DESKTOP, storageState, async (page) => {
+      await nav(page, "/admin/settings");
+      const panel = page.getByRole("region", { name: "Admin data cleanup" });
+      const opener = panel.getByRole("button", { name: /Data Cleanup/i });
+      await opener.waitFor();
+      await opener.click();
+      await panel.getByRole("tab", { name: "Uploads" }).waitFor();
+      await panel.getByText(/record\(s\) · \d+ eligible/).waitFor({ timeout: 60000 });
+      assert(!(await panel.getByRole("alert").isVisible().catch(() => false)), "Admin cleanup preview returned an error.");
+      assert(!(await panel.getByRole("button", { name: /Delete selected/i }).isVisible().catch(() => false)),
+        "Destructive button must remain hidden before explicit selection.");
+      const options = await panel.locator("#gdp-cleanup-bucket option").allTextContents();
+      assert(options.length === 2 && options.some((name) => /Customer uploads/.test(name)) && options.some((name) => /DTF artwork/.test(name)),
+        "Admin cleanup allowed buckets changed.");
+      // Preview-only: do not select or delete any file, order or account.
+    }));
+
     results.push(await runCheck(browser, "invoice editor read-only", DESKTOP, storageState, async (page) => {
       await nav(page, "/admin/invoices");
       await page.getByRole("heading", { name: "Invoices", exact: true, level: 1 }).waitFor();
