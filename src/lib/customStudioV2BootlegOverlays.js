@@ -26,7 +26,7 @@ const clamp = (number, low, high) => Math.min(high, Math.max(low, Number.isFinit
 const validHex = (value) => /^#[0-9a-fA-F]{6}$/.test(String(value || '')) ? value : '#f43f5e';
 
 export function normalizeBootlegOverlay(input = {}) {
-  const value = input && typeof input === 'object' ? input : {};
+  const value = /** @type {Record<string, any>} */ (input && typeof input === 'object' ? input : {});
   return {
     id: BOOTLEG_OVERLAY_PRESETS.some((preset) => preset.id === value.id) ? value.id : 'none',
     enabled: value.enabled !== false,
