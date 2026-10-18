@@ -16,12 +16,12 @@ export const DEFAULT_PHOTO_BORDER = Object.freeze({
   softness: 55,
   distress: 50,
   innerColor: '#ffffff',
-  innerThickness: 42,
-  glowColor: '#ee4dff',
-  glowSize: 78,
-  glowOpacity: 95,
-  feather: 60,
-  roughness: 20,
+  innerThickness: 22,
+  glowColor: '#d65bff',
+  glowSize: 58,
+  glowOpacity: 72,
+  feather: 78,
+  roughness: 8,
   // Optional source-alpha fade at the bottom of a portrait; no existing photo changes.
   bottomFade: 0,
 });
@@ -125,7 +125,7 @@ function createBootlegGlowBorderImage(image, width, height, border) {
     spreadCtx.globalCompositeOperation = 'destination-out';
     spreadCtx.drawImage(image, padding, padding, width, height);
     spreadCtx.globalCompositeOperation = 'source-over';
-    compositeCtx.globalAlpha = border.glowOpacity / 100 * 0.76;
+    compositeCtx.globalAlpha = border.glowOpacity / 100 * 0.46;
     compositeCtx.drawImage(spread, 0, 0);
     compositeCtx.globalAlpha = 1;
   }
