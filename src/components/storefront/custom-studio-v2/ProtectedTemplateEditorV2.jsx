@@ -760,6 +760,13 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       color: configured.color ?? DEFAULT_PHOTO_BORDER.color,
       thickness: configured.thickness ?? DEFAULT_PHOTO_BORDER.thickness,
       softness: configured.softness ?? DEFAULT_PHOTO_BORDER.softness,
+      innerColor: configured.innerColor ?? DEFAULT_PHOTO_BORDER.innerColor,
+      innerThickness: configured.innerThickness ?? DEFAULT_PHOTO_BORDER.innerThickness,
+      glowColor: configured.glowColor ?? DEFAULT_PHOTO_BORDER.glowColor,
+      glowSize: configured.glowSize ?? DEFAULT_PHOTO_BORDER.glowSize,
+      glowOpacity: configured.glowOpacity ?? DEFAULT_PHOTO_BORDER.glowOpacity,
+      feather: configured.feather ?? DEFAULT_PHOTO_BORDER.feather,
+      roughness: configured.roughness ?? DEFAULT_PHOTO_BORDER.roughness,
     } : {};
     const normalized = normalizePhotoBorder({ ...activePhotoBorder, ...initialSettings, ...patch });
     syncPhotos(layers.map((layer) => layer.id === activePhoto.id ? { ...layer, border: normalized } : layer), activePhoto.id);
@@ -1267,9 +1274,25 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
               {PHOTO_BORDER_STYLES.filter((preset) => preset.id === 'none' || preset.id === activePhotoBorder.style || !Array.isArray(settings?.photoBorderOptions?.enabledStyles) || settings.photoBorderOptions.enabledStyles.includes(preset.id)).map((preset) => <button key={preset.id} type="button" onClick={() => updateActivePhotoBorder({ style: preset.id })} aria-pressed={activePhotoBorder.style === preset.id} className={`min-h-11 rounded-xl border px-2 text-xs font-black ${activePhotoBorder.style === preset.id ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{preset.label}</button>)}
             </div>
             {activePhotoBorder.style !== 'none' ? <div className="space-y-3">
-              <label className="block text-xs font-black text-slate-600">Border color<input type="color" value={activePhotoBorder.color} onChange={(event) => updateActivePhotoBorder({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
-              <RangeControl label="Thickness" value={activePhotoBorder.thickness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ thickness: value })} onReset={() => updateActivePhotoBorder({ thickness: DEFAULT_PHOTO_BORDER.thickness })} />
-              <RangeControl label="Opacity" value={activePhotoBorder.opacity} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ opacity: value })} onReset={() => updateActivePhotoBorder({ opacity: 100 })} />
+              {activePhotoBorder.style !== 'bootlegGlow' ? <>
+                <label className="block text-xs font-black text-slate-600">Border color<input type="color" value={activePhotoBorder.color} onChange={(event) => updateActivePhotoBorder({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
+                <RangeControl label="Thickness" value={activePhotoBorder.thickness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ thickness: value })} onReset={() => updateActivePhotoBorder({ thickness: DEFAULT_PHOTO_BORDER.thickness })} />
+              </> : null}
+              <RangeControl label={activePhotoBorder.style === 'bootlegGlow' ? 'Overall border opacity' : 'Opacity'} value={activePhotoBorder.opacity} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ opacity: value })} onReset={() => updateActivePhotoBorder({ opacity: 100 })} />
+              {activePhotoBorder.style === 'bootlegGlow' ? (
+                <div data-gdp-bootleg-glow-controls="true" className="space-y-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/50 p-3">
+                  <p className="text-[11px] font-bold leading-5 text-fuchsia-900">White cutout stroke + airbrushed colored halo, like a classic bootleg tee. Only the selected photo is affected.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-xs font-black text-slate-600">Inner stroke color<input type="color" value={activePhotoBorder.innerColor} onChange={(event) => updateActivePhotoBorder({ innerColor: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
+                    <label className="block text-xs font-black text-slate-600">Glow color<input type="color" value={activePhotoBorder.glowColor} onChange={(event) => updateActivePhotoBorder({ glowColor: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
+                  </div>
+                  <RangeControl label="Inner stroke thickness" value={activePhotoBorder.innerThickness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ innerThickness: value })} onReset={() => updateActivePhotoBorder({ innerThickness: DEFAULT_PHOTO_BORDER.innerThickness })} />
+                  <RangeControl label="Glow size" value={activePhotoBorder.glowSize} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ glowSize: value })} onReset={() => updateActivePhotoBorder({ glowSize: DEFAULT_PHOTO_BORDER.glowSize })} />
+                  <RangeControl label="Glow opacity" value={activePhotoBorder.glowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ glowOpacity: value })} onReset={() => updateActivePhotoBorder({ glowOpacity: DEFAULT_PHOTO_BORDER.glowOpacity })} />
+                  <RangeControl label="Feather / softness" value={activePhotoBorder.feather} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ feather: value })} onReset={() => updateActivePhotoBorder({ feather: DEFAULT_PHOTO_BORDER.feather })} />
+                  <RangeControl label="Roughness / spray" value={activePhotoBorder.roughness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ roughness: value })} onReset={() => updateActivePhotoBorder({ roughness: DEFAULT_PHOTO_BORDER.roughness })} />
+                </div>
+              ) : null}
               {activePhotoBorder.style === 'glow' ? <RangeControl label="Glow softness" value={activePhotoBorder.softness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ softness: value })} /> : null}
               {activePhotoBorder.style === 'rough' ? <RangeControl label="Distress amount" value={activePhotoBorder.distress} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ distress: value })} /> : null}
               <button type="button" onClick={() => updateActivePhotoBorder({ ...DEFAULT_PHOTO_BORDER })} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700"><RotateCcw size={14} /> Remove border</button>
