@@ -38,14 +38,12 @@ export default function AuthComplete() {
         if (!active) return;
         setEmail(data.user.email || "");
 
-        const privacy = await privacyApi.getAccountPrivacy();
-        const acceptances = privacy?.acceptances || [];
-        const hasTerms = acceptances.some(
-          (item) => item.policy_key === "terms_conditions" && item.policy_version === POLICY_VERSION,
-        );
-        const hasPrivacy = acceptances.some(
-          (item) => item.policy_key === "privacy_policy" && item.policy_version === POLICY_VERSION,
-        );
+        // This callback runs before the admin MFA challenge. Full account privacy
+        // reads are RLS-gated for admins, so request only verified OWN policy
+        // receipt status instead. Never infer missing consent from RLS denial.
+        const status = await privacyApi.getOwnPolicyAcceptanceStatus();
+        const hasTerms = status?.policyVersion === POLICY_VERSION && status.termsAccepted === true;
+        const hasPrivacy = status?.policyVersion === POLICY_VERSION && status.privacyAccepted === true;
 
         if (hasTerms && hasPrivacy) {
           window.location.replace(destination);
