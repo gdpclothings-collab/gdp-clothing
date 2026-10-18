@@ -98,3 +98,12 @@ test("metadata listing is bounded, service-only, and does not delete Storage row
   assert.match(listing, /grant execute on function public\.admin_cleanup_list_storage_files\(text\) to service_role/);
   assert.doesNotMatch(listing, /delete from storage\.objects/i);
 });
+
+test("server-only helpers honor legacy and current JWT role claim formats", () => {
+  const compat = readFileSync("supabase/migrations/20261018035500_admin_cleanup_jwt_claim_role_compat.sql", "utf8");
+  assert.equal(compat.match(/request\.jwt\.claims/g)?.length, 2);
+  assert.match(compat, /admin_cleanup_list_storage_files/);
+  assert.match(compat, /admin_cleanup_delete_test_order/);
+  assert.match(compat, /revoke all on function public\.admin_cleanup_list_storage_files\(text\) from public, anon, authenticated/);
+  assert.match(compat, /revoke all on function public\.admin_cleanup_delete_test_order\(uuid\) from public, anon, authenticated/);
+});
