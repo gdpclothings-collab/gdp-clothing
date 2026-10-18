@@ -41,7 +41,7 @@ test('Photo Glow fields have stable printable defaults and sanitized bounded inp
   });
   assert.equal(safe.innerColor, DEFAULT_PHOTO_BORDER.innerColor);
   assert.equal(safe.glowColor, DEFAULT_PHOTO_BORDER.glowColor);
-  assert.deepEqual([safe.innerThickness, safe.glowSize, safe.glowOpacity, safe.feather, safe.roughness], [100, 0, 100, 72, 100]);
+  assert.deepEqual([safe.innerThickness, safe.glowSize, safe.glowOpacity, safe.feather, safe.roughness], [100, 0, 100, 0, 100]);
 });
 
 test('Glow is composed in three alpha-only layers; source photo always stays sharp', () => {
