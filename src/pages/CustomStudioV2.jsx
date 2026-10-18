@@ -528,7 +528,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
             designPath: state.designPath,
             side,
             templateId: template.id,
-            photos: protectedPhotos.map((layer) => ({ id: layer.id, path: layer.asset?.path || '', transform: layer.transform || {}, order: Number(layer.order || 0), backgroundMode: layer.asset?.backgroundMode || 'original' })),
+            photos: protectedPhotos.map((layer) => ({ id: layer.id, path: layer.asset?.path || '', transform: layer.transform || {}, order: Number(layer.order || 0), backgroundMode: layer.asset?.backgroundMode || 'original', ...(state.designPath === 'bootleg' ? { border: layer.border || { style: 'none' } } : {}) })),
             stickers: (editor.stickers || []).map((layer) => ({ id: layer.id, stickerId: layer.stickerId, glyph: layer.glyph || '', assetUrl: layer.assetUrl || '', transform: layer.transform || {}, order: Number(layer.order || 0) })),
             text: editor.text || {},
             textLayers: (editor.textLayers || []).map((layer) => ({ id: layer.id, name: layer.name || '', role: layer.role || '', text: layer.text || {}, style: layer.style || {}, order: Number(layer.order || 0), visible: layer.visible !== false })),
