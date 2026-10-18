@@ -85,6 +85,7 @@ jobs:
           node scripts/verify-admin-authenticated-smoke.mjs
           node --test tests/admin-dashboard-settings-read.test.mjs
           node --test tests/admin-data-cleanup.test.mjs
+          node --test tests/google-consent-read-rls.test.mjs
           node --test tests/admin-smoke-origin.test.mjs
           node --test tests/admin-smoke-mobile-layout.test.mjs
           node scripts/verify-admin-mfa-onboarding.mjs
