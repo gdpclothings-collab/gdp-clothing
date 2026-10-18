@@ -1,6 +1,6 @@
 import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers';
 import { paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
-import { createPhotoBorderImage, drawPreparedPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
+import { createPhotoBorderImage, createBottomFadedPhotoImage, drawPreparedPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
@@ -370,20 +370,21 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     for (const layer of photos) {
       const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
       try {
-        const preparedBorder = createPhotoBorderImage(loaded.image, loaded.width, loaded.height, layer.border);
+        const photoSource = createBottomFadedPhotoImage(loaded.image, loaded.width, loaded.height, layer.border) || loaded;
+        const preparedBorder = createPhotoBorderImage(photoSource.image, photoSource.width, photoSource.height, layer.border);
         // Each successive photo hides any lower photo's border wherever its
         // own visible (alpha) pixels cover it; borders follow photo stack order.
         const paint = (context, border, mode) => {
           context.save();
           try {
             if (hasFreePhotoCanvasTransform(layer.transform || {})) {
-              drawFreePhoto(context, loaded, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode);
+              drawFreePhoto(context, photoSource, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode);
               return;
             }
             const drawPhoto = () => {
               context.save();
               const rect = zoneRect(template.photoZone || {}, output.widthPx, output.heightPx);
-              drawContain(context, loaded, rect, layer.transform || {}, border, mode);
+              drawContain(context, photoSource, rect, layer.transform || {}, border, mode);
               context.restore();
             };
             if (templateTransform) withTemplateTransform(context, output.widthPx, output.heightPx, templateTransform, drawPhoto);

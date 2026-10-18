@@ -16,12 +16,14 @@ export const DEFAULT_PHOTO_BORDER = Object.freeze({
   softness: 55,
   distress: 50,
   innerColor: '#ffffff',
-  innerThickness: 32,
+  innerThickness: 42,
   glowColor: '#ee4dff',
-  glowSize: 65,
-  glowOpacity: 85,
-  feather: 72,
+  glowSize: 78,
+  glowOpacity: 95,
+  feather: 60,
   roughness: 20,
+  // Optional source-alpha fade at the bottom of a portrait; no existing photo changes.
+  bottomFade: 0,
 });
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, Number.isFinite(Number(n)) ? Number(n) : min));
@@ -42,6 +44,7 @@ export function normalizePhotoBorder(border = {}) {
     glowOpacity: clamp(config.glowOpacity ?? DEFAULT_PHOTO_BORDER.glowOpacity, 0, 100),
     feather: clamp(config.feather ?? DEFAULT_PHOTO_BORDER.feather, 0, 100),
     roughness: clamp(config.roughness ?? DEFAULT_PHOTO_BORDER.roughness, 0, 100),
+    bottomFade: clamp(config.bottomFade ?? 0, 0, 80),
   };
 }
 
@@ -80,9 +83,11 @@ function paintExpandedAlpha(context, image, pad, width, height, radius, roughnes
 
 function createBootlegGlowBorderImage(image, width, height, border) {
   const extent = Math.max(width, height);
-  const strokeRadius = border.innerThickness > 0 ? Math.max(1, extent * (0.0015 + border.innerThickness * 0.0002)) : 0;
-  const haloRadius = border.glowSize > 0 ? extent * (0.002 + border.glowSize * 0.00038) : 0;
-  const blurRadius = border.feather > 0 ? extent * (0.003 + border.feather * 0.00042) : 0;
+  // Expressed relative to the source silhouette so the finished glow is
+  // legible after the photo shrinks to a small shirt print preview.
+  const strokeRadius = border.innerThickness > 0 ? Math.max(1, extent * (0.003 + border.innerThickness * 0.00038)) : 0;
+  const haloRadius = border.glowSize > 0 ? extent * (0.012 + border.glowSize * 0.00064) : 0;
+  const blurRadius = border.feather > 0 ? extent * (0.006 + border.feather * 0.0003) : 0;
   const padding = Math.ceil(Math.max(strokeRadius, haloRadius) + blurRadius * 3 + 5);
   const totalW = width + padding * 2;
   const totalH = height + padding * 2;
@@ -111,6 +116,17 @@ function createBootlegGlowBorderImage(image, width, height, border) {
     softCtx.globalCompositeOperation = 'source-over';
     compositeCtx.globalAlpha = border.glowOpacity / 100;
     compositeCtx.drawImage(soft, 0, 0);
+
+    // Saturated inner halo under the crisp white stroke. A blur-only halo
+    // washes out at small mobile preview sizes; this keeps its color vibrant.
+    spreadCtx.globalCompositeOperation = 'source-in';
+    spreadCtx.fillStyle = border.glowColor;
+    spreadCtx.fillRect(0, 0, totalW, totalH);
+    spreadCtx.globalCompositeOperation = 'destination-out';
+    spreadCtx.drawImage(image, padding, padding, width, height);
+    spreadCtx.globalCompositeOperation = 'source-over';
+    compositeCtx.globalAlpha = border.glowOpacity / 100 * 0.76;
+    compositeCtx.drawImage(spread, 0, 0);
     compositeCtx.globalAlpha = 1;
   }
 
@@ -196,6 +212,38 @@ export function createPhotoBorderImage(image, sourceWidth, sourceHeight, input) 
     heightScale: totalH / h,
     opacity: border.opacity / 100,
   };
+}
+
+
+/**
+ * Optional non-destructive bottom fade for customer photo alpha. The faded
+ * image is used for BOTH the underlying photo and its border mask, so hard
+ * rectangular photo bottoms disappear rather than gaining a glowing edge.
+ * Images without bottomFade bypass this function and stay pixel-identical.
+ */
+export function createBottomFadedPhotoImage(image, sourceWidth, sourceHeight, input) {
+  const amount = normalizePhotoBorder(input).bottomFade;
+  if (!image || amount <= 0) return null;
+  const width = Math.max(1, Number(sourceWidth) || 1);
+  const height = Math.max(1, Number(sourceHeight) || 1);
+  // A source-layer mask is bounded in memory; untouched photo layers never
+  // need a canvas copy. 4096px still supports detailed garment-size exports.
+  const scale = Math.min(1, 4096 / Math.max(width, height));
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+  const canvas = createCanvas(w, h);
+  const context = canvas.getContext('2d', { alpha: true });
+  if (!context) return null;
+  context.drawImage(image, 0, 0, w, h);
+  context.globalCompositeOperation = 'destination-in';
+  const mask = context.createLinearGradient(0, 0, 0, h);
+  mask.addColorStop(0, 'rgba(0,0,0,1)');
+  mask.addColorStop(Math.max(0, 1 - amount / 100), 'rgba(0,0,0,1)');
+  mask.addColorStop(1, 'rgba(0,0,0,0)');
+  context.fillStyle = mask;
+  context.fillRect(0, 0, w, h);
+  context.globalCompositeOperation = 'source-over';
+  return { image: canvas, width: w, height: h, close: () => {} };
 }
 
 // Place the border using the EXACT same transform/position as the corresponding
