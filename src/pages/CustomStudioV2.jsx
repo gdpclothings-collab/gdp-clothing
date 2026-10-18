@@ -534,6 +534,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
             textLayers: (editor.textLayers || []).map((layer) => ({ id: layer.id, name: layer.name || '', role: layer.role || '', text: layer.text || {}, style: layer.style || {}, order: Number(layer.order || 0), visible: layer.visible !== false })),
             activeTextLayerId: editor.activeTextLayerId || '',
             textStyle: editor.textStyle || {},
+            ...(state.designPath === 'bootleg' ? { overlay: editor.overlay || { id: 'none' } } : {}),
             printArea: resolveStudioV2PrintProfile(product, state.size, side),
           };
           rendered = await renderProtectedStudioV2PngAdvanced({ product, size: state.size, side, editor, template, profile: resolveStudioV2PrintProfile, dpi: 300 });
