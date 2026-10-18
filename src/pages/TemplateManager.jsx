@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
+import { DEFAULT_PHOTO_BORDER, PHOTO_BORDER_STYLES } from "@/lib/customStudioV2PhotoBorders";
 import {
   GDP_STYLE_TEMPLATES,
   normalizeStyleTemplates,
@@ -118,6 +119,12 @@ export default function TemplateManager() {
 
   const activeCount = templates.filter((item) => item.enabled !== false).length;
   const bootlegCollectionNames = settings?.bootlegCollectionNames || {};
+  const borderOptions = settings?.photoBorderOptions || {};
+  const enabledBorderStyles = borderOptions.enabledStyles || PHOTO_BORDER_STYLES.filter((style) => style.id !== "none").map((style) => style.id);
+  const updatePhotoBorderOptions = (patch) => setSettings((current) => ({
+    ...(current || {}),
+    photoBorderOptions: { ...(current?.photoBorderOptions || {}), ...patch },
+  }));
   const updateBootlegCollectionName = (id, value) => setSettings((current) => ({
     ...(current || {}),
     bootlegCollectionNames: { ...(current?.bootlegCollectionNames || {}), [id]: value },
@@ -274,7 +281,18 @@ export default function TemplateManager() {
             ))}
           </div>
 
-          {category === "photo_bootleg" && <div className="mt-4 grid gap-3 sm:grid-cols-2">{[['chrome-galaxy', 'Chrome Galaxy'], ['cosmic-storm', 'Cosmic Storm']].map(([id, name]) => <label key={id} className="block text-xs font-semibold text-slate-700">Collection name<input value={bootlegCollectionNames[id] ?? name} onChange={(event) => updateBootlegCollectionName(id, event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>)}</div>}
+          {category === "photo_bootleg" && <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">{[['chrome-galaxy', 'Chrome Galaxy'], ['cosmic-storm', 'Cosmic Storm']].map(([id, name]) => <label key={id} className="block text-xs font-semibold text-slate-700">Collection name<input value={bootlegCollectionNames[id] ?? name} onChange={(event) => updateBootlegCollectionName(id, event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>)}</div>
+            <div data-gdp-admin-photo-borders="true" className="mt-5 space-y-3 rounded-2xl border border-[#dedfe3] bg-[#fafafa] p-4">
+              <div><h3 className="text-sm font-bold">Photo Border Effects</h3><p className="mt-1 text-xs text-[#666]">Choose which border styles customers can apply and their starting settings. Existing borders are unchanged. None always stays available.</p></div>
+              <div className="grid gap-2 sm:grid-cols-3">{PHOTO_BORDER_STYLES.filter((style) => style.id !== "none").map((style) => <label key={style.id} className="flex min-h-11 items-center gap-2 rounded-xl border border-[#dedfe3] bg-white px-3 text-xs font-semibold"><input type="checkbox" checked={enabledBorderStyles.includes(style.id)} onChange={(event) => updatePhotoBorderOptions({ enabledStyles: event.target.checked ? [...enabledBorderStyles, style.id] : enabledBorderStyles.filter((id) => id !== style.id) })} />{style.label}</label>)}</div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="text-xs font-semibold">Starting border color<input type="color" value={/^#[0-9a-fA-F]{6}$/.test(borderOptions.color || "") ? borderOptions.color : DEFAULT_PHOTO_BORDER.color} onChange={(event) => updatePhotoBorderOptions({ color: event.target.value })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white p-1" /></label>
+                <label className="text-xs font-semibold">Starting thickness (0–100%)<input type="number" min="0" max="100" value={borderOptions.thickness ?? DEFAULT_PHOTO_BORDER.thickness} onChange={(event) => updatePhotoBorderOptions({ thickness: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
+                <label className="text-xs font-semibold">Starting glow softness (0–100%)<input type="number" min="0" max="100" value={borderOptions.softness ?? DEFAULT_PHOTO_BORDER.softness} onChange={(event) => updatePhotoBorderOptions({ softness: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
+              </div>
+            </div>
+          </>}
           {category === "memorial_tribute" && (
             <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">
               <strong>No Template — Upload Only</strong> stays as the safe blank-canvas choice for customers. The five cards below manage only the protected Memorial Tribute artwork choices.
