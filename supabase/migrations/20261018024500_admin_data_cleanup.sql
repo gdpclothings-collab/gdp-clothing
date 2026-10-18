@@ -14,6 +14,7 @@ on public.admin_cleanup_audit_log(created_at desc);
 alter table public.admin_cleanup_audit_log enable row level security;
 revoke all on public.admin_cleanup_audit_log from public, anon, authenticated;
 revoke all on sequence public.admin_cleanup_audit_log_id_seq from public, anon, authenticated;
+revoke update, delete, truncate on public.admin_cleanup_audit_log from service_role;
 grant select, insert on public.admin_cleanup_audit_log to service_role;
 grant usage, select on sequence public.admin_cleanup_audit_log_id_seq to service_role;
 
