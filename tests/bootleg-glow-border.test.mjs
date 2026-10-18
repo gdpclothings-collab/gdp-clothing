@@ -96,7 +96,7 @@ test('Glow is composed in three alpha-only layers; source photo always stays sha
 });
 
 test('Cutout effect shares the protected production render path with preview and maintains print-area cropping', () => {
-  assert.match(production, /createPhotoBorderImage\\(photoSource\\.image, photoSource\\.width, photoSource\\.height, layer\\.border\\)/);
+  assert.match(production, /createPhotoBorderImage\(photoSource\.image, photoSource\.width, photoSource\.height, layer\.border\)/);
   assert.match(production, /paint\(output\.context, preparedBorder, 'both'\)/);
   assert.match(production, /paint\(borderOutput\.context, preparedBorder, 'borderOnly'\)/);
   assert.match(production, /if \(returnDesignCanvas\)/);
