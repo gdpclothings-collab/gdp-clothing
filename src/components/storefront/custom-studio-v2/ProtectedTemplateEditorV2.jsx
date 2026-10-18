@@ -329,6 +329,8 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
     maxY: 50,
   });
   const transform = layer.transform || {};
+  const bottomFade = scope === 'bootleg' ? normalizePhotoBorder(layer.border).bottomFade : 0;
+  const fadeMask = bottomFade > 0 ? `linear-gradient(to bottom, #000 0%, #000 ${100 - bottomFade}%, transparent 100%)` : undefined;
   const radius = zone?.shape === 'circle' || zone?.shape === 'oval' ? '50%' : `${Number(zone?.radius || 0)}%`;
   return (
     <div
@@ -348,7 +350,7 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
         transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 220) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
       }}
     >
-      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-cover" />
+      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-cover" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
     </div>
   );
 }
@@ -1268,6 +1270,10 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         </>}
         <RangeControl label="Rotation" value={activePhoto.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} />
         {isBootleg ? (
+          <div data-gdp-bootleg-photo-bottom-fade="selected-photo-only" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+            <RangeControl label="Bottom edge fade" value={activePhotoBorder.bottomFade} min={0} max={80} suffix="%" onChange={(value) => updateActivePhotoBorder({ bottomFade: value })} onReset={() => updateActivePhotoBorder({ bottomFade: 0 })} />
+            <p className="text-[11px] font-medium leading-4 text-slate-500">Optional: blend away a hard, straight bottom photo edge. Zero keeps the original image untouched.</p>
+          </div>
           <div data-gdp-bootleg-photo-borders="selected-photo-only" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
             <div><p className="text-xs font-black uppercase tracking-wide text-slate-800">Photo Border Effects</p><p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">Only this photo gets a border. Cutout shapes and transparent areas stay clear; the edge is clipped to the print area.</p></div>
             <div className="grid grid-cols-2 gap-2" role="group" aria-label="Border style for selected photo">
