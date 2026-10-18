@@ -40,6 +40,7 @@ import {
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
+import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
@@ -441,6 +442,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
 function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch, activeLayer = 'photo', onActiveLayerChange }) {
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
+  const overlayCanvasRef = useRef(null);
   const isBootleg = path === 'bootleg';
   const isMemorial = path === 'memorial';
   const usesLayerLab = isBootleg || isMemorial;
@@ -466,6 +468,16 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const templateEditing = usesLayerLab && activeLayer === 'template';
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
+  useEffect(() => {
+    if (!isBootleg || !overlayCanvasRef.current) return;
+    const canvas = overlayCanvasRef.current;
+    canvas.width = layoutWidth;
+    canvas.height = Math.max(1, Math.round(layoutHeight));
+    const context = canvas.getContext('2d', { alpha: true });
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    paintBootlegOverlay(context, canvas.width, canvas.height, editor.overlay);
+  }, [isBootleg, editor.overlay, layoutHeight]);
   const bootlegTextLayouts = bootlegTextLayers.map((layer) => {
     const style = normalizeBootlegTextStyle(layer.style || {}, fallbackTextStyle);
     const position = resolveBootlegTextPosition(style, textZone);
@@ -583,6 +595,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             ) : <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" />
           ) : null}
 
+          {isBootleg ? <canvas ref={overlayCanvasRef} data-gdp-bootleg-print-overlay="true" className="pointer-events-none absolute inset-0 z-[27] h-full w-full" aria-hidden="true" /> : null}
+
           {usesLayerLab ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} scope={path} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
 
           {!usesLayerLab && (headline || editor.text?.subline || editor.text?.message) ? (
@@ -598,7 +612,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
       {bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
-      <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? `${activeLayer === 'template' ? 'Template' : activeLayer === 'photo' ? 'Photo' : activeLayer === 'text' ? 'Text' : 'Sticker'} layer selected · ` : ''}One finger moves · two fingers pinch/rotate · {String(side || 'front').toUpperCase()} side</p>
+      <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? (activeLayer === 'overlay' ? 'Overlay effect selected · ' : activeLayer === 'template' ? 'Template layer selected · ' : activeLayer === 'photo' ? 'Photo layer selected · ' : activeLayer === 'text' ? 'Text layer selected · ' : 'Sticker layer selected · ') : ''}One finger moves · two fingers pinch/rotate · {String(side || 'front').toUpperCase()} side</p>
     </div>
   );
 }
@@ -663,6 +677,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const stickerLayers = Array.isArray(editor.stickers) ? editor.stickers : [];
   const activeSticker = stickerLayers.find((layer) => layer.id === editor.activeStickerId) || null;
   const activeStickerOption = activeSticker ? stickerLibrary.find((item) => item.id === activeSticker.stickerId) || null : null;
+  const overlay = normalizeBootlegOverlay(editor.overlay);
+  const patchOverlay = (patch) => onPatch({ overlay: normalizeBootlegOverlay({ ...overlay, ...patch }) });
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side, color), [product, size, side, color]);
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
@@ -1075,15 +1091,42 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     { value: 'photo', label: 'Photo', enabled: true },
     { value: 'text', label: 'Text', enabled: true },
     ...(settings?.editorTools?.stickers !== false ? [{ value: 'sticker', label: 'Sticker', enabled: true }] : []),
+    ...(isBootleg ? [{ value: 'overlay', label: 'Overlay', enabled: true }] : []),
   ];
 
-  const activeLayerSummary = activeBootlegLayer === 'template'
+  const activeLayerSummary = activeBootlegLayer === 'overlay'
+    ? (overlay.id === 'none' ? 'Overlay Effects — choose an effect to add inside the print area' : 'Overlay Effects — ' + (BOOTLEG_OVERLAY_PRESETS.find((preset) => preset.id === overlay.id)?.label || 'Custom'))
+    : activeBootlegLayer === 'template'
     ? `Editing Template — ${template?.name || 'choose a template'}`
     : activeBootlegLayer === 'photo'
       ? `Editing Photo — ${activePhoto?.asset?.name || 'add a photo'}`
       : activeBootlegLayer === 'text'
         ? `Editing Text — ${activeTextLayer?.name || 'add text'}${activeTextLayer?.text?.headline ? ` · ${String(activeTextLayer.text.headline).slice(0, 22)}` : ''}`
         : `Editing Sticker — ${activeStickerOption?.label || activeSticker?.label || 'choose a sticker'}`;
+
+  const overlayPanel = isBootleg ? (
+    <div data-gdp-bootleg-panel="overlay" data-gdp-print-area-only="true" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3">
+      <div>
+        <p className="text-xs font-black uppercase tracking-wide text-slate-800">Overlay Effects</p>
+        <p className="mt-1 text-xs font-medium leading-5 text-slate-500">Effects are clipped to this side's exact print area, including the 300-DPI production export. Photos and template stay editable.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Photo Bootleg overlay presets">
+        {BOOTLEG_OVERLAY_PRESETS.map((preset) => <button key={preset.id} type="button" aria-pressed={overlay.id === preset.id} onClick={() => patchOverlay({ id: preset.id, enabled: true })} className={overlay.id === preset.id ? 'min-h-11 rounded-xl border-2 border-slate-950 bg-slate-950 px-2 text-xs font-black text-white' : 'min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-700 hover:border-slate-400'}>{preset.label}</button>)}
+      </div>
+      {overlay.id !== 'none' ? (
+        <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
+          <RangeControl label="Opacity" value={overlay.opacity} min={0} max={100} suffix="%" onChange={(value) => patchOverlay({ opacity: value })} onReset={() => patchOverlay({ opacity: DEFAULT_BOOTLEG_OVERLAY.opacity })} />
+          <RangeControl label="Effect size" value={overlay.scale} min={25} max={250} suffix="%" onChange={(value) => patchOverlay({ scale: value })} onReset={() => patchOverlay({ scale: 100 })} />
+          <RangeControl label="Left / right" value={overlay.x} min={0} max={100} suffix="%" onChange={(value) => patchOverlay({ x: value })} onReset={() => patchOverlay({ x: 50 })} />
+          <RangeControl label="Up / down" value={overlay.y} min={0} max={100} suffix="%" onChange={(value) => patchOverlay({ y: value })} onReset={() => patchOverlay({ y: 50 })} />
+          <RangeControl label="Rotation" value={overlay.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchOverlay({ rotation: value })} onReset={() => patchOverlay({ rotation: 0 })} />
+          {overlay.id === 'tint' ? <label className="block text-xs font-black text-slate-600">Tint color<input type="color" value={overlay.color} onChange={(event) => patchOverlay({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label> : null}
+          <button type="button" onClick={() => onPatch({ overlay: { ...DEFAULT_BOOTLEG_OVERLAY } })} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-700"><RotateCcw size={14} /> Remove and reset overlay</button>
+        </div>
+      ) : <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">No overlay applied. Your existing artwork remains unchanged.</p>}
+      <p className="text-[11px] font-bold text-emerald-700">Print-area only · independent Front / Back settings</p>
+    </div>
+  ) : null;
 
   const templatePanel = usesLayerLab && template ? (
     <div data-gdp-bootleg-template-controls="true" data-gdp-bootleg-panel="template" className="space-y-3 rounded-2xl border border-cyan-100 bg-cyan-50/50 p-3">
@@ -1210,6 +1253,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
             {activeBootlegLayer === 'photo' ? photoPanel : null}
             {activeBootlegLayer === 'text' ? textPanel : null}
             {activeBootlegLayer === 'sticker' ? stickerPanel : null}
+            {activeBootlegLayer === 'overlay' ? overlayPanel : null}
           </>
         ) : (
           <>

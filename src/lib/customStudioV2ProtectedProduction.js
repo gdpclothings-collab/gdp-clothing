@@ -1,4 +1,5 @@
 import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers';
+import { paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
@@ -392,6 +393,10 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     await drawPhotos();
     await drawTemplate();
   }
+
+  // Overlay is composed above template/photos but below editable text and stickers.
+  // The renderer clips every transformed effect to this production print canvas.
+  if (editor?.overlay) paintBootlegOverlay(output.context, output.widthPx, output.heightPx, editor.overlay);
 
   if (usesFreeTextLayers) {
     const bootlegTextLayers = resolveBootlegTextLayers(editor, editor.textStyle || {}).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
