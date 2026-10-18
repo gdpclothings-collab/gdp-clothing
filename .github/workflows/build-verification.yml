@@ -113,6 +113,7 @@ jobs:
           node --test tests/bootleg-photo-borders.test.mjs
           node --test tests/bootleg-glow-border.test.mjs
           node --test tests/bootleg-glow-visual.test.mjs
+          node --test tests/bootleg-glow-preview-resets.test.mjs
           node scripts/verify-storefront-seo-ux.mjs
 
       - name: Verify immutable invoice ledger and atomic migration manifest

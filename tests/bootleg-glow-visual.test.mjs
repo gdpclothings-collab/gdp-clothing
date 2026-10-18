@@ -20,9 +20,9 @@ test('existing customers keep unchanged photo pixels; optional bottom fade is bo
   const image = { marker: 'original' };
   assert.equal(createBottomFadedPhotoImage(image, 800, 600, {}), null);
   assert.equal(createBottomFadedPhotoImage(image, 800, 600, { style: 'bootlegGlow', bottomFade: 0 }), null);
-  assert.ok(DEFAULT_PHOTO_BORDER.innerThickness >= 40);
-  assert.ok(DEFAULT_PHOTO_BORDER.glowSize >= 70);
-  assert.ok(DEFAULT_PHOTO_BORDER.glowOpacity >= 90);
+  assert.ok(DEFAULT_PHOTO_BORDER.innerThickness >= 15 && DEFAULT_PHOTO_BORDER.innerThickness <= 28);
+  assert.ok(DEFAULT_PHOTO_BORDER.glowSize >= 45 && DEFAULT_PHOTO_BORDER.glowSize <= 65);
+  assert.ok(DEFAULT_PHOTO_BORDER.glowOpacity >= 60 && DEFAULT_PHOTO_BORDER.glowOpacity <= 80);
 });
 
 test('bottom fade masks source alpha before both border and actual photograph', () => {
