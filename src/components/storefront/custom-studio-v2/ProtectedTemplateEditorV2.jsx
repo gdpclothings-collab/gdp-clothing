@@ -752,6 +752,19 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
   const activePhoto = photos.find((layer) => layer.id === activePhotoId) || photos.at(-1) || null;
   const activePhotoBorder = normalizePhotoBorder(activePhoto?.border);
+  const photoBorderDefault = (key) => settings?.photoBorderOptions?.[key] ?? DEFAULT_PHOTO_BORDER[key];
+  const resetPhotoBorderStyle = () => updateActivePhotoBorder({ ...DEFAULT_PHOTO_BORDER, bottomFade: activePhotoBorder.bottomFade });
+  const resetBootlegGlow = () => updateActivePhotoBorder({
+    style: 'bootlegGlow',
+    opacity: 100,
+    innerColor: photoBorderDefault('innerColor'),
+    innerThickness: photoBorderDefault('innerThickness'),
+    glowColor: photoBorderDefault('glowColor'),
+    glowSize: photoBorderDefault('glowSize'),
+    glowOpacity: photoBorderDefault('glowOpacity'),
+    feather: photoBorderDefault('feather'),
+    roughness: photoBorderDefault('roughness'),
+  });
   const updateActivePhotoBorder = (patch) => {
     if (!isBootleg || !activePhoto) return;
     const latest = editorRef.current || editor;
