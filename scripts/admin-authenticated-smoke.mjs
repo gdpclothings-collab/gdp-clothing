@@ -88,6 +88,30 @@ async function noOverflow(page, viewport) {
   );
 }
 
+// The admin shell renders before its async Supabase data loads. A visible
+// dashboard heading alone is not a functional data-readiness test.
+function expectAdminDashboardSettingsResponse(page) {
+  const protectedSettingsResponse = page.waitForResponse((response) =>
+    response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/rest/v1/rpc/get_admin_store_settings",
+    { timeout: 30000 }
+  );
+  return protectedSettingsResponse;
+}
+
+async function assertAdminDashboardHasLoadedData(page, protectedSettingsResponse) {
+  const response = await protectedSettingsResponse;
+  assert(response.status() === 200,
+    `Step-up-protected dashboard settings RPC failed (HTTP ${response.status()}).`);
+  // "0 products total" is a valid empty catalog, unlike the initial loading
+  // placeholder. The red error message must be absent after loading settles.
+  await page.getByText(/\\d[\\d,]* products total/).waitFor({ timeout: 30000 });
+  assert(!(await page.getByText("Admin overview could not load").isVisible()),
+    "Admin dashboard displayed a backend data-loading error.");
+  assert(!(await page.getByText(/permission denied for table store_settings/i).isVisible()),
+    "Dashboard still reads restricted store_settings directly.");
+}
+
 async function waitForAdminOrMfa(page) {
   await page.waitForURL(/\/admin(?:\/|$)/, { timeout: 30000 });
 
@@ -292,8 +316,10 @@ async function main() {
     const storageState = authResult.storageState;
 
     results.push(await runCheck(browser, "desktop dashboard", DESKTOP, storageState, async (page) => {
+      const settingsResponse = expectAdminDashboardSettingsResponse(page);
       await nav(page, "/admin");
       await page.getByRole("heading", { name: "Home" }).waitFor();
+      await assertAdminDashboardHasLoadedData(page, settingsResponse);
       assert(await page.getByText("GDP Commerce Admin", { exact: true }).first().isVisible(), "Admin identity missing.");
       assert(await page.locator('a[aria-label="Open System Health"]').isVisible(), "Desktop System Health shortcut missing.");
       assert(!(await page.getByRole("button", { name: "Quick Actions" }).isVisible()), "Mobile Quick Actions should be hidden on desktop.");
@@ -334,8 +360,10 @@ async function main() {
     }));
 
     results.push(await runCheck(browser, "mobile quick actions", MOBILE, storageState, async (page) => {
+      const settingsResponse = expectAdminDashboardSettingsResponse(page);
       await nav(page, "/admin");
       await page.getByRole("heading", { name: "Home" }).waitFor();
+      await assertAdminDashboardHasLoadedData(page, settingsResponse);
       const trigger = page.getByRole("button", { name: "Quick Actions" });
       await trigger.waitFor();
       assert(!(await page.locator('a[aria-label="Open System Health"]').isVisible()), "Desktop shortcut should be hidden on mobile.");
