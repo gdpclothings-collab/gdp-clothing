@@ -55,37 +55,21 @@ async function logAction(service: any, actor: string, operation: string, target:
 
 // Always enumerate through the Storage API, not DELETE on storage.objects.
 // Folder depth, total number of entries, and pagination are bounded.
+// Read metadata via a service-only, bounded RPC. Recursive Storage listing
+// becomes prohibitively slow when customer uploads have many subfolders.
+// All deletions continue through the Storage API, never SQL.
 async function listBucket(service: any, bucket: string) {
-  const results: any[] = [];
-  let folders = [""];
-  let visited = 0;
-  while (folders.length) {
-    const folder = folders.shift()!;
-    if (++visited > 80) throw new Error("Too many storage folders. Narrow the cleanup scope.");
-    for (let offset = 0; offset < 2000; offset += 1000) {
-      const { data, error } = await service.storage.from(bucket).list(folder, {
-        limit: 1000, offset, sortBy: { column: "name", order: "asc" },
-      });
-      if (error) throw new Error("Storage listing unavailable.");
-      const rows = data || [];
-      for (const file of rows) {
-        const path = folder ? folder + "/" + file.name : file.name;
-        if (!validStoragePath(path)) continue;
-        if (file.id && file.metadata) {
-          results.push({
-            path, created_at: file.created_at, updated_at: file.updated_at,
-            bytes: Number(file.metadata?.size || 0),
-          });
-        } else {
-          folders.push(path);
-        }
-        if (results.length > 2000) throw new Error("Too many files. Use the Supabase Storage management page.");
-      }
-      if (rows.length < 1000) break;
-      if (offset >= 1000) throw new Error("Too many files in a single folder.");
-    }
-  }
-  return results;
+  if (!CLEANUP_BUCKETS.includes(bucket)) throw new Error("Protected storage bucket.");
+  const { data, error } = await service.rpc("admin_cleanup_list_storage_files", { p_bucket: bucket });
+  if (error || !Array.isArray(data)) throw new Error("Protected storage preview unavailable.");
+  if (data.length > 2000) throw new Error("Too many files for safe preview.");
+  return data.filter((file: any) => validStoragePath(file.path))
+    .map((file: any) => ({
+      path: file.path,
+      created_at: file.created_at,
+      updated_at: file.updated_at,
+      bytes: Number(file.bytes || 0),
+    }));
 }
 
 async function referencedData(service: any) {
