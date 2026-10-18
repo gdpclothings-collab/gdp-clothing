@@ -595,7 +595,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             ) : <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" />
           ) : null}
 
-          {isBootleg ? <canvas ref={overlayCanvasRef} data-gdp-bootleg-print-overlay="true" className="pointer-events-none absolute inset-0 z-20 h-full w-full" aria-hidden="true" /> : null}
+          {isBootleg ? <canvas ref={overlayCanvasRef} data-gdp-bootleg-print-overlay="true" className="pointer-events-none absolute inset-0 z-[27] h-full w-full" aria-hidden="true" /> : null}
 
           {usesLayerLab ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} scope={path} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
 
