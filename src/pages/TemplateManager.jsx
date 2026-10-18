@@ -291,6 +291,18 @@ export default function TemplateManager() {
                 <label className="text-xs font-semibold">Starting thickness (0–100%)<input type="number" min="0" max="100" value={borderOptions.thickness ?? DEFAULT_PHOTO_BORDER.thickness} onChange={(event) => updatePhotoBorderOptions({ thickness: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
                 <label className="text-xs font-semibold">Starting glow softness (0–100%)<input type="number" min="0" max="100" value={borderOptions.softness ?? DEFAULT_PHOTO_BORDER.softness} onChange={(event) => updatePhotoBorderOptions({ softness: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
               </div>
+              <div data-gdp-admin-bootleg-glow="true" className="space-y-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/40 p-3">
+                <p className="text-xs font-bold text-fuchsia-900">Bootleg Glow starting values (newly applied effects only)</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="text-xs font-semibold">Inner stroke color<input type="color" value={/^#[0-9a-fA-F]{6}$/.test(borderOptions.innerColor || "") ? borderOptions.innerColor : DEFAULT_PHOTO_BORDER.innerColor} onChange={(event) => updatePhotoBorderOptions({ innerColor: event.target.value })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white p-1" /></label>
+                  <label className="text-xs font-semibold">Glow halo color<input type="color" value={/^#[0-9a-fA-F]{6}$/.test(borderOptions.glowColor || "") ? borderOptions.glowColor : DEFAULT_PHOTO_BORDER.glowColor} onChange={(event) => updatePhotoBorderOptions({ glowColor: event.target.value })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white p-1" /></label>
+                  <label className="text-xs font-semibold">Inner stroke thickness<input type="number" min="0" max="100" value={borderOptions.innerThickness ?? DEFAULT_PHOTO_BORDER.innerThickness} onChange={(event) => updatePhotoBorderOptions({ innerThickness: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
+                  <label className="text-xs font-semibold">Glow size<input type="number" min="0" max="100" value={borderOptions.glowSize ?? DEFAULT_PHOTO_BORDER.glowSize} onChange={(event) => updatePhotoBorderOptions({ glowSize: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
+                  <label className="text-xs font-semibold">Glow opacity<input type="number" min="0" max="100" value={borderOptions.glowOpacity ?? DEFAULT_PHOTO_BORDER.glowOpacity} onChange={(event) => updatePhotoBorderOptions({ glowOpacity: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
+                  <label className="text-xs font-semibold">Feather softness<input type="number" min="0" max="100" value={borderOptions.feather ?? DEFAULT_PHOTO_BORDER.feather} onChange={(event) => updatePhotoBorderOptions({ feather: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })} className="mt-2 h-11 w-full rounded-xl border border-[#dedfe3] bg-white px-3" /></label>
+                </div>
+              </div>
+
             </div>
           </>}
           {category === "memorial_tribute" && (
