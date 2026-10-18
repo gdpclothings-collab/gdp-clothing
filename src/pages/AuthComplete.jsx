@@ -38,16 +38,16 @@ export default function AuthComplete() {
         if (!active) return;
         setEmail(data.user.email || "");
 
-        const privacy = await privacyApi.getAccountPrivacy();
-        const acceptances = privacy?.acceptances || [];
-        const hasTerms = acceptances.some(
-          (item) => item.policy_key === "terms_conditions" && item.policy_version === POLICY_VERSION,
+        // OAuth callbacks arrive before admin MFA. The general privacy listing
+        // is intentionally RLS-gated until AAL2, which must not mean "unsigned".
+        // This narrow RPC returns only whether this signed-in user accepted
+        // the current Terms and Privacy Policy; it exposes no private records.
+        const { data: hasCurrentAcceptance, error: acceptanceError } = await supabase.rpc(
+          "has_my_current_registration_policy_acceptances",
         );
-        const hasPrivacy = acceptances.some(
-          (item) => item.policy_key === "privacy_policy" && item.policy_version === POLICY_VERSION,
-        );
+        if (acceptanceError) throw acceptanceError;
 
-        if (hasTerms && hasPrivacy) {
+        if (hasCurrentAcceptance === true) {
           window.location.replace(destination);
           return;
         }
@@ -103,6 +103,16 @@ export default function AuthComplete() {
         marketingConsent,
       });
 
+      // Check the durable server-side record, not editable user metadata.
+      // Never redirect as successfully registered until both policies are
+      // genuinely recorded.
+      const { data: persisted, error: persistenceError } = await supabase.rpc(
+        "has_my_current_registration_policy_acceptances",
+      );
+      if (persistenceError) throw persistenceError;
+      if (persisted !== true) {
+        throw new Error("Your agreement could not be saved. Please try again.");
+      }
       window.location.replace(destination);
     } catch (err) {
       setError(err?.message || "We could not finish creating your account. Please try again.");
