@@ -362,6 +362,9 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
   // Low-DPI live previews return the exterior border pixels as a separate
   // transparent layer. Production draws the same borders directly with photos.
   const borderOutput = returnDesignCanvas ? createCanvas(resolvedProfile, dpi) : null;
+  // The preview border layer sits above interactive HTML photos; mask its
+  // entire photo interiors so effects only surround (never obscure) subjects.
+  const photoMaskOutput = borderOutput ? createCanvas(resolvedProfile, dpi) : null;
   const templateTransform = editor.textStyle?.templateTransform || null;
   const usesFreeTextLayers = editor.textStyle?.freeTextLayout === true;
   const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true && editor.textStyle?.photoForeground !== false;
@@ -392,6 +395,9 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
           } finally { context.restore(); }
         };
         if (borderOutput) {
+          // A combined photo alpha mask also removes glows from overlapping
+          // photo interiors after all images have been composited.
+          if (photoMaskOutput) paint(photoMaskOutput.context, null, 'erase');
           borderOutput.context.save();
           borderOutput.context.globalCompositeOperation = 'destination-out';
           paint(borderOutput.context, null, 'erase');
@@ -400,6 +406,15 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
         }
         paint(output.context, preparedBorder, 'both');
       } finally { loaded.close(); }
+    }
+    if (borderOutput && photoMaskOutput) {
+      borderOutput.context.save();
+      try {
+        borderOutput.context.globalCompositeOperation = 'destination-out';
+        borderOutput.context.drawImage(photoMaskOutput.canvas, 0, 0);
+      } finally {
+        borderOutput.context.restore();
+      }
     }
   };
 
