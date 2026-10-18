@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { adminDataCleanupApi } from "@/lib/adminDataCleanupApi";
 import { assertProductionEntryReady } from "@/lib/adminProductionApi";
 
 const throwIfError = ({ data, error, count }) => {
@@ -39,6 +40,6 @@ export const adminOrdersApi = {
   async updateWorkflow(orderId,values){if(requiresProductionEntryReadiness(values.productionStatus))await assertProductionEntryReady(orderId);const payload={status:values.status,design_status:values.designStatus,production_status:values.productionStatus,fulfillment_status:values.fulfillmentStatus,tracking_number:values.trackingNumber?.trim()||null,carrier:values.carrier?.trim()||null,notes:values.notes?.trim()||null};const {data,error}=await supabase.from("orders").update(payload).eq("id",orderId).select(ORDER_SELECT).single();if(error)throw error;return data;},
   async bulkUpdateStatus(orderIds,status){const ids=cleanIds(orderIds);if(!ids.length)return[];const {data,error}=await supabase.from("orders").update({status}).in("id",ids).select("id, status, updated_at");if(error)throw error;return data||[];},
   async bulkUpdateFulfillment(orderIds,fulfillmentStatus){const ids=cleanIds(orderIds);if(!ids.length)return[];const {data,error}=await supabase.from("orders").update({fulfillment_status:fulfillmentStatus}).in("id",ids).select("id, fulfillment_status, updated_at");if(error)throw error;return data||[];},
-  async deleteTestOrder(orderId){const {data,error}=await supabase.rpc("admin_delete_test_order",{p_order_id:orderId});if(error)throw error;return data;},
+  async deleteTestOrder(orderId){return adminDataCleanupApi.deleteOrders([orderId]);},
   async activity(orderId){const {data,error}=await supabase.from("order_activity_events").select("id, order_id, actor_user_id, activity_type, field_name, from_value, to_value, note, metadata, created_at").eq("order_id",orderId).order("created_at",{ascending:false}).limit(100);if(error)throw error;return data||[];},
 };
