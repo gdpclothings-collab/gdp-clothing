@@ -43,6 +43,7 @@ import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
+import { DEFAULT_PHOTO_BORDER, PHOTO_BORDER_STYLES, normalizePhotoBorder, hasPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
@@ -447,6 +448,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
+  const photoBordersCanvasRef = useRef(null);
   const overlayMaskRef = useRef(null);
   const latestOverlayRef = useRef(editor.overlay);
   latestOverlayRef.current = editor.overlay;
@@ -477,6 +479,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
   const overlayConfiguration = normalizeBootlegOverlay(editor.overlay);
   const overlayActive = isBootleg && overlayConfiguration.id !== 'none' && overlayConfiguration.enabled && overlayConfiguration.opacity > 0;
+  const bordersActive = isBootleg && photos.some((layer) => hasPhotoBorder(layer.border));
 
   // Keep the effects canvas separate from the interactive photo, text and
   // template elements. Only the alpha channel of the PRODUCTION-composed
@@ -505,6 +508,19 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     }
   };
 
+  const paintPhotoBorders = (borderCanvas) => {
+    const canvas = photoBordersCanvasRef.current;
+    if (!canvas) return;
+    if (borderCanvas && (canvas.width !== borderCanvas.width || canvas.height !== borderCanvas.height)) {
+      canvas.width = borderCanvas.width;
+      canvas.height = borderCanvas.height;
+    }
+    const context = canvas.getContext('2d', { alpha: true });
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (borderCanvas) context.drawImage(borderCanvas, 0, 0);
+  };
+
   useEffect(() => {
     paintMaskedOverlay(overlayMaskRef.current);
   }, [editor.overlay, overlayActive]);
@@ -513,7 +529,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     let cancelled = false;
     overlayMaskRef.current = null;
     paintMaskedOverlay(null);
-    if (!overlayActive || !template?.assetUrl || !photos.length) return;
+    paintPhotoBorders(null);
+    if (!(overlayActive || bordersActive) || !template?.assetUrl || !photos.length) return;
 
     // Wait until rapid edits settle, so moving/resizing a photo does not
     // repeatedly decode up to eight source images on each pointer movement.
@@ -527,12 +544,14 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         if (cancelled) return;
         overlayMaskRef.current = rendered.canvas;
         paintMaskedOverlay(rendered.canvas);
+        paintPhotoBorders(rendered.borderCanvas);
       } catch {
         // Safe failure: do not show unmasked effects when an image is not ready
         // or the browser cannot read a cross-origin source image.
         if (!cancelled) {
           overlayMaskRef.current = null;
           paintMaskedOverlay(null);
+          paintPhotoBorders(null);
         }
       }
     }, 120);
@@ -540,7 +559,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [overlayActive, isBootleg, product, size, side, template, editor.photos, editor.photo, editor.transform, editor.text, editor.textStyle, editor.textLayers, editor.stickers]);
+  }, [overlayActive, bordersActive, isBootleg, product, size, side, template, editor.photos, editor.photo, editor.transform, editor.text, editor.textStyle, editor.textLayers, editor.stickers]);
   const bootlegTextLayouts = bootlegTextLayers.map((layer) => {
     const style = normalizeBootlegTextStyle(layer.style || {}, fallbackTextStyle);
     const position = resolveBootlegTextPosition(style, textZone);
@@ -658,6 +677,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             ) : <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" />
           ) : null}
 
+          {isBootleg ? <canvas ref={photoBordersCanvasRef} data-gdp-bootleg-cutout-borders="true" aria-hidden="true" className="pointer-events-none absolute inset-0 z-[26] h-full w-full" /> : null}
+
           {isBootleg ? <canvas ref={overlayCanvasRef} data-gdp-bootleg-print-overlay="alpha-masked" className="pointer-events-none absolute inset-0 z-[45] h-full w-full" aria-hidden="true" /> : null}
 
           {usesLayerLab ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} scope={path} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
@@ -728,6 +749,21 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const photos = [...currentPhotoLayers(editor)].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
   const activePhoto = photos.find((layer) => layer.id === activePhotoId) || photos.at(-1) || null;
+  const activePhotoBorder = normalizePhotoBorder(activePhoto?.border);
+  const updateActivePhotoBorder = (patch) => {
+    if (!isBootleg || !activePhoto) return;
+    const latest = editorRef.current || editor;
+    const layers = [...currentPhotoLayers(latest)];
+    const useAdminDefaults = patch.style && patch.style !== 'none' && activePhotoBorder.style === 'none';
+    const configured = settings?.photoBorderOptions || {};
+    const initialSettings = useAdminDefaults ? {
+      color: configured.color ?? DEFAULT_PHOTO_BORDER.color,
+      thickness: configured.thickness ?? DEFAULT_PHOTO_BORDER.thickness,
+      softness: configured.softness ?? DEFAULT_PHOTO_BORDER.softness,
+    } : {};
+    const normalized = normalizePhotoBorder({ ...activePhotoBorder, ...initialSettings, ...patch });
+    syncPhotos(layers.map((layer) => layer.id === activePhoto.id ? { ...layer, border: normalized } : layer), activePhoto.id);
+  };
   const fallbackBootlegTextStyle = defaultV2TextStyle(path);
   const legacyTextStyle = { ...fallbackBootlegTextStyle, ...(editor.textStyle || {}) };
   const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16 };
@@ -1224,6 +1260,22 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} />
         </>}
         <RangeControl label="Rotation" value={activePhoto.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} />
+        {isBootleg ? (
+          <div data-gdp-bootleg-photo-borders="selected-photo-only" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
+            <div><p className="text-xs font-black uppercase tracking-wide text-slate-800">Photo Border Effects</p><p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">Only this photo gets a border. Cutout shapes and transparent areas stay clear; the edge is clipped to the print area.</p></div>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Border style for selected photo">
+              {PHOTO_BORDER_STYLES.filter((preset) => preset.id === 'none' || preset.id === activePhotoBorder.style || !Array.isArray(settings?.photoBorderOptions?.enabledStyles) || settings.photoBorderOptions.enabledStyles.includes(preset.id)).map((preset) => <button key={preset.id} type="button" onClick={() => updateActivePhotoBorder({ style: preset.id })} aria-pressed={activePhotoBorder.style === preset.id} className={`min-h-11 rounded-xl border px-2 text-xs font-black ${activePhotoBorder.style === preset.id ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{preset.label}</button>)}
+            </div>
+            {activePhotoBorder.style !== 'none' ? <div className="space-y-3">
+              <label className="block text-xs font-black text-slate-600">Border color<input type="color" value={activePhotoBorder.color} onChange={(event) => updateActivePhotoBorder({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
+              <RangeControl label="Thickness" value={activePhotoBorder.thickness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ thickness: value })} onReset={() => updateActivePhotoBorder({ thickness: DEFAULT_PHOTO_BORDER.thickness })} />
+              <RangeControl label="Opacity" value={activePhotoBorder.opacity} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ opacity: value })} onReset={() => updateActivePhotoBorder({ opacity: 100 })} />
+              {activePhotoBorder.style === 'glow' ? <RangeControl label="Glow softness" value={activePhotoBorder.softness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ softness: value })} /> : null}
+              {activePhotoBorder.style === 'rough' ? <RangeControl label="Distress amount" value={activePhotoBorder.distress} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ distress: value })} /> : null}
+              <button type="button" onClick={() => updateActivePhotoBorder({ ...DEFAULT_PHOTO_BORDER })} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700"><RotateCcw size={14} /> Remove border</button>
+            </div> : <p className="text-[11px] font-semibold text-slate-500">None (default) — existing photos remain unchanged.</p>}
+          </div>
+        ) : null}
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
         <button type="button" onClick={() => {
           const resetTransform = { scale: template?.defaultTransform?.scale || 100, rotation: 0, x: Number(template?.defaultTransform?.offset?.x || 0), y: Number(template?.defaultTransform?.offset?.y || 0) };

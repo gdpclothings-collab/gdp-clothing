@@ -1,5 +1,6 @@
 import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers';
 import { paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
+import { createPhotoBorderImage, drawPreparedPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
@@ -72,7 +73,7 @@ function zoneRect(zone, widthPx, heightPx) {
   };
 }
 
-function drawContain(context, loaded, rect, transform = {}) {
+function drawContain(context, loaded, rect, transform = {}, preparedBorder = null, mode = 'both') {
   const baseScale = Math.min(rect.width / Math.max(1, loaded.width), rect.height / Math.max(1, loaded.height));
   const userScale = clamp(transform.scale || 100, 30, 220) / 100;
   const drawWidth = loaded.width * baseScale * userScale;
@@ -81,7 +82,8 @@ function drawContain(context, loaded, rect, transform = {}) {
   const centerY = rect.y + rect.height / 2 + clamp(transform.y || 0, -48, 48) / 100 * rect.height;
   context.translate(centerX, centerY);
   context.rotate(clamp(transform.rotation || 0, -180, 180) * Math.PI / 180);
-  context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  if (mode !== 'erase') drawPreparedPhotoBorder(context, preparedBorder, drawWidth, drawHeight);
+  if (mode !== 'borderOnly') context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
 }
 
 function hasFreePhotoCanvasTransform(transform = {}) {
@@ -101,7 +103,7 @@ function resolveFreePhotoPosition(transform = {}, zone = {}) {
   };
 }
 
-function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx) {
+function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, preparedBorder = null, mode = 'both') {
   const boxWidth = Math.max(1, Number(zone?.width ?? 70) / 100 * widthPx);
   const boxHeight = Math.max(1, Number(zone?.height ?? 68) / 100 * heightPx);
   const position = resolveFreePhotoPosition(transform, zone);
@@ -116,7 +118,8 @@ function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx) {
   context.translate(centerX, centerY);
   context.rotate(clamp(transform?.rotation || 0, -180, 180) * Math.PI / 180);
   context.scale(userScale, userScale);
-  context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  if (mode !== 'erase') drawPreparedPhotoBorder(context, preparedBorder, drawWidth, drawHeight);
+  if (mode !== 'borderOnly') context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   context.restore();
 }
 
@@ -356,6 +359,9 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
   if (!photos.length) throw new Error('The customer photo is unavailable.');
   const resolvedProfile = profile(product, size, side);
   const output = createCanvas(resolvedProfile, dpi);
+  // Low-DPI live previews return the exterior border pixels as a separate
+  // transparent layer. Production draws the same borders directly with photos.
+  const borderOutput = returnDesignCanvas ? createCanvas(resolvedProfile, dpi) : null;
   const templateTransform = editor.textStyle?.templateTransform || null;
   const usesFreeTextLayers = editor.textStyle?.freeTextLayout === true;
   const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true && editor.textStyle?.photoForeground !== false;
@@ -364,18 +370,34 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     for (const layer of photos) {
       const loaded = await loadImage(layer.asset?.url, 'A customer photo layer could not be reopened.');
       try {
-        if (hasFreePhotoCanvasTransform(layer.transform || {})) {
-          drawFreePhoto(output.context, loaded, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx);
-          continue;
-        }
-        const drawPhoto = () => {
-          output.context.save();
-          const rect = zoneRect(template.photoZone || {}, output.widthPx, output.heightPx);
-          drawContain(output.context, loaded, rect, layer.transform || {});
-          output.context.restore();
+        const preparedBorder = createPhotoBorderImage(loaded.image, loaded.width, loaded.height, layer.border);
+        // Each successive photo hides any lower photo's border wherever its
+        // own visible (alpha) pixels cover it; borders follow photo stack order.
+        const paint = (context, border, mode) => {
+          context.save();
+          try {
+            if (hasFreePhotoCanvasTransform(layer.transform || {})) {
+              drawFreePhoto(context, loaded, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode);
+              return;
+            }
+            const drawPhoto = () => {
+              context.save();
+              const rect = zoneRect(template.photoZone || {}, output.widthPx, output.heightPx);
+              drawContain(context, loaded, rect, layer.transform || {}, border, mode);
+              context.restore();
+            };
+            if (templateTransform) withTemplateTransform(context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
+            else drawPhoto();
+          } finally { context.restore(); }
         };
-        if (templateTransform) withTemplateTransform(output.context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
-        else drawPhoto();
+        if (borderOutput) {
+          borderOutput.context.save();
+          borderOutput.context.globalCompositeOperation = 'destination-out';
+          paint(borderOutput.context, null, 'erase');
+          borderOutput.context.restore();
+          if (preparedBorder) paint(borderOutput.context, preparedBorder, 'borderOnly');
+        }
+        paint(output.context, preparedBorder, 'both');
       } finally { loaded.close(); }
     }
   };
@@ -407,7 +429,7 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
   // The preview mask comes from the exact same composed design as production,
   // before overlays are applied. Never include the mockup or garment background.
   if (returnDesignCanvas) {
-    return { canvas: output.canvas, widthPx: output.widthPx, heightPx: output.heightPx };
+    return { canvas: output.canvas, borderCanvas: borderOutput?.canvas || null, widthPx: output.widthPx, heightPx: output.heightPx };
   }
 
   // "source-atop" is an alpha-lock: overlay effects only alter already-visible
