@@ -326,6 +326,20 @@ async function main() {
       await noOverflow(page, DESKTOP);
     }));
 
+    results.push(await runCheck(browser, "desktop admin sign out entry", DESKTOP, storageState, async (page) => {
+      await nav(page, "/admin");
+      const sidebar = page.getByRole("navigation", { name: "Admin navigation" });
+      await sidebar.getByRole("button", { name: "Home" }).waitFor();
+      const sidebarSignOut = page.locator("aside").getByRole("button", { name: "Sign out" });
+      assert(await sidebarSignOut.isVisible(), "Desktop sidebar must offer Sign out.");
+      const accountMenu = page.getByRole("button", { name: "Admin account menu" });
+      await accountMenu.click();
+      assert(await accountMenu.getAttribute("aria-expanded") === "true", "Account menu must expand.");
+      assert(await page.locator("header").getByRole("button", { name: "Sign out" }).isVisible(),
+        "Profile dropdown must offer Sign out.");
+      // Read-only: never click Sign out; preserve authenticated smoke session.
+    }));
+
     results.push(await runCheck(browser, "desktop global search", DESKTOP, storageState, async (page) => {
       await nav(page, "/admin");
       await page.getByRole("button", { name: /Search orders, products and customers/i }).click();
@@ -374,6 +388,18 @@ async function main() {
       await editor.getByRole("button", { name: "Cancel" }).click();
       await editor.waitFor({ state: "hidden" });
       // Intentionally never save, create a customer, issue, or print a live record.
+    }));
+
+    results.push(await runCheck(browser, "mobile admin sign out entry", MOBILE, storageState, async (page) => {
+      await nav(page, "/admin");
+      await page.getByRole("button", { name: "Open navigation" }).click();
+      const navDrawer = page.locator("aside").filter({ has: page.getByText("GDP Commerce", { exact: true }) });
+      assert(await navDrawer.getByRole("button", { name: "Sign out" }).isVisible(),
+        "Mobile navigation must offer Sign out below Security.");
+      await noOverflow(page, MOBILE);
+      await page.getByRole("button", { name: "Close navigation" }).click();
+      assert(!(await navDrawer.isVisible()), "Mobile navigation must close.");
+      // Do not invalidate the CI admin session.
     }));
 
     results.push(await runCheck(browser, "mobile quick actions", MOBILE, storageState, async (page) => {

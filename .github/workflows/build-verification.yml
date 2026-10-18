@@ -88,6 +88,7 @@ jobs:
           node --test tests/google-oauth-policy-receipt.test.mjs
           node --test tests/admin-smoke-origin.test.mjs
           node --test tests/admin-smoke-mobile-layout.test.mjs
+          node --test tests/admin-sign-out-controls.test.mjs
           node scripts/verify-admin-mfa-onboarding.mjs
           node scripts/verify-safe-auto-merge.mjs
           node scripts/verify-custom-studio-print-guides.mjs
