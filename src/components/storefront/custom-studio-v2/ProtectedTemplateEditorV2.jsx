@@ -43,6 +43,7 @@ import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
+import { DEFAULT_PHOTO_BORDER, PHOTO_BORDER_STYLES, normalizePhotoBorder, hasPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
@@ -447,6 +448,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
+  const photoBordersCanvasRef = useRef(null);
   const overlayMaskRef = useRef(null);
   const latestOverlayRef = useRef(editor.overlay);
   latestOverlayRef.current = editor.overlay;
@@ -477,6 +479,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
   const overlayConfiguration = normalizeBootlegOverlay(editor.overlay);
   const overlayActive = isBootleg && overlayConfiguration.id !== 'none' && overlayConfiguration.enabled && overlayConfiguration.opacity > 0;
+  const bordersActive = isBootleg && photos.some((layer) => hasPhotoBorder(layer.border));
 
   // Keep the effects canvas separate from the interactive photo, text and
   // template elements. Only the alpha channel of the PRODUCTION-composed
@@ -505,6 +508,19 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     }
   };
 
+  const paintPhotoBorders = (borderCanvas) => {
+    const canvas = photoBordersCanvasRef.current;
+    if (!canvas) return;
+    if (borderCanvas && (canvas.width !== borderCanvas.width || canvas.height !== borderCanvas.height)) {
+      canvas.width = borderCanvas.width;
+      canvas.height = borderCanvas.height;
+    }
+    const context = canvas.getContext('2d', { alpha: true });
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (borderCanvas) context.drawImage(borderCanvas, 0, 0);
+  };
+
   useEffect(() => {
     paintMaskedOverlay(overlayMaskRef.current);
   }, [editor.overlay, overlayActive]);
@@ -513,7 +529,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     let cancelled = false;
     overlayMaskRef.current = null;
     paintMaskedOverlay(null);
-    if (!overlayActive || !template?.assetUrl || !photos.length) return;
+    paintPhotoBorders(null);
+    if (!(overlayActive || bordersActive) || !template?.assetUrl || !photos.length) return;
 
     // Wait until rapid edits settle, so moving/resizing a photo does not
     // repeatedly decode up to eight source images on each pointer movement.
@@ -527,12 +544,14 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         if (cancelled) return;
         overlayMaskRef.current = rendered.canvas;
         paintMaskedOverlay(rendered.canvas);
+        paintPhotoBorders(rendered.borderCanvas);
       } catch {
         // Safe failure: do not show unmasked effects when an image is not ready
         // or the browser cannot read a cross-origin source image.
         if (!cancelled) {
           overlayMaskRef.current = null;
           paintMaskedOverlay(null);
+          paintPhotoBorders(null);
         }
       }
     }, 120);
@@ -540,7 +559,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [overlayActive, isBootleg, product, size, side, template, editor.photos, editor.photo, editor.transform, editor.text, editor.textStyle, editor.textLayers, editor.stickers]);
+  }, [overlayActive, bordersActive, isBootleg, product, size, side, template, editor.photos, editor.photo, editor.transform, editor.text, editor.textStyle, editor.textLayers, editor.stickers]);
   const bootlegTextLayouts = bootlegTextLayers.map((layer) => {
     const style = normalizeBootlegTextStyle(layer.style || {}, fallbackTextStyle);
     const position = resolveBootlegTextPosition(style, textZone);
@@ -658,6 +677,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             ) : <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" />
           ) : null}
 
+          {isBootleg ? <canvas ref={photoBordersCanvasRef} data-gdp-bootleg-cutout-borders="true" aria-hidden="true" className="pointer-events-none absolute inset-0 z-[26] h-full w-full" /> : null}
+
           {isBootleg ? <canvas ref={overlayCanvasRef} data-gdp-bootleg-print-overlay="alpha-masked" className="pointer-events-none absolute inset-0 z-[45] h-full w-full" aria-hidden="true" /> : null}
 
           {usesLayerLab ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} scope={path} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
@@ -728,6 +749,14 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const photos = [...currentPhotoLayers(editor)].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
   const activePhoto = photos.find((layer) => layer.id === activePhotoId) || photos.at(-1) || null;
+  const activePhotoBorder = normalizePhotoBorder(activePhoto?.border);
+  const updateActivePhotoBorder = (patch) => {
+    if (!isBootleg || !activePhoto) return;
+    const latest = editorRef.current || editor;
+    const layers = [...currentPhotoLayers(latest)];
+    const normalized = normalizePhotoBorder({ ...activePhotoBorder, ...patch });
+    syncPhotos(layers.map((layer) => layer.id === activePhoto.id ? { ...layer, border: normalized } : layer), activePhoto.id);
+  };
   const fallbackBootlegTextStyle = defaultV2TextStyle(path);
   const legacyTextStyle = { ...fallbackBootlegTextStyle, ...(editor.textStyle || {}) };
   const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16 };
