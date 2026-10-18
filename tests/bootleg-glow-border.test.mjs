@@ -27,7 +27,7 @@ test('Bootleg Glow is opt-in; existing designs and other border presets retain t
 test('Photo Glow fields have stable printable defaults and sanitized bounded inputs', () => {
   const defaults = normalizePhotoBorder({ style: 'bootlegGlow' });
   assert.equal(defaults.innerColor, '#ffffff');
-  assert.equal(defaults.glowColor, '#ee4dff');
+  assert.equal(defaults.glowColor, '#d65bff');
   assert.ok(defaults.innerThickness > 0 && defaults.glowSize > 0 && defaults.feather > 0);
   const safe = normalizePhotoBorder({
     style: 'bootlegGlow',
