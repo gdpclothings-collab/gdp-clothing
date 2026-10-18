@@ -40,6 +40,8 @@ import {
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
+import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
+import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
@@ -443,6 +445,9 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
+  const overlayMaskRef = useRef(null);
+  const latestOverlayRef = useRef(editor.overlay);
+  latestOverlayRef.current = editor.overlay;
   const isBootleg = path === 'bootleg';
   const isMemorial = path === 'memorial';
   const usesLayerLab = isBootleg || isMemorial;
@@ -468,16 +473,72 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const templateEditing = usesLayerLab && activeLayer === 'template';
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
-  useEffect(() => {
-    if (!isBootleg || !overlayCanvasRef.current) return;
+  const overlayConfiguration = normalizeBootlegOverlay(editor.overlay);
+  const overlayActive = isBootleg && overlayConfiguration.id !== 'none' && overlayConfiguration.enabled && overlayConfiguration.opacity > 0;
+
+  // Keep the effects canvas separate from the interactive photo, text and
+  // template elements. Only the alpha channel of the PRODUCTION-composed
+  // design acts as its mask — never the rectangular print-area background.
+  const paintMaskedOverlay = (maskCanvas) => {
     const canvas = overlayCanvasRef.current;
-    canvas.width = layoutWidth;
-    canvas.height = Math.max(1, Math.round(layoutHeight));
+    if (!canvas) return;
+    if (maskCanvas && (canvas.width !== maskCanvas.width || canvas.height !== maskCanvas.height)) {
+      canvas.width = maskCanvas.width;
+      canvas.height = maskCanvas.height;
+    }
     const context = canvas.getContext('2d', { alpha: true });
     if (!context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
-    paintBootlegOverlay(context, canvas.width, canvas.height, editor.overlay);
-  }, [isBootleg, editor.overlay, layoutHeight]);
+    if (!maskCanvas) return;
+
+    if (!paintBootlegOverlay(context, canvas.width, canvas.height, latestOverlayRef.current)) return;
+    // destination-in discards every effect pixel where the final artwork is
+    // transparent (including holes and irregular, soft-edged silhouettes).
+    context.save();
+    try {
+      context.globalCompositeOperation = 'destination-in';
+      context.drawImage(maskCanvas, 0, 0);
+    } finally {
+      context.restore();
+    }
+  };
+
+  useEffect(() => {
+    paintMaskedOverlay(overlayMaskRef.current);
+  }, [editor.overlay, overlayActive]);
+
+  useEffect(() => {
+    let cancelled = false;
+    overlayMaskRef.current = null;
+    paintMaskedOverlay(null);
+    if (!overlayActive || !template?.assetUrl || !photos.length) return;
+
+    // Wait until rapid edits settle, so moving/resizing a photo does not
+    // repeatedly decode up to eight source images on each pointer movement.
+    const timer = window.setTimeout(async () => {
+      try {
+        const rendered = await renderProtectedStudioV2PngAdvanced({
+          product, size, side, editor, template,
+          profile: resolveStudioV2PrintProfile,
+          dpi: 72, returnDesignCanvas: true,
+        });
+        if (cancelled) return;
+        overlayMaskRef.current = rendered.canvas;
+        paintMaskedOverlay(rendered.canvas);
+      } catch {
+        // Safe failure: do not show unmasked effects when an image is not ready
+        // or the browser cannot read a cross-origin source image.
+        if (!cancelled) {
+          overlayMaskRef.current = null;
+          paintMaskedOverlay(null);
+        }
+      }
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [overlayActive, isBootleg, product, size, side, template, editor.photos, editor.photo, editor.transform, editor.text, editor.textStyle, editor.textLayers, editor.stickers]);
   const bootlegTextLayouts = bootlegTextLayers.map((layer) => {
     const style = normalizeBootlegTextStyle(layer.style || {}, fallbackTextStyle);
     const position = resolveBootlegTextPosition(style, textZone);
@@ -595,7 +656,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             ) : <img src={template.assetUrl} alt="" aria-hidden="true" draggable="false" className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-fill" />
           ) : null}
 
-          {isBootleg ? <canvas ref={overlayCanvasRef} data-gdp-bootleg-print-overlay="true" className="pointer-events-none absolute inset-0 z-[27] h-full w-full" aria-hidden="true" /> : null}
+          {isBootleg ? <canvas ref={overlayCanvasRef} data-gdp-bootleg-print-overlay="alpha-masked" className="pointer-events-none absolute inset-0 z-[45] h-full w-full" aria-hidden="true" /> : null}
 
           {usesLayerLab ? bootlegTextLayouts.map(({ layer, layout }) => <BootlegTextLayer key={layer.id} layer={layer} layout={layout} canvasRef={canvasRef} scope={path} selected={activeLayer === 'text' && layer.id === activeTextLayerId} onPatchStyle={(style) => patchBootlegTextStyle(layer.id, style)} />) : null}
 
@@ -1095,7 +1156,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   ];
 
   const activeLayerSummary = activeBootlegLayer === 'overlay'
-    ? (overlay.id === 'none' ? 'Overlay Effects — choose an effect to add inside the print area' : 'Overlay Effects — ' + (BOOTLEG_OVERLAY_PRESETS.find((preset) => preset.id === overlay.id)?.label || 'Custom'))
+    ? (overlay.id === 'none' ? 'Overlay Effects — choose an effect to apply only to your design' : 'Overlay Effects — ' + (BOOTLEG_OVERLAY_PRESETS.find((preset) => preset.id === overlay.id)?.label || 'Custom'))
     : activeBootlegLayer === 'template'
     ? `Editing Template — ${template?.name || 'choose a template'}`
     : activeBootlegLayer === 'photo'
@@ -1105,10 +1166,10 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         : `Editing Sticker — ${activeStickerOption?.label || activeSticker?.label || 'choose a sticker'}`;
 
   const overlayPanel = isBootleg ? (
-    <div data-gdp-bootleg-panel="overlay" data-gdp-print-area-only="true" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3">
+    <div data-gdp-bootleg-panel="overlay" data-gdp-design-alpha-mask="true" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3">
       <div>
         <p className="text-xs font-black uppercase tracking-wide text-slate-800">Overlay Effects</p>
-        <p className="mt-1 text-xs font-medium leading-5 text-slate-500">Effects are clipped to this side's exact print area, including the 300-DPI production export. Photos and template stay editable.</p>
+        <p className="mt-1 text-xs font-medium leading-5 text-slate-500">Effects apply only to visible artwork pixels. Transparent areas stay transparent in preview and the 300-DPI production export.</p>
       </div>
       <div className="grid grid-cols-2 gap-2" role="group" aria-label="Photo Bootleg overlay presets">
         {BOOTLEG_OVERLAY_PRESETS.map((preset) => <button key={preset.id} type="button" aria-pressed={overlay.id === preset.id} onClick={() => patchOverlay({ id: preset.id, enabled: true })} className={overlay.id === preset.id ? 'min-h-11 rounded-xl border-2 border-slate-950 bg-slate-950 px-2 text-xs font-black text-white' : 'min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-700 hover:border-slate-400'}>{preset.label}</button>)}
@@ -1124,7 +1185,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <button type="button" onClick={() => onPatch({ overlay: { ...DEFAULT_BOOTLEG_OVERLAY } })} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-700"><RotateCcw size={14} /> Remove and reset overlay</button>
         </div>
       ) : <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">No overlay applied. Your existing artwork remains unchanged.</p>}
-      <p className="text-[11px] font-bold text-emerald-700">Print-area only · independent Front / Back settings</p>
+      <p className="text-[11px] font-bold text-emerald-700">Design pixels only · transparent background protected · Front / Back independent</p>
     </div>
   ) : null;
 

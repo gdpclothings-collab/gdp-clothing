@@ -71,9 +71,32 @@ test('editor preview and 300 DPI export use the identical print-boundary rendere
   const production = readFileSync('src/lib/customStudioV2ProtectedProduction.js', 'utf8');
   const checkout = readFileSync('src/pages/CustomStudioV2.jsx', 'utf8');
   assert.match(preview, /isBootleg \? <canvas ref=\{overlayCanvasRef\}/);
-  assert.match(preview, /data-gdp-bootleg-print-overlay="true"/);
-  assert.match(preview, /paintBootlegOverlay\(context, canvas.width, canvas.height, editor.overlay\)/);
+  assert.match(preview, /data-gdp-bootleg-print-overlay="alpha-masked"/);
+  assert.match(preview, /paintBootlegOverlay\(context, canvas.width, canvas.height, latestOverlayRef.current\)/);
   assert.match(production, /paintBootlegOverlay\(output.context, output.widthPx, output.heightPx, editor.overlay\)/);
   assert.match(checkout, /state.designPath === 'bootleg' \? \{ overlay:/);
   assert.match(preview, /activeBootlegLayer === 'overlay' \? overlayPanel : null/);
+});
+
+test('production alpha lock applies after all artwork and preserves transparent holes', () => {
+  const production = readFileSync('src/lib/customStudioV2ProtectedProduction.js', 'utf8');
+  const stickerEnd = production.lastIndexOf('await drawStickers(output.context');
+  const compositor = production.lastIndexOf("output.context.globalCompositeOperation = 'source-atop'");
+  const effect = production.lastIndexOf('paintBootlegOverlay(output.context');
+  const png = production.lastIndexOf('blob: await canvasPng(output.canvas)');
+  assert.ok(stickerEnd >= 0 && stickerEnd < compositor && compositor < effect && effect < png);
+  assert.match(production, /if \(returnDesignCanvas\) \{\s*return \{ canvas: output.canvas,/);
+  assert.match(production, /output.context.restore\(\)/);
+});
+
+test('live preview uses production-composed design alpha rather than a rectangular mask', () => {
+  const preview = readFileSync('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', 'utf8');
+  assert.match(preview, /renderProtectedStudioV2PngAdvanced\(\{/);
+  assert.match(preview, /returnDesignCanvas: true/);
+  assert.match(preview, /context.globalCompositeOperation = 'destination-in'/);
+  assert.match(preview, /context.drawImage\(maskCanvas, 0, 0\)/);
+  assert.match(preview, /overlayMaskRef.current = null/);
+  assert.match(preview, /if \(!maskCanvas\) return;/);
+  assert.match(preview, /data-gdp-design-alpha-mask="true"/);
+  assert.match(preview, /pointer-events-none absolute inset-0 z-\[45\]/);
 });

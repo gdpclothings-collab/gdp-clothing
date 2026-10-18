@@ -350,7 +350,7 @@ async function drawStickers(context, stickers, widthPx, heightPx) {
   }
 }
 
-export async function renderProtectedStudioV2PngAdvanced({ product, size, side, editor, template, profile, dpi = 300 }) {
+export async function renderProtectedStudioV2PngAdvanced({ product, size, side, editor, template, profile, dpi = 300, returnDesignCanvas = false }) {
   if (!template?.assetUrl) throw new Error('The GDP template artwork is unavailable.');
   const photos = photoLayers(editor).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   if (!photos.length) throw new Error('The customer photo is unavailable.');
@@ -394,10 +394,6 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     await drawTemplate();
   }
 
-  // Overlay is composed above template/photos but below editable text and stickers.
-  // The renderer clips every transformed effect to this production print canvas.
-  if (editor?.overlay) paintBootlegOverlay(output.context, output.widthPx, output.heightPx, editor.overlay);
-
   if (usesFreeTextLayers) {
     const bootlegTextLayers = resolveBootlegTextLayers(editor, editor.textStyle || {}).filter((layer) => layer.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     for (const layer of bootlegTextLayers) {
@@ -407,6 +403,25 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
     drawStyledText(output.context, editor.text || {}, template.textZone || {}, editor.textStyle || {}, output.widthPx, output.heightPx);
   }
   await drawStickers(output.context, editor.stickers || [], output.widthPx, output.heightPx);
+
+  // The preview mask comes from the exact same composed design as production,
+  // before overlays are applied. Never include the mockup or garment background.
+  if (returnDesignCanvas) {
+    return { canvas: output.canvas, widthPx: output.widthPx, heightPx: output.heightPx };
+  }
+
+  // "source-atop" is an alpha-lock: overlay effects only alter already-visible
+  // design pixels. Transparent backgrounds and soft antialiased edges retain
+  // their ORIGINAL alpha; no color or opacity can leak into empty print space.
+  if (editor?.overlay) {
+    output.context.save();
+    try {
+      output.context.globalCompositeOperation = 'source-atop';
+      paintBootlegOverlay(output.context, output.widthPx, output.heightPx, editor.overlay);
+    } finally {
+      output.context.restore();
+    }
+  }
 
   return {
     blob: await canvasPng(output.canvas),
