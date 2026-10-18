@@ -335,7 +335,7 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
       data-gdp-bootleg-free-photo-layer={scope === 'bootleg' ? 'true' : undefined}
       data-gdp-memorial-free-photo-layer={scope === 'memorial' ? 'true' : undefined}
       onPointerDown={(event) => { if (!selected) onSelect(); gesture.onPointerDown(event); }}
-      className={`absolute origin-center overflow-hidden select-none ${selected ? 'cursor-grab ring-2 ring-cyan-400/90' : scope === 'bootleg' ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`}
+      className={`absolute origin-center overflow-hidden select-none ${selected ? 'pointer-events-auto cursor-grab ring-2 ring-cyan-400/90' : scope === 'bootleg' ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`}
       style={{
         ...gesture.style,
         zIndex: 5 + Number(layer.order || 0),
