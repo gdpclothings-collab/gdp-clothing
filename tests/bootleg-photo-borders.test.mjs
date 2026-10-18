@@ -82,7 +82,7 @@ test('A prepared border is drawn with photo-local geometry and saved alpha', () 
 });
 
 test('Compositor draws borders with photos and mirrors them to preview before overlay', () => {
-  assert.match(producer, /createPhotoBorderImage\(loaded\.image, loaded\.width, loaded\.height, layer\.border\)/);
+  assert.match(producer, /createPhotoBorderImage\\(photoSource\\.image, photoSource\\.width, photoSource\\.height, layer\\.border\\)/);
   assert.match(producer, /borderOutput\.context\.globalCompositeOperation = 'destination-out'/);
   assert.match(producer, /paint\(borderOutput\.context, preparedBorder, 'borderOnly'\)/);
   assert.match(producer, /paint\(output\.context, preparedBorder, 'both'\)/);
