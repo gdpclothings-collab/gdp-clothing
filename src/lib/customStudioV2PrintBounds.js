@@ -76,7 +76,7 @@ export function constrainStickerTransform(transform = {}, canvasAspect = 1) {
   const ratio = aspect(canvasAspect);
   const rotation = clamp(finite(transform.rotation, 0), -180, 180);
   const {scale,widthScale,heightScale,projected} = fitAxisScales(
-    1, ratio, rotation, ratio, transform.scale ?? 42, transform.widthScale, transform.heightScale, 1000
+    100, 100 * ratio, rotation, ratio, transform.scale ?? 42, transform.widthScale, transform.heightScale, 1000
   );
   return {
     ...transform,scale,widthScale,heightScale,rotation,
