@@ -7,6 +7,7 @@ const source = readFileSync('src/components/storefront/custom-studio-v2/Protecte
 const seasonal = readFileSync('src/components/storefront/custom-studio-v2/SeasonalEditorV2.jsx','utf8');
 const upload = readFileSync('src/components/storefront/custom-studio-v2/UploadArtworkEditorV2.jsx','utf8');
 const mirror = readFileSync('src/components/storefront/custom-studio-v2/StudioMobilePreviewMirror.jsx','utf8');
+const visibilityHook = readFileSync('src/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview.js','utf8');
 
 test('mobile layer inspector has auto-visible live preview only when main garment is offscreen', () => {
   assert.match(source, /const \[mobilePreviewOutOfView, setMobilePreviewOutOfView\] = useState\(false\)/);
@@ -15,7 +16,7 @@ test('mobile layer inspector has auto-visible live preview only when main garmen
   assert.match(source, /\(max-width: 639px\)/);
   assert.match(source, /<StudioMobilePreviewMirror side=\{side\} minimized=\{mobilePreviewDismissed\}/);
   assert.match(source, /<ProtectedPreview compact product=\{product\}/);
-  assert.match(mirror, /pointer-events-none mx-auto mt-2/);
+  assert.match(mirror, /pointer-events-none mx-auto w-full select-none/);
 });
 test('pinned preview is closable and restores on return to the main garment', () => {
   assert.match(source,/setMobilePreviewDismissed\(true\)/);
@@ -39,14 +40,19 @@ test('desktop layout stays three-column and mobile layer picker fits on one row'
   assert.match(source,/data-gdp-bootleg-confirm-action=\{isBootleg \? 'persistent'/);
 });
 
-test('every design path mirrors its live print placement without covering mobile controls', () => {
-  assert.match(mirror, /data-gdp-mobile-preview-safe="controls-unobstructed"/);
+test('every design path has a movable, minimizable floating preview with protected controls', () => {
+  assert.match(mirror, /data-gdp-mobile-preview-safe="draggable-minimizable"/);
   assert.match(mirror, /sm:hidden/);
-  assert.doesNotMatch(mirror, /\bfixed\b/);
-  assert.match(seasonal, /<StudioMobilePreviewMirror side=\{side\}/);
+  assert.match(mirror, /pointer-events-none fixed z-\[45\] sm:hidden/);
+  assert.match(mirror, /onPointerDown=\{beginMove\}/);
+  assert.match(mirror, /onPointerMove=\{move\}/);
+  assert.match(mirror, /onClick=\{switchSide\}/);
+  assert.match(mirror, /onClick=\{onMinimize\}/);
+  assert.match(mirror, /onClick=\{onRestore\}/);
+  assert.match(seasonal, /floatingPreviewVisible \? <StudioMobilePreviewMirror side=\{side\}/);
   assert.match(seasonal, /<StudioMobileGarmentMirror garmentPreview=\{garmentPreview\}/);
   assert.match(seasonal, /entry\.layout\.width \/ area\.width/);
-  assert.match(upload, /<StudioMobilePreviewMirror side=\{side\}/);
+  assert.match(upload, /floatingPreviewVisible \? <StudioMobilePreviewMirror side=\{side\}/);
   assert.match(upload, /<StudioMobileGarmentMirror garmentPreview=\{garmentPreview\}/);
   assert.match(upload, /data-gdp-upload-mirror-artwork="true"/);
   assert.match(upload, /transform\.widthScale \/ 10000/);
@@ -89,4 +95,26 @@ test('all four paths explain missing artwork without bypassing approval', () => 
   assert.match(studioV2MissingArtworkMessage(state), /Upload a printable artwork/);
   state.designPath = 'bootleg';
   assert.match(studioV2MissingArtworkMessage(state), /protected template/);
+});
+
+test('floating preview visibility is screen-aware on both Seasonal and Upload editors', () => {
+  assert.match(visibilityHook, /IntersectionObserver/);
+  assert.match(visibilityHook, /inspectorInView && !mainInView/);
+  assert.match(visibilityHook, /max-width: 639px/);
+  assert.match(visibilityHook, /garmentObserver\.disconnect\(\)/);
+  assert.match(visibilityHook, /inspectorObserver\.disconnect\(\)/);
+  assert.match(seasonal, /ref=\{garmentRef\} data-gdp-seasonal-canvas-stable/);
+  assert.match(upload, /<section ref=\{garmentRef\}/);
+  assert.match(seasonal, /<section ref=\{inspectorRef\}/);
+  assert.match(upload, /<section ref=\{inspectorRef\}/);
+  assert.match(source, /mobilePreviewOutOfView && usesLayerLab/);
+  assert.match(source, /isBootleg \|\| isMemorial/);
+});
+
+test('floating preview cannot intercept normal clicks outside the preview and has 44px mobile restore control', () => {
+  assert.match(mirror, /pointer-events-none fixed/);
+  assert.match(mirror, /pointer-events-auto overflow-hidden/);
+  assert.match(mirror, /min-h-11 rounded-full/);
+  assert.match(mirror, /aria-label="Drag to move floating live preview"/);
+  assert.match(mirror, /aria-label="Move floating preview to other side"/);
 });
