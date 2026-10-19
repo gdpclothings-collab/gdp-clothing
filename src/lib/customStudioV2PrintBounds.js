@@ -14,49 +14,73 @@ function projectedSize(width, height, rotation, canvasAspect) {
   };
 }
 
-/** Keep every corner of a photo box inside the printable region on drag/pinch/slider. */
+/** Independent width/height multipliers. 100%/100% preserves every saved design. */
+export function freeAxisScale(transform = {}) {
+  return { widthScale: clamp(finite(transform.widthScale, 100), 1, 1000), heightScale: clamp(finite(transform.heightScale, 100), 1, 1000) };
+}
+
+function fitAxisRectangle(width, height, rotation, canvasAspect) {
+  return projectedSize(width, height, rotation, canvasAspect);
+}
+
+/** Clamp both axes together only when the full rotated rectangle cannot fit. */
+function fitAxisScales(baseWidth, baseHeight, rotation, canvasAspect, scale, widthScale, heightScale, maxScale) {
+  const safeScale = clamp(finite(scale, 100), 1, maxScale);
+  let sx = clamp(finite(widthScale, 100), 1, 1000);
+  let sy = clamp(finite(heightScale, 100), 1, 1000);
+  const getProjected = (a, b) => fitAxisRectangle(
+    baseWidth * safeScale / 100 * a / 100,
+    baseHeight * safeScale / 100 * b / 100,
+    rotation,
+    canvasAspect
+  );
+  let projected = getProjected(sx, sy);
+  if (projected.width > 100 || projected.height > 100) {
+    const ratio = Math.min(1, 100 / Math.max(projected.width, 0.001), 100 / Math.max(projected.height, 0.001));
+    sx = Math.max(1, sx * ratio * 0.99999);
+    sy = Math.max(1, sy * ratio * 0.99999);
+    projected = getProjected(sx, sy);
+  }
+  return { scale: safeScale, widthScale: sx, heightScale: sy, projected };
+}
+
+/** Photo shape and gestures are independent of the protected template and legacy zone position. */
 export function constrainFreePhotoTransform(transform = {}, zone = {}, canvasAspect = 1) {
   const ratio = aspect(canvasAspect);
   const boxWidth = clamp(finite(zone.width, 70), 1, 100);
   const boxHeight = clamp(finite(zone.height, 68), 1, 100);
   const rotation = clamp(finite(transform.rotation, 0), -180, 180);
-  const projected = projectedSize(boxWidth, boxHeight, rotation, ratio);
-  const maxScale = Math.min(220, 10000 / Math.max(0.01, projected.width), 10000 / Math.max(0.01, projected.height));
-  const scale = clamp(finite(transform.scale, 100), 1, maxScale);
-  const fullWidth = projected.width * scale / 100;
-  const fullHeight = projected.height * scale / 100;
-  const zoneX = finite(zone.x, 15), zoneY = finite(zone.y, 12);
-  const zoneCenterX = zoneX + boxWidth / 2, zoneCenterY = zoneY + boxHeight / 2;
+  const { scale, widthScale, heightScale, projected } = fitAxisScales(
+    boxWidth, boxHeight, rotation, ratio, transform.scale, transform.widthScale, transform.heightScale, 1000
+  );
+  const zoneCenterX = finite(zone.x, 15) + boxWidth / 2;
+  const zoneCenterY = finite(zone.y, 12) + boxHeight / 2;
   const rawX = finite(transform.canvasX, zoneCenterX + finite(transform.x, 0) * boxWidth / 100);
   const rawY = finite(transform.canvasY, zoneCenterY + finite(transform.y, 0) * boxHeight / 100);
   return {
-    ...transform,
-    scale,
-    rotation,
-    canvasX: clamp(rawX, fullWidth / 2, 100 - fullWidth / 2),
-    canvasY: clamp(rawY, fullHeight / 2, 100 - fullHeight / 2),
+    ...transform, scale, rotation, widthScale, heightScale,
+    canvasX: clamp(rawX, projected.width / 2, 100 - projected.width / 2),
+    canvasY: clamp(rawY, projected.height / 2, 100 - projected.height / 2),
   };
 }
 
-/** Sticker size is a percentage of print WIDTH; its preview box is square in CSS pixels. */
+/** Sticker size is a percentage of print WIDTH; the UI box is square in actual CSS pixels. */
 export function constrainStickerTransform(transform = {}, canvasAspect = 1) {
   const ratio = aspect(canvasAspect);
   const rotation = clamp(finite(transform.rotation, 0), -180, 180);
-  const projected = projectedSize(1, ratio, rotation, ratio);
-  const maxScale = Math.min(85, 100 / projected.width, 100 / projected.height);
-  const scale = clamp(finite(transform.scale, 42), 1, maxScale);
-  const fullWidth = projected.width * scale;
-  const fullHeight = projected.height * scale;
+  const {scale,widthScale,heightScale,projected} = fitAxisScales(
+    1, ratio, rotation, ratio, transform.scale ?? 42, transform.widthScale, transform.heightScale, 1000
+  );
   return {
-    ...transform, scale, rotation,
-    x: clamp(finite(transform.x, 0), fullWidth / 2 - 50, 50 - fullWidth / 2),
-    y: clamp(finite(transform.y, 0), fullHeight / 2 - 50, 50 - fullHeight / 2),
+    ...transform,scale,widthScale,heightScale,rotation,
+    x: clamp(finite(transform.x, 0), projected.width / 2 - 50, 50 - projected.width / 2),
+    y: clamp(finite(transform.y, 0), projected.height / 2 - 50, 50 - projected.height / 2),
   };
 }
 
 export const FULL_TEMPLATE_BOUNDS = Object.freeze({ x: 0, y: 0, width: 100, height: 100 });
 
-/** Bounds of nontransparent art within a full-size template PNG/AVIF (0..100%). */
+/** Read the visible alpha silhouette to allow full-print-area layout without losing print ink. */
 export function constrainTemplateTransform(transform = {}, bounds = { x: 0, y: 0, width: 100, height: 100 }, canvasAspect = 1) {
   const ratio = aspect(canvasAspect);
   const rotation = clamp(finite(transform.rotation, 0), -180, 180);
@@ -65,24 +89,27 @@ export function constrainTemplateTransform(transform = {}, bounds = { x: 0, y: 0
   const right = clamp(left + finite(bounds.width, 100), left, 100);
   const bottom = clamp(top + finite(bounds.height, 100), top, 100);
   const c = Math.cos(radians(rotation)), s = Math.sin(radians(rotation));
-  const corners = [[left, top], [right, top], [right, bottom], [left, bottom]].map(([x, y]) => {
-    const dx = x - 50, dy = y - 50;
-    return { x: c * dx - s * dy / ratio, y: s * dx * ratio + c * dy };
-  });
-  const minimumX = Math.min(...corners.map((point) => point.x));
-  const maximumX = Math.max(...corners.map((point) => point.x));
-  const minimumY = Math.min(...corners.map((point) => point.y));
-  const maximumY = Math.max(...corners.map((point) => point.y));
-  const spanX = maximumX - minimumX, spanY = maximumY - minimumY;
-  const maximumScale = Math.min(400, 10000 / Math.max(0.01, spanX), 10000 / Math.max(0.01, spanY));
-  const scale = clamp(finite(transform.scale, 100), 1, maximumScale);
-  const factor = scale / 100;
-  const minX = 50 + minimumX * factor, maxX = 50 + maximumX * factor;
-  const minY = 50 + minimumY * factor, maxY = 50 + maximumY * factor;
+  const corners = [[left, top], [right, top], [right, bottom], [left, bottom]].map(([x, y]) => ({ x:x-50, y:y-50 }));
+  const box = (sx,sy) => {
+    const points = corners.map(({x,y})=>({ x: c*x*sx - s*y*sy/ratio, y: s*x*sx*ratio + c*y*sy }));
+    return { minX:Math.min(...points.map(p=>p.x)), maxX:Math.max(...points.map(p=>p.x)),
+      minY:Math.min(...points.map(p=>p.y)), maxY:Math.max(...points.map(p=>p.y)) };
+  };
+  const scale = clamp(finite(transform.scale, 100), 1, 1000);
+  let {widthScale,heightScale} = freeAxisScale(transform);
+  const boundsAt = (a,b) => box(scale*a/10000, scale*b/10000);
+  let extents = boundsAt(widthScale,heightScale);
+  const width=()=>extents.maxX-extents.minX, height=()=>extents.maxY-extents.minY;
+  if(width()>100 || height()>100) {
+    const ratioFit=Math.min(1,100/Math.max(width(),0.001),100/Math.max(height(),0.001));
+    widthScale=Math.max(1,widthScale*ratioFit*0.99999);
+    heightScale=Math.max(1,heightScale*ratioFit*0.99999);
+    extents=boundsAt(widthScale,heightScale);
+  }
   return {
-    ...transform, scale, rotation,
-    x: clamp(finite(transform.x, 0), -minX, 100 - maxX),
-    y: clamp(finite(transform.y, 0), -minY, 100 - maxY),
+    ...transform, scale,rotation,widthScale,heightScale,
+    x: clamp(finite(transform.x,0), -50-extents.minX,50-extents.maxX),
+    y: clamp(finite(transform.y,0), -50-extents.minY,50-extents.maxY),
   };
 }
 
