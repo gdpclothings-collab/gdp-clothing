@@ -4,8 +4,8 @@ import { createPhotoBorderImage, createBottomFadedPhotoImage, drawPreparedPhotoB
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 import { constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform, readTemplateAlphaBounds } from '@/lib/customStudioV2PrintBounds';
 
-const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
-const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
+const BOOTLEG_TEMPLATE_MIN_SCALE = 1;
+const BOOTLEG_TEMPLATE_MAX_SCALE = 1000;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -86,8 +86,8 @@ function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, prep
   context.restore();
 }
 function withTemplateTransform(context, widthPx, heightPx, transform = {}, draw) {
-  const scaleX = clamp(transform.scale ?? 100, 1, 1000) * clamp(transform.widthScale ?? 100, 1, 1000) / 10000;
-  const scaleY = clamp(transform.scale ?? 100, 1, 1000) * clamp(transform.heightScale ?? 100, 1, 1000) / 10000;
+  const scaleX = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) * clamp(transform.widthScale ?? 100, 1, 1000) / 10000;
+  const scaleY = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) * clamp(transform.heightScale ?? 100, 1, 1000) / 10000;
   const centerX = widthPx * (0.5 + clamp(transform.x ?? 0, -50, 50) / 100);
   const centerY = heightPx * (0.5 + clamp(transform.y ?? 0, -50, 50) / 100);
   context.save();
