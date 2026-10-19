@@ -38,7 +38,7 @@ test('text hit testing allows taps through empty text canvas but preserves text 
 
 test('mobile tools show all five tabs; overlay effects retain separate non-gesture controls', () => {
   assert.match(editor, /grid-cols-3 gap-2 rounded-2xl/);
-  assert.match(editor, /sm:grid-cols-5/);
+  assert.match(editor, /bootlegLayerButtons\.length === 5 \? 'grid-cols-5'/);
   assert.match(editor, /activeBootlegLayer === 'overlay' \? overlayPanel : null/);
   assert.match(editor, /Overlay selected · use the sliders to adjust its effect/);
   assert.match(editor, /Tap any photo to select and move it immediately/);
