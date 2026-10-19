@@ -147,7 +147,9 @@ function resolveBootlegTextPosition(style, textZone) {
 function resolveBootlegTemplateTransform(style) {
   const value = style?.templateTransform || {};
   return {
-    scale: clamp(value.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE),
+    scale: clamp(value.scale ?? 100, 1, 1000),
+    widthScale: clamp(value.widthScale ?? 100, 1, 1000),
+    heightScale: clamp(value.heightScale ?? 100, 1, 1000),
     rotation: clamp(value.rotation ?? 0, -180, 180),
     x: clamp(value.x ?? 0, -50, 50),
     y: clamp(value.y ?? 0, -50, 50),
@@ -343,8 +345,8 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
     // Every Bootleg and Memorial photo responds on first pointer-down,
     // including photos that are not currently selected.
     enabled: true,
-    minScale: 30,
-    maxScale: 220,
+    minScale: 1,
+    maxScale: 1000,
     minX: -50,
     maxX: 50,
     minY: -50,
@@ -370,7 +372,7 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
         // A Memorial template's old oval "photo zone" is not a photo mask.
         // Source pixels stay independent of frame shape, as in the print PNG.
         borderRadius: 0,
-        transform: `translate(-50%, -50%) scale(${transform.scale / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
+        transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.scale * transform.widthScale / 10000}, ${transform.scale * transform.heightScale / 10000})`,
       }}
     >
       <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-contain" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
@@ -385,8 +387,8 @@ function StickerLayer({ layer, selected, sticker, canvasRef, canvasAspect, onSel
     onChange: (next) => onTransform(constrainStickerTransform(next, canvasAspect)),
     containerRef: canvasRef,
     enabled: selected,
-    minScale: 12,
-    maxScale: 85,
+    minScale: 1,
+    maxScale: 1000,
     minX: -48,
     maxX: 48,
     minY: -48,
@@ -403,9 +405,9 @@ function StickerLayer({ layer, selected, sticker, canvasRef, canvasAspect, onSel
         ...gesture.style,
         left: `${50 + clamp(transform.x, -48, 48)}%`,
         top: `${50 + clamp(transform.y, -48, 48)}%`,
-        width: `${clamp(transform.scale, 12, 85)}%`,
+        width: `${clamp(transform.scale, 1, 1000)}%`,
         aspectRatio: '1 / 1',
-        transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
+        transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.widthScale / 100}, ${transform.heightScale / 100})`,
       }}
     >
       {sticker?.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} draggable="false" className="h-full w-full object-contain" /> : <span className="text-[clamp(22px,5vw,64px)] leading-none">{sticker?.glyph || layer.glyph || '✦'}</span>}
@@ -623,8 +625,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     },
     containerRef: canvasRef,
     enabled: usesLayerLab && templateEditing && Boolean(template),
-    minScale: BOOTLEG_TEMPLATE_MIN_SCALE,
-    maxScale: BOOTLEG_TEMPLATE_MAX_SCALE,
+    minScale: 1,
+    maxScale: 1000,
     minX: -50,
     maxX: 50,
     minY: -50,
@@ -698,7 +700,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
                 className={`absolute inset-0 select-none ${templateEditing ? 'cursor-grab ring-2 ring-cyan-400/90 ring-inset' : 'pointer-events-none'}`}
                 style={{ ...(templateEditing ? templateGesture.style : {}), zIndex: isBootleg ? 15 : 20, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}
               >
-                <div className="absolute inset-0" style={{ transformOrigin: '50% 50%', transform: `scale(${templateTransform.scale / 100}) rotate(${templateTransform.rotation}deg)` }}>
+                <div className="absolute inset-0" style={{ transformOrigin: '50% 50%', transform: `rotate(${templateTransform.rotation}deg) scale(${templateTransform.scale * templateTransform.widthScale / 10000}, ${templateTransform.scale * templateTransform.heightScale / 10000})` }}>
                   <img src={template.assetUrl} alt="GDP template artwork" draggable="false" className="absolute inset-0 h-full w-full select-none object-fill" />
                 </div>
               </div>
@@ -1284,11 +1286,17 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently anywhere inside the print area.</p></div>
         <button type="button" onClick={() => setActiveBootlegLayer('photo')} className="min-h-10 rounded-xl bg-cyan-600 px-3 text-xs font-black text-white">Finish Template Editing</button>
       </div>
-      <RangeControl label="Template size" value={templateTransform.scale} min={BOOTLEG_TEMPLATE_MIN_SCALE} max={BOOTLEG_TEMPLATE_MAX_SCALE} suffix="%" onChange={(value) => patchTemplateTransform({ scale: value })} onReset={() => patchTemplateTransform({ scale: 100 })} />
+      <RangeControl label="Template size · keep proportions" value={templateTransform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTemplateTransform({ scale: value })} onReset={() => patchTemplateTransform({ scale: 100 })} />
+      <div data-gdp-template-free-reshape="width-height" className="space-y-2 rounded-xl border border-cyan-100 bg-white/75 p-3">
+        <p className="text-[11px] font-bold text-cyan-900">Free reshape · adjust width and height independently</p>
+        <RangeControl label="Template width" value={templateTransform.widthScale} min={1} max={1000} suffix="%" onChange={(value) => patchTemplateTransform({ widthScale: value })} onReset={() => patchTemplateTransform({ widthScale: 100 })} />
+        <RangeControl label="Template height" value={templateTransform.heightScale} min={1} max={1000} suffix="%" onChange={(value) => patchTemplateTransform({ heightScale: value })} onReset={() => patchTemplateTransform({ heightScale: 100 })} />
+        <p className="text-[10px] font-medium text-slate-500">The visible template can fill the printable area, but no printed pixels can pass the edge. Width/height changes may stretch the artwork.</p>
+      </div>
       <RangeControl label="Move template left / right" value={templateTransform.x} min={-50} max={50} suffix="%" onChange={(value) => patchTemplateTransform({ x: value })} onReset={() => patchTemplateTransform({ x: 0 })} />
       <RangeControl label="Move template up / down" value={templateTransform.y} min={-50} max={50} suffix="%" onChange={(value) => patchTemplateTransform({ y: value })} onReset={() => patchTemplateTransform({ y: 0 })} />
       <RangeControl label="Template rotation" value={templateTransform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTemplateTransform({ rotation: value })} onReset={() => patchTemplateTransform({ rotation: 0 })} />
-      <button type="button" onClick={() => patchTemplateTransform({ scale: 100, rotation: 0, x: 0, y: 0 })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-3 text-xs font-black text-cyan-800"><RotateCcw size={14} /> Reset GDP template</button>
+      <button type="button" onClick={() => patchTemplateTransform({ scale: 100, widthScale: 100, heightScale: 100, rotation: 0, x: 0, y: 0 })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-3 text-xs font-black text-cyan-800"><RotateCcw size={14} /> Reset GDP template</button>
     </div>
   ) : null;
 
@@ -1302,7 +1310,13 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
       {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) revealLayerControls('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
-        <RangeControl label="Photo size" value={activePhotoCanvasPosition?.scale ?? activePhoto.transform?.scale ?? 100} min={30} max={220} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} onReset={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100 })} />
+        <RangeControl label="Photo size · keep proportions" value={activePhotoCanvasPosition?.scale ?? activePhoto.transform?.scale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} onReset={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100 })} />
+        {usesLayerLab ? <div data-gdp-photo-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-[11px] font-bold text-slate-800">Free reshape · optional stretch</p>
+          <RangeControl label="Photo width" value={activePhotoCanvasPosition?.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ widthScale: value })} onReset={() => patchActivePhotoTransform({ widthScale: 100 })} />
+          <RangeControl label="Photo height" value={activePhotoCanvasPosition?.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ heightScale: value })} onReset={() => patchActivePhotoTransform({ heightScale: 100 })} />
+          <p className="text-[10px] font-medium text-slate-500">Use Photo size for natural proportions. Width and height stretch independently; all visible photo pixels remain inside print bounds.</p>
+        </div> : null}
         {usesLayerLab ? <>
           <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.canvasX ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
           <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.canvasY ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
@@ -1409,7 +1423,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">Choose a sticker to place it. Then select the placed sticker instance below to resize, rotate or delete it.</p>
       <div className="mt-2 flex flex-wrap gap-2">{stickerLibrary.filter((item) => path === 'memorial' || item.category !== 'memorial').map((sticker) => <button key={sticker.id} type="button" onClick={() => addSticker(sticker)} aria-label={`Add ${sticker.label || 'sticker'}`} className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-slate-200 bg-white px-2 text-xl" title={sticker.label}>{sticker.assetUrl ? <img src={sticker.assetUrl} alt={sticker.label} draggable="false" className="h-7 w-7 object-contain" /> : sticker.glyph}</button>)}</div>
       {stickerLayers.length ? <div data-gdp-sticker-layer-list="true" className="mt-3 space-y-2"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Placed stickers</p>{stickerLayers.map((layer, index) => { const option = stickerLibrary.find((item) => item.id === layer.stickerId); const selected = layer.id === editor.activeStickerId; return <button key={layer.id} type="button" onClick={() => selectStickerLayer(layer)} className={`flex min-h-10 w-full items-center justify-between gap-2 rounded-xl border px-3 text-left text-xs font-black ${selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="truncate">{option?.label || layer.label || `Sticker ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>; })}</div> : null}
-      {activeSticker ? <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected sticker</p><p className="text-xs font-black text-slate-700">{activeStickerOption?.label || activeSticker.label || 'Placed sticker'}</p></div><RangeControl label="Sticker size" value={activeSticker.transform?.scale || 42} min={12} max={85} suffix="%" onChange={(value) => patchActiveSticker({ scale: value })} onReset={() => patchActiveSticker({ scale: 42 })} /><RangeControl label="Sticker rotation" value={activeSticker.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActiveSticker({ rotation: value })} onReset={() => patchActiveSticker({ rotation: 0 })} /><button type="button" data-gdp-delete-selected-sticker="true" onClick={deleteActiveSticker} className="min-h-10 w-full rounded-lg bg-white text-xs font-black text-red-600">Delete selected sticker</button></div> : null}
+      {activeSticker ? <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected sticker</p><p className="text-xs font-black text-slate-700">{activeStickerOption?.label || activeSticker.label || 'Placed sticker'}</p></div><RangeControl label="Sticker size" value={activeSticker.transform?.scale || 42} min={1} max={1000} suffix="%" onChange={(value) => patchActiveSticker({ scale: value })} onReset={() => patchActiveSticker({ scale: 42 })} /><RangeControl label="Sticker width" value={activeSticker.transform?.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActiveSticker({ widthScale: value })} onReset={() => patchActiveSticker({ widthScale: 100 })} /><RangeControl label="Sticker height" value={activeSticker.transform?.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActiveSticker({ heightScale: value })} onReset={() => patchActiveSticker({ heightScale: 100 })} /><RangeControl label="Sticker rotation" value={activeSticker.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActiveSticker({ rotation: value })} onReset={() => patchActiveSticker({ rotation: 0 })} /><button type="button" data-gdp-delete-selected-sticker="true" onClick={deleteActiveSticker} className="min-h-10 w-full rounded-lg bg-white text-xs font-black text-red-600">Delete selected sticker</button></div> : null}
     </div>
   ) : null;
 
