@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
 import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RotateCcw } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
@@ -70,13 +71,15 @@ function fitArtworkToPrintAreaTransform(artwork, printGuide, currentTransform = 
   };
 }
 
-function RangeControl({ label, value, min, max, suffix = '', onChange }) {
-  return <label className="block"><div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>{label}</span><span>{Math.round(Number(value || 0) * 10) / 10}{suffix}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
+function RangeControl({ label, value, min, max, suffix = '', onChange, onReset }) {
+  return <label className="block"><div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold text-slate-600"><span>{label}</span><span className="flex items-center gap-2">{Math.round(Number(value || 0) * 10) / 10}{suffix}{onReset ? <button type="button" onClick={(event) => { event.preventDefault(); onReset(); }} className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700" aria-label={`Reset ${label}`}>Reset</button> : null}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
 }
 
 export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const referenceBoxRef = useRef(null);
+  const inspectorRef = useRef(null);
+  const [mobilePreviewMinimized, setMobilePreviewMinimized] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [legacyArtworkDimensions, setLegacyArtworkDimensions] = useState(null);
@@ -167,10 +170,26 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </div>
           </div>
         </div>
+        {editor.artwork ? <button type="button" onClick={() => inspectorRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })} className="mt-3 flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 sm:hidden">Edit selected artwork controls</button> : null}
         <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the garment print profile. Dragging, resizing and rotation stop at its boundaries; only printable artwork pixels count. Reliable embedded DPI preserves physical size; mobile/screen files use a fitted base size.</p>
       </section>
 
-      <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section ref={inspectorRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
+          <StudioMobileGarmentMirror garmentPreview={garmentPreview} productName={product.name} side={side} printGuide={printGuide}>
+            {editor.artwork?.url ? (
+              <div data-gdp-upload-mirror-artwork="true" className="absolute grid place-items-center" style={{
+                left: `${placement.centerXPercent}%`,
+                top: `${placement.centerYPercent}%`,
+                width: `${placement.widthPercent}%`,
+                height: `${placement.heightPercent}%`,
+                transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.scale * transform.widthScale / 10000}, ${transform.scale * transform.heightScale / 10000})`,
+              }}>
+                <img src={editor.artwork.url} alt="" draggable="false" className={`h-full w-full ${artworkForPlacement?.pixelWidth && artworkForPlacement?.pixelHeight ? 'object-fill' : 'object-contain'}`} />
+              </div>
+            ) : null}
+          </StudioMobileGarmentMirror>
+        </StudioMobilePreviewMirror>
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Artwork controls</p><h2 className="mt-1 text-xl font-black text-slate-900">Position artwork</h2></div>
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => uploadArtwork(event.target.files?.[0])} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-50">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />}{editor.artwork ? 'Replace artwork' : 'Upload artwork'}</button>
@@ -191,18 +210,18 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
           </div>
           <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
-            <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
+            <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ scale: value })} onReset={() => patchTransform({ scale: 100 })} />
             <div data-gdp-upload-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
               <p className="text-xs font-black text-slate-800">Free reshape</p>
-              <RangeControl label="Artwork width" value={transform.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ widthScale: value })} />
-              <RangeControl label="Artwork height" value={transform.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ heightScale: value })} />
+              <RangeControl label="Artwork width" value={transform.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ widthScale: value })} onReset={() => patchTransform({ widthScale: 100 })} />
+              <RangeControl label="Artwork height" value={transform.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ heightScale: value })} onReset={() => patchTransform({ heightScale: 100 })} />
               <button type="button" onClick={() => patchTransform({ widthScale: 100, heightScale: 100 })} className="min-h-10 w-full rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Reset original proportions</button>
               <p className="text-[10px] font-medium text-slate-500">Width and height can stretch independently. Print size and effective DPI update automatically.</p>
             </div>
             {lowConfidenceDpi ? <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">At 100%, this file prints at {formatArtworkInches(placement.baseWidthIn)} × {formatArtworkInches(placement.baseHeightIn)} in before any manual scaling.</p> : null}
-            <RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} />
-            <RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} />
-            <RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} />
+            <RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} onReset={() => patchTransform({ x: 0 })} />
+            <RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} onReset={() => patchTransform({ y: 0 })} />
+            <RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} onReset={() => patchTransform({ rotation: 0 })} />
             <button data-gdp-fit-artwork="true" type="button" onClick={() => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, fitArtworkToPrintAreaTransform(artworkForPlacement, printGuide, transform)) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800"><Maximize2 size={14} /> Fit to print area</button>
             <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">Fit only shrinks oversized printable artwork when needed, keeps the aspect ratio and rotation, ignores transparent padding, and returns it to a safe top-aligned position.</p>
             <button type="button" onClick={() => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, topAlignedArtworkTransform(artworkForPlacement, printGuide)) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button>
