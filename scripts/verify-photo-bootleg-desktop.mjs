@@ -103,7 +103,7 @@ assert(protectedV2.includes("activeBootlegLayer === 'photo' ? photoPanel"), 'Pho
 assert(protectedV2.includes("activeBootlegLayer === 'text' ? textPanel"), 'Text controls render only when Text is the active Bootleg layer');
 assert(protectedV2.includes('data-gdp-bootleg-workspace={isBootleg ? \'single-viewport\' : undefined}'), 'Bootleg uses a dedicated single-viewport desktop workspace contract');
 assert(protectedV2.includes('xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden'), 'desktop workspace owns a viewport-bounded height instead of growing the page with the inspector');
-assert(protectedV2.includes("style={isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}"), 'garment preview is viewport-fitted so the full preview remains visible');
+assert(protectedV2.includes("style={!compact && isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}") && protectedV2.includes("'mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5'"), 'desktop garment preview remains viewport-fitted; only the optional mobile mirror uses compact sizing');
 assert(protectedV2.includes("data-gdp-bootleg-active-status={isBootleg ? 'true' : undefined}"), 'Bootleg active-layer status remains explicitly scoped');
 assert(protectedV2.includes('data-gdp-bootleg-upload-status="true"'), 'background processing gets a visible canvas-adjacent progress status');
 assert(protectedV2.includes('Finish Template Editing'), 'template completion wording is explicit instead of ambiguous Done editing');
