@@ -290,9 +290,9 @@ export function resolveUploadArtworkPlacement(artwork, profile, transform = {}) 
     : lowConfidenceEmbeddedDpi
       ? { ...lowConfidenceDpiBaseSize(artwork, profile), source: 'low-confidence-dpi-fit' }
       : { ...legacyBaseSize(artwork, profile), source: 'legacy-fit' };
-  const scale = clamp(transform?.scale ?? 100, 1, 180) / 100;
-  const widthIn = base.widthIn * scale;
-  const heightIn = base.heightIn * scale;
+  const scale = clamp(transform?.scale ?? 100, 1, 1000) / 100;
+  const widthIn = base.widthIn * scale * clamp(transform?.widthScale ?? 100, 1, 1000) / 100;
+  const heightIn = base.heightIn * scale * clamp(transform?.heightScale ?? 100, 1, 1000) / 100;
   const centerXIn = profileWidth / 2 + clamp(transform?.x ?? 0, -42, 42) / 100 * profileWidth * LEGACY_BOX_RATIO;
   const centerYIn = profileHeight / 2 + clamp(transform?.y ?? 0, -42, 42) / 100 * profileHeight * LEGACY_BOX_RATIO;
   const radians = clamp(transform?.rotation ?? 0, -180, 180) * Math.PI / 180;
@@ -356,7 +356,8 @@ export function constrainUploadArtworkTransform(artwork, profile, proposed = {})
   const radians = clamp(proposed.rotation ?? 0, -180, 180) * Math.PI / 180;
   const cos = Math.cos(radians), sin = Math.sin(radians);
   const corners = [[bounds.left, bounds.top], [bounds.right, bounds.top], [bounds.right, bounds.bottom], [bounds.left, bounds.bottom]].map(([x, y]) => {
-    const px = (x - 0.5) * baseline.baseWidthIn, py = (y - 0.5) * baseline.baseHeightIn;
+    const px = (x - 0.5) * baseline.baseWidthIn * clamp(proposed.widthScale ?? 100, 1, 1000) / 100;
+    const py = (y - 0.5) * baseline.baseHeightIn * clamp(proposed.heightScale ?? 100, 1, 1000) / 100;
     return { x: px * cos - py * sin, y: px * sin + py * cos };
   });
   const minX = Math.min(...corners.map((point) => point.x));
@@ -380,7 +381,7 @@ export function constrainUploadArtworkTransform(artwork, profile, proposed = {})
     const limits = room(scale);
     return limits.xMin <= limits.xMax + 1e-8 && limits.yMin <= limits.yMax + 1e-8;
   };
-  const requestedScale = clamp(proposed.scale ?? 100, 1, 180);
+  const requestedScale = clamp(proposed.scale ?? 100, 1, 1000);
   let safeScale = requestedScale;
   if (!fits(safeScale)) {
     let lower = 1, upper = requestedScale;
@@ -400,6 +401,8 @@ export function constrainUploadArtworkTransform(artwork, profile, proposed = {})
   return {
     ...proposed,
     scale: safeScale,
+    widthScale: clamp(proposed.widthScale ?? 100, 1, 1000),
+    heightScale: clamp(proposed.heightScale ?? 100, 1, 1000),
     rotation: clamp(proposed.rotation ?? 0, -180, 180),
     x: clamp((centerX - width / 2) / movementX, -42, 42),
     y: clamp((centerY - height / 2) / movementY, -42, 42),
