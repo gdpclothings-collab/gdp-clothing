@@ -37,6 +37,6 @@ test('smoke still covers every viewport and output screenshot', () => {
 });
 
 test('live production metrics use real whitespace and digit classes', () => {
-  assert.ok(smoke.includes(String.raw`metricsText.match(/Current print size\\s*([\\d.]+)\\s*[×x]\\s*([\\d.]+)\\s*in/i)`));
-  assert.ok(smoke.includes(String.raw`metricsText.match(/Effective DPI\\s*([\\d.]+)\\s*DPI/i)`));
+  assert.ok(smoke.includes(String.raw`metricsText.match(/Current print size\s*([\d.]+)\s*[×x]\s*([\d.]+)\s*in/i)`));
+  assert.ok(smoke.includes(String.raw`metricsText.match(/Effective DPI\s*([\d.]+)\s*DPI/i)`));
 });
