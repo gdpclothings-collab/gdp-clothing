@@ -57,7 +57,7 @@ export function constrainStickerTransform(transform = {}, canvasAspect = 1) {
 export const FULL_TEMPLATE_BOUNDS = Object.freeze({ x: 0, y: 0, width: 100, height: 100 });
 
 /** Bounds of nontransparent art within a full-size template PNG/AVIF (0..100%). */
-export function constrainTemplateTransform(transform = {}, bounds = FULL_TEMPLATE_BOUNDS, canvasAspect = 1) {
+export function constrainTemplateTransform(transform = {}, bounds = { x: 0, y: 0, width: 100, height: 100 }, canvasAspect = 1) {
   const ratio = aspect(canvasAspect);
   const rotation = clamp(finite(transform.rotation, 0), -180, 180);
   const left = clamp(finite(bounds.x, 0), 0, 100);
