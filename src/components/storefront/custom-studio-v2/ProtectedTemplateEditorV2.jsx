@@ -1219,7 +1219,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const activeId = latestEditor.activeStickerId || activeSticker?.id || '';
     if (!activeId || !current.some((layer) => layer.id === activeId)) return;
     if (usesLayerLab) setActiveBootlegLayer('sticker');
-    syncStickers(current.map((layer) => layer.id === activeId ? { ...layer, transform: { ...layer.transform, ...patch } } : layer), activeId);
+    syncStickers(current.map((layer) => layer.id === activeId ? { ...layer, transform: constrainStickerTransform({ ...layer.transform, ...patch }, canvasAspect) } : layer), activeId);
   };
   const deleteActiveSticker = () => {
     const latestEditor = editorRef.current || editor;
