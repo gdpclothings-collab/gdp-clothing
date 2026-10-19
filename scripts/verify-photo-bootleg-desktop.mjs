@@ -65,7 +65,7 @@ assert(protectedV2.includes("isBootleg = path === 'bootleg'"), 'new template/tex
 assert(protectedV2.includes("path === 'memorial' ? 'memorial_tribute' : 'photo_bootleg'"), 'Memorial remains a separate protected editor category');
 assert(protectedV2.includes("'Protected GDP templates'"), 'Memorial keeps protected-template customer guidance');
 assert(protectedV2.includes('templateTransform'), 'V2 Bootleg persists template transform in the existing editor snapshot');
-assert(protectedV2.includes('BOOTLEG_TEMPLATE_MAX_SCALE = 400'), 'GDP template resize keeps its established visual safety bound');
+assert(protectedV2.includes('BOOTLEG_TEMPLATE_MAX_SCALE = 1000'), 'GDP template resize keeps its established visual safety bound');
 assert(protectedV2.includes('PrintAreaTextSizeControl') && !protectedV2.includes('No preset maximum'), 'Bootleg text size control is constrained to the printable area');
 assert(protectedV2.includes('maxScale: 1000'), 'direct Bootleg text pinch scaling supports the explicit 1000 percent maximum');
 assert(protectedV2.includes('freeTextLayout: true'), 'Bootleg text opts into full-print-area production layout');

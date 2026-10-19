@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { fitSeasonalArtwork, constrainSeasonalArtworkLayer } from '@/lib/seasonalArtwork';
+import { fitSeasonalArtwork, constrainSeasonalArtworkLayer, resolveSeasonalReshapedLayout } from '@/lib/seasonalArtwork';
 import { orderSeasonalArtworks, resolveSeasonalFeature } from '@/lib/seasonalRotation';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
@@ -259,7 +259,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     const artwork = artworkById.get(String(layer.artworkId));
     const safeLayer = artwork && area ? constrainSeasonalArtworkLayer(layer, artwork, area) : layer;
     const layout = artwork && area
-      ? fitSeasonalArtwork(artwork, area, Number(safeLayer.requested || 0), Number(safeLayer.position?.x || 0), Number(safeLayer.position?.y || 0))
+      ? resolveSeasonalReshapedLayout(artwork, area, safeLayer)
       : null;
     return { layer: safeLayer, artwork, layout, order };
   }), [layers, artworkById, area]);
@@ -516,7 +516,15 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
             <label className="block">
               <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>Size</span><span>{Math.round((activeEntry.layout?.width || 0) * 10) / 10} in</span></div>
               <input type="range" min={Math.min(0.5, Number(activeEntry.layout?.maxWidth || 0.5))} max={Math.max(0.5, Number(activeEntry.layout?.maxWidth || area?.width || 12))} step="any" value={Number(activeEntry.layout?.width || 1)} onChange={(event) => patchLayer(activeEntry.layer.id, { requested: Number(event.target.value) })} aria-label="Seasonal artwork print width in inches" className="w-full" />
+              <span className="mt-2 block text-[10px] font-semibold text-slate-500">Width can be adjusted independently from height.</span>
             </label>
+            <div data-gdp-seasonal-free-reshape="height" className="rounded-xl border border-slate-200 bg-white p-3">
+              <label className="block text-xs font-black text-slate-700">Artwork height · {Math.round(activeEntry.layer.heightScale ?? 100)}%
+                <input type="range" min="1" max="1000" step="1" value={activeEntry.layer.heightScale ?? 100} onChange={(event) => patchLayer(activeEntry.layer.id, { heightScale: Number(event.target.value) })} className="mt-2 w-full" aria-label="Seasonal artwork height stretch" />
+              </label>
+              <button type="button" className="mt-2 min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold" onClick={() => patchLayer(activeEntry.layer.id, { heightScale: 100 })}>Reset original proportions</button>
+              <p className="mt-1 text-[10px] font-medium text-slate-500">Stretch height independently; the approved master, 200 PPI minimum and print edges remain protected.</p>
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p data-seasonal-effective-dpi="true" className="text-[11px] font-semibold text-slate-600">
                 {Math.round(Number(activeEntry.layout?.width || 0) * 100) / 100} × {Math.round(Number(activeEntry.layout?.height || 0) * 100) / 100} in · {activeEntry.layout?.effectiveDpi || 300} PPI

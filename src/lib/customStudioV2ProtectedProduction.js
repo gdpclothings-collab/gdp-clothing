@@ -4,8 +4,8 @@ import { createPhotoBorderImage, createBottomFadedPhotoImage, drawPreparedPhotoB
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 import { constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform, readTemplateAlphaBounds } from '@/lib/customStudioV2PrintBounds';
 
-const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
-const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
+const BOOTLEG_TEMPLATE_MIN_SCALE = 1;
+const BOOTLEG_TEMPLATE_MAX_SCALE = 1000;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -71,7 +71,8 @@ function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, prep
   const bounded = constrainFreePhotoTransform(transform, zone, widthPx / heightPx);
   const centerX = bounded.canvasX / 100 * widthPx;
   const centerY = bounded.canvasY / 100 * heightPx;
-  const userScale = bounded.scale / 100;
+  const userScaleX = bounded.scale * bounded.widthScale / 10000;
+  const userScaleY = bounded.scale * bounded.heightScale / 10000;
   const baseScale = Math.min(boxWidth / Math.max(1, loaded.width), boxHeight / Math.max(1, loaded.height));
   const drawWidth = loaded.width * baseScale;
   const drawHeight = loaded.height * baseScale;
@@ -79,19 +80,20 @@ function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, prep
   context.save();
   context.translate(centerX, centerY);
   context.rotate(bounded.rotation * Math.PI / 180);
-  context.scale(userScale, userScale);
+  context.scale(userScaleX, userScaleY);
   if (mode !== 'erase') drawPreparedPhotoBorder(context, preparedBorder, drawWidth, drawHeight);
   if (mode !== 'borderOnly') context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   context.restore();
 }
 function withTemplateTransform(context, widthPx, heightPx, transform = {}, draw) {
-  const scale = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) / 100;
+  const scaleX = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) * clamp(transform.widthScale ?? 100, 1, 1000) / 10000;
+  const scaleY = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) * clamp(transform.heightScale ?? 100, 1, 1000) / 10000;
   const centerX = widthPx * (0.5 + clamp(transform.x ?? 0, -50, 50) / 100);
   const centerY = heightPx * (0.5 + clamp(transform.y ?? 0, -50, 50) / 100);
   context.save();
   context.translate(centerX, centerY);
   context.rotate(clamp(transform.rotation ?? 0, -180, 180) * Math.PI / 180);
-  context.scale(scale, scale);
+  context.scale(scaleX, scaleY);
   context.translate(-widthPx / 2, -heightPx / 2);
   draw();
   context.restore();
@@ -299,6 +301,7 @@ async function drawStickers(context, stickers, widthPx, heightPx) {
     context.save();
     context.translate(centerX, centerY);
     context.rotate(clamp(transform.rotation || 0, -180, 180) * Math.PI / 180);
+    context.scale(transform.widthScale / 100, transform.heightScale / 100);
     if (layer.assetUrl) {
       const loaded = await loadImage(layer.assetUrl, 'A sticker asset could not be reopened.');
       try {
