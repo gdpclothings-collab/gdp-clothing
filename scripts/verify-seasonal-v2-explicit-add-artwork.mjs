@@ -28,7 +28,7 @@ assert(seasonal.includes('data-seasonal-v2-artwork-list="true"'), 'visible artwo
 assert(seasonal.includes('Artwork {index + 1}'), 'artwork list must number layers clearly');
 assert(!seasonal.includes('duplicateLayer'), 'Duplicate shortcut must not bypass explicit Add Artwork mode');
 assert(!seasonal.includes('label="Duplicate"'), 'Duplicate UI must not bypass explicit Add Artwork mode');
-assert(seasonal.includes('commit(layers.map((layer) => layer.id === id ? { ...layer, ...patch } : layer), id);'), 'existing transform edits must still patch canonical layers');
+assert(seasonal.includes('commit(layers.map((layer) => layer.id === id') && seasonal.includes('constrainSeasonalArtworkLayer({ ...layer, ...patch }'), 'existing transform edits must patch canonical layers and preserve print-area bounds');
 assert(seasonal.includes('<ArtworkLayer key={entry.layer.id}'), 'canvas identity must remain tied to canonical layer IDs');
 assert(seasonal.includes('setAddingArtwork(false);\n  }, [requestKey]);'), 'switching product/size/side must leave add mode safely');
 assert(production.includes('renderSeasonalStudioV2Png'), '300-DPI Seasonal production renderer must remain present');
