@@ -472,7 +472,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
   );
 }
 
-function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch, activeLayer = 'photo', onActiveLayerChange = () => {}, compact = false }) {
+function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch, activeLayer = 'photo', onActiveLayerChange = (..._args) => undefined, compact = false }) {
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
