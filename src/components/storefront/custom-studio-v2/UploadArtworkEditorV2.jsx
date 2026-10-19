@@ -42,9 +42,9 @@ function fitArtworkToPrintAreaTransform(artwork, printGuide, currentTransform = 
   const profileHeight = Number(printGuide?.heightIn || 0);
   const movementWidth = profileWidth * MOVE_BOX_RATIO;
   const movementHeight = profileHeight * MOVE_BOX_RATIO;
-  const currentScale = clamp(currentTransform?.scale ?? 100, 30, 180);
+  const currentScale = clamp(currentTransform?.scale ?? 100, 1, 1000);
   const rotation = clamp(currentTransform?.rotation ?? 0, -180, 180);
-  const neutral = { scale: currentScale, rotation, x: 0, y: 0 };
+  const neutral = { ...currentTransform, scale: currentScale, rotation, x: 0, y: 0 };
   const placement = resolveUploadArtworkPlacement(artwork, printGuide, neutral);
   const printableWidth = Number(placement?.printableBounds?.maxX) - Number(placement?.printableBounds?.minX);
   const printableHeight = Number(placement?.printableBounds?.maxY) - Number(placement?.printableBounds?.minY);
@@ -54,7 +54,7 @@ function fitArtworkToPrintAreaTransform(artwork, printGuide, currentTransform = 
   }
 
   const fitRatio = Math.min(1, profileWidth / printableWidth, profileHeight / printableHeight);
-  const fittedScale = Math.floor(clamp(currentScale * fitRatio, 1, 180) * 10) / 10;
+  const fittedScale = Math.floor(clamp(currentScale * fitRatio, 1, 1000) * 10) / 10;
   const fitted = resolveUploadArtworkPlacement(artwork, printGuide, { scale: fittedScale, rotation, x: 0, y: 0 });
   const printableCenterX = (Number(fitted?.printableBounds?.minX) + Number(fitted?.printableBounds?.maxX)) / 2;
   const printableTop = Number(fitted?.printableBounds?.minY);
@@ -62,6 +62,7 @@ function fitArtworkToPrintAreaTransform(artwork, printGuide, currentTransform = 
   const y = clamp((-printableTop / movementHeight) * 100, -42, 42);
 
   return {
+    ...currentTransform,
     scale: fittedScale,
     rotation,
     x: Math.round(x * 10) / 10,
@@ -94,7 +95,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const quality = studioV2ArtworkQuality(placement.effectiveDpi);
   const overflowDescription = describeArtworkOverflow(placement.overflow);
   const patchTransform = (patch) => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, { ...transform, ...patch }) });
-  const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, next) }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 1, maxScale: 180, minX: -42, maxX: 42, minY: -42, maxY: 42 });
+  const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, next) }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 1, maxScale: 1000, minX: -42, maxX: 42, minY: -42, maxY: 42 });
 
   const uploadArtwork = async (file) => {
     if (!file || !String(file.type || '').startsWith('image/')) { setError('Please choose a JPG, PNG or WebP artwork file.'); return; }
@@ -157,7 +158,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
                     top: `${placement.centerYPercent}%`,
                     width: `${placement.widthPercent}%`,
                     height: `${placement.heightPercent}%`,
-                    transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 180) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
+                    transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.scale * transform.widthScale / 10000}, ${transform.scale * transform.heightScale / 10000})`,
                   }}
                 >
                   <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" onLoad={hydrateLegacyArtworkDimensions} className={`h-full w-full select-none ${artworkForPlacement?.pixelWidth && artworkForPlacement?.pixelHeight ? 'object-fill' : 'object-contain'}`} />
@@ -190,7 +191,14 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
           </div>
           <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
-            <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={1} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
+            <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
+            <div data-gdp-upload-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-xs font-black text-slate-800">Free reshape</p>
+              <RangeControl label="Artwork width" value={transform.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ widthScale: value })} />
+              <RangeControl label="Artwork height" value={transform.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ heightScale: value })} />
+              <button type="button" onClick={() => patchTransform({ widthScale: 100, heightScale: 100 })} className="min-h-10 w-full rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Reset original proportions</button>
+              <p className="text-[10px] font-medium text-slate-500">Width and height can stretch independently. Print size and effective DPI update automatically.</p>
+            </div>
             {lowConfidenceDpi ? <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">At 100%, this file prints at {formatArtworkInches(placement.baseWidthIn)} × {formatArtworkInches(placement.baseHeightIn)} in before any manual scaling.</p> : null}
             <RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} />
             <RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} />
