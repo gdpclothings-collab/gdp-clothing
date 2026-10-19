@@ -11,11 +11,11 @@ const previewComponent = editor.slice(editor.indexOf('function ProtectedPreview(
 const textComponent = editor.slice(editor.indexOf('function BootlegTextLayer('), editor.indexOf('function ProtectedPreview('));
 
 test('every Bootleg photo accepts pointer selection and drag in the initial gesture', () => {
-  assert.match(photoComponent, /enabled: scope === 'bootleg' \|\| selected/);
+  assert.match(photoComponent, /enabled: true/);
   assert.match(photoComponent, /onPointerDown=\{\(event\) => \{ if \(!selected\) onSelect\(\); gesture\.onPointerDown\(event\); \}\}/);
   assert.match(photoComponent, /pointer-events-auto cursor-pointer/);
   assert.match(photoComponent, /pointer-events-auto cursor-grab/);
-  assert.match(photoComponent, /onChange: \(next\) => onTransform\(\{/);
+  assert.match(photoComponent, /onChange: \(next\) => onTransform\(constrainFreePhotoTransform\(\{/);
   assert.match(gesture, /setPointerCapture\?\.\(event\.pointerId\)/);
   assert.match(gesture, /if \(gesture\.mode === 'drag' && points\.length === 1\)/);
   assert.match(gesture, /if \(gesture\.mode === 'pinch' && points\.length >= 2\)/);
@@ -23,7 +23,7 @@ test('every Bootleg photo accepts pointer selection and drag in the initial gest
 
 test('preview changes active photo from the canvas without navigating back to controls', () => {
   assert.match(previewComponent, /onActiveLayerChange\?\.\('photo'\); onPatch\(\{ activePhotoId: layer\.id, activeStickerId: '' \}\)/);
-  assert.match(previewComponent, /pointerEvents: isBootleg \? 'none' : 'auto'/);
+  assert.match(previewComponent, /pointerEvents: 'none'/);
   assert.match(previewComponent, /data-gdp-bootleg-free-photo-canvas/);
   assert.match(previewComponent, /layer\.id === activePhotoId && activeLayer === 'photo'/);
 });
