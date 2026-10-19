@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
+import useStudioMobileFloatingPreview from '@/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview';
 import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork, constrainSeasonalArtworkLayer, resolveSeasonalReshapedLayout } from '@/lib/seasonalArtwork';
@@ -195,8 +196,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   const [category, setCategory] = useState('');
   const [rotationSettings, setRotationSettings] = useState(null);
   const layersRef = useRef(layers || []);
-  const inspectorRef = useRef(null);
-  const [mobilePreviewMinimized, setMobilePreviewMinimized] = useState(false);
+  const { garmentRef, inspectorRef, visible: floatingPreviewVisible, minimized: mobilePreviewMinimized, setMinimized: setMobilePreviewMinimized } = useStudioMobileFloatingPreview();
   const revealLayerControls = () => {
     if (typeof window === 'undefined') return;
     window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
@@ -459,7 +459,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         </div>
       </section>
 
-      <section data-gdp-seasonal-canvas-stable="true" data-gdp-seasonal-library-ready={Boolean(catalog) ? "true" : "false"} className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <section ref={garmentRef} data-gdp-seasonal-canvas-stable="true" data-gdp-seasonal-library-ready={Boolean(catalog) ? "true" : "false"} className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-3 flex items-center justify-between gap-3 px-1">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Fabric workspace</p>
@@ -483,7 +483,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
       </section>
 
       <section ref={inspectorRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
+        {floatingPreviewVisible ? <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
           <StudioMobileGarmentMirror garmentPreview={garmentPreview} productName={product.name} side={side} printGuide={printGuide}>
             {area ? resolved.filter((entry) => entry.artwork && entry.layout && entry.layer.visible !== false).map((entry) => (
               <img key={entry.layer.id} src={entry.artwork.preview} alt="" draggable="false" className="absolute object-fill" style={{
@@ -497,7 +497,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
               }} />
             )) : null}
           </StudioMobileGarmentMirror>
-        </StudioMobilePreviewMirror>
+        </StudioMobilePreviewMirror> : null}
         <div>
           <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Your artwork</p>
           <h2 className="mt-1 text-xl font-black text-slate-900">{layers.length ? `${layers.length} artwork${layers.length === 1 ? '' : 's'}` : 'No artwork yet'}</h2>
