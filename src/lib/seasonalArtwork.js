@@ -61,34 +61,50 @@ export function fitSeasonalArtwork(artwork, area, requestedWidth, x = 0, y = 0) 
   };
 }
 
-/** Constrain rotated Seasonal artwork to the actual print-area edges.
- * Keeps the existing 200 PPI maximum-size policy and preserves aspect ratio.
+/** Rotation-safe non-uniform Seasonal width/height printing.
+ * Preserve original master source and enforce >=200 effective PPI on both axes.
  */
 export function constrainSeasonalArtworkLayer(layer, artwork, area) {
   if (!layer || !artwork || !area) return layer;
   const initial = fitSeasonalArtwork(artwork, area, Number(layer.requested || 0), Number(layer.position?.x || 0), Number(layer.position?.y || 0));
   if (!initial) return layer;
   const rotation = clamp(layer.rotation, -180, 180, 0);
+  const aspect = Number(artwork.aspect_ratio);
   const angle = rotation * Math.PI / 180;
   const cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
-  const rotatedWidth = initial.width * cos + initial.height * sin;
-  const rotatedHeight = initial.width * sin + initial.height * cos;
+  const maxHeight = Math.min(Number(area.height), Number(artwork.max_height_in) * SEASONAL_SOURCE_DPI / SEASONAL_MIN_PRINT_DPI);
+  let heightScale = clamp(layer.heightScale, 1, 1000, 100);
+  heightScale = Math.min(heightScale, Math.max(1, 100 * maxHeight / Math.max(0.001, initial.height)));
+  const stretchedHeight = initial.height * heightScale / 100;
+  const rotatedWidth = initial.width * cos + stretchedHeight * sin;
+  const rotatedHeight = initial.width * sin + stretchedHeight * cos;
   const reduction = Math.min(1, Number(area.width) / Math.max(0.001, rotatedWidth), Number(area.height) / Math.max(0.001, rotatedHeight));
   const requested = reduction < 1 ? initial.width * reduction * 0.99999 : initial.width;
   const fitted = fitSeasonalArtwork(artwork, area, requested, 0, 0);
   if (!fitted) return layer;
-  const boundingWidth = fitted.width * cos + fitted.height * sin;
-  const boundingHeight = fitted.width * sin + fitted.height * cos;
+  heightScale = Math.min(heightScale, Math.max(1, maxHeight / Math.max(0.001, fitted.height) * 100));
+  const finalHeight = fitted.height * heightScale / 100;
+  const boundingWidth = fitted.width * cos + finalHeight * sin;
+  const boundingHeight = fitted.width * sin + finalHeight * cos;
   const desiredCenterX = initial.x + initial.width / 2;
-  const desiredCenterY = initial.y + initial.height / 2;
+  const desiredCenterY = Number(layer.position?.y || 0) + stretchedHeight / 2;
   const centerX = clamp(desiredCenterX, boundingWidth / 2, Math.max(boundingWidth / 2, Number(area.width) - boundingWidth / 2));
   const centerY = clamp(desiredCenterY, boundingHeight / 2, Math.max(boundingHeight / 2, Number(area.height) - boundingHeight / 2));
   return {
-    ...layer,
-    requested: fitted.width,
-    rotation,
-    position: { x: Math.max(0, centerX - fitted.width / 2), y: Math.max(0, centerY - fitted.height / 2) },
+    ...layer, requested: fitted.width, heightScale, rotation,
+    position: { x: Math.max(0, centerX - fitted.width / 2), y: Math.max(0, centerY - finalHeight / 2) },
   };
+}
+
+/** Drawing and the production snapshot use these exact physical dimensions. */
+export function resolveSeasonalReshapedLayout(artwork, area, layer) {
+  const base = fitSeasonalArtwork(artwork, area, Number(layer?.requested || 0), Number(layer?.position?.x || 0), Number(layer?.position?.y || 0));
+  if (!base) return null;
+  const height = base.height * clamp(layer?.heightScale, 1, 1000, 100) / 100;
+  const effectiveDpi = Math.floor(SEASONAL_SOURCE_DPI * Math.min(
+    Number(artwork.max_width_in) / base.width, Number(artwork.max_height_in) / height
+  ));
+  return { ...base, y: Number(layer?.position?.y ?? base.y), height, effectiveDpi };
 }
 
 export function seasonalSelection(artwork, layout, _text, area, rotation = 0) {
