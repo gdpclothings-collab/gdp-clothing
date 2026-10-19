@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
+import useStudioMobileFloatingPreview from '@/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview';
 import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RotateCcw } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
@@ -78,8 +79,7 @@ function RangeControl({ label, value, min, max, suffix = '', onChange, onReset }
 export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const referenceBoxRef = useRef(null);
-  const inspectorRef = useRef(null);
-  const [mobilePreviewMinimized, setMobilePreviewMinimized] = useState(false);
+  const { garmentRef, inspectorRef, visible: floatingPreviewVisible, minimized: mobilePreviewMinimized, setMinimized: setMobilePreviewMinimized } = useStudioMobileFloatingPreview();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [legacyArtworkDimensions, setLegacyArtworkDimensions] = useState(null);
@@ -142,7 +142,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
-      <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <section ref={garmentRef} className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview · {side}</p><p className="text-sm font-bold text-slate-700">Drag with one finger. Pinch with two fingers to resize and rotate.</p></div>
         <div className="mx-auto w-full max-w-[680px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
@@ -175,7 +175,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
       </section>
 
       <section ref={inspectorRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
+        {floatingPreviewVisible ? <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
           <StudioMobileGarmentMirror garmentPreview={garmentPreview} productName={product.name} side={side} printGuide={printGuide}>
             {editor.artwork?.url ? (
               <div data-gdp-upload-mirror-artwork="true" className="absolute grid place-items-center" style={{
@@ -189,7 +189,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
               </div>
             ) : null}
           </StudioMobileGarmentMirror>
-        </StudioMobilePreviewMirror>
+        </StudioMobilePreviewMirror> : null}
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Artwork controls</p><h2 className="mt-1 text-xl font-black text-slate-900">Position artwork</h2></div>
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => uploadArtwork(event.target.files?.[0])} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-50">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />}{editor.artwork ? 'Replace artwork' : 'Upload artwork'}</button>
