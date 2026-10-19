@@ -102,19 +102,21 @@ export function constrainTemplateTransform(transform = {}, bounds = { x: 0, y: 0
     return { minX:Math.min(...points.map(p=>p.x)), maxX:Math.max(...points.map(p=>p.x)),
       minY:Math.min(...points.map(p=>p.y)), maxY:Math.max(...points.map(p=>p.y)) };
   };
-  const scale = clamp(finite(transform.scale, 100), 1, 1000);
+  let scale = clamp(finite(transform.scale, 100), 1, 1000);
   let {widthScale,heightScale} = freeAxisScale(transform);
   const boundsAt = (a,b) => box(scale*a/10000, scale*b/10000);
   let extents = boundsAt(widthScale,heightScale);
   const width=()=>extents.maxX-extents.minX, height=()=>extents.maxY-extents.minY;
   if(width()>100 || height()>100) {
     const ratioFit=Math.min(1,100/Math.max(width(),0.001),100/Math.max(height(),0.001));
-    const boundedScale = Math.max(1, scale * ratioFit * 0.99999);
-    // Keep legacy uniform resize proportional; axis stretch is an opt-in.
-    const proportionalFactor = boundedScale / scale;
-    widthScale = Math.max(1, widthScale * proportionalFactor);
-    heightScale = Math.max(1, heightScale * proportionalFactor);
+    scale = Math.max(1, scale * ratioFit * 0.99999);
     extents=boundsAt(widthScale,heightScale);
+    if (width()>100 || height()>100) {
+      const axisRatio=Math.min(1,100/Math.max(width(),0.001),100/Math.max(height(),0.001));
+      widthScale=Math.max(1,widthScale*axisRatio*0.99999);
+      heightScale=Math.max(1,heightScale*axisRatio*0.99999);
+      extents=boundsAt(widthScale,heightScale);
+    }
   }
   return {
     ...transform, scale,rotation,widthScale,heightScale,
