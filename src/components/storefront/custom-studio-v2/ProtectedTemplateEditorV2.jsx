@@ -340,8 +340,8 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
       canvasY: next.y + 50,
     }, zone, canvasAspect)),
     containerRef: canvasRef,
-    // Every Bootleg photo responds on first pointer-down, not only the active
-    // layer. Memorial retains its existing selected-only gesture behavior.
+    // Every Bootleg and Memorial photo responds on first pointer-down,
+    // including photos that are not currently selected.
     enabled: true,
     minScale: 30,
     maxScale: 220,
@@ -353,7 +353,6 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
   const transform = safeTransform;
   const bottomFade = scope === 'bootleg' ? normalizePhotoBorder(layer.border).bottomFade : 0;
   const fadeMask = bottomFade > 0 ? `linear-gradient(to bottom, #000 0%, #000 ${100 - bottomFade}%, transparent 100%)` : undefined;
-  const radius = zone?.shape === 'circle' || zone?.shape === 'oval' ? '50%' : `${Number(zone?.radius || 0)}%`;
   return (
     <div
       {...gesture}
@@ -368,8 +367,10 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
         top: `${position.y}%`,
         width: `${Math.max(1, Number(zone?.width ?? 70))}%`,
         height: `${Math.max(1, Number(zone?.height ?? 68))}%`,
-        borderRadius: radius,
-        transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 220) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
+        // A Memorial template's old oval "photo zone" is not a photo mask.
+        // Source pixels stay independent of frame shape, as in the print PNG.
+        borderRadius: 0,
+        transform: `translate(-50%, -50%) scale(${transform.scale / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
       }}
     >
       <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-contain" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
@@ -397,7 +398,7 @@ function StickerLayer({ layer, selected, sticker, canvasRef, canvasAspect, onSel
       {...gesture}
       data-gdp-sticker-layer-id={layer.id}
       onPointerDown={(event) => { onSelect(); gesture.onPointerDown(event); }}
-      className={`absolute z-40 grid -translate-x-1/2 -translate-y-1/2 place-items-center select-none ${selected ? 'cursor-grab rounded-lg ring-2 ring-cyan-400/90' : 'pointer-events-none'}`}
+      className={`absolute z-40 grid -translate-x-1/2 -translate-y-1/2 place-items-center select-none ${selected ? 'cursor-grab rounded-lg ring-2 ring-cyan-400/90' : 'cursor-pointer'}`}
       style={{
         ...gesture.style,
         left: `${50 + clamp(transform.x, -48, 48)}%`,
