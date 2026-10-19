@@ -69,7 +69,6 @@ export function constrainSeasonalArtworkLayer(layer, artwork, area) {
   const initial = fitSeasonalArtwork(artwork, area, Number(layer.requested || 0), Number(layer.position?.x || 0), Number(layer.position?.y || 0));
   if (!initial) return layer;
   const rotation = clamp(layer.rotation, -180, 180, 0);
-  const aspect = Number(artwork.aspect_ratio);
   const angle = rotation * Math.PI / 180;
   const cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
   const maxHeight = Math.min(Number(area.height), Number(artwork.max_height_in) * SEASONAL_SOURCE_DPI / SEASONAL_MIN_PRINT_DPI);
