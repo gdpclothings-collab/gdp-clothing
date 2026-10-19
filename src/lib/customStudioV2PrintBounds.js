@@ -25,7 +25,7 @@ function fitAxisRectangle(width, height, rotation, canvasAspect) {
 
 /** Clamp both axes together only when the full rotated rectangle cannot fit. */
 function fitAxisScales(baseWidth, baseHeight, rotation, canvasAspect, scale, widthScale, heightScale, maxScale) {
-  const safeScale = clamp(finite(scale, 100), 1, maxScale);
+  let safeScale = clamp(finite(scale, 100), 1, maxScale);
   let sx = clamp(finite(widthScale, 100), 1, 1000);
   let sy = clamp(finite(heightScale, 100), 1, 1000);
   const getProjected = (a, b) => fitAxisRectangle(
@@ -40,6 +40,10 @@ function fitAxisScales(baseWidth, baseHeight, rotation, canvasAspect, scale, wid
     sx = Math.max(1, sx * ratio * 0.99999);
     sy = Math.max(1, sy * ratio * 0.99999);
     projected = getProjected(sx, sy);
+    if (projected.width > 100 || projected.height > 100) {
+      safeScale = Math.max(1, safeScale * Math.min(100 / projected.width, 100 / projected.height) * 0.99999);
+      projected = getProjected(sx, sy);
+    }
   }
   return { scale: safeScale, widthScale: sx, heightScale: sy, projected };
 }
