@@ -629,3 +629,11 @@
     transform: none;
   }
 }
+
+/* Upload Studio: a shared print-guide class can be overridden by later Studio
+ * presentation rules. Never reveal printable ink beyond the garment DTF box.
+ * This is intentionally scoped to Upload Artwork, leaving template, Seasonal,
+ * Final Review and desktop layout geometry unchanged. */
+html body [data-gdp-print-guide="true"][data-gdp-upload-overflow-preview] {
+  overflow: hidden !important;
+}
