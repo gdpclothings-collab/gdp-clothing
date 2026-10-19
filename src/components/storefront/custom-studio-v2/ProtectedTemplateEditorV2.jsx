@@ -472,7 +472,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
   );
 }
 
-function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch, activeLayer = 'photo', onActiveLayerChange }) {
+function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch, activeLayer = 'photo', onActiveLayerChange = (..._args) => undefined, compact = false }) {
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
@@ -680,9 +680,9 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 
   return (
     <div
-      data-gdp-bootleg-preview-canvas={isBootleg ? 'viewport-fit' : undefined}
-      className="mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5"
-      style={isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}
+      data-gdp-bootleg-preview-canvas={isBootleg && !compact ? 'viewport-fit' : undefined}
+      className={compact ? 'mx-auto w-full rounded-xl bg-slate-100 p-1' : 'mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5'}
+      style={!compact && isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}
     >
       <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
         {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
@@ -725,8 +725,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         </div>
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
-      {bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
-      <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? (activeLayer === 'overlay' ? 'Overlay selected · use the sliders to adjust its effect · ' : activeLayer === 'template' ? 'Template layer selected · ' : activeLayer === 'photo' ? 'Tap any photo to switch · drag to move · pinch to resize/rotate · ' : activeLayer === 'text' ? 'Text layer selected · ' : 'Sticker layer selected · ') : ''}{activeLayer === 'overlay' ? '' : 'One finger moves · two fingers pinch/rotate · '}{String(side || 'front').toUpperCase()} side</p>
+      {!compact && bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
+      {!compact ? <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? (activeLayer === 'overlay' ? 'Overlay selected · use the sliders to adjust its effect · ' : activeLayer === 'template' ? 'Template layer selected · ' : activeLayer === 'photo' ? 'Tap any photo to switch · drag to move · pinch to resize/rotate · ' : activeLayer === 'text' ? 'Text layer selected · ' : 'Sticker layer selected · ') : ''}{activeLayer === 'overlay' ? '' : 'One finger moves · two fingers pinch/rotate · '}{String(side || 'front').toUpperCase()} side</p> : null}
     </div>
   );
 }
@@ -734,6 +734,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const inspectorRef = useRef(null);
+  const mobilePreviewRef = useRef(null);
   const uploadInFlightRef = useRef(false);
   const editorRef = useRef(editor);
   editorRef.current = editor;
@@ -741,6 +742,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const [uploadMessage, setUploadMessage] = useState('');
   const [error, setError] = useState('');
   const [activeBootlegLayer, setActiveBootlegLayer] = useState('photo');
+  const [mobilePreviewOutOfView, setMobilePreviewOutOfView] = useState(false);
+  const [mobilePreviewDismissed, setMobilePreviewDismissed] = useState(false);
   const revealLayerControls = (layer) => {
     setActiveBootlegLayer(layer);
     if (typeof window === 'undefined') return;
@@ -758,6 +761,32 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const isBootleg = path === 'bootleg';
   const isMemorial = path === 'memorial';
   const usesLayerLab = isBootleg || isMemorial;
+  // Only activate the small live preview while mobile customers are editing
+  // below the main garment. No duplicate renderer is mounted on desktop.
+  useEffect(() => {
+    if (!usesLayerLab || typeof window === 'undefined' || typeof IntersectionObserver !== 'function') return undefined;
+    const mobile = window.matchMedia('(max-width: 639px)');
+    let mainInView = true;
+    let inspectorInView = false;
+    const update = () => setMobilePreviewOutOfView(mobile.matches && inspectorInView && !mainInView);
+    const garmentObserver = new IntersectionObserver(([entry]) => {
+      mainInView = entry.isIntersecting;
+      if (mainInView) setMobilePreviewDismissed(false);
+      update();
+    }, { rootMargin: '-78px 0px 0px 0px', threshold: 0 });
+    const inspectorObserver = new IntersectionObserver(([entry]) => {
+      inspectorInView = entry.isIntersecting;
+      update();
+    }, { rootMargin: '-78px 0px 0px 0px', threshold: 0 });
+    if (mobilePreviewRef.current) garmentObserver.observe(mobilePreviewRef.current);
+    if (inspectorRef.current) inspectorObserver.observe(inspectorRef.current);
+    mobile.addEventListener?.('change', update);
+    return () => {
+      garmentObserver.disconnect();
+      inspectorObserver.disconnect();
+      mobile.removeEventListener?.('change', update);
+    };
+  }, [usesLayerLab]);
   const category = path === 'memorial' ? 'memorial_tribute' : 'photo_bootleg';
   const templates = useMemo(() => normalizeStyleTemplates(settings?.styleTemplates || {}).filter((item) => item.enabled && item.category === category), [settings?.styleTemplates, category]);
   const bootlegCollections = useMemo(() => {
@@ -1438,9 +1467,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         </div>
       </section>
 
-      <section data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:h-full xl:overflow-hidden' : ''}`}>
-        <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="text-sm font-bold text-slate-700">{isBootleg ? 'Tap any photo to select and move it immediately. Pinch to resize or rotate; other design layers stay independent.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p></div>
-        {usesLayerLab ? <div data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined} data-gdp-memorial-active-layer={isMemorial ? 'true' : undefined} className={`mb-2 grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1.5 ${bootlegLayerButtons.length === 5 ? 'sm:grid-cols-5' : bootlegLayerButtons.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => revealLayerControls(value)} className={`min-h-10 rounded-xl px-2 text-xs font-black transition ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
+      <section ref={mobilePreviewRef} data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:h-full xl:overflow-hidden' : ''}`}>
+        <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="hidden text-sm font-bold text-slate-700 sm:block">{isBootleg ? 'Tap any photo to select and move it immediately. Pinch to resize or rotate; other design layers stay independent.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p><p className="text-xs font-semibold text-slate-600 sm:hidden">Drag or pinch on the garment. Resize controls are below.</p></div>
+        {usesLayerLab ? <div data-gdp-bootleg-active-layer={isBootleg ? 'true' : undefined} data-gdp-memorial-active-layer={isMemorial ? 'true' : undefined} className={`mb-2 grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1.5 ${bootlegLayerButtons.length === 5 ? 'grid-cols-5' : bootlegLayerButtons.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>{bootlegLayerButtons.map(({ value, label, enabled }) => <button key={value} type="button" disabled={!enabled} aria-pressed={activeBootlegLayer === value} onClick={() => revealLayerControls(value)} className={`min-h-10 rounded-xl px-1 text-[11px] font-black transition sm:px-2 sm:text-xs ${activeBootlegLayer === value ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-600 hover:text-slate-950'} disabled:cursor-not-allowed disabled:opacity-35`}>{label}</button>)}</div> : null}
         {usesLayerLab ? <div data-gdp-bootleg-active-status={isBootleg ? 'true' : undefined} data-gdp-memorial-active-status={isMemorial ? 'true' : undefined} className="mb-3 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-900">{activeLayerSummary}</div> : null}
         {usesLayerLab ? <button type="button" data-gdp-bootleg-confirm-action={isBootleg ? 'persistent' : undefined} data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined} disabled={!template || !photos.length} onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={'sticky top-2 z-40 mb-3 flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left shadow-sm transition ' + (editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500') + ' disabled:cursor-not-allowed disabled:opacity-40'}><span className={'grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ' + (editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent')}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done customizing this {side} design</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm template, photos, layers, text and placement before review.</span></span></button> : null}
         {isBootleg && uploading ? <div data-gdp-bootleg-upload-status="true" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950"><Loader2 size={17} className="shrink-0 animate-spin" /><div><p className="text-xs font-black">Processing photo</p><p className="text-[11px] font-semibold">{uploadMessage || 'Preparing your image…'}</p></div></div> : null}
@@ -1448,6 +1477,21 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       </section>
 
       <section ref={inspectorRef} data-gdp-bootleg-inspector-scroll={isBootleg ? 'true' : undefined} data-gdp-bootleg-inspector-active={isBootleg ? activeBootlegLayer : undefined} className={`scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
+        {mobilePreviewOutOfView && usesLayerLab ? (
+          <div data-gdp-mobile-live-preview={mobilePreviewDismissed ? 'minimized' : 'pinned'} className="pointer-events-none fixed right-3 top-[5.25rem] z-[60] w-[min(43vw,182px)] sm:hidden">
+            {mobilePreviewDismissed ? (
+              <button type="button" onClick={() => setMobilePreviewDismissed(false)} className="pointer-events-auto ml-auto flex min-h-10 items-center justify-center rounded-full border border-slate-200 bg-slate-950 px-3 text-[11px] font-black text-white shadow-xl" aria-label="Show live preview while editing">Show preview</button>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border-2 border-white bg-white p-1.5 shadow-2xl">
+                <div className="mb-1 flex items-center justify-between gap-1 px-1"><span className="text-[9px] font-black uppercase tracking-wider text-slate-600">Live preview</span><button type="button" className="pointer-events-auto flex min-h-8 min-w-8 items-center justify-center rounded-lg bg-slate-100 text-xs font-black text-slate-700" onClick={() => setMobilePreviewDismissed(true)} aria-label="Minimize mobile live preview">×</button></div>
+                <div aria-hidden="true" className="pointer-events-none select-none">
+                  <ProtectedPreview compact product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} activeLayer={activeBootlegLayer} />
+                </div>
+                <p className="mt-1 text-center text-[9px] font-bold text-slate-500">Updates as you adjust</p>
+              </div>
+            )}
+          </div>
+        ) : null}
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{usesLayerLab ? 'Layer controls' : 'Customer controls'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Personalize</h2>{usesLayerLab ? <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Only the selected layer controls are shown here. Customer photo, protected template placement and text layers remain independent.</p> : null}</div>
 
         {usesLayerLab ? (
