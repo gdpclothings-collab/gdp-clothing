@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createInitialStudioV2State, studioV2MissingArtworkMessage, studioV2SideHasContent } from '../src/lib/customStudioV2State.js';
 
 const source = readFileSync('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx','utf8');
 const seasonal = readFileSync('src/components/storefront/custom-studio-v2/SeasonalEditorV2.jsx','utf8');
@@ -61,4 +62,31 @@ test('upload editor gives every resizing and positioning slider a reset', () => 
   for (const key of ['scale', 'widthScale', 'heightScale', 'x', 'y', 'rotation']) {
     assert.match(upload, new RegExp('onReset=\\{\\(\\) => patchTransform\\(\\{ ' + key + ': ' + (['scale', 'widthScale', 'heightScale'].includes(key) ? 100 : 0) + ' \\}\\)\\}'));
   }
+});
+
+test('bootleg and memorial approval never accept a hidden customer photo via a legacy alias', () => {
+  for (const path of ['bootleg', 'memorial']) {
+    const state = createInitialStudioV2State();
+    state.designPath = path;
+    const front = state[path].sides.front;
+    front.templateId = 'sample-template';
+    front.photo = { path: 'old/photo.png', url: '/old-photo.png' };
+    front.photos = [{ id: 'hidden', visible: false, asset: { path: 'photo.png', url: '/photo.png' } }];
+    assert.equal(studioV2SideHasContent(state, 'front'), false);
+    assert.match(studioV2MissingArtworkMessage(state), /customer photo/);
+    front.photos[0].visible = true;
+    assert.equal(studioV2SideHasContent(state, 'front'), true);
+    front.photos = [];
+    assert.equal(studioV2SideHasContent(state, 'front'), true, 'legacy single-photo drafts remain valid');
+  }
+});
+
+test('all four paths explain missing artwork without bypassing approval', () => {
+  const state = createInitialStudioV2State();
+  state.designPath = 'seasonal';
+  assert.match(studioV2MissingArtworkMessage(state), /Seasonal artwork/);
+  state.designPath = 'upload';
+  assert.match(studioV2MissingArtworkMessage(state), /Upload a printable artwork/);
+  state.designPath = 'bootleg';
+  assert.match(studioV2MissingArtworkMessage(state), /protected template/);
 });
