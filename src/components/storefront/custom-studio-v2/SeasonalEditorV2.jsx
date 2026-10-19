@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
 import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork, constrainSeasonalArtworkLayer, resolveSeasonalReshapedLayout } from '@/lib/seasonalArtwork';
@@ -44,9 +45,10 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
+function ArtworkLayer({ entry, area, active, onSelect, onTransform, onEdit }) {
   const pointers = useRef(new Map());
   const gesture = useRef(null);
+  const tapStart = useRef(null);
   if (!entry?.artwork || !entry?.layout || !area) return null;
 
   const restart = () => {
@@ -74,6 +76,8 @@ function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
   };
 
   const begin = (event) => {
+    if (tapStart.current) tapStart.current.moved = true;
+    else tapStart.current = { x: event.clientX, y: event.clientY, moved: false };
     onSelect(entry.layer.id);
     if (entry.layer.locked) return;
     event.preventDefault();
@@ -84,6 +88,7 @@ function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
   };
 
   const move = (event) => {
+    if (tapStart.current && Math.hypot(event.clientX - tapStart.current.x, event.clientY - tapStart.current.y) > 8) tapStart.current.moved = true;
     if (entry.layer.locked || !pointers.current.has(event.pointerId)) return;
     event.preventDefault();
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -130,9 +135,12 @@ function ArtworkLayer({ entry, area, active, onSelect, onTransform }) {
   };
 
   const end = (event) => {
+    const tapped = tapStart.current && !tapStart.current.moved && pointers.current.size === 1;
+    tapStart.current = null;
     try { event.currentTarget.releasePointerCapture?.(event.pointerId); } catch { /* already released */ }
     pointers.current.delete(event.pointerId);
     restart();
+    if (tapped && event.type === 'pointerup') onEdit?.(entry.layer.id);
   };
 
   return (
@@ -187,6 +195,12 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   const [category, setCategory] = useState('');
   const [rotationSettings, setRotationSettings] = useState(null);
   const layersRef = useRef(layers || []);
+  const inspectorRef = useRef(null);
+  const [mobilePreviewMinimized, setMobilePreviewMinimized] = useState(false);
+  const revealLayerControls = () => {
+    if (typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => inspectorRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+  };
   const requestKeyRef = useRef(requestKey);
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side, color), [product, size, side, color]);
@@ -460,7 +474,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
             <div data-gdp-print-guide="true" data-gdp-print-side={side} aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-white/80 bg-black/5 shadow-[0_0_0_1px_rgba(15,23,42,.15)]" style={printGuide.style}>
               <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
               {area ? resolved.filter((entry) => entry.layer.visible !== false).map((entry) => (
-                <ArtworkLayer key={entry.layer.id} entry={entry} area={area} active={entry.layer.id === activeLayerId} onSelect={onActiveLayerChange} onTransform={(id, patch) => patchLayer(id, patch)} />
+                <ArtworkLayer key={entry.layer.id} entry={entry} area={area} active={entry.layer.id === activeLayerId} onSelect={onActiveLayerChange} onEdit={revealLayerControls} onTransform={(id, patch) => patchLayer(id, patch)} />
               )) : null}
               {!layers.length ? <div data-gdp-seasonal-empty-overlay="true" className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">{catalog ? 'Choose your first artwork from the library' : 'No artwork on this side yet'}</div> : null}
             </div>
@@ -468,7 +482,22 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         </div>
       </section>
 
-      <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section ref={inspectorRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
+          <StudioMobileGarmentMirror garmentPreview={garmentPreview} productName={product.name} side={side} printGuide={printGuide}>
+            {area ? resolved.filter((entry) => entry.artwork && entry.layout && entry.layer.visible !== false).map((entry) => (
+              <img key={entry.layer.id} src={entry.artwork.preview} alt="" draggable="false" className="absolute object-fill" style={{
+                left: `${(entry.layout.x / area.width) * 100}%`,
+                top: `${(entry.layout.y / area.height) * 100}%`,
+                width: `${(entry.layout.width / area.width) * 100}%`,
+                height: `${(entry.layout.height / area.height) * 100}%`,
+                transform: `rotate(${Number(entry.layer.rotation || 0)}deg)`,
+                transformOrigin: 'center',
+                zIndex: entry.order + 1,
+              }} />
+            )) : null}
+          </StudioMobileGarmentMirror>
+        </StudioMobilePreviewMirror>
         <div>
           <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Your artwork</p>
           <h2 className="mt-1 text-xl font-black text-slate-900">{layers.length ? `${layers.length} artwork${layers.length === 1 ? '' : 's'}` : 'No artwork yet'}</h2>

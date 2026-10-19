@@ -32,6 +32,7 @@ import {
   STUDIO_V2_DESIGN_PATHS,
   STUDIO_V2_STEPS,
   studioV2CanContinue,
+  studioV2MissingArtworkMessage,
   studioV2PrintableSides,
   studioV2SideHasContent,
   studioV2Reducer,
@@ -223,6 +224,7 @@ function CustomizeApprovalPanel({ state, dispatch }) {
   const sides = studioV2PrintableSides(state);
   const rightsRequired = state.designPath !== 'seasonal';
   const hasArtwork = sides.length > 0;
+  const missingArtworkMessage = studioV2MissingArtworkMessage(state);
   const approved = hasArtwork &&
     sides.every((side) => Boolean(state?.[state.designPath]?.sides?.[side]?.confirmed)) &&
     Boolean(state.approval.finalDesignApproved) &&
@@ -267,7 +269,7 @@ function CustomizeApprovalPanel({ state, dispatch }) {
         </span>
       </span>
     </label>
-    {!hasArtwork && <p role="status" className="mt-3 text-xs font-bold text-amber-700">Add artwork to the Front or Back print area to enable approval.</p>}
+    {!hasArtwork && <p role="status" className="mt-3 text-xs font-bold text-amber-700">{missingArtworkMessage}</p>}
     {hasArtwork && <p className="mt-3 text-xs font-medium leading-5 text-slate-500">Your one confirmation covers {selectedSides.toLowerCase()} {sides.length > 1 ? 'designs' : 'design'}. Editing any approved artwork will require confirmation again.</p>}
   </div>;
 }

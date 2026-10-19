@@ -245,7 +245,11 @@ export function studioV2SideHasContent(state, side) {
   if (!editor) return false;
   if (state.designPath === 'seasonal') return Boolean(editor.layers?.some((layer) => layer.visible !== false));
   if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
-    const hasPhoto = editor.photos?.some((layer) => layer?.asset?.path && layer.visible !== false) || editor.photo?.path;
+    // Match the production renderer: an explicit photo stack is authoritative.
+    // A hidden/invalid photo must not unlock approval via the legacy photo alias.
+    const hasPhoto = Array.isArray(editor.photos) && editor.photos.length
+      ? editor.photos.some((layer) => layer?.visible !== false && layer?.asset?.path && layer?.asset?.url)
+      : Boolean(editor.photo?.path && editor.photo?.url);
     return Boolean(editor.templateId && hasPhoto);
   }
   if (state.designPath === 'upload') return Boolean(editor.artwork?.path);
@@ -254,6 +258,19 @@ export function studioV2SideHasContent(state, side) {
 
 export function studioV2PrintableSides(state) {
   return ['front', 'back'].filter((side) => studioV2SideHasContent(state, side));
+}
+
+/** Explain the exact missing print input without weakening production validation. */
+export function studioV2MissingArtworkMessage(state) {
+  if (studioV2PrintableSides(state).length) return '';
+  const sides = ['front', 'back'].map((side) => state?.[state.designPath]?.sides?.[side]).filter(Boolean);
+  if (state.designPath === 'seasonal') return 'Choose at least one visible Seasonal artwork for the Front or Back print area.';
+  if (state.designPath === 'upload') return 'Upload a printable artwork file to the Front or Back print area.';
+  if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+    if (!sides.some((editor) => editor?.templateId)) return 'Choose a protected template and add at least one customer photo on the same print side.';
+    return 'A protected template is selected, but printing also needs a customer photo on that same print side. The template is not counted as a photo.';
+  }
+  return 'Add printable artwork to the Front or Back print area.';
 }
 
 export function studioV2CanContinue(state) {

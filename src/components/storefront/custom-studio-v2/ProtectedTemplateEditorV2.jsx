@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StudioMobilePreviewMirror from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
 import {
   AlertTriangle,
   ArrowDown,
@@ -1331,7 +1332,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
   const photoPanel = (
     <div data-gdp-bootleg-panel={isBootleg ? 'photo' : undefined} data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined} className="space-y-3 rounded-2xl border border-slate-100 p-3">
-      <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} photo{photos.length === 1 ? '' : 's'} added</p></div><Layers size={16} className="text-slate-400" /></div>
+      <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} customer photo{photos.length === 1 ? '' : 's'} added · template artwork is separate</p></div><Layers size={16} className="text-slate-400" /></div>
       <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Uploaded photos are automatically cleaned for transparent printing. You can switch back to the untouched original at any time. If automatic cleanup is unavailable, the original stays usable.</p></div></div></div>
       <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
@@ -1478,19 +1479,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
       <section ref={inspectorRef} data-gdp-bootleg-inspector-scroll={isBootleg ? 'true' : undefined} data-gdp-bootleg-inspector-active={isBootleg ? activeBootlegLayer : undefined} className={`scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
         {mobilePreviewOutOfView && usesLayerLab ? (
-          <div data-gdp-mobile-live-preview={mobilePreviewDismissed ? 'minimized' : 'pinned'} className="pointer-events-none fixed right-3 top-[5.25rem] z-[60] w-[min(43vw,182px)] sm:hidden">
-            {mobilePreviewDismissed ? (
-              <button type="button" onClick={() => setMobilePreviewDismissed(false)} className="pointer-events-auto ml-auto flex min-h-10 items-center justify-center rounded-full border border-slate-200 bg-slate-950 px-3 text-[11px] font-black text-white shadow-xl" aria-label="Show live preview while editing">Show preview</button>
-            ) : (
-              <div className="overflow-hidden rounded-2xl border-2 border-white bg-white p-1.5 shadow-2xl">
-                <div className="mb-1 flex items-center justify-between gap-1 px-1"><span className="text-[9px] font-black uppercase tracking-wider text-slate-600">Live preview</span><button type="button" className="pointer-events-auto flex min-h-8 min-w-8 items-center justify-center rounded-lg bg-slate-100 text-xs font-black text-slate-700" onClick={() => setMobilePreviewDismissed(true)} aria-label="Minimize mobile live preview">×</button></div>
-                <div aria-hidden="true" className="pointer-events-none select-none">
-                  <ProtectedPreview compact product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} activeLayer={activeBootlegLayer} />
-                </div>
-                <p className="mt-1 text-center text-[9px] font-bold text-slate-500">Updates as you adjust</p>
-              </div>
-            )}
-          </div>
+          <StudioMobilePreviewMirror side={side} minimized={mobilePreviewDismissed} onMinimize={() => setMobilePreviewDismissed(true)} onRestore={() => setMobilePreviewDismissed(false)}>
+            <ProtectedPreview compact product={product} color={color} size={size} template={template} editor={editor} path={path} stickers={stickerLibrary} side={side} onPatch={onPatch} activeLayer={activeBootlegLayer} />
+          </StudioMobilePreviewMirror>
         ) : null}
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{usesLayerLab ? 'Layer controls' : 'Customer controls'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Personalize</h2>{usesLayerLab ? <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Only the selected layer controls are shown here. Customer photo, protected template placement and text layers remain independent.</p> : null}</div>
 
