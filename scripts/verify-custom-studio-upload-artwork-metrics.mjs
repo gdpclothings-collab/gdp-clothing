@@ -92,7 +92,7 @@ for (const token of [
   'artworkForPlacement',
   'topAlignedArtworkTransform',
   'placement?.printableBounds?.minY',
-  'transform: topAlignedArtworkTransform(artwork, printGuide)',
+  'transform: constrainUploadArtworkTransform(artwork, printGuide, topAlignedArtworkTransform(artwork, printGuide))',
   'Fit to print area',
   'fitArtworkToPrintAreaTransform',
   'data-gdp-fit-artwork="true"',
@@ -100,10 +100,10 @@ for (const token of [
   'currentScale * fitRatio',
   'keeps the aspect ratio and rotation',
   'data-gdp-upload-overflow-preview',
-  'overflow-visible',
+  'overflow-hidden',
   'border-amber-500',
   'ring-amber-500/90',
-  'Artwork that crosses the dashed boundary stays visible',
+  'Dragging, resizing and rotation stop at its boundaries',
   'extends outside the {side} print area',
 ]) assert(editor.includes(token), `upload editor contract is missing: ${token}`);
 
@@ -113,8 +113,9 @@ assert(editor.includes('const fitRatio = Math.min(1,'), 'Fit to print area must 
 assert(editor.includes('rotation,'), 'Fit to print area must preserve the customer rotation');
 assert(editor.includes('Number(fitted?.printableBounds?.minY)'), 'Fit to print area must top-align actual printable pixels, not transparent padding');
 
-assert(production.includes("import { resolveUploadArtworkPlacement } from '@/lib/customStudioV2ArtworkMetrics';"), 'production renderer must share the exact placement math');
-assert(production.includes('const placement = resolveUploadArtworkPlacement({'), 'upload production rendering must use shared physical placement');
+assert(production.includes("resolveUploadArtworkPlacement, constrainUploadArtworkTransform"), 'production renderer must share the exact placement and safe print bounds math');
+assert(production.includes('const safeTransform = constrainUploadArtworkTransform(artwork, profile, editor.transform || {})'), 'production rendering must bound customer artwork before printing');
+assert(production.includes('const placement = resolveUploadArtworkPlacement(artwork, profile, safeTransform);'), 'upload production rendering must use the bounded physical placement');
 assert(production.includes('const drawWidth = placement.widthIn * output.safeDpi;'), 'production width must be derived from physical inches');
 assert(production.includes('const drawHeight = placement.heightIn * output.safeDpi;'), 'production height must be derived from physical inches');
 

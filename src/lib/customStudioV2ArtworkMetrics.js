@@ -290,7 +290,7 @@ export function resolveUploadArtworkPlacement(artwork, profile, transform = {}) 
     : lowConfidenceEmbeddedDpi
       ? { ...lowConfidenceDpiBaseSize(artwork, profile), source: 'low-confidence-dpi-fit' }
       : { ...legacyBaseSize(artwork, profile), source: 'legacy-fit' };
-  const scale = clamp(transform?.scale ?? 100, 30, 180) / 100;
+  const scale = clamp(transform?.scale ?? 100, 1, 180) / 100;
   const widthIn = base.widthIn * scale;
   const heightIn = base.heightIn * scale;
   const centerXIn = profileWidth / 2 + clamp(transform?.x ?? 0, -42, 42) / 100 * profileWidth * LEGACY_BOX_RATIO;
@@ -341,6 +341,68 @@ export function resolveUploadArtworkPlacement(artwork, profile, transform = {}) 
     outsideRecommendedArea,
     overflow,
     printableBounds: { minX, maxX, minY, maxY },
+  };
+}
+
+/** Keep uploaded artwork's actual nontransparent pixels inside the recommended print area.
+ * A fit may reduce size, but never enlarges the user's chosen artwork size.
+ */
+export function constrainUploadArtworkTransform(artwork, profile, proposed = {}) {
+  if (!artwork) return proposed;
+  const width = Math.max(0.01, finitePositive(profile?.widthIn));
+  const height = Math.max(0.01, finitePositive(profile?.heightIn));
+  const baseline = resolveUploadArtworkPlacement(artwork, profile, { scale: 100, rotation: 0, x: 0, y: 0 });
+  const bounds = normalizedContentBounds(artwork);
+  const radians = clamp(proposed.rotation ?? 0, -180, 180) * Math.PI / 180;
+  const cos = Math.cos(radians), sin = Math.sin(radians);
+  const corners = [[bounds.left, bounds.top], [bounds.right, bounds.top], [bounds.right, bounds.bottom], [bounds.left, bounds.bottom]].map(([x, y]) => {
+    const px = (x - 0.5) * baseline.baseWidthIn, py = (y - 0.5) * baseline.baseHeightIn;
+    return { x: px * cos - py * sin, y: px * sin + py * cos };
+  });
+  const minX = Math.min(...corners.map((point) => point.x));
+  const maxX = Math.max(...corners.map((point) => point.x));
+  const minY = Math.min(...corners.map((point) => point.y));
+  const maxY = Math.max(...corners.map((point) => point.y));
+  const movementX = width * LEGACY_BOX_RATIO / 100;
+  const movementY = height * LEGACY_BOX_RATIO / 100;
+  const allowedX = [width / 2 - 42 * movementX, width / 2 + 42 * movementX];
+  const allowedY = [height / 2 - 42 * movementY, height / 2 + 42 * movementY];
+  const room = (scale) => {
+    const factor = scale / 100;
+    return {
+      xMin: Math.max(allowedX[0], -minX * factor),
+      xMax: Math.min(allowedX[1], width - maxX * factor),
+      yMin: Math.max(allowedY[0], -minY * factor),
+      yMax: Math.min(allowedY[1], height - maxY * factor),
+    };
+  };
+  const fits = (scale) => {
+    const limits = room(scale);
+    return limits.xMin <= limits.xMax + 1e-8 && limits.yMin <= limits.yMax + 1e-8;
+  };
+  const requestedScale = clamp(proposed.scale ?? 100, 1, 180);
+  let safeScale = requestedScale;
+  if (!fits(safeScale)) {
+    let lower = 1, upper = requestedScale;
+    if (fits(lower)) {
+      for (let index = 0; index < 30; index++) {
+        const middle = (lower + upper) / 2;
+        if (fits(middle)) lower = middle; else upper = middle;
+      }
+      safeScale = Math.max(1, lower - 0.001);
+    } else safeScale = 1; // Unreasonable source dimensions: existing overflow warning remains.
+  }
+  const limits = room(safeScale);
+  const currentX = width / 2 + clamp(proposed.x ?? 0, -42, 42) * movementX;
+  const currentY = height / 2 + clamp(proposed.y ?? 0, -42, 42) * movementY;
+  const centerX = clamp(currentX, Math.min(limits.xMin, limits.xMax), Math.max(limits.xMin, limits.xMax));
+  const centerY = clamp(currentY, Math.min(limits.yMin, limits.yMax), Math.max(limits.yMin, limits.yMax));
+  return {
+    ...proposed,
+    scale: safeScale,
+    rotation: clamp(proposed.rotation ?? 0, -180, 180),
+    x: clamp((centerX - width / 2) / movementX, -42, 42),
+    y: clamp((centerY - height / 2) / movementY, -42, 42),
   };
 }
 

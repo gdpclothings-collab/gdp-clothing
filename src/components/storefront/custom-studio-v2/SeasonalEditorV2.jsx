@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { fitSeasonalArtwork } from '@/lib/seasonalArtwork';
+import { fitSeasonalArtwork, constrainSeasonalArtworkLayer } from '@/lib/seasonalArtwork';
 import { orderSeasonalArtworks, resolveSeasonalFeature } from '@/lib/seasonalRotation';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
@@ -257,10 +257,11 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   const artworkById = useMemo(() => new Map(artworks.map((artwork) => [String(artwork.id), artwork])), [artworks]);
   const resolved = useMemo(() => (layers || []).map((layer, order) => {
     const artwork = artworkById.get(String(layer.artworkId));
+    const safeLayer = artwork && area ? constrainSeasonalArtworkLayer(layer, artwork, area) : layer;
     const layout = artwork && area
-      ? fitSeasonalArtwork(artwork, area, Number(layer.requested || 0), Number(layer.position?.x || 0), Number(layer.position?.y || 0))
+      ? fitSeasonalArtwork(artwork, area, Number(safeLayer.requested || 0), Number(safeLayer.position?.x || 0), Number(safeLayer.position?.y || 0))
       : null;
-    return { layer, artwork, layout, order };
+    return { layer: safeLayer, artwork, layout, order };
   }), [layers, artworkById, area]);
 
   const activeEntry = resolved.find((entry) => entry.layer.id === activeLayerId) || resolved[resolved.length - 1] || null;
@@ -354,7 +355,9 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   };
 
   const patchLayer = (id, patch) => {
-    commit(layers.map((layer) => layer.id === id ? { ...layer, ...patch } : layer), id);
+    commit(layers.map((layer) => layer.id === id
+      ? constrainSeasonalArtworkLayer({ ...layer, ...patch }, artworkById.get(String(layer.artworkId)), area)
+      : layer), id);
   };
 
   const removeLayer = (id) => {

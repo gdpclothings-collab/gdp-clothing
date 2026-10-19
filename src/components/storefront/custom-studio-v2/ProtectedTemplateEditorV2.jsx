@@ -38,6 +38,7 @@ import {
   resolveBootlegTextLayers,
 } from '@/lib/customStudioV2BootlegTextLayers';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
+import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -48,6 +49,26 @@ import { DEFAULT_PHOTO_BORDER, PHOTO_BORDER_STYLES, normalizePhotoBorder, hasPho
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
 const BOOTLEG_MAX_PHOTOS = 8;
+const templateAlphaBoundsCache = new Map();
+function useTemplateAlphaBounds(assetUrl) {
+  const [snapshot, setSnapshot] = useState({ assetUrl: '', bounds: FULL_TEMPLATE_BOUNDS });
+  useEffect(() => {
+    if (!assetUrl) return;
+    if (!templateAlphaBoundsCache.has(assetUrl)) {
+      templateAlphaBoundsCache.set(assetUrl, new Promise((resolve) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.onload = () => resolve(readTemplateAlphaBounds(image));
+        image.onerror = () => resolve(FULL_TEMPLATE_BOUNDS);
+        image.src = assetUrl;
+      }));
+    }
+    let active = true;
+    templateAlphaBoundsCache.get(assetUrl).then((bounds) => { if (active) setSnapshot({ assetUrl, bounds }); });
+    return () => { active = false; };
+  }, [assetUrl]);
+  return snapshot.assetUrl === assetUrl ? snapshot.bounds : FULL_TEMPLATE_BOUNDS;
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -302,25 +323,26 @@ function resolvePhotoCanvasPosition(transform = {}, zone = {}) {
   };
 }
 
-function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTransform, scope = 'bootleg' }) {
-  const position = resolvePhotoCanvasPosition(layer.transform || {}, zone);
+function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onSelect, onTransform, scope = 'bootleg' }) {
+  const safeTransform = constrainFreePhotoTransform(layer.transform || {}, zone, canvasAspect);
+  const position = { x: safeTransform.canvasX, y: safeTransform.canvasY };
   const gesture = useTouchTransformV2({
     transform: {
-      ...(layer.transform || {}),
+      ...safeTransform,
       x: position.x - 50,
       y: position.y - 50,
     },
-    onChange: (next) => onTransform({
-      ...(layer.transform || {}),
+    onChange: (next) => onTransform(constrainFreePhotoTransform({
+      ...safeTransform,
       scale: next.scale,
       rotation: next.rotation,
-      canvasX: clamp(next.x + 50, 0, 100),
-      canvasY: clamp(next.y + 50, 0, 100),
-    }),
+      canvasX: next.x + 50,
+      canvasY: next.y + 50,
+    }, zone, canvasAspect)),
     containerRef: canvasRef,
-    // Every Bootleg photo responds on first pointer-down, not only the active
-    // layer. Memorial retains its existing selected-only gesture behavior.
-    enabled: scope === 'bootleg' || selected,
+    // Every Bootleg and Memorial photo responds on first pointer-down,
+    // including photos that are not currently selected.
+    enabled: true,
     minScale: 30,
     maxScale: 220,
     minX: -50,
@@ -328,17 +350,16 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
     minY: -50,
     maxY: 50,
   });
-  const transform = layer.transform || {};
+  const transform = safeTransform;
   const bottomFade = scope === 'bootleg' ? normalizePhotoBorder(layer.border).bottomFade : 0;
   const fadeMask = bottomFade > 0 ? `linear-gradient(to bottom, #000 0%, #000 ${100 - bottomFade}%, transparent 100%)` : undefined;
-  const radius = zone?.shape === 'circle' || zone?.shape === 'oval' ? '50%' : `${Number(zone?.radius || 0)}%`;
   return (
     <div
       {...gesture}
       data-gdp-bootleg-free-photo-layer={scope === 'bootleg' ? 'true' : undefined}
       data-gdp-memorial-free-photo-layer={scope === 'memorial' ? 'true' : undefined}
       onPointerDown={(event) => { if (!selected) onSelect(); gesture.onPointerDown(event); }}
-      className={`absolute origin-center overflow-hidden select-none ${selected ? 'pointer-events-auto cursor-grab ring-2 ring-cyan-400/90' : scope === 'bootleg' ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`}
+      className={`absolute origin-center overflow-hidden select-none ${selected ? 'pointer-events-auto cursor-grab ring-2 ring-cyan-400/90' : 'pointer-events-auto cursor-pointer'}`}
       style={{
         ...gesture.style,
         zIndex: 5 + Number(layer.order || 0),
@@ -346,19 +367,22 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, onSelect, onTrans
         top: `${position.y}%`,
         width: `${Math.max(1, Number(zone?.width ?? 70))}%`,
         height: `${Math.max(1, Number(zone?.height ?? 68))}%`,
-        borderRadius: radius,
-        transform: `translate(-50%, -50%) scale(${clamp(transform.scale, 30, 220) / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
+        // A Memorial template's old oval "photo zone" is not a photo mask.
+        // Source pixels stay independent of frame shape, as in the print PNG.
+        borderRadius: 0,
+        transform: `translate(-50%, -50%) scale(${transform.scale / 100}) rotate(${clamp(transform.rotation, -180, 180)}deg)`,
       }}
     >
-      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-cover" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
+      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-contain" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
     </div>
   );
 }
 
-function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransform }) {
+function StickerLayer({ layer, selected, sticker, canvasRef, canvasAspect, onSelect, onTransform }) {
+  const safeTransform = constrainStickerTransform(layer.transform || {}, canvasAspect);
   const gesture = useTouchTransformV2({
-    transform: layer.transform,
-    onChange: onTransform,
+    transform: safeTransform,
+    onChange: (next) => onTransform(constrainStickerTransform(next, canvasAspect)),
     containerRef: canvasRef,
     enabled: selected,
     minScale: 12,
@@ -368,13 +392,13 @@ function StickerLayer({ layer, selected, sticker, canvasRef, onSelect, onTransfo
     minY: -48,
     maxY: 48,
   });
-  const transform = layer.transform || {};
+  const transform = safeTransform;
   return (
     <div
       {...gesture}
       data-gdp-sticker-layer-id={layer.id}
       onPointerDown={(event) => { onSelect(); gesture.onPointerDown(event); }}
-      className={`absolute z-40 grid -translate-x-1/2 -translate-y-1/2 place-items-center select-none ${selected ? 'cursor-grab rounded-lg ring-2 ring-cyan-400/90' : 'pointer-events-none'}`}
+      className={`absolute z-40 grid -translate-x-1/2 -translate-y-1/2 place-items-center select-none ${selected ? 'cursor-grab rounded-lg ring-2 ring-cyan-400/90' : 'cursor-pointer'}`}
       style={{
         ...gesture.style,
         left: `${50 + clamp(transform.x, -48, 48)}%`,
@@ -475,7 +499,9 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const stickerById = Object.fromEntries(stickers.map((item) => [item.id, item]));
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side, color), [product, size, side, color]);
-  const templateTransform = resolveBootlegTemplateTransform(legacyStyle);
+  const templateAlphaBounds = useTemplateAlphaBounds(template?.assetUrl);
+  const canvasAspect = Number(printGuide.widthIn || 1) / Math.max(0.01, Number(printGuide.heightIn || 1));
+  const templateTransform = constrainTemplateTransform(resolveBootlegTemplateTransform(legacyStyle), templateAlphaBounds, canvasAspect);
   const templateEditing = usesLayerLab && activeLayer === 'template';
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
@@ -593,7 +619,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     transform: templateTransform,
     onChange: (next) => {
       if (!usesLayerLab) return;
-      onPatch({ textStyle: { ...legacyStyle, ...(isBootleg ? { freeTextLayout: true, photoForeground: true } : { photoForeground: false }), templateTransform: { scale: clamp(next.scale, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE), rotation: next.rotation, x: next.x, y: next.y } } });
+      onPatch({ textStyle: { ...legacyStyle, ...(isBootleg ? { freeTextLayout: true, photoForeground: true } : { photoForeground: false }), templateTransform: constrainTemplateTransform(next, templateAlphaBounds, canvasAspect) } });
     },
     containerRef: canvasRef,
     enabled: usesLayerLab && templateEditing && Boolean(template),
@@ -606,12 +632,12 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   });
 
   const patchPhotoTransform = (id, transform) => {
-    const next = photos.map((layer) => layer.id === id ? { ...layer, transform } : layer);
+    const next = photos.map((layer) => layer.id === id ? { ...layer, transform: usesLayerLab ? constrainFreePhotoTransform(transform, zone, canvasAspect) : transform } : layer);
     const first = next[0] || null;
     onPatch({ photos: next, activePhotoId: id, photo: first?.asset || null, transform: first?.transform || editor.transform });
   };
   const patchStickerTransform = (id, transform) => {
-    onPatch({ stickers: (editor.stickers || []).map((layer) => layer.id === id ? { ...layer, transform } : layer), activeStickerId: id });
+    onPatch({ stickers: (editor.stickers || []).map((layer) => layer.id === id ? { ...layer, transform: constrainStickerTransform(transform, canvasAspect) } : layer), activeStickerId: id });
   };
   const patchBootlegTextStyle = (id, style) => {
     const current = resolveBootlegTextLayers(editor, fallbackTextStyle);
@@ -639,14 +665,14 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const photoZone = (
     <div ref={zoneRef} className="absolute overflow-hidden" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>
       {photos.map((layer) => <PhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && !activeStickerId} zoneRef={zoneRef} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
-      {!photos.length && <div className="absolute inset-0 grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90">Photo zone</div>}
+
     </div>
   );
 
   const bootlegPhotoCanvas = (
-    <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10, pointerEvents: isBootleg ? 'none' : 'auto' }}>
-      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
-      {!photos.length && <div className="absolute grid place-items-center border border-dashed border-white/45 bg-slate-900/10 p-2 text-center text-[7px] font-black uppercase tracking-wider text-white/90" style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%`, borderRadius: radius }}>Photo zone</div>}
+    <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10, pointerEvents: 'none' }}>
+      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} canvasAspect={canvasAspect} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
+
     </div>
   );
 
@@ -693,7 +719,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
             </div>
           ) : null}
 
-          {stickerLayers.map((layer) => <StickerLayer key={layer.id} layer={layer} selected={layer.id === activeStickerId && (isBootleg ? activeLayer === 'sticker' : true)} sticker={stickerById[layer.stickerId]} canvasRef={canvasRef} onSelect={() => { onActiveLayerChange?.('sticker'); onPatch({ activeStickerId: layer.id, activePhotoId: '' }); }} onTransform={(transform) => patchStickerTransform(layer.id, transform)} />)}
+          {stickerLayers.map((layer) => <StickerLayer key={layer.id} layer={layer} selected={layer.id === activeStickerId && (isBootleg ? activeLayer === 'sticker' : true)} sticker={stickerById[layer.stickerId]} canvasRef={canvasRef} canvasAspect={canvasAspect} onSelect={() => { onActiveLayerChange?.('sticker'); onPatch({ activeStickerId: layer.id, activePhotoId: '' }); }} onTransform={(transform) => patchStickerTransform(layer.id, transform)} />)}
         </div>
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
@@ -794,13 +820,15 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const activeTextLayer = bootlegTextLayers.find((layer) => layer.id === activeTextLayerId) || bootlegTextLayers.at(-1) || null;
   const rawTextStyle = usesLayerLab ? normalizeBootlegTextStyle(activeTextLayer?.style || {}, fallbackBootlegTextStyle) : legacyTextStyle;
   const textContent = usesLayerLab ? (activeTextLayer?.text || { headline: '', subline: '', message: '' }) : (editor.text || {});
-  const templateTransform = resolveBootlegTemplateTransform(legacyTextStyle);
+  const templateAlphaBounds = useTemplateAlphaBounds(template?.assetUrl);
   const stickerLayers = Array.isArray(editor.stickers) ? editor.stickers : [];
   const activeSticker = stickerLayers.find((layer) => layer.id === editor.activeStickerId) || null;
   const activeStickerOption = activeSticker ? stickerLibrary.find((item) => item.id === activeSticker.stickerId) || null : null;
   const overlay = normalizeBootlegOverlay(editor.overlay);
   const patchOverlay = (patch) => onPatch({ overlay: normalizeBootlegOverlay({ ...overlay, ...patch }) });
   const printGuide = useMemo(() => resolveStudioV2PrintGuide(product, size, side, color), [product, size, side, color]);
+  const canvasAspect = Number(printGuide.widthIn || 1) / Math.max(0.01, Number(printGuide.heightIn || 1));
+  const templateTransform = constrainTemplateTransform(resolveBootlegTemplateTransform(legacyTextStyle), templateAlphaBounds, canvasAspect);
   const layoutWidth = 1000;
   const layoutHeight = Math.max(1, layoutWidth * Number(printGuide.heightIn || 1) / Math.max(0.01, Number(printGuide.widthIn || 1)));
   const rawTextPosition = resolveBootlegTextPosition(rawTextStyle, textZone);
@@ -811,7 +839,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
   const textXSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
   const textYSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
-  const activePhotoCanvasPosition = usesLayerLab && activePhoto ? resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 }) : null;
+  const activePhotoCanvasPosition = usesLayerLab && activePhoto ? constrainFreePhotoTransform(activePhoto.transform || {}, template?.photoZone || {}, canvasAspect) : null;
 
   const syncTextLayers = (next, activeId = '') => {
     const latestEditor = editorRef.current || editor;
@@ -1017,11 +1045,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     if (usesLayerLab) setActiveBootlegLayer('photo');
     syncPhotos(photos.map((layer) => {
       if (layer.id !== activePhoto.id) return layer;
-      const nextTransform = { ...layer.transform, ...patch };
+      let nextTransform = { ...layer.transform, ...patch };
       if (usesLayerLab) {
         const position = resolvePhotoCanvasPosition(nextTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
         if (!Number.isFinite(Number(nextTransform.canvasX))) nextTransform.canvasX = position.x;
         if (!Number.isFinite(Number(nextTransform.canvasY))) nextTransform.canvasY = position.y;
+        nextTransform = constrainFreePhotoTransform(nextTransform, template?.photoZone || {}, canvasAspect);
       }
       return { ...layer, transform: nextTransform };
     }), activePhoto.id);
@@ -1039,7 +1068,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     }
     const duplicatePosition = resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
     const duplicateTransform = usesLayerLab
-      ? { ...activePhoto.transform, canvasX: clamp(duplicatePosition.x + 4, 0, 100), canvasY: clamp(duplicatePosition.y + 4, 0, 100) }
+      ? constrainFreePhotoTransform({ ...activePhoto.transform, canvasX: duplicatePosition.x + 4, canvasY: duplicatePosition.y + 4 }, template?.photoZone || {}, canvasAspect)
       : { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) };
     const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: duplicateTransform };
     syncPhotos([...photos, duplicate], duplicate.id);
@@ -1107,7 +1136,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const patchTemplateTransform = (patch) => {
     if (usesLayerLab) setActiveBootlegLayer('template');
     const latestEditor = editorRef.current || editor;
-    const nextTextStyle = { ...(latestEditor.textStyle || legacyTextStyle), ...(isBootleg ? { freeTextLayout: true, photoForeground: true } : isMemorial ? { photoForeground: false } : {}), templateTransform: { ...templateTransform, ...patch } };
+    const nextTextStyle = { ...(latestEditor.textStyle || legacyTextStyle), ...(isBootleg ? { freeTextLayout: true, photoForeground: true } : isMemorial ? { photoForeground: false } : {}), templateTransform: constrainTemplateTransform({ ...templateTransform, ...patch }, templateAlphaBounds, canvasAspect) };
     editorRef.current = { ...latestEditor, textStyle: nextTextStyle };
     onPatch({ textStyle: nextTextStyle });
   };
@@ -1273,15 +1302,15 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
       {photos.length ? <div className="space-y-2" data-gdp-bootleg-photo-layer-list="true">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) revealLayerControls('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
-        <RangeControl label="Photo size" value={activePhoto.transform?.scale || 100} min={30} max={220} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} onReset={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100 })} />
+        <RangeControl label="Photo size" value={activePhotoCanvasPosition?.scale ?? activePhoto.transform?.scale ?? 100} min={30} max={220} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} onReset={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100 })} />
         {usesLayerLab ? <>
-          <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.x ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
-          <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.y ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
+          <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.canvasX ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
+          <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.canvasY ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
         </> : <>
           <RangeControl label="Move left / right" value={activePhoto.transform?.x || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ x: value })} onReset={() => patchActivePhotoTransform({ x: 0 })} />
           <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} onReset={() => patchActivePhotoTransform({ y: 0 })} />
         </>}
-        <RangeControl label="Rotation" value={activePhoto.transform?.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} onReset={() => patchActivePhotoTransform({ rotation: 0 })} />
+        <RangeControl label="Rotation" value={activePhotoCanvasPosition?.rotation ?? activePhoto.transform?.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} onReset={() => patchActivePhotoTransform({ rotation: 0 })} />
         {isBootleg ? (
           <>
           <div data-gdp-bootleg-photo-bottom-fade="selected-photo-only" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
