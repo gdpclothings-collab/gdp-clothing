@@ -61,6 +61,36 @@ export function fitSeasonalArtwork(artwork, area, requestedWidth, x = 0, y = 0) 
   };
 }
 
+/** Constrain rotated Seasonal artwork to the actual print-area edges.
+ * Keeps the existing 200 PPI maximum-size policy and preserves aspect ratio.
+ */
+export function constrainSeasonalArtworkLayer(layer, artwork, area) {
+  if (!layer || !artwork || !area) return layer;
+  const initial = fitSeasonalArtwork(artwork, area, Number(layer.requested || 0), Number(layer.position?.x || 0), Number(layer.position?.y || 0));
+  if (!initial) return layer;
+  const rotation = clamp(layer.rotation, -180, 180, 0);
+  const angle = rotation * Math.PI / 180;
+  const cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
+  const rotatedWidth = initial.width * cos + initial.height * sin;
+  const rotatedHeight = initial.width * sin + initial.height * cos;
+  const reduction = Math.min(1, Number(area.width) / Math.max(0.001, rotatedWidth), Number(area.height) / Math.max(0.001, rotatedHeight));
+  const requested = reduction < 1 ? initial.width * reduction * 0.99999 : initial.width;
+  const fitted = fitSeasonalArtwork(artwork, area, requested, 0, 0);
+  if (!fitted) return layer;
+  const boundingWidth = fitted.width * cos + fitted.height * sin;
+  const boundingHeight = fitted.width * sin + fitted.height * cos;
+  const desiredCenterX = initial.x + initial.width / 2;
+  const desiredCenterY = initial.y + initial.height / 2;
+  const centerX = clamp(desiredCenterX, boundingWidth / 2, Math.max(boundingWidth / 2, Number(area.width) - boundingWidth / 2));
+  const centerY = clamp(desiredCenterY, boundingHeight / 2, Math.max(boundingHeight / 2, Number(area.height) - boundingHeight / 2));
+  return {
+    ...layer,
+    requested: fitted.width,
+    rotation,
+    position: { x: Math.max(0, centerX - fitted.width / 2), y: Math.max(0, centerY - fitted.height / 2) },
+  };
+}
+
 export function seasonalSelection(artwork, layout, _text, area, rotation = 0) {
   if (!artwork || !layout) throw new Error('Choose an available artwork.');
   const legacyStyle = normalizeSeasonalTextStyle({}, '#111111');
