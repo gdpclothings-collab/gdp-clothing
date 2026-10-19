@@ -485,7 +485,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
       <section ref={inspectorRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
           <StudioMobileGarmentMirror garmentPreview={garmentPreview} productName={product.name} side={side} printGuide={printGuide}>
-            {area ? resolved.filter((entry) => entry.artwork && entry.layer.visible !== false).map((entry) => (
+            {area ? resolved.filter((entry) => entry.artwork && entry.layout && entry.layer.visible !== false).map((entry) => (
               <img key={entry.layer.id} src={entry.artwork.preview} alt="" draggable="false" className="absolute object-fill" style={{
                 left: `${(entry.layout.x / area.width) * 100}%`,
                 top: `${(entry.layout.y / area.height) * 100}%`,
