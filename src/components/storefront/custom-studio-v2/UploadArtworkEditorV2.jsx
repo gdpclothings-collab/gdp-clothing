@@ -7,6 +7,7 @@ import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import {
   analyzeStudioV2ArtworkFile,
+  constrainUploadArtworkTransform,
   describeArtworkOverflow,
   formatArtworkInches,
   resolveUploadArtworkPlacement,
@@ -53,7 +54,7 @@ function fitArtworkToPrintAreaTransform(artwork, printGuide, currentTransform = 
   }
 
   const fitRatio = Math.min(1, profileWidth / printableWidth, profileHeight / printableHeight);
-  const fittedScale = Math.floor(clamp(currentScale * fitRatio, 30, 180) * 10) / 10;
+  const fittedScale = Math.floor(clamp(currentScale * fitRatio, 1, 180) * 10) / 10;
   const fitted = resolveUploadArtworkPlacement(artwork, printGuide, { scale: fittedScale, rotation, x: 0, y: 0 });
   const printableCenterX = (Number(fitted?.printableBounds?.minX) + Number(fitted?.printableBounds?.maxX)) / 2;
   const printableTop = Number(fitted?.printableBounds?.minY);
@@ -78,7 +79,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [legacyArtworkDimensions, setLegacyArtworkDimensions] = useState(null);
-  const transform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
+  const rawTransform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = resolveStudioV2PrintGuide(product, size, side, color);
   const artworkForPlacement = editor.artwork
@@ -86,13 +87,14 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
     && legacyArtworkDimensions?.url === editor.artwork.url
       ? { ...editor.artwork, pixelWidth: legacyArtworkDimensions.pixelWidth, pixelHeight: legacyArtworkDimensions.pixelHeight }
       : editor.artwork;
+  const transform = constrainUploadArtworkTransform(artworkForPlacement, printGuide, rawTransform);
   const placement = resolveUploadArtworkPlacement(artworkForPlacement, printGuide, transform);
   const lowConfidenceDpi = placement.sizeSource === 'low-confidence-dpi-fit';
   const outsideRecommendedArea = Boolean(editor.artwork) && placement.outsideRecommendedArea;
   const quality = studioV2ArtworkQuality(placement.effectiveDpi);
   const overflowDescription = describeArtworkOverflow(placement.overflow);
-  const patchTransform = (patch) => onPatch({ transform: { ...transform, ...patch } });
-  const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: next }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 30, maxScale: 180, minX: -42, maxX: 42, minY: -42, maxY: 42 });
+  const patchTransform = (patch) => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, { ...transform, ...patch }) });
+  const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, next) }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 1, maxScale: 180, minX: -42, maxX: 42, minY: -42, maxY: 42 });
 
   const uploadArtwork = async (file) => {
     if (!file || !String(file.type || '').startsWith('image/')) { setError('Please choose a JPG, PNG or WebP artwork file.'); return; }
@@ -111,7 +113,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
       };
       onPatch({
         artwork,
-        transform: topAlignedArtworkTransform(artwork, printGuide),
+        transform: constrainUploadArtworkTransform(artwork, printGuide, topAlignedArtworkTransform(artwork, printGuide)),
       });
     } catch (uploadError) {
       setError(uploadError?.message || 'Artwork upload failed. Please retry.');
@@ -141,7 +143,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
         <div className="mx-auto w-full max-w-[680px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
             {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
-            <div data-gdp-print-guide="true" data-gdp-upload-overflow-preview={outsideRecommendedArea ? 'outside' : 'inside'} aria-label={`Recommended ${side} print area ${printGuide.label}`} className={`absolute left-1/2 -translate-x-1/2 overflow-visible rounded-lg border-2 border-dashed ${outsideRecommendedArea ? 'border-amber-500 bg-amber-50/10' : 'border-slate-500/50 bg-white/5'}`} style={printGuide.style}>
+            <div data-gdp-print-guide="true" data-gdp-upload-overflow-preview={outsideRecommendedArea ? 'outside' : 'inside'} aria-label={`Recommended ${side} print area ${printGuide.label}`} className={`absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed ${outsideRecommendedArea ? 'border-amber-500 bg-amber-50/10' : 'border-slate-500/50 bg-white/5'}`} style={printGuide.style}>
               <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
               <div ref={referenceBoxRef} className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2" />
               {editor.artwork?.url ? (
@@ -164,7 +166,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the exact garment print profile. Artwork that crosses the dashed boundary stays visible so the warning matches what you see. Reliable print DPI keeps true physical size; mobile/screen DPI files use a safe fitted base size.</p>
+        <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the garment print profile. Dragging, resizing and rotation stop at its boundaries; only printable artwork pixels count. Reliable embedded DPI preserves physical size; mobile/screen files use a fitted base size.</p>
       </section>
 
       <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -188,14 +190,14 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
           </div>
           <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
-            <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={30} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
+            <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={1} max={180} suffix="%" onChange={(value) => patchTransform({ scale: value })} />
             {lowConfidenceDpi ? <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">At 100%, this file prints at {formatArtworkInches(placement.baseWidthIn)} × {formatArtworkInches(placement.baseHeightIn)} in before any manual scaling.</p> : null}
             <RangeControl label="Move left / right" value={transform.x} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ x: value })} />
             <RangeControl label="Move up / down" value={transform.y} min={-42} max={42} suffix="%" onChange={(value) => patchTransform({ y: value })} />
             <RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} />
-            <button data-gdp-fit-artwork="true" type="button" onClick={() => onPatch({ transform: fitArtworkToPrintAreaTransform(artworkForPlacement, printGuide, transform) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800"><Maximize2 size={14} /> Fit to print area</button>
+            <button data-gdp-fit-artwork="true" type="button" onClick={() => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, fitArtworkToPrintAreaTransform(artworkForPlacement, printGuide, transform)) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800"><Maximize2 size={14} /> Fit to print area</button>
             <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">Fit only shrinks oversized printable artwork when needed, keeps the aspect ratio and rotation, ignores transparent padding, and returns it to a safe top-aligned position.</p>
-            <button type="button" onClick={() => onPatch({ transform: topAlignedArtworkTransform(artworkForPlacement, printGuide) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button>
+            <button type="button" onClick={() => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, topAlignedArtworkTransform(artworkForPlacement, printGuide)) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button>
           </div>
           <button type="button" onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done positioning my {side} artwork</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm the current size, rotation and placement before review.</span></span></button></> : null}
       </section>
