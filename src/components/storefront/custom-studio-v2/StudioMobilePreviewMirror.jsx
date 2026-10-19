@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 
 /**
- * Inline, non-obstructing phone preview. All editing controls remain clickable.
- * Children are a read-only mirror of the same layout used by the main editor.
+ * Read-only, movable floating preview for mobile editing.
+ * The drag handle, side switch and minimize button prevent the preview from
+ * trapping users over sliders, uploads, or the final approval control.
  */
 export default function StudioMobilePreviewMirror({
   side = 'front',
@@ -11,19 +12,89 @@ export default function StudioMobilePreviewMirror({
   onRestore,
   children,
 }) {
+  const panelRef = useRef(null);
+  const dragRef = useRef(null);
+  const [position, setPosition] = useState(null);
+
+  const bounds = (width, height) => ({
+    maxX: Math.max(8, window.innerWidth - width - 8),
+    maxY: Math.max(8, window.innerHeight - height - 8),
+  });
+
+  const beginMove = (event) => {
+    if (event.button !== 0 || !panelRef.current || typeof window === 'undefined') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = panelRef.current.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const move = (event) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const { maxX, maxY } = bounds(drag.width, drag.height);
+    setPosition({
+      x: Math.max(8, Math.min(maxX, drag.left + event.clientX - drag.startX)),
+      y: Math.max(8, Math.min(maxY, drag.top + event.clientY - drag.startY)),
+    });
+  };
+
+  const endMove = (event) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const switchSide = () => {
+    if (typeof window === 'undefined' || !panelRef.current) return;
+    const rect = panelRef.current.getBoundingClientRect();
+    const { maxX, maxY } = bounds(rect.width, rect.height);
+    setPosition({ x: rect.left > window.innerWidth / 2 ? 8 : maxX, y: Math.max(8, Math.min(maxY, rect.top)) });
+  };
+
   return (
-    <div data-gdp-mobile-live-preview={minimized ? 'minimized' : 'inline'} data-gdp-mobile-preview-safe="controls-unobstructed" className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-2.5 sm:hidden">
-      <div className="flex min-h-10 items-center justify-between gap-2 px-1">
-        <p className="text-[11px] font-black uppercase tracking-[.1em] text-slate-700">Live {side} preview</p>
-        <button type="button" onClick={minimized ? onRestore : onMinimize} className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">
-          {minimized ? 'Show preview' : 'Hide preview'}
-        </button>
-      </div>
-      {!minimized ? (
-        <div className="pointer-events-none mx-auto mt-2 w-[124px] max-w-full select-none" aria-hidden="true">
-          {children}
+    <div
+      ref={panelRef}
+      data-gdp-mobile-live-preview={minimized ? 'minimized' : 'floating'}
+      data-gdp-mobile-preview-safe="draggable-minimizable"
+      className={`pointer-events-none fixed z-[45] sm:hidden ${minimized ? 'w-auto' : 'w-[154px] max-w-[48vw]'}`}
+      style={position ? { left: position.x, top: position.y } : { right: 12, top: 96 }}
+    >
+      {minimized ? (
+        <button type="button" onClick={onRestore} aria-label={`Show floating ${side} preview`} className="pointer-events-auto min-h-11 rounded-full border border-slate-200 bg-slate-950 px-3 text-[11px] font-black text-white shadow-lg">Show preview</button>
+      ) : (
+        <div className="pointer-events-auto overflow-hidden rounded-2xl border-2 border-white bg-white p-1.5 shadow-xl">
+          <div className="mb-1 flex items-center gap-1 rounded-lg bg-slate-100 px-1 py-0.5">
+            <button
+              type="button"
+              onPointerDown={beginMove}
+              onPointerMove={move}
+              onPointerUp={endMove}
+              onPointerCancel={endMove}
+              onLostPointerCapture={() => { dragRef.current = null; }}
+              aria-label="Drag to move floating live preview"
+              title="Drag to move"
+              className="min-h-9 min-w-0 flex-1 cursor-move touch-none select-none text-left text-[9px] font-black uppercase tracking-wide text-slate-700"
+            >↕ Live {side}</button>
+            <button type="button" onClick={switchSide} aria-label="Move floating preview to other side" title="Switch side" className="grid h-9 w-7 shrink-0 place-items-center rounded-lg bg-white text-xs font-black text-slate-700">↔</button>
+            <button type="button" onClick={onMinimize} aria-label="Minimize floating live preview" title="Minimize" className="grid h-9 w-7 shrink-0 place-items-center rounded-lg bg-white text-xs font-black text-slate-700">×</button>
+          </div>
+          <div className="pointer-events-none mx-auto w-full select-none" aria-hidden="true">{children}</div>
+          <p className="mt-1 text-center text-[9px] font-semibold text-slate-500">Updates as you adjust</p>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
