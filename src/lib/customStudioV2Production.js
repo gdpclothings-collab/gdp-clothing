@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { fitSeasonalArtwork, constrainSeasonalArtworkLayer } from '@/lib/seasonalArtwork';
+import { fitSeasonalArtwork, constrainSeasonalArtworkLayer, resolveSeasonalReshapedLayout } from '@/lib/seasonalArtwork';
 import { renderSeasonalProductionPng } from '@/lib/seasonalProductionRender';
 import { approvedSeasonalPrintSources } from '@/lib/seasonalPrintMaster';
 import { resolveUploadArtworkPlacement, constrainUploadArtworkTransform } from '@/lib/customStudioV2ArtworkMetrics';
@@ -272,7 +272,7 @@ export async function buildSeasonalStudioV2Snapshot({ productId, size, color, la
     const artwork = artworkById.get(String(layer.artworkId));
     if (!artwork?.preview) throw new Error(`Seasonal artwork ${layer.artworkTitle || layer.artworkId} is unavailable.`);
     const bounded = constrainSeasonalArtworkLayer(layer, artwork, area);
-    const fitted = fitSeasonalArtwork(artwork, area, Number(bounded.requested || 0), Number(bounded.position?.x || 0), Number(bounded.position?.y || 0));
+    const fitted = resolveSeasonalReshapedLayout(artwork, area, bounded);
     if (!fitted) throw new Error('A Seasonal artwork layer has invalid geometry.');
     return {
       layerId: layer.id,
