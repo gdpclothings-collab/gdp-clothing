@@ -37,11 +37,14 @@ function fitAxisScales(baseWidth, baseHeight, rotation, canvasAspect, scale, wid
   let projected = getProjected(sx, sy);
   if (projected.width > 100 || projected.height > 100) {
     const ratio = Math.min(1, 100 / Math.max(projected.width, 0.001), 100 / Math.max(projected.height, 0.001));
-    sx = Math.max(1, sx * ratio * 0.99999);
-    sy = Math.max(1, sy * ratio * 0.99999);
+    // Scale down proportionally before touching independent stretches. This
+    // retains the established Size slider semantics and existing saved designs.
+    safeScale = Math.max(1, safeScale * ratio * 0.99999);
     projected = getProjected(sx, sy);
     if (projected.width > 100 || projected.height > 100) {
-      safeScale = Math.max(1, safeScale * Math.min(100 / projected.width, 100 / projected.height) * 0.99999);
+      const axisRatio = Math.min(1, 100 / Math.max(projected.width, 0.001), 100 / Math.max(projected.height, 0.001));
+      sx = Math.max(1, sx * axisRatio * 0.99999);
+      sy = Math.max(1, sy * axisRatio * 0.99999);
       projected = getProjected(sx, sy);
     }
   }
@@ -106,8 +109,11 @@ export function constrainTemplateTransform(transform = {}, bounds = { x: 0, y: 0
   const width=()=>extents.maxX-extents.minX, height=()=>extents.maxY-extents.minY;
   if(width()>100 || height()>100) {
     const ratioFit=Math.min(1,100/Math.max(width(),0.001),100/Math.max(height(),0.001));
-    widthScale=Math.max(1,widthScale*ratioFit*0.99999);
-    heightScale=Math.max(1,heightScale*ratioFit*0.99999);
+    const boundedScale = Math.max(1, scale * ratioFit * 0.99999);
+    // Keep legacy uniform resize proportional; axis stretch is an opt-in.
+    const proportionalFactor = boundedScale / scale;
+    widthScale = Math.max(1, widthScale * proportionalFactor);
+    heightScale = Math.max(1, heightScale * proportionalFactor);
     extents=boundsAt(widthScale,heightScale);
   }
   return {
