@@ -519,7 +519,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
               <span className="mt-2 block text-[10px] font-semibold text-slate-500">Width can be adjusted independently from height.</span>
             </label>
             <div data-gdp-seasonal-free-reshape="height" className="rounded-xl border border-slate-200 bg-white p-3">
-              <label className="block text-xs font-black text-slate-700">Artwork height · ${Math.round(activeEntry.layer.heightScale ?? 100)}%
+              <label className="block text-xs font-black text-slate-700">Artwork height · {Math.round(activeEntry.layer.heightScale ?? 100)}%
                 <input type="range" min="1" max="1000" step="1" value={activeEntry.layer.heightScale ?? 100} onChange={(event) => patchLayer(activeEntry.layer.id, { heightScale: Number(event.target.value) })} className="mt-2 w-full" aria-label="Seasonal artwork height stretch" />
               </label>
               <button type="button" className="mt-2 min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold" onClick={() => patchLayer(activeEntry.layer.id, { heightScale: 100 })}>Reset original proportions</button>
