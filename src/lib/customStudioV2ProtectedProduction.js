@@ -65,45 +65,6 @@ function photoLayers(editor) {
   return [];
 }
 
-function zoneRect(zone, widthPx, heightPx) {
-  return {
-    x: Number(zone?.x || 0) / 100 * widthPx,
-    y: Number(zone?.y || 0) / 100 * heightPx,
-    width: Number(zone?.width || 100) / 100 * widthPx,
-    height: Number(zone?.height || 100) / 100 * heightPx,
-  };
-}
-
-function drawContain(context, loaded, rect, transform = {}, preparedBorder = null, mode = 'both') {
-  const baseScale = Math.min(rect.width / Math.max(1, loaded.width), rect.height / Math.max(1, loaded.height));
-  const userScale = clamp(transform.scale || 100, 30, 220) / 100;
-  const drawWidth = loaded.width * baseScale * userScale;
-  const drawHeight = loaded.height * baseScale * userScale;
-  const centerX = rect.x + rect.width / 2 + clamp(transform.x || 0, -48, 48) / 100 * rect.width;
-  const centerY = rect.y + rect.height / 2 + clamp(transform.y || 0, -48, 48) / 100 * rect.height;
-  context.translate(centerX, centerY);
-  context.rotate(clamp(transform.rotation || 0, -180, 180) * Math.PI / 180);
-  if (mode !== 'erase') drawPreparedPhotoBorder(context, preparedBorder, drawWidth, drawHeight);
-  if (mode !== 'borderOnly') context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
-}
-
-function hasFreePhotoCanvasTransform(transform = {}) {
-  return Number.isFinite(Number(transform?.canvasX)) && Number.isFinite(Number(transform?.canvasY));
-}
-
-function resolveFreePhotoPosition(transform = {}, zone = {}) {
-  const zoneX = Number(zone?.x ?? 15);
-  const zoneY = Number(zone?.y ?? 12);
-  const zoneWidth = Number(zone?.width ?? 70);
-  const zoneHeight = Number(zone?.height ?? 68);
-  const directX = Number(transform?.canvasX);
-  const directY = Number(transform?.canvasY);
-  return {
-    x: Number.isFinite(directX) ? clamp(directX, 0, 100) : clamp(zoneX + zoneWidth / 2 + (clamp(transform?.x || 0, -48, 48) / 100) * zoneWidth, 0, 100),
-    y: Number.isFinite(directY) ? clamp(directY, 0, 100) : clamp(zoneY + zoneHeight / 2 + (clamp(transform?.y || 0, -48, 48) / 100) * zoneHeight, 0, 100),
-  };
-}
-
 function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, preparedBorder = null, mode = 'both') {
   const boxWidth = Math.max(1, Number(zone?.width ?? 70) / 100 * widthPx);
   const boxHeight = Math.max(1, Number(zone?.height ?? 68) / 100 * heightPx);
@@ -123,7 +84,6 @@ function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, prep
   if (mode !== 'borderOnly') context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   context.restore();
 }
-
 function withTemplateTransform(context, widthPx, heightPx, transform = {}, draw) {
   const scale = clamp(transform.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE) / 100;
   const centerX = widthPx * (0.5 + clamp(transform.x ?? 0, -50, 50) / 100);
