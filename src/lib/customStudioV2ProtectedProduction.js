@@ -2,6 +2,7 @@ import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers'
 import { paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 import { createPhotoBorderImage, createBottomFadedPhotoImage, drawPreparedPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
+import { constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform, readTemplateAlphaBounds } from '@/lib/customStudioV2PrintBounds';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
@@ -106,17 +107,17 @@ function resolveFreePhotoPosition(transform = {}, zone = {}) {
 function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, preparedBorder = null, mode = 'both') {
   const boxWidth = Math.max(1, Number(zone?.width ?? 70) / 100 * widthPx);
   const boxHeight = Math.max(1, Number(zone?.height ?? 68) / 100 * heightPx);
-  const position = resolveFreePhotoPosition(transform, zone);
-  const centerX = position.x / 100 * widthPx;
-  const centerY = position.y / 100 * heightPx;
-  const userScale = clamp(transform?.scale || 100, 30, 220) / 100;
+  const bounded = constrainFreePhotoTransform(transform, zone, widthPx / heightPx);
+  const centerX = bounded.canvasX / 100 * widthPx;
+  const centerY = bounded.canvasY / 100 * heightPx;
+  const userScale = bounded.scale / 100;
   const baseScale = Math.min(boxWidth / Math.max(1, loaded.width), boxHeight / Math.max(1, loaded.height));
   const drawWidth = loaded.width * baseScale;
   const drawHeight = loaded.height * baseScale;
 
   context.save();
   context.translate(centerX, centerY);
-  context.rotate(clamp(transform?.rotation || 0, -180, 180) * Math.PI / 180);
+  context.rotate(bounded.rotation * Math.PI / 180);
   context.scale(userScale, userScale);
   if (mode !== 'erase') drawPreparedPhotoBorder(context, preparedBorder, drawWidth, drawHeight);
   if (mode !== 'borderOnly') context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
@@ -137,7 +138,8 @@ function withTemplateTransform(context, widthPx, heightPx, transform = {}, draw)
 }
 
 function drawTemplateArtwork(context, loaded, widthPx, heightPx, transform = {}) {
-  withTemplateTransform(context, widthPx, heightPx, transform, () => {
+  const bounded = constrainTemplateTransform(transform, readTemplateAlphaBounds(loaded.image), widthPx / heightPx);
+  withTemplateTransform(context, widthPx, heightPx, bounded, () => {
     context.drawImage(loaded.image, 0, 0, widthPx, heightPx);
   });
 }
@@ -330,8 +332,8 @@ function drawStyledText(context, text = {}, zone = {}, style = {}, widthPx, heig
 async function drawStickers(context, stickers, widthPx, heightPx) {
   const ordered = (stickers || []).filter((layer) => layer?.visible !== false).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   for (const layer of ordered) {
-    const transform = layer.transform || {};
-    const size = clamp(transform.scale || 42, 12, 85) / 100 * widthPx;
+    const transform = constrainStickerTransform(layer.transform || {}, widthPx / heightPx);
+    const size = transform.scale / 100 * widthPx;
     const centerX = widthPx * (0.5 + clamp(transform.x || 0, -48, 48) / 100);
     const centerY = heightPx * (0.5 + clamp(transform.y || 0, -48, 48) / 100);
     context.save();
@@ -356,7 +358,7 @@ async function drawStickers(context, stickers, widthPx, heightPx) {
 export async function renderProtectedStudioV2PngAdvanced({ product, size, side, editor, template, profile, dpi = 300, returnDesignCanvas = false }) {
   if (!template?.assetUrl) throw new Error('The GDP template artwork is unavailable.');
   const photos = photoLayers(editor).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-  if (!photos.length) throw new Error('The customer photo is unavailable.');
+  // A customer may print the protected template by itself or add text/stickers without a photo.
   const resolvedProfile = profile(product, size, side);
   const output = createCanvas(resolvedProfile, dpi);
   // Low-DPI live previews return the exterior border pixels as a separate
@@ -380,18 +382,9 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
         const paint = (context, border, mode) => {
           context.save();
           try {
-            if (hasFreePhotoCanvasTransform(layer.transform || {})) {
-              drawFreePhoto(context, photoSource, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode);
-              return;
-            }
-            const drawPhoto = () => {
-              context.save();
-              const rect = zoneRect(template.photoZone || {}, output.widthPx, output.heightPx);
-              drawContain(context, photoSource, rect, layer.transform || {}, border, mode);
-              context.restore();
-            };
-            if (templateTransform) withTemplateTransform(context, output.widthPx, output.heightPx, templateTransform, drawPhoto);
-            else drawPhoto();
+            // Photos are independent of the template (including migrated drafts).
+            // Preview, production and effects mask use the same full-print-area bounds.
+            drawFreePhoto(context, photoSource, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode);
           } finally { context.restore(); }
         };
         if (borderOutput) {
