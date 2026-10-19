@@ -46,8 +46,8 @@ import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2Protecte
 import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 import { DEFAULT_PHOTO_BORDER, PHOTO_BORDER_STYLES, normalizePhotoBorder, hasPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 
-const BOOTLEG_TEMPLATE_MIN_SCALE = 25;
-const BOOTLEG_TEMPLATE_MAX_SCALE = 400;
+const BOOTLEG_TEMPLATE_MIN_SCALE = 1;
+const BOOTLEG_TEMPLATE_MAX_SCALE = 1000;
 const BOOTLEG_MAX_PHOTOS = 8;
 const templateAlphaBoundsCache = new Map();
 function useTemplateAlphaBounds(assetUrl) {
@@ -147,7 +147,7 @@ function resolveBootlegTextPosition(style, textZone) {
 function resolveBootlegTemplateTransform(style) {
   const value = style?.templateTransform || {};
   return {
-    scale: clamp(value.scale ?? 100, 1, 1000),
+    scale: clamp(value.scale ?? 100, BOOTLEG_TEMPLATE_MIN_SCALE, BOOTLEG_TEMPLATE_MAX_SCALE),
     widthScale: clamp(value.widthScale ?? 100, 1, 1000),
     heightScale: clamp(value.heightScale ?? 100, 1, 1000),
     rotation: clamp(value.rotation ?? 0, -180, 180),
@@ -386,7 +386,7 @@ function StickerLayer({ layer, selected, sticker, canvasRef, canvasAspect, onSel
     transform: safeTransform,
     onChange: (next) => onTransform(constrainStickerTransform(next, canvasAspect)),
     containerRef: canvasRef,
-    enabled: selected,
+    enabled: true,
     minScale: 1,
     maxScale: 1000,
     minX: -48,
@@ -625,8 +625,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     },
     containerRef: canvasRef,
     enabled: usesLayerLab && templateEditing && Boolean(template),
-    minScale: 1,
-    maxScale: 1000,
+    minScale: BOOTLEG_TEMPLATE_MIN_SCALE,
+    maxScale: BOOTLEG_TEMPLATE_MAX_SCALE,
     minX: -50,
     maxX: 50,
     minY: -50,
