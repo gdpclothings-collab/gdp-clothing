@@ -12,8 +12,10 @@ const VIEWPORTS = [
   { name: "mobile", width: 390, height: 844 },
 ];
 const SCENARIOS = [
-  { name: "inside", artworkIn: 8, artworkPx: 2400, expectedOverflow: "inside", expectWarning: false },
-  { name: "outside", artworkIn: 10, artworkPx: 3000, expectedOverflow: "outside", expectWarning: true },
+  { name: "inside", artworkIn: 8, artworkPx: 2400, expectAutoFit: false },
+  // This physical-size source previously overflowed the print guide; it must now
+  // fit entirely inside at 300-DPI-or-better, without cropping printable pixels.
+  { name: "oversized-auto-fit", artworkIn: 10, artworkPx: 3000, expectAutoFit: true },
 ];
 
 const report = {
@@ -207,28 +209,37 @@ async function inspectScenario(browser, viewport, scenario) {
     assert(geometry.guide && geometry.guide.width > 0 && geometry.guide.height > 0, `${viewport.name}/${scenario.name} print guide has invalid geometry.`);
     assert(geometry.artwork && geometry.artwork.width > 0 && geometry.artwork.height > 0, `${viewport.name}/${scenario.name} artwork layer has invalid geometry.`);
     assert(geometry.guide.left >= -3 && geometry.guide.right <= viewport.width + 3, `${viewport.name}/${scenario.name} print guide escapes the viewport horizontally.`);
-    assert(geometry.guideOverflow === "visible", `${viewport.name}/${scenario.name} print guide no longer exposes real artwork overhang (overflow=${geometry.guideOverflow}).`);
-    assert(geometry.overflowState === scenario.expectedOverflow, `${viewport.name}/${scenario.name} expected overflow state ${scenario.expectedOverflow}, received ${geometry.overflowState}.`);
+    // Customer artwork must no longer be allowed to bleed outside the printable
+    // surface. The old visual smoke expected an overhanging file and is obsolete.
+    assert(geometry.guideOverflow === "hidden", `${viewport.name}/${scenario.name} print guide must clip artwork to print bounds (overflow=${geometry.guideOverflow}).`);
+    assert(geometry.overflowState === "inside", `${viewport.name}/${scenario.name} expected automatically safe print bounds, received ${geometry.overflowState}.`);
 
-    const escapesGuide = geometry.artwork.left < geometry.guide.left - 3
-      || geometry.artwork.right > geometry.guide.right + 3
-      || geometry.artwork.top < geometry.guide.top - 3
-      || geometry.artwork.bottom > geometry.guide.bottom + 3;
+    const tolerancePx = 5; // CSS border/subpixel rounding, never a printable-ink allowance.
+    const escapesGuide = geometry.artwork.left < geometry.guide.left - tolerancePx
+      || geometry.artwork.right > geometry.guide.right + tolerancePx
+      || geometry.artwork.top < geometry.guide.top - tolerancePx
+      || geometry.artwork.bottom > geometry.guide.bottom + tolerancePx;
 
-    if (scenario.expectWarning) {
-      assert(escapesGuide, `${viewport.name}/${scenario.name} oversized ${scenario.artworkIn} × ${scenario.artworkIn} in artwork does not visibly cross the print guide.`);
-      await warning.waitFor({ state: "visible", timeout: 5000 });
-      const warningText = (await warning.innerText()).replace(/\s+/g, " ");
-      assert(new RegExp(`${scenario.artworkIn}\\s*[×x]\\s*${scenario.artworkIn}\\s*in`, "i").test(warningText), `${viewport.name}/${scenario.name} overflow warning lost the ${scenario.artworkIn} × ${scenario.artworkIn} in artwork size.`);
-      assert(/Move or resize it before approval/i.test(warningText), `${viewport.name}/${scenario.name} overflow warning lost its production guidance.`);
-    } else {
-      assert(!escapesGuide, `${viewport.name}/${scenario.name} safe ${scenario.artworkIn} × ${scenario.artworkIn} in artwork escapes the print guide.`);
-      assert(await warning.count() === 0, `${viewport.name}/${scenario.name} safe artwork incorrectly shows an overflow warning.`);
-    }
+    assert(!escapesGuide, `${viewport.name}/${scenario.name} ${scenario.artworkIn} × ${scenario.artworkIn} in source visibly escapes the print guide.`);
+    assert(await warning.count() === 0, `${viewport.name}/${scenario.name} safe placement incorrectly shows an overflow warning.`);
 
     const metricsText = (await metricsPanel.innerText()).replace(/\s+/g, " ");
-    assert(/300\s*DPI/i.test(metricsText), `${viewport.name}/${scenario.name} artwork metrics lost the 300 DPI value.`);
-    assert(new RegExp(`${scenario.artworkIn}\\s*[×x]\\s*${scenario.artworkIn}\\s*in`, "i").test(metricsText), `${viewport.name}/${scenario.name} artwork metrics lost the ${scenario.artworkIn} × ${scenario.artworkIn} in physical size.`);
+    assert(new RegExp(`Original size\\s*${scenario.artworkIn}\\s*[×x]\\s*${scenario.artworkIn}\\s*in`, "i").test(metricsText), `${viewport.name}/${scenario.name} original embedded physical size was lost.`);
+    assert(new RegExp(`File resolution\\s*${scenario.artworkPx}\\s*[×x]\\s*${scenario.artworkPx}\\s*px`, "i").test(metricsText), `${viewport.name}/${scenario.name} source resolution was lost.`);
+    const dimensions = metricsText.match(/Current print size\\s*([\\d.]+)\\s*[×x]\\s*([\\d.]+)\\s*in/i);
+    assert(dimensions, `${viewport.name}/${scenario.name} current printable dimensions are missing.`);
+    const printWidth = Number(dimensions[1]);
+    const printHeight = Number(dimensions[2]);
+    assert(printWidth > 0 && printHeight > 0, `${viewport.name}/${scenario.name} artwork collapsed to zero size.`);
+    assert(printWidth <= scenario.artworkIn + 0.02 && printHeight <= scenario.artworkIn + 0.02,
+      `${viewport.name}/${scenario.name} automatic print fitting unexpectedly enlarged the original art.`);
+    if (scenario.expectAutoFit) {
+      assert(printWidth < scenario.artworkIn - 0.02 || printHeight < scenario.artworkIn - 0.02,
+        `${viewport.name}/${scenario.name} oversized embedded source was not reduced to fit.`);
+    }
+    const effectiveDpi = metricsText.match(/Effective DPI\\s*([\\d.]+)\\s*DPI/i);
+    assert(effectiveDpi && Number(effectiveDpi[1]) >= 299,
+      `${viewport.name}/${scenario.name} print fitting unexpectedly lowered effective image resolution.`);
 
     const layout = await assertNoHorizontalOverflow(page, `${viewport.name}/${scenario.name} Custom Studio visual editor`);
     assert(pageErrors.length === 0, `${viewport.name}/${scenario.name} uncaught browser errors: ${pageErrors.join(" | ")}`);
@@ -242,9 +253,10 @@ async function inspectScenario(browser, viewport, scenario) {
       route: new URL(page.url()).pathname,
       screenshot: screenshotPath,
       metricsVerified: true,
-      expectedOverflow: scenario.expectedOverflow,
-      warningExpected: scenario.expectWarning,
-      warningVerified: scenario.expectWarning ? true : (await warning.count() === 0),
+      expectedOverflow: "inside",
+      autoFitExpected: scenario.expectAutoFit,
+      warningExpected: false,
+      warningVerified: (await warning.count() === 0),
       noHorizontalOverflow: layout.scrollWidth <= layout.clientWidth + 3,
       geometry,
       pageErrors,
@@ -271,7 +283,7 @@ try {
   }
   report.status = "passed";
   await fs.writeFile(path.join(ARTIFACT_DIR, "custom-studio-visual-report.json"), JSON.stringify(report, null, 2));
-  console.log("Custom Studio responsive visual smoke passed inside/outside print-area states for desktop, tablet and mobile.");
+  console.log("Custom Studio responsive visual smoke passed inside/auto-fitted print bounds for desktop, tablet and mobile.");
 } catch (error) {
   report.status = "failed";
   report.error = error?.message || String(error);
