@@ -226,7 +226,7 @@ async function inspectScenario(browser, viewport, scenario) {
     const metricsText = (await metricsPanel.innerText()).replace(/\s+/g, " ");
     assert(new RegExp(`Original size\\s*${scenario.artworkIn}\\s*[×x]\\s*${scenario.artworkIn}\\s*in`, "i").test(metricsText), `${viewport.name}/${scenario.name} original embedded physical size was lost.`);
     assert(new RegExp(`File resolution\\s*${scenario.artworkPx}\\s*[×x]\\s*${scenario.artworkPx}\\s*px`, "i").test(metricsText), `${viewport.name}/${scenario.name} source resolution was lost.`);
-    const dimensions = metricsText.match(/Current print size\\s*([\\d.]+)\\s*[×x]\\s*([\\d.]+)\\s*in/i);
+    const dimensions = metricsText.match(/Current print size\s*([\d.]+)\s*[×x]\s*([\d.]+)\s*in/i);
     assert(dimensions, `${viewport.name}/${scenario.name} current printable dimensions are missing.`);
     const printWidth = Number(dimensions[1]);
     const printHeight = Number(dimensions[2]);
@@ -237,7 +237,7 @@ async function inspectScenario(browser, viewport, scenario) {
       assert(printWidth < scenario.artworkIn - 0.02 || printHeight < scenario.artworkIn - 0.02,
         `${viewport.name}/${scenario.name} oversized embedded source was not reduced to fit.`);
     }
-    const effectiveDpi = metricsText.match(/Effective DPI\\s*([\\d.]+)\\s*DPI/i);
+    const effectiveDpi = metricsText.match(/Effective DPI\s*([\d.]+)\s*DPI/i);
     assert(effectiveDpi && Number(effectiveDpi[1]) >= 299,
       `${viewport.name}/${scenario.name} print fitting unexpectedly lowered effective image resolution.`);
 
