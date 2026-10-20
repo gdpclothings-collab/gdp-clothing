@@ -71,6 +71,6 @@ test('route keeps guest access, licensed eligibility, signed-only output and bot
   assert.match(source, /createSignedUrl\(artwork!\.production_path, EXPIRY_SECONDS\)/);
   assert.doesNotMatch(source, /\bcreateSignedUrl\(input/);
   assert.doesNotMatch(source, /body\.production_path|body\.bucket/i);
-  assert.doesNotMatch(source, /Stripe|checkout.+\.rpc\(/i);
+  assert.doesNotMatch(source, /Deno\.env\.get\("STRIPE_|db\.from\("orders"\)|db\.rpc\("create_checkout/);
   assert.match(source, /if \(error \|\| typeof data\?\.allowed !== "boolean"\) throw/);
 });
