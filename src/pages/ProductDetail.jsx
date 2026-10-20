@@ -269,7 +269,12 @@ export default function ProductDetail() {
   const maxQty = inventoryLimited && selectedVariant ? Math.max(0, Number(selectedVariant.stock || 0)) : 99;
   const wished = wishlist.includes(product.id);
   const avgRating = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null;
-  const galleryImages = (product.images || []).filter(Boolean);
+  // Show existing, color-specific Custom Studio garment photos when a customer changes color.
+  // Other products and colors without dedicated mockups retain their ordinary image gallery.
+  const matchingColorMockups = Object.entries(product.customization?.preview?.colorMockups || {})
+    .find(([name]) => String(name).trim().toLowerCase() === String(color || "").trim().toLowerCase())?.[1];
+  const colorGalleryImages = [matchingColorMockups?.frontUrl, matchingColorMockups?.backUrl].filter(Boolean);
+  const galleryImages = colorGalleryImages.length ? colorGalleryImages : (product.images || []).filter(Boolean);
   const gallery = galleryImages.length ? galleryImages : [null];
   const activeImage = gallery[Math.min(activeImageIndex, gallery.length - 1)] || null;
   const titleParts = splitProductTitle(product.name, product.metafields?.subtitle);
@@ -290,6 +295,7 @@ export default function ProductDetail() {
   const selectColor = (nextColor) => {
     if (!isProductColorAvailable(product, nextColor)) return;
     setColor(nextColor);
+    setActiveImageIndex(0);
     if (size && !sizeAvailable(size, nextColor)) setSize("");
     setQty(1);
   };
