@@ -329,7 +329,7 @@ async function main() {
     results.push(await runCheck(browser, "desktop admin sign out entry", DESKTOP, storageState, async (page) => {
       await nav(page, "/admin");
       const sidebar = page.getByRole("navigation", { name: "Admin navigation" });
-      await sidebar.getByRole("button", { name: "Home" }).waitFor();
+      await sidebar.getByRole("link", { name: "Home" }).waitFor();
       const sidebarSignOut = page.locator("aside").getByRole("button", { name: "Sign out" });
       assert(await sidebarSignOut.isVisible(), "Desktop sidebar must offer Sign out.");
       const accountMenu = page.getByRole("button", { name: "Admin account menu" });
@@ -352,7 +352,7 @@ async function main() {
 
     results.push(await runCheck(browser, "settings selected state", DESKTOP, storageState, async (page) => {
       await nav(page, "/admin/settings");
-      const settings = page.getByRole("button", { name: /Store settings/i }).first();
+      const settings = page.getByRole("link", { name: /Store settings/i }).first();
       await settings.waitFor();
       assert(await settings.getAttribute("aria-current") === "page", "Store settings lost aria-current=page.");
     }));

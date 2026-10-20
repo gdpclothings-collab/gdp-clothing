@@ -262,6 +262,34 @@ function resolveSection(pathname) {
   return parts[1] === "legacy" ? "home" : parts[1];
 }
 
+function AdminSectionLink({ section, onSelect, children, ...props }) {
+  const to = section === "home" ? "/admin" : `/admin/${section}`;
+  return (
+    <Link
+      {...props}
+      to={to}
+      data-unsaved-bypass="true"
+      onClick={(event) => {
+        // Preserve the browser's native tab/window navigation on modified clicks.
+        if (
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) return;
+
+        // Only in-tab navigation needs the existing unsaved-edits confirmation.
+        event.preventDefault();
+        onSelect(section);
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export default function AdminV2() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -766,10 +794,10 @@ function AdminSidebar({ active, onSelect, onSignOut, signingOut, className = "",
               const Icon = item.icon;
               const selected = active === item.id;
               return (
-                <button
+                <AdminSectionLink
                   key={item.id}
-                  type="button"
-                  onClick={() => onSelect(item.id)}
+                  section={item.id}
+                  onSelect={onSelect}
                   aria-current={selected ? "page" : undefined}
                   className={`gdp-admin-neu-nav relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6] text-[#35373b]"}`}
                 >
@@ -777,7 +805,7 @@ function AdminSidebar({ active, onSelect, onSignOut, signingOut, className = "",
                   <Icon size={17} strokeWidth={1.8} />
                   <span>{item.label}</span>
                   {selected && <ChevronRight size={14} className="ml-auto text-[#777]" />}
-                </button>
+                </AdminSectionLink>
               );
             })}
           </div>
@@ -785,20 +813,20 @@ function AdminSidebar({ active, onSelect, onSignOut, signingOut, className = "",
       </nav>
 
       <div className="border-t border-[#e4e5e8] p-3 space-y-1">
-        <button
-          type="button"
-          onClick={() => onSelect("settings")}
+        <AdminSectionLink
+          section="settings"
+          onSelect={onSelect}
           aria-current={active === "settings" ? "page" : undefined}
           className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "settings" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}
         >
           <Settings size={17} /> Store settings
-        </button>
-        <button type="button" onClick={() => onSelect("apps")} aria-current={active === "apps" ? "page" : undefined} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "apps" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+        </AdminSectionLink>
+        <AdminSectionLink section="apps" onSelect={onSelect} aria-current={active === "apps" ? "page" : undefined} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "apps" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
           <Blocks size={17} /> Apps & integrations
-        </button>
-        <button type="button" onClick={() => onSelect("security")} aria-current={active === "security" ? "page" : undefined} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
+        </AdminSectionLink>
+        <AdminSectionLink section="security" onSelect={onSelect} aria-current={active === "security" ? "page" : undefined} className={`gdp-admin-neu-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${active === "security" ? "bg-[#fff0f3] text-[#a70f2d] font-semibold" : "hover:bg-[#f3f4f6]"}`}>
           <ShieldCheck size={17} /> Security
-        </button>
+        </AdminSectionLink>
         <div className="mt-2 border-t border-[#e4e5e8] pt-2">
           <button
             type="button"
@@ -832,12 +860,13 @@ function HomeModule({ data, loading, error, onRetry, onOpen }) {
             >
               <ExternalLink size={15} /> Storefront
             </Link>
-            <button
-              onClick={() => onOpen("products")}
+            <AdminSectionLink
+              section="products"
+              onSelect={onOpen}
               className="h-9 px-3 rounded-lg bg-[#222] text-white flex items-center gap-2 text-sm font-medium hover:bg-black"
             >
               <Plus size={15} /> Add product
-            </button>
+            </AdminSectionLink>
           </div>
         }
       />
@@ -888,9 +917,9 @@ function HomeModule({ data, loading, error, onRetry, onOpen }) {
           <Panel
             title="Recent orders"
             action={
-              <button onClick={() => onOpen("orders")} className="text-sm font-medium hover:underline">
+              <AdminSectionLink section="orders" onSelect={onOpen} className="text-sm font-medium hover:underline">
                 View all
-              </button>
+              </AdminSectionLink>
             }
           >
             <RecentOrders orders={data?.recentOrders || []} loading={loading} currency={currency} />
@@ -902,25 +931,25 @@ function HomeModule({ data, loading, error, onRetry, onOpen }) {
                 icon={AlertTriangle}
                 label="Orders needing payment attention"
                 value={loading ? "—" : metrics.pendingOrders || 0}
-                onClick={() => onOpen("orders")}
+                section="orders" onSelect={onOpen}
               />
               <AttentionRow
                 icon={Sparkles}
                 label="Design proofs in progress"
                 value={loading ? "—" : metrics.pendingProofs || 0}
-                onClick={() => onOpen("custom-studio")}
+                section="custom-studio" onSelect={onOpen}
               />
               <AttentionRow
                 icon={Factory}
                 label="Orders in production"
                 value={loading ? "—" : metrics.productionOrders || 0}
-                onClick={() => onOpen("production")}
+                section="production" onSelect={onOpen}
               />
               <AttentionRow
                 icon={LifeBuoy}
                 label="Open support tickets"
                 value={loading ? "—" : metrics.openTickets || 0}
-                onClick={() => onOpen("support")}
+                section="support" onSelect={onOpen}
               />
             </Panel>
 
@@ -938,25 +967,25 @@ function HomeModule({ data, loading, error, onRetry, onOpen }) {
             icon={Package}
             title="Catalog"
             text="Products, variants and collections"
-            onClick={() => onOpen("products")}
+            section="products" onSelect={onOpen}
           />
           <QuickAction
             icon={Sparkles}
             title="Custom Studio"
             text="Artwork, proofs and approvals"
-            onClick={() => onOpen("custom-studio")}
+            section="custom-studio" onSelect={onOpen}
           />
           <QuickAction
             icon={BarChart3}
             title="Analytics"
             text="Sales and commerce performance"
-            onClick={() => onOpen("analytics")}
+            section="analytics" onSelect={onOpen}
           />
           <QuickAction
             icon={Settings}
             title="Store settings"
             text="Store-wide configuration and access"
-            onClick={() => onOpen("settings")}
+            section="settings" onSelect={onOpen}
           />
         </div>
       </div>
@@ -1179,11 +1208,11 @@ function Status({ status }) {
   return <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium capitalize ${className}`}>{normalized}</span>;
 }
 
-function AttentionRow({ icon: Icon, label, value, onClick }) {
+function AttentionRow({ icon: Icon, label, value, section, onSelect }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <AdminSectionLink
+      section={section}
+      onSelect={onSelect}
       className="gdp-admin-neu-row w-full px-4 py-3 border-b last:border-b-0 border-[#eee] flex items-center gap-3 text-left hover:bg-[#fafafa]"
     >
       <div className="gdp-admin-neu-icon w-8 h-8 rounded-lg bg-[#f1f1f1] grid place-items-center">
@@ -1192,7 +1221,7 @@ function AttentionRow({ icon: Icon, label, value, onClick }) {
       <span className="text-sm flex-1">{label}</span>
       <span className="text-sm font-semibold">{value}</span>
       <ChevronRight size={15} className="text-[#aaa]" />
-    </button>
+    </AdminSectionLink>
   );
 }
 
@@ -1213,11 +1242,11 @@ function WorkflowStep({ icon: Icon, title, text, last = false }) {
   );
 }
 
-function QuickAction({ icon: Icon, title, text, onClick }) {
+function QuickAction({ icon: Icon, title, text, section, onSelect }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <AdminSectionLink
+      section={section}
+      onSelect={onSelect}
       className="gdp-admin-neu-control rounded-xl border border-[#dedede] bg-white p-4 text-left hover:border-[#aaa] transition"
     >
       <div className="flex items-start justify-between gap-3">
@@ -1228,7 +1257,7 @@ function QuickAction({ icon: Icon, title, text, onClick }) {
       </div>
       <div className="font-semibold text-sm mt-4">{title}</div>
       <div className="text-xs text-[#777] mt-1">{text}</div>
-    </button>
+    </AdminSectionLink>
   );
 }
 

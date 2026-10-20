@@ -31,6 +31,22 @@ requireText(
   'aria-current={active === "security" ? "page" : undefined}',
   "Security exposes aria-current"
 );
+for (const [needle, label] of [
+  ["function AdminSectionLink(", "reusable native admin route links"],
+  ['data-unsaved-bypass="true"', "link clicks delegate to the existing unsaved-change guard"],
+  ["event.button !== 0", "non-primary clicks retain browser behavior"],
+  ["event.ctrlKey", "Ctrl+Click retains native new-tab navigation"],
+  ["event.metaKey", "Command+Click retains native new-tab navigation"],
+  ["event.shiftKey", "Shift+Click retains native new-window navigation"],
+  ["event.preventDefault();", "ordinary admin navigation remains guarded"],
+  ["onSelect(section);", "ordinary admin navigation uses requestAction"],
+  ['section={item.id}', "main sidebar entries have actual href destinations"],
+  ['section="settings"', "settings has a link destination"],
+  ['section="apps"', "apps has a link destination"],
+  ['section="security"', "security has a link destination"],
+]) requireText(adminV2, needle, label);
+requireCount(adminV2, "<AdminSectionLink", 8, "sidebar and home module destination cards are links");
+requireText(adminV2, 'onClick={onSignOut}', "sign-out controls stay buttons");
 requireText(adminV2, 'role="dialog"', "Global Search uses dialog semantics");
 requireText(adminV2, 'aria-modal="true"', "Global Search is marked modal");
 requireText(adminV2, 'aria-label="GDP admin search"', "Global Search has an accessible name");
