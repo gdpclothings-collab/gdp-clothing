@@ -1731,8 +1731,10 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     const effectiveCost = costOverride
       ? Number(variant.costPerItem || 0)
       : Number(form.costPerItem || 0);
-    const effectiveProfit = effectivePrice - effectiveCost;
-    const effectiveMargin = effectivePrice > 0 ? (effectiveProfit / effectivePrice) * 100 : 0;
+    // Do not present 100% margin when the garment's real cost has not been entered.
+    const hasKnownCost = costOverride || (form.costPerItem !== "" && form.costPerItem !== null && form.costPerItem !== undefined);
+    const effectiveProfit = hasKnownCost ? effectivePrice - effectiveCost : null;
+    const effectiveMargin = hasKnownCost && effectivePrice > 0 ? (effectiveProfit / effectivePrice) * 100 : null;
     const stockStatus = !form.trackInventory ? "not_tracked" : stock <= 0 ? "out" : stock <= lowStockThreshold ? "low" : "in";
     return {
       variant,
@@ -2988,7 +2990,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                                     placeholder={form.costPerItem === "" || form.costPerItem === null ? "Base —" : `Base ${money(form.costPerItem, settings?.currency || "CAD")}`}
                                   />
                                   <div className="mt-1 text-[8px] uppercase text-[#888]">
-                                    {row.costOverride ? "Cost override" : "Base cost"} · Profit {money(row.effectiveProfit, settings?.currency || "CAD")} · {row.effectivePrice > 0 ? `${row.effectiveMargin.toFixed(1)}%` : "—"}
+                                    {row.costOverride ? "Cost override" : "Base cost"} · Profit {row.effectiveProfit === null ? "—" : money(row.effectiveProfit, settings?.currency || "CAD")} · {row.effectiveMargin === null ? "—" : `${row.effectiveMargin.toFixed(1)}%`}
                                   </div>
                                 </div>
                               </TinyField>
