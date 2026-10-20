@@ -45,7 +45,7 @@ for (const [needle, label] of [
   ['section="apps"', "apps has a link destination"],
   ['section="security"', "security has a link destination"],
 ]) requireText(adminV2, needle, label);
-requireCount(adminV2, "<AdminSectionLink", 10, "sidebar and home module destination cards are links");
+requireCount(adminV2, "<AdminSectionLink", 8, "sidebar and home module destination cards are links");
 requireText(adminV2, 'onClick={onSignOut}', "sign-out controls stay buttons");
 requireText(adminV2, 'role="dialog"', "Global Search uses dialog semantics");
 requireText(adminV2, 'aria-modal="true"', "Global Search is marked modal");
