@@ -104,6 +104,7 @@ jobs:
           node scripts/verify-checkout-shipping-profiles.mjs
           node scripts/verify-checkout-shipping-weight.mjs
           node scripts/verify-seasonal-artwork.mjs
+          node --test tests/seasonal-source-policy.test.mjs
           node scripts/verify-photo-bootleg-desktop.mjs
           node --test tests/bootleg-expandable-collections.test.mjs
           node --test tests/bootleg-text-autofit.test.mjs
