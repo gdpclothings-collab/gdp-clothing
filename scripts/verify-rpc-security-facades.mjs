@@ -21,7 +21,7 @@ const functions = [
 test("migration is one transactional forward-only change", () => {
   assert.match(sql, /\bbegin;[\s\S]*\bcommit;\s*$/i);
   assert.equal((sql.match(/\balter function public\./gi) || []).length, 9);
-  assert.equal((sql.match(/\bsecurity invoker\b/gi) || []).length, 9);
+  assert.equal((sql.match(/^\s*security invoker\s*$/gim) || []).length, 9);
   assert.equal((sql.match(/\bset schema private;/gi) || []).length, 9);
   assert.doesNotMatch(sql, /\bdrop\s+(?:function|table|schema)\b/i);
   assert.doesNotMatch(sql, /\b(?:update|delete from|insert into)\s+public\.(?:orders|order_items|gdp_invoices)\b/i);
