@@ -49,8 +49,11 @@ const respond = (body: unknown, status = 200, origin = "", extraHeaders = {}) =>
 async function enforceGuestRateLimit(db: ReturnType<typeof createClient>, req: Request, origin: string) {
   // The existing atomic quota RPC is callable only by service_role, not by
   // anon/authenticated users. No new public database grants are necessary.
+  const hint = networkHint(req);
+  // A missing forwarding hint is not a user identity: don't place all genuine
+  // guests into one strict 120-request bucket. Keep the shared abuse budget.
   const limits = [
-    { scope: "seasonal-print-source-ip-v1", hash: await hashQuotaKey(`seasonal:ip:${networkHint(req)}`), limit: IP_MAX_REQUESTS },
+    ...(hint !== "unknown" ? [{ scope: "seasonal-print-source-ip-v1", hash: await hashQuotaKey(`seasonal:ip:${hint}`), limit: IP_MAX_REQUESTS }] : []),
     { scope: "seasonal-print-source-global-v1", hash: await hashQuotaKey("seasonal:global"), limit: GLOBAL_MAX_REQUESTS },
   ];
   for (const quota of limits) {
