@@ -231,7 +231,7 @@ export default function AdminPricing() {
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <OptionalMoneyInput label="Wholesale reference" value={garment.wholesaleCost} onChange={(value) => setSourcingCost(garmentKey, "wholesaleCost", value)} />
-                  <MoneyInput label="Michaels regular (cost base)" value={garment.fallbackRegularCost} onChange={(value) => setSourcingCost(garmentKey, "fallbackRegularCost", value)} />
+                  <MoneyInput label="Michaels regular (reference)" value={garment.fallbackRegularCost} onChange={(value) => setSourcingCost(garmentKey, "fallbackRegularCost", value)} />
                   <MoneyInput label="Michaels current" value={garment.fallbackCurrentCost} onChange={(value) => setSourcingCost(garmentKey, "fallbackCurrentCost", value)} />
                 </div>
 
