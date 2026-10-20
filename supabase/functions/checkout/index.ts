@@ -64,9 +64,13 @@ const defaultApparelPricing = {
     ],
   },
   products: {
-    tshirt: { front: { 1: 34.99, 2: 64.99, 5: 149.99, 10: 279.99 }, front_back: { 1: 44.99, 2: 84.99, 5: 199.99, 10: 369.99 } },
-    crewneck: { front: { 1: 59.99, 2: 109.99, 5: 259.99, 10: 489.99 }, front_back: { 1: 69.99, 2: 129.99, 5: 309.99, 10: 579.99 } },
-    hoodie: { front: { 1: 69.99, 2: 129.99, 5: 309.99, 10: 579.99 }, front_back: { 1: 79.99, 2: 149.99, 5: 359.99, 10: 669.99 } },
+    tshirt: { front: { 1: 35.99, 2: 68.38, 5: 161.96, 10: 305.92 }, front_back: { 1: 45.99, 2: 87.38, 5: 206.96, 10: 390.92 } },
+    kidsTshirt: { front: { 1: 32.99, 2: 62.68, 5: 148.46, 10: 280.42 }, front_back: { 1: 42.99, 2: 81.68, 5: 193.46, 10: 365.42 } },
+    toddlerTshirt: { front: { 1: 32.99, 2: 62.68, 5: 148.46, 10: 280.42 }, front_back: { 1: 42.99, 2: 81.68, 5: 193.46, 10: 365.42 } },
+    youthTshirt: { front: { 1: 32.99, 2: 62.68, 5: 148.46, 10: 280.42 }, front_back: { 1: 42.99, 2: 81.68, 5: 193.46, 10: 365.42 } },
+    longSleeve: { front: { 1: 52.99, 2: 100.68, 5: 238.46, 10: 450.42 }, front_back: { 1: 62.99, 2: 119.68, 5: 283.46, 10: 535.42 } },
+    crewneck: { front: { 1: 70.99, 2: 134.88, 5: 319.46, 10: 603.42 }, front_back: { 1: 80.99, 2: 153.88, 5: 364.46, 10: 688.42 } },
+    hoodie: { front: { 1: 90.99, 2: 172.88, 5: 409.46, 10: 773.42 }, front_back: { 1: 100.99, 2: 191.88, 5: 454.46, 10: 858.42 } },
   },
   tiers: [
     { min: 3, max: 5, percent: 5 },
@@ -108,6 +112,10 @@ function apparelProductKey(product: any) {
   const value = `${String(product?.type || "")} ${String(product?.name || "")}`.toLowerCase();
   if (value.includes("hoodie")) return "hoodie";
   if (value.includes("crewneck") || value.includes("sweatshirt")) return "crewneck";
+  if (value.includes("long sleeve") || value.includes("long-sleeve")) return "longSleeve";
+  if (value.includes("toddler")) return "toddlerTshirt";
+  if (value.includes("youth")) return "youthTshirt";
+  if (value.includes("kids") || value.includes("kid's") || value.includes("children")) return "kidsTshirt";
   if (value.includes("t-shirt") || value.includes("tshirt") || value.includes("tee")) return "tshirt";
   return null;
 }

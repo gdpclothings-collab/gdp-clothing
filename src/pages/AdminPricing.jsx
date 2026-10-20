@@ -5,9 +5,13 @@ import { adminApparelPricingApi } from "@/lib/adminApparelPricingApi";
 import { DEFAULT_APPAREL_PRICING, getGarmentBaseCost, normalizeApparelPricing } from "@/lib/apparelPricing";
 
 const PRODUCT_LABELS = {
-  tshirt: "T-Shirt",
-  crewneck: "Crewneck",
-  hoodie: "Hoodie",
+  tshirt: "Adult Short Sleeve T-Shirt",
+  kidsTshirt: "Kids Custom T-Shirt",
+  toddlerTshirt: "Toddler Short Sleeve T-Shirt",
+  youthTshirt: "Youth Short Sleeve T-Shirt",
+  longSleeve: "Adult Long Sleeve T-Shirt",
+  crewneck: "Adult Crewneck Sweatshirt",
+  hoodie: "Adult Pullover Hoodie",
 };
 const PLACEMENT_LABELS = {
   front: "Front only",
