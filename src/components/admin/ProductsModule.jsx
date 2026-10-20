@@ -2715,7 +2715,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                           value={form.hsCode}
                           onChange={(event) => set("hsCode", event.target.value)}
                           className={inputClass}
-                          placeholder="6109.10"
+                          placeholder="Enter verified garment HS code"
                         />
                       </Field>
                     </div>
