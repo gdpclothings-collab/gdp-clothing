@@ -53,3 +53,52 @@ const blocked = await fetch(`${base}/functions/v1/seasonal-print-source`, {
 });
 assert.equal(blocked.status, 404, 'Unpublished/missing masters must not produce signed URLs');
 console.log('PASS: inaccessible original denied; no direct storage grants or payment writes');
+
+
+const deniedCases = [
+  {
+    name: 'foreign Origin rejected',
+    expected: 403,
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Origin: 'https://example.invalid' },
+    body: JSON.stringify({ artworkIds: [cases[0].id] }),
+  },
+  {
+    name: 'duplicate artwork IDs rejected',
+    expected: 400,
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Origin: 'https://gdpclothing.ca' },
+    body: JSON.stringify({ artworkIds: [cases[0].id, cases[0].id] }),
+  },
+  {
+    name: 'oversized request body rejected before signing',
+    expected: 413,
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Origin: 'https://gdpclothing.ca' },
+    body: JSON.stringify({ artworkIds: [cases[0].id], padding: 'x'.repeat(4100) }),
+  },
+  {
+    name: 'malformed JSON rejected',
+    expected: 400,
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Origin: 'https://gdpclothing.ca' },
+    body: '{bad',
+  },
+  {
+    name: 'GET cannot sign artwork',
+    expected: 405,
+    method: 'GET',
+    headers: { Origin: 'https://gdpclothing.ca' },
+  },
+];
+for (const denied of deniedCases) {
+  const result = await fetch(`${base}/functions/v1/seasonal-print-source`, {
+    method: denied.method,
+    headers: denied.headers,
+    ...(denied.body ? { body: denied.body } : {}),
+    signal: AbortSignal.timeout(20000),
+  });
+  assert.equal(result.status, denied.expected, denied.name);
+  assert.ok(!JSON.stringify(await result.json()).includes('signedUrl'), 'Rejected request must not return a signed source');
+  console.log(`PASS: ${denied.name}`);
+}
