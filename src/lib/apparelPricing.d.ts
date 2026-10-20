@@ -1,6 +1,7 @@
 export const DEFAULT_GARMENT_SOURCING: any;
 export const DEFAULT_APPAREL_PRICING: any;
 export function normalizeGarmentSourcing(raw?: any): any;
+export function getGarmentBaseCost(sourcing: any, garmentKey: string): number | null;
 export function normalizeApparelPricing(raw?: any): any;
 export function apparelProductKey(type?: string, name?: string): "tshirt" | "crewneck" | "hoodie" | null;
 export function apparelPlacementKey(placement?: string): "front" | "front_back";
