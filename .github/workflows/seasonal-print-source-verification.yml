@@ -25,5 +25,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
+      - name: Validate guest source throttling and signed-path policy
+        run: node --test tests/seasonal-source-policy.test.mjs
       - name: Read-only signed original and SHA-256 smoke
         run: node scripts/smoke-seasonal-print-source.mjs
