@@ -125,6 +125,9 @@ jobs:
           node --test scripts/verify-invoice-ledger.mjs
           node --test scripts/verify-invoice-atomic-bundle.mjs
 
+      - name: Verify privileged RPC hardening preserves call contracts
+        run: node --test scripts/verify-rpc-security-facades.mjs
+
       - name: Verify invoice checkout isolation and non-payment regressions
         run: |
           node --test scripts/verify-invoice-checkout-isolation.mjs
