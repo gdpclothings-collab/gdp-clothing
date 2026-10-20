@@ -2,7 +2,7 @@ export const DEFAULT_GARMENT_SOURCING = {
   strategy: "wholesale_primary_local_fallback",
   primarySupplierName: "T-Shirt Ideal",
   fallbackSupplierName: "Michaels",
-  useFallbackRetailAsBasePrice: false,
+  useFallbackRetailAsBasePrice: true,
   automaticPriceAdjustment: false,
   localSourcingFee: 0,
   garments: {
@@ -174,7 +174,7 @@ export function normalizeGarmentSourcing(raw = {}) {
     strategy: "wholesale_primary_local_fallback",
     primarySupplierName: String(incoming.primarySupplierName || DEFAULT_GARMENT_SOURCING.primarySupplierName),
     fallbackSupplierName: String(incoming.fallbackSupplierName || DEFAULT_GARMENT_SOURCING.fallbackSupplierName),
-    useFallbackRetailAsBasePrice: false,
+    useFallbackRetailAsBasePrice: incoming.useFallbackRetailAsBasePrice !== false,
     automaticPriceAdjustment: incoming.automaticPriceAdjustment === true,
     localSourcingFee: money(incoming.localSourcingFee, 0),
     garments: {},
@@ -196,6 +196,20 @@ export function normalizeGarmentSourcing(raw = {}) {
   }
 
   return next;
+}
+
+/**
+ * Reference blank-garment cost before taxes, DTF, labour, packaging or margin.
+ * Michaels REGULAR price is the temporary cost basis, not a customer price.
+ * Keeps wholesale cost available for a deliberate future switch.
+ */
+export function getGarmentBaseCost(sourcing, garmentKey) {
+  const settings = normalizeGarmentSourcing(sourcing);
+  const garment = settings.garments[garmentKey];
+  if (!garment) return null;
+  return settings.useFallbackRetailAsBasePrice
+    ? garment.fallbackRegularCost
+    : garment.wholesaleCost;
 }
 
 export function normalizeApparelPricing(raw = {}) {
