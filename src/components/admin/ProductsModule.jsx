@@ -1733,7 +1733,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
       : Number(form.costPerItem || 0);
     const effectiveProfit = effectivePrice - effectiveCost;
     const effectiveMargin = effectivePrice > 0 ? (effectiveProfit / effectivePrice) * 100 : 0;
-    const stockStatus = stock <= 0 ? "out" : stock <= lowStockThreshold ? "low" : "in";
+    const stockStatus = !form.trackInventory ? "not_tracked" : stock <= 0 ? "out" : stock <= lowStockThreshold ? "low" : "in";
     return {
       variant,
       index,
@@ -1757,6 +1757,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
     inStock: variantRows.filter((row) => row.stockStatus === "in").length,
     low: variantRows.filter((row) => row.stockStatus === "low").length,
     out: variantRows.filter((row) => row.stockStatus === "out").length,
+    notTracked: variantRows.filter((row) => row.stockStatus === "not_tracked").length,
   };
   const variantSearch = variantFilters.search.trim().toLowerCase();
   const lockedVariantRows =
@@ -2776,15 +2777,23 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                         <span className="rounded-full border border-[#ddd] bg-white px-2.5 py-1">
                           Base cost {form.costPerItem === "" || form.costPerItem === null ? "—" : money(form.costPerItem, settings?.currency || "CAD")}
                         </span>
-                        <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "in" }))} className="rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 px-2.5 py-1">
-                          {variantSummary.inStock} in stock
-                        </button>
-                        <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "low" }))} className="rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2.5 py-1">
-                          {variantSummary.low} low
-                        </button>
-                        <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "out" }))} className="rounded-full border border-red-200 bg-red-50 text-red-700 px-2.5 py-1">
-                          {variantSummary.out} out
-                        </button>
+                        {form.trackInventory ? (
+                          <>
+                              <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "in" }))} className="rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 px-2.5 py-1">
+                                {variantSummary.inStock} in stock
+                              </button>
+                              <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "low" }))} className="rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2.5 py-1">
+                                {variantSummary.low} low
+                              </button>
+                              <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "out" }))} className="rounded-full border border-red-200 bg-red-50 text-red-700 px-2.5 py-1">
+                                {variantSummary.out} out
+                              </button>
+                          </>
+                        ) : (
+                          <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "not_tracked" }))} className="rounded-full border border-sky-200 bg-sky-50 text-sky-800 px-2.5 py-1">
+                            {variantSummary.notTracked} {form.sellingMode === "custom" && form.sellWhenOutOfStock ? "made to order · stock not tracked" : "stock not tracked"}
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -2956,8 +2965,8 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                               <TinyField label="Stock">
                                 <div>
                                   <input type="number" min="0" value={variant.stock ?? 0} onChange={(event) => updateVariant(row.index, "stock", event.target.value)} className={tinyInputClass} />
-                                  <div className={`mt-1 text-[8px] font-semibold uppercase ${row.stockStatus === "out" ? "text-red-600" : row.stockStatus === "low" ? "text-amber-700" : "text-emerald-700"}`}>
-                                    {row.stockStatus === "out" ? "Out" : row.stockStatus === "low" ? "Low" : "In stock"}
+                                  <div className={`mt-1 text-[8px] font-semibold uppercase ${row.stockStatus === "not_tracked" ? "text-sky-700" : row.stockStatus === "out" ? "text-red-600" : row.stockStatus === "low" ? "text-amber-700" : "text-emerald-700"}`}>
+                                    {row.stockStatus === "not_tracked" ? (form.sellingMode === "custom" && form.sellWhenOutOfStock ? "Made to order" : "Not tracked") : row.stockStatus === "out" ? "Out" : row.stockStatus === "low" ? "Low" : "In stock"}
                                   </div>
                                 </div>
                               </TinyField>
