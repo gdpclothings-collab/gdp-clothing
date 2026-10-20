@@ -2791,7 +2791,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                           </>
                         ) : (
                           <button type="button" onClick={() => setVariantFilters((current) => ({ ...current, stock: "not_tracked" }))} className="rounded-full border border-sky-200 bg-sky-50 text-sky-800 px-2.5 py-1">
-                            {variantSummary.notTracked} {form.sellingMode === "custom" && form.sellWhenOutOfStock ? "made to order · stock not tracked" : "stock not tracked"}
+                            {variantSummary.notTracked} {form.customDesignable && form.sellWhenOutOfStock ? "made to order · stock not tracked" : "stock not tracked"}
                           </button>
                         )}
                       </div>
@@ -2966,7 +2966,7 @@ function ProductEditor({ product, collections, settings, onClose, onSaved }) {
                                 <div>
                                   <input type="number" min="0" value={variant.stock ?? 0} onChange={(event) => updateVariant(row.index, "stock", event.target.value)} className={tinyInputClass} />
                                   <div className={`mt-1 text-[8px] font-semibold uppercase ${row.stockStatus === "not_tracked" ? "text-sky-700" : row.stockStatus === "out" ? "text-red-600" : row.stockStatus === "low" ? "text-amber-700" : "text-emerald-700"}`}>
-                                    {row.stockStatus === "not_tracked" ? (form.sellingMode === "custom" && form.sellWhenOutOfStock ? "Made to order" : "Not tracked") : row.stockStatus === "out" ? "Out" : row.stockStatus === "low" ? "Low" : "In stock"}
+                                    {row.stockStatus === "not_tracked" ? (form.customDesignable && form.sellWhenOutOfStock ? "Made to order" : "Not tracked") : row.stockStatus === "out" ? "Out" : row.stockStatus === "low" ? "Low" : "In stock"}
                                   </div>
                                 </div>
                               </TinyField>
