@@ -94,7 +94,7 @@ export async function createBasicStudioEnhancement(file) {
       for (let x = 1; x < width - 1; x += 1) {
         const i = y * stride + x * 4;
         if (source[i + 3] < 250 ||
-            source[i - 3] < 240 || source[i + 7] < 240 ||
+            source[i - 1] < 240 || source[i + 7] < 240 ||
             source[i - stride + 3] < 240 || source[i + stride + 3] < 240) continue;
         for (let channel = 0; channel < 3; channel += 1) {
           const blurred = (source[i + channel] * 4 + source[i + channel - 4] +
