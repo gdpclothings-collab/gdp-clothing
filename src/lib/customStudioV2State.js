@@ -66,6 +66,34 @@ export function createInitialStudioV2State() {
   };
 }
 
+// A saved design is always reopened as a NEW working copy. Never carry over
+// approvals or production authority from a previous order.
+export function createStudioV2ReuseState(saved, newGarment = false) {
+  if (!saved || !["seasonal", "bootleg", "memorial", "upload"].includes(saved.designPath)) {
+    return createInitialStudioV2State();
+  }
+  const base = createInitialStudioV2State();
+  const next = { ...base, ...saved };
+  for (const path of ["seasonal", "bootleg", "memorial", "upload"]) {
+    const stored = saved[path]?.sides || {};
+    next[path] = {
+      sides: Object.fromEntries(["front", "back"].map((side) => [
+        side, { ...base[path].sides[side], ...(stored[side] || {}), confirmed: false },
+      ])),
+    };
+  }
+  next.approval = { ...base.approval, ...(saved.approval || {}), finalDesignApproved: false, rightsConfirmed: false };
+  next.step = newGarment ? "garment" : "customize";
+  next.reusePending = Boolean(newGarment);
+  if (newGarment) {
+    next.productId = "";
+    next.color = "";
+    next.size = "";
+    next.quantity = 1;
+  }
+  return next;
+}
+
 export const initialStudioV2State = createInitialStudioV2State();
 
 function invalidatePath(path) {
@@ -103,6 +131,13 @@ export function studioV2Reducer(state, action) {
       const next = createInitialStudioV2State();
       return { ...next, productId: action.productId, color: action.color || '' };
     }
+    case 'SELECT_PRODUCT_FOR_REUSE':
+      // Preserve editable artwork while switching blank garments. Render and
+      // customer approval are mandatory again for the new print dimensions.
+      return invalidateAllEditors({
+        ...state, productId: action.productId, color: action.color || '', size: '',
+        quantity: 1, step: 'garment', reusePending: true,
+      });
     case 'SET_COLOR':
       return invalidateAllEditors({ ...state, color: action.color, size: action.size || '' });
     case 'SET_SIZE':
