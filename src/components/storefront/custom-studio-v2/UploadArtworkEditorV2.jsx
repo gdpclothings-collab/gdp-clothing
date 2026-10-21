@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
+import StudioArtworkComparison from '@/components/storefront/custom-studio-v2/StudioArtworkComparison';
 import useStudioMobileFloatingPreview from '@/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview';
 import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RotateCcw } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
@@ -79,15 +80,34 @@ function RangeControl({ label, value, min, max, suffix = '', onChange, onReset }
 export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onConfirmedChange }) {
   const fileRef = useRef(null);
   const referenceBoxRef = useRef(null);
+  const enhancementPanelRef = useRef(null);
   const { garmentRef, inspectorRef, visible: floatingPreviewVisible, minimized: mobilePreviewMinimized, setMinimized: setMobilePreviewMinimized } = useStudioMobileFloatingPreview();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [enhancing, setEnhancing] = useState(false);
   const [enhancementPreview, setEnhancementPreview] = useState(null);
   const [enhanceError, setEnhanceError] = useState('');
+  const [enhancementPanelVisible, setEnhancementPanelVisible] = useState(false);
+  const [previewRestoredInsideEnhancement, setPreviewRestoredInsideEnhancement] = useState(false);
   const sourceFileRef = useRef(null);
   useEffect(() => () => { if (enhancementPreview?.url) URL.revokeObjectURL(enhancementPreview.url); }, [enhancementPreview]);
   const [legacyArtworkDimensions, setLegacyArtworkDimensions] = useState(null);
+  const hasArtwork = Boolean(editor.artwork);
+  // Collapse only the Upload editor's mobile floating mirror while its
+  // enhancement tools are onscreen. An explicit Restore still works.
+  useEffect(() => {
+    const node = enhancementPanelRef.current;
+    if (!hasArtwork || !node || typeof IntersectionObserver !== 'function') {
+      setEnhancementPanelVisible(false);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      setEnhancementPanelVisible(entry.isIntersecting);
+      if (!entry.isIntersecting) setPreviewRestoredInsideEnhancement(false);
+    }, { rootMargin: '-96px 0px -15% 0px', threshold: 0 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasArtwork]);
   const rawTransform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = resolveStudioV2PrintGuide(product, size, side, color);
@@ -251,7 +271,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
       </section>
 
       <section ref={inspectorRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        {floatingPreviewVisible ? <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized} onMinimize={() => setMobilePreviewMinimized(true)} onRestore={() => setMobilePreviewMinimized(false)}>
+        {floatingPreviewVisible ? <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized || (enhancementPanelVisible && !previewRestoredInsideEnhancement)} onMinimize={() => { setMobilePreviewMinimized(true); setPreviewRestoredInsideEnhancement(false); }} onRestore={() => { setMobilePreviewMinimized(false); setPreviewRestoredInsideEnhancement(true); }}>
           <StudioMobileGarmentMirror garmentPreview={garmentPreview} productName={product.name} side={side} printGuide={printGuide}>
             {editor.artwork?.url ? (
               <div data-gdp-upload-mirror-artwork="true" className="absolute grid place-items-center" style={{
@@ -290,7 +310,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             {lowConfidenceDpi ? <p data-gdp-low-confidence-dpi-note="true" className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-600">The embedded {Math.round(Number(editor.artwork.sourceDpi || 0))} DPI is treated as mobile/screen metadata. The embedded inch size is informational only. 100% artwork scale means 100% of the safely fitted print size.</p> : null}
             {!editor.artwork.sourceDpi ? <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold leading-4 text-slate-500">This file does not contain reliable DPI metadata, so the Studio keeps the existing fit-to-area behavior instead of guessing a physical size.</p> : null}
           </div>
-          <div data-gdp-free-artwork-enhancement="true" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
+          <div ref={enhancementPanelRef} data-gdp-free-artwork-enhancement="true" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
             <p className="text-sm font-black text-slate-900">Free basic image enhancement</p>
             <p className="text-xs font-semibold leading-5 text-slate-600">Optional local sharpening and up to 2× smoother resizing. Preview first; your original remains available. This is not AI restoration and cannot repair severe blur, changed lettering or missing details.</p>
             {editor.artwork.basicEnhanced ? (
@@ -301,10 +321,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             </>}
             {enhanceError ? <p role="alert" className="text-xs font-semibold text-red-700">{enhanceError}</p> : null}
             {enhancementPreview && enhancementPreview.sourcePath === editor.artwork.path ? <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0"><p className="mb-1 text-[11px] font-black text-slate-600">Original</p><img src={editor.artwork.url} alt="Original artwork comparison" className="aspect-square w-full rounded-xl border border-slate-200 object-contain" /></div>
-                <div className="min-w-0"><p className="mb-1 text-[11px] font-black text-slate-600">Basic improvement</p><img src={enhancementPreview.url} alt="Enhanced artwork comparison" className="aspect-square w-full rounded-xl border border-slate-200 object-contain" /></div>
-              </div>
+              <StudioArtworkComparison originalUrl={editor.artwork.url} enhancedUrl={enhancementPreview.url} />
               <button type="button" onClick={applyFreeEnhancement} disabled={enhancing || uploading} className="min-h-11 w-full rounded-xl bg-emerald-700 px-3 text-xs font-black text-white disabled:opacity-40">{enhancing ? 'Saving…' : 'Apply improvement'}</button>
               <button type="button" onClick={() => setEnhancementPreview(null)} disabled={enhancing} className="min-h-10 w-full rounded-xl border border-slate-200 text-xs font-bold text-slate-700">Keep original · Cancel</button>
             </> : null}
