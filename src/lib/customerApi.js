@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct } from "@/lib/supabaseMappers";
+import { createInitialStudioV2State } from "@/lib/customStudioV2State";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const backgroundRemovalFailures = new WeakMap();
@@ -366,23 +367,98 @@ export const customerApi = {
 
   async listSavedDesigns() {
     const user = await requireUser();
+    // The customer library reads real Custom Studio orders and in-cart designs.
     const { data, error } = await supabase
-      .from("saved_designs")
-      .select("*")
+      .from("custom_designs")
+      .select("id, product_id, product_name, name, design_style, design_path, preview_url, customer_mockup_path, color, size, status, order_id, render_status, production_files, studio_draft, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(100);
     if (error) throw error;
+    return Promise.all((data || []).map(async (row) => {
+      const previewPath = row.customer_mockup_path || row.preview_url || "";
+      const previewUrl = await signedCustomerUpload(previewPath);
+      return {
+        id: row.id,
+        customDesignId: row.id,
+        productName: row.product_name,
+        name: row.name,
+        designStyle: row.design_style,
+        designPath: row.design_path,
+        color: row.color,
+        size: row.size,
+        status: row.status,
+        orderId: row.order_id,
+        previewUrl,
+        created_date: row.created_at,
+        hasEditableDraft: row.studio_draft?.version === 1 && Boolean(row.studio_draft?.state?.designPath),
+        hasPrintFile: ["front", "back"].some((side) => Boolean(row.production_files?.[side]?.path)),
+      };
+    }));
+  },
 
-    const rows = [];
-    for (const row of data || []) {
-      let previewUrl = row.preview_url || "";
-      if (previewUrl && !/^https?:\/\//i.test(previewUrl)) {
-        previewUrl = await signedCustomerUpload(previewUrl);
-      }
-      rows.push(normalizeSavedDesign({ ...row, preview_url: previewUrl }));
+  async getSavedStudioDraft(designId) {
+    const user = await requireUser();
+    if (!uuidPattern.test(String(designId || ""))) throw new Error("Invalid saved design.");
+    const { data: design, error } = await supabase
+      .from("custom_designs")
+      .select("id, product_id, color, size, design_path, studio_draft, production_files")
+      .eq("id", designId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!design) throw new Error("This design is no longer available in your account.");
+
+    const saved = design.studio_draft;
+    if (saved?.version === 1 && saved.state?.productId === design.product_id &&
+        ["seasonal", "bootleg", "memorial", "upload"].includes(saved.state.designPath)) {
+      return { version: 1, state: saved.state, flattened: false };
     }
-    return rows;
+
+    // Older orders can reuse their flattened production artwork, not layers.
+    // The locked original record is never modified.
+    const next = createInitialStudioV2State();
+    next.productId = design.product_id;
+    next.color = design.color || "";
+    next.size = design.size || "";
+    next.designPath = "upload";
+    let count = 0;
+    for (const side of ["front", "back"]) {
+      const file = design.production_files?.[side];
+      if (!file?.path) continue;
+      next.upload.sides[side].artwork = {
+        path: file.path,
+        url: "",
+        name: `Saved ${side} print artwork`,
+        pixelWidth: Number(file.width_px || file.widthPx || 0),
+        pixelHeight: Number(file.height_px || file.heightPx || 0),
+      };
+      count += 1;
+    }
+    if (!count) throw new Error("This older design has no reusable production file.");
+    return { version: 1, state: next, flattened: true };
+  },
+
+  async saveStudioDraftForDesign(designId, state) {
+    const user = await optionalAccountUser();
+    if (!user) return false; // Guests retain their existing cart experience.
+    if (!uuidPattern.test(String(designId || ""))) throw new Error("Invalid design ID.");
+    const draft = { version: 1, state };
+    if (JSON.stringify(draft).length > 600_000) {
+      throw new Error("The design has too much editing data to store in My Designs.");
+    }
+    // Restrict to this account's still-in-cart record; never edit a paid proof.
+    const { data, error } = await supabase
+      .from("custom_designs")
+      .update({ studio_draft: draft })
+      .eq("id", designId)
+      .eq("user_id", user.id)
+      .eq("status", "in_cart")
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error("Could not verify the saved design.");
+    return true;
   },
 
   async getProducts(ids) {

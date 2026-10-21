@@ -30,6 +30,7 @@ import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customS
 import { renderStudioV2CustomerMockup } from '@/lib/customStudioV2Mockup';
 import {
   createInitialStudioV2State,
+  createStudioV2ReuseState,
   productColors,
   productSizes,
   STUDIO_V2_DESIGN_PATHS,
@@ -356,11 +357,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   const [state, setState] = useState(() => {
     const draftState = location.state?.studioV2Draft?.state;
     if (!draftState || location.state?.studioV2Draft?.version !== 1) return createInitialStudioV2State();
-    return {
-      ...draftState,
-      step: 'customize',
-      approval: { ...(draftState.approval || {}), finalDesignApproved: false },
-    };
+    return createStudioV2ReuseState(draftState, location.state?.studioReuseMode === 'new-garment');
   });
   // A same-session return from Shop/Home should not blank the Studio while
   // public catalog data refreshes. No customer design state is cached here.
@@ -377,6 +374,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   // Only the initial cart edit draft should be restored; router history
   // updates must not rehydrate (and reset) the customer's live edits.
   const initialStudioDraftRef = useRef(location.state?.studioV2Draft);
+  const initialReuseModeRef = useRef(location.state?.studioReuseMode === 'new-garment');
   const initialStudioStepRef = useRef(state.step);
   const currentStudioStepRef = useRef(state.step);
   const [garmentView, setGarmentView] = useState(() => state.productId ? 'focused' : 'browse');
@@ -393,6 +391,9 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   // as a history entry. Never use native pushState: React Router owns history.
   // Other reducer actions (artwork, approval, sizing, etc.) remain unchanged.
   const dispatch = (action) => {
+    const reducerAction = action.type === 'SELECT_PRODUCT' && stateRef.current.reusePending
+      ? { ...action, type: 'SELECT_PRODUCT_FOR_REUSE' }
+      : action;
     const target = studioHistoryActionStep(action);
     const view = studioHistoryActionGarmentView(action, currentGarmentViewRef.current, stateRef.current.productId);
     if (target && studioHistoryShouldPush(currentStudioStepRef.current, target, currentGarmentViewRef.current, view)) {
@@ -413,7 +414,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
     }
     // Browse / Focus only affect presentation history, never order state.
     if (action.type !== 'BROWSE_GARMENTS' && action.type !== 'FOCUS_GARMENT') {
-      setState((current) => studioV2Reducer(current, action));
+      setState((current) => studioV2Reducer(current, reducerAction));
     }
   };
 
@@ -482,7 +483,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
     refreshStudioV2DraftAssets(draft.state)
       .then((refreshed) => {
         if (!active || !refreshed) return;
-        setState({ ...refreshed, step: 'customize', approval: { ...(refreshed.approval || {}), finalDesignApproved: false } });
+        setState(createStudioV2ReuseState(refreshed, initialReuseModeRef.current));
       })
       .catch(() => { /* Stable paths remain available; final rendering will surface an actionable error if refresh fails. */ });
     return () => { active = false; };
@@ -518,7 +519,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
 
   const next = () => {
     if (!canContinue) return;
-    if (state.step === 'garment') dispatch({ type: 'SET_STEP', step: 'design' });
+    if (state.step === 'garment') dispatch({ type: 'SET_STEP', step: state.reusePending && state.designPath ? 'customize' : 'design' });
     else if (state.step === 'customize') dispatch({ type: 'SET_STEP', step: 'review' });
   };
   const back = () => {
@@ -671,6 +672,14 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
         status: 'in_cart',
       });
 
+      // Account holders can reopen this exact editor state from any device.
+      // Do not block a legitimate purchase if an optional library write fails.
+      try {
+        await customerApi.saveStudioDraftForDesign(design.id, state);
+      } catch (draftError) {
+        console.warn('Cloud editor draft could not be saved; production art remains available.', draftError);
+      }
+
       const quantity = Math.max(1, Number(state.quantity || 1));
       const cartItem = {
         productId: product.id,
@@ -751,6 +760,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
     <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
+      {state.step === 'garment' && state.reusePending && <div role="status" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">Your saved artwork is ready to reuse. Choose a garment, colour and size, then review and approve the new print layout.</div>}
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} garmentView={garmentView} onContinue={next} canContinue={canContinue} />}
       {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
