@@ -46,4 +46,6 @@ test('non-destructive Studio guard: original preserved, opt-in preview, and no p
   assert.match(upload, /Apply improvement/);
   assert.match(upload, /data-gdp-smart-quality/);
   assert.doesNotMatch(upload, /stripe|checkout|paymentIntent/i);
+  const refreshed = readFileSync('src/lib/customStudioV2Assets.js', 'utf8');
+  assert.match(refreshed, /originalArtwork: await refreshAsset\(artwork\.originalArtwork\)/);
 });
