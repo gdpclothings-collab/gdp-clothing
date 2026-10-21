@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   CalendarDays,
@@ -54,7 +54,7 @@ const ACCOUNT_TABS = [
   { id: "custom", label: "Custom Orders", icon: Sparkles, description: "Proofs & production" },
   { id: "track", label: "Track Order", icon: Clock, description: "Shipment progress" },
   { id: "wishlist", label: "Wishlist", icon: Heart, description: "Saved products" },
-  { id: "designs", label: "Saved Designs", icon: Eye, description: "Creative projects" },
+  { id: "designs", label: "My Designs", icon: Eye, description: "Saved artwork & reorders" },
   { id: "profile", label: "Profile", icon: User, description: "Account details" },
 ];
 
@@ -81,6 +81,7 @@ const initialsFor = (user) => {
 };
 
 export default function AccountRefined() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const requestedTab = params.get("tab") || "orders";
   const tab = ACCOUNT_TABS.some((item) => item.id === requestedTab) ? requestedTab : "orders";
@@ -90,6 +91,8 @@ export default function AccountRefined() {
   const { wishlist } = useCart();
   const [orders, setOrders] = useState([]);
   const [savedDesigns, setSavedDesigns] = useState([]);
+  const [savedDesignError, setSavedDesignError] = useState("");
+  const [reopeningDesignId, setReopeningDesignId] = useState("");
   const [wishProducts, setWishProducts] = useState([]);
   const [customOrders, setCustomOrders] = useState([]);
   const [customLoading, setCustomLoading] = useState(true);
@@ -117,13 +120,17 @@ export default function AccountRefined() {
     let active = true;
     setAccountLoading(true);
 
-    Promise.all([customerApi.listOrders(), customerApi.listSavedDesigns()])
-      .then(([orderRows, designRows]) => {
+    Promise.allSettled([customerApi.listOrders(), customerApi.listSavedDesigns()])
+      .then(([orderResult, designResult]) => {
         if (!active) return;
-        setOrders(orderRows || []);
-        setSavedDesigns(designRows || []);
+        if (orderResult.status === "fulfilled") setOrders(orderResult.value || []);
+        if (designResult.status === "fulfilled") {
+          setSavedDesigns(designResult.value || []);
+          setSavedDesignError("");
+        } else {
+          setSavedDesignError("Your saved designs could not be loaded. Refresh this page to retry.");
+        }
       })
-      .catch(() => {})
       .finally(() => {
         if (active) setAccountLoading(false);
       });
@@ -142,6 +149,25 @@ export default function AccountRefined() {
     }
     customerApi.getProducts(wishlist).then(setWishProducts).catch(() => setWishProducts([]));
   }, [wishlist]);
+
+  const reopenSavedDesign = async (design, changeGarment = false) => {
+    if (reopeningDesignId || (!design.hasEditableDraft && !design.hasPrintFile)) return;
+    setReopeningDesignId(design.id);
+    setSavedDesignError("");
+    try {
+      const draft = await customerApi.getSavedStudioDraft(design.id);
+      navigate("/custom-studio", {
+        state: {
+          studioV2Draft: { version: 1, state: draft.state },
+          studioReuseMode: changeGarment ? "new-garment" : "same-garment",
+        },
+      });
+    } catch (error) {
+      setSavedDesignError(error?.message || "This design could not be reopened.");
+    } finally {
+      setReopeningDesignId("");
+    }
+  };
 
   const setTab = (nextTab) => {
     const next = new URLSearchParams(params);
@@ -270,7 +296,7 @@ export default function AccountRefined() {
             onClick={() => setTab("custom")}
           />
           <SummaryCard
-            label="Saved Designs"
+            label="My Designs"
             value={savedDesigns.length}
             detail={savedDesigns.length ? "Continue creating" : "No saved projects"}
             active={tab === "designs"}
@@ -490,44 +516,43 @@ export default function AccountRefined() {
                 )}
 
                 {tab === "designs" && (
-                  <div>
-                    {savedDesigns.length === 0 ? (
-                      <Empty
-                        icon={Eye}
-                        title="No saved designs yet"
-                        text="Save a project in Custom Studio and you can return to it from this portal."
-                        ctaText="Open Custom Studio"
-                        ctaTo="/custom-studio"
-                      />
+                  <div data-gdp-my-designs="true">
+                    <div className="mb-4">
+                      <h2 className="text-lg font-bold">My Designs</h2>
+                      <p className="mt-1 text-xs text-muted-foreground">Artwork saved from Custom Studio belongs to your account. Reopening creates a new draft; it never changes an approved order.</p>
+                    </div>
+                    {savedDesignError && (
+                      <div role="alert" className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{savedDesignError}</div>
+                    )}
+                    {accountLoading ? (
+                      <LoadingState text="Loading your saved designs…" />
+                    ) : savedDesigns.length === 0 ? (
+                      <Empty icon={Eye} title="No designs yet" text="Your next Custom Studio design will appear here after you add it to your cart while signed in." ctaText="Open Custom Studio" ctaTo="/custom-studio" />
                     ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                        {savedDesigns.map((design) => (
-                          <Link
-                            key={design.id}
-                            to="/custom-studio"
-                            className="group border border-border bg-background p-3 hover:border-accent transition-colors"
-                          >
-                            <div className="aspect-square bg-secondary overflow-hidden mb-3">
-                              {design.previewUrl ? (
-                                <Image
-                                  src={design.previewUrl}
-                                  alt={design.name || "Saved design"}
-                                  fittingType="fill"
-                                  className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                  <Eye size={28} />
-                                </div>
-                              )}
-                            </div>
-                            <div className="font-medium text-sm">{design.name || "Saved design"}</div>
-                            <div className="text-[11px] text-muted-foreground mt-1">Saved {formatDate(design.created_date)}</div>
-                            <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-accent">
-                              Continue editing <ArrowRight size={12} />
-                            </div>
-                          </Link>
-                        ))}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                        {savedDesigns.map((design) => {
+                          const canReuse = design.hasEditableDraft || design.hasPrintFile;
+                          const isOpening = reopeningDesignId === design.id;
+                          return (
+                            <article key={design.id} className="group rounded-xl border border-border bg-background p-3">
+                              <div className="aspect-[5/4] rounded-lg bg-secondary overflow-hidden mb-3">
+                                {design.previewUrl ? (
+                                  <Image src={design.previewUrl} alt={design.name || "Saved design"} fittingType="contain" className="h-full w-full object-contain" />
+                                ) : (
+                                  <div className="h-full w-full flex items-center justify-center text-muted-foreground"><Eye size={28} /></div>
+                                )}
+                              </div>
+                              <div className="font-bold text-sm">{design.name || design.productName || "Custom Design"}</div>
+                              <p className="mt-1 text-xs text-muted-foreground">{[design.color, design.size && `Size ${design.size}`].filter(Boolean).join(" · ")} · Saved {formatDate(design.created_date)}</p>
+                              <p className="mt-2 text-xs text-muted-foreground">{design.hasEditableDraft ? "Editable layout, photos and text available" : design.hasPrintFile ? "Older design: flattened print artwork only" : "Preview only: source artwork unavailable"}</p>
+                              <div className="mt-3 grid grid-cols-2 gap-2">
+                                <button type="button" disabled={!canReuse || Boolean(reopeningDesignId)} onClick={() => reopenSavedDesign(design)} className="min-h-11 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50">Reorder / Edit</button>
+                                <button type="button" disabled={!canReuse || Boolean(reopeningDesignId)} onClick={() => reopenSavedDesign(design, true)} className="min-h-11 rounded-lg border border-border px-3 py-2 text-xs font-bold disabled:opacity-50">Other garment</button>
+                              </div>
+                              {isOpening && <p role="status" className="mt-2 text-xs text-muted-foreground">Opening saved artwork…</p>}
+                            </article>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
