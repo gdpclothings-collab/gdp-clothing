@@ -21,6 +21,9 @@ import {
 } from '@/lib/customStudioV2Production';
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { refreshStudioV2DraftAssets } from '@/lib/customStudioV2Assets';
+import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
+import { constrainUploadArtworkTransform, resolveUploadArtworkPlacement } from '@/lib/customStudioV2ArtworkMetrics';
+import { assessStudioImagePrintQuality } from '@/lib/studioSmartImageQuality';
 import { getStudioBrowseSnapshot, refreshStudioBrowseSnapshot } from '@/lib/studioV2BrowseCache';
 import { studioV2ScrollTop, studioV2StickyHeaderHeight } from '@/lib/studioV2ScrollRestoration';
 import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
@@ -285,6 +288,26 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, fin
   const frontGarment = studioV2DisplayPreviewUrl(studioV2GarmentPreview(product, state.color, 'front') || garmentPreviewSource, { width: 720 });
   const backGarment = studioV2DisplayPreviewUrl(studioV2GarmentPreview(product, state.color, 'back'), { width: 720 });
   const seasonalPreviewPending = state.designPath === 'seasonal' && !reviewPreviewReady;
+  // Use precisely the same placement/bounds math as Step 3, including customer
+  // resizing on both sides. Generate a 300-DPI file without ever equating
+  // interpolated output pixels with photographic source detail.
+  const uploadQualityWarnings = state.designPath === 'upload' ? sides.flatMap((side) => {
+    const editor = state.upload?.sides?.[side];
+    const artwork = editor?.artwork;
+    if (!artwork?.path) return [];
+    const profile = resolveStudioV2PrintGuide(product, state.size, side, state.color);
+    const transform = constrainUploadArtworkTransform(artwork, profile, editor.transform || {});
+    const placement = resolveUploadArtworkPlacement(artwork, profile, transform);
+    const quality = assessStudioImagePrintQuality({
+      pixelWidth: artwork.pixelWidth,
+      pixelHeight: artwork.pixelHeight,
+      originalPixelWidth: artwork.originalPixelWidth,
+      originalPixelHeight: artwork.originalPixelHeight,
+      printWidthIn: placement.widthIn,
+      printHeightIn: placement.heightIn,
+    });
+    return quality.tone === 'emerald' ? [] : [{ side, ...quality }];
+  }) : [];
   return <div data-gdp-review-design-path={state.designPath} data-gdp-review-print-sides={sides.join(',')} data-gdp-review-front-garment={frontGarment} data-gdp-review-back-garment={backGarment}>
     <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Final review</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Review your choices before the approved 300-DPI production files and customer mockup are generated.</p>
     <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_.7fr]">
@@ -300,7 +323,17 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, fin
           <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Print sides</div><div className="mt-1 text-sm font-black capitalize text-slate-900">{sides.join(' + ')}</div></div>
           <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Unit price</div><div className="mt-1 text-sm font-black text-slate-900">${unitPrice.toFixed(2)}</div></div>
         </div><button type="button" onClick={onEdit} disabled={finalizing} className="mt-5 min-h-12 rounded-xl border border-slate-300 px-4 text-sm font-black text-slate-800 disabled:opacity-50">Edit design</button></div>
-      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-slate-900 text-white"><ShieldCheck size={21} /></div><h2 className="mt-4 text-lg font-black text-slate-950">{seasonalPreviewPending ? 'Preparing final artwork preview' : 'Approved layout ready to build'}</h2><p className="mt-2 text-sm font-medium leading-6 text-slate-600">{seasonalPreviewPending ? 'We are checking the front and back garment previews before allowing final approval.' : 'Your approved design is ready. Production PNGs stay separate from the garment mockup shown in your cart.'}</p>
+      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-slate-900 text-white"><ShieldCheck size={21} /></div><h2 className="mt-4 text-lg font-black text-slate-950">{seasonalPreviewPending ? 'Preparing final artwork preview' : uploadQualityWarnings.length ? 'Layout approved · Check image clarity' : 'Approved layout ready to build'}</h2><p className="mt-2 text-sm font-medium leading-6 text-slate-600">{seasonalPreviewPending ? 'We are checking the front and back garment previews before allowing final approval.' : uploadQualityWarnings.length ? 'Your placement is approved, but one or more uploaded images may print soft at this size. A 300-DPI production export does not restore missing details.' : 'Your approved design is ready. Production PNGs stay separate from the garment mockup shown in your cart.'}</p>
+        {uploadQualityWarnings.length > 0 && <div data-gdp-review-quality-warning="upload-original-pixels" role="status" className="mt-4 space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-3">
+          <p className="text-sm font-black text-amber-950">Check uploaded image clarity before printing</p>
+          {uploadQualityWarnings.map((warning) => (
+            <div key={warning.side} className="text-xs font-semibold leading-5 text-amber-950">
+              <p className="font-black capitalize">{warning.side} · {warning.label}{warning.dpi ? ` · ${Math.round(warning.dpi)} DPI from original pixels` : ''}</p>
+              <p>{warning.message}</p>
+            </div>
+          ))}
+          <p className="text-[11px] font-semibold text-amber-900">You can continue with the approved layout or choose Edit design to adjust the print size or upload a better original. No extra confirmation is required.</p>
+        </div>}
         {finalizing && <p role="status" aria-live="polite" className="mt-4 text-xs font-bold text-slate-700">{finalizeStage || "Preparing your design…"}</p>}
         {finalizeError && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-5 text-red-700">{finalizeError}</div>}
         {seasonalPreviewPending && <p role="status" className="mt-3 text-xs font-semibold text-amber-800">Checking the approved artwork images. If a printed side is missing, use Edit design and open that side before returning.</p>}
