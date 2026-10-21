@@ -10,6 +10,7 @@ function positive(number) {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+/** @param {{ pixelWidth?: number, pixelHeight?: number, printWidthIn?: number, printHeightIn?: number, originalPixelWidth?: number, originalPixelHeight?: number }} [options] */
 export function assessStudioImagePrintQuality({ pixelWidth, pixelHeight, printWidthIn, printHeightIn, originalPixelWidth, originalPixelHeight } = {}) {
   // Never claim that interpolated/upscaled pixels recovered real-world source detail.
   const widthPx = positive(originalPixelWidth) || positive(pixelWidth);
