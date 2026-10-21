@@ -55,10 +55,13 @@ async function refreshProtectedSide(sideState) {
 }
 
 async function refreshUploadSide(sideState) {
-  return {
-    ...sideState,
-    artwork: sideState?.artwork ? await refreshAsset(sideState.artwork) : null,
-  };
+  const artwork = sideState?.artwork ? await refreshAsset(sideState.artwork) : null;
+  // A free-enhanced upload retains its original as a separate customer-owned
+  // asset; refresh both signed URLs so Restore works after reopening a draft.
+  const hydratedArtwork = artwork?.originalArtwork
+    ? { ...artwork, originalArtwork: await refreshAsset(artwork.originalArtwork) }
+    : artwork;
+  return { ...sideState, artwork: hydratedArtwork };
 }
 
 export async function refreshStudioV2DraftAssets(state) {
