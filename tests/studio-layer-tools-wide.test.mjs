@@ -99,6 +99,32 @@ test('Visible transparent pixels may reach a print corner without losing ink', (
   assert.ok(topInk >= -0.0001, 'visible topmost pixel stays in print');
 });
 
+test('Off-center cutouts reach the same corner at different photo sizes', () => {
+  const photoGesture = editor.slice(editor.indexOf('function BootlegPhotoLayer'), editor.indexOf('function StickerLayer'));
+  assert.match(photoGesture, /minX: Number\.NEGATIVE_INFINITY/);
+  assert.match(photoGesture, /maxX: Number\.POSITIVE_INFINITY/);
+  assert.match(photoGesture, /minY: Number\.NEGATIVE_INFINITY/);
+  assert.match(photoGesture, /maxY: Number\.POSITIVE_INFINITY/);
+
+  const zone = { x: 15, y: 12, width: 70, height: 68 };
+  const aspect = 0.75;
+  // An auto-cleaned JPG can have almost all its empty pixels on the left/top.
+  // Aligning the dog to the print's top-left then requires a negative image
+  // center, not a center artificially clamped to zero.
+  const bounds = containPhotoAlphaBounds({ x: 65, y: 65, width: 25, height: 25 }, 1200, 1600, zone, aspect);
+  for (const scale of [100, 200, 400]) {
+    const positioned = constrainFreePhotoTransform({ scale, canvasX: -1000, canvasY: -1000 }, zone, aspect, bounds);
+    assert.ok(positioned.canvasX < 0 && positioned.canvasY < 0, `photo anchor leaves print at ${scale}%`);
+    const leftInk = positioned.canvasX + (bounds.x / 100 - 0.5) * zone.width * positioned.scale / 100;
+    const topInk = positioned.canvasY + (bounds.y / 100 - 0.5) * zone.height * positioned.scale / 100;
+    assert.ok(Math.abs(leftInk) < 0.001, `visible left edge touches print at ${scale}%`);
+    assert.ok(Math.abs(topInk) < 0.001, `visible top edge touches print at ${scale}%`);
+    const rightInk = positioned.canvasX + ((bounds.x + bounds.width) / 100 - 0.5) * zone.width * positioned.scale / 100;
+    const bottomInk = positioned.canvasY + ((bounds.y + bounds.height) / 100 - 0.5) * zone.height * positioned.scale / 100;
+    assert.ok(rightInk <= 100.001 && bottomInk <= 100.001, `all visible ink stays inside print at ${scale}%`);
+  }
+});
+
 test('Alpha-aware rotation, resizing and fallback stay within production-safe bounds', () => {
   const zone = { x: 15, y: 12, width: 70, height: 68 };
   const aspect = 0.8;

@@ -381,10 +381,14 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
     enabled: true,
     minScale: 1,
     maxScale: 1000,
-    minX: -50,
-    maxX: 50,
-    minY: -50,
-    maxY: 50,
+    // The image anchor may need to leave the print rectangle so the actual
+    // visible pixels can touch its corners (especially when alpha padding is
+    // off-center or the photo is enlarged). constrainFreePhotoTransform is
+    // the authoritative visible-ink boundary in both preview and export.
+    minX: Number.NEGATIVE_INFINITY,
+    maxX: Number.POSITIVE_INFINITY,
+    minY: Number.NEGATIVE_INFINITY,
+    maxY: Number.POSITIVE_INFINITY,
   });
   const transform = safeTransform;
   const bottomFade = scope === 'bootleg' ? normalizePhotoBorder(layer.border).bottomFade : 0;
