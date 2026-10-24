@@ -37,3 +37,39 @@ test('Shared text controls expose 1000% range and reset without bypassing print 
   assert.match(editor, /constrainBootlegTextStyleToCanvas\(/);
   assert.match(layout, /export function constrainBootlegTextStyleToCanvas/);
 });
+
+test('transparent PNG/WebP pixels bypass paid background cleanup while opaque images keep it', async () => {
+  assert.match(editor, /const preserveTransparency = await imageHasTransparency\(file\)/);
+  assert.match(editor, /if \(preserveTransparency\) return \{ \.\.\.original, transparencyPreserved: true \};/);
+  assert.ok(editor.indexOf('if (preserveTransparency) return') < editor.indexOf('const cleaned = await customerApi.removePhotoBackground(file);'));
+  assert.match(editor, /preservedTransparencyCount/);
+
+  const originalDocument = globalThis.document;
+  const originalBitmapFactory = globalThis.createImageBitmap;
+  let alpha = 0;
+  let closed = 0;
+  try {
+    globalThis.document = {
+      createElement: () => ({
+        getContext: () => ({
+          drawImage() {},
+          getImageData: () => ({ data: new Uint8ClampedArray([20, 30, 40, alpha]) }),
+        }),
+      }),
+    };
+    globalThis.createImageBitmap = async () => ({ width: 1, height: 1, close: () => { closed += 1; } });
+    const { imageHasTransparency } = await import('../src/lib/studioImageTransparency.js');
+
+    assert.equal(await imageHasTransparency({ type: 'image/png' }), true, 'alpha PNG preserves the original');
+    assert.equal(await imageHasTransparency({ type: 'image/webp' }), true, 'alpha WebP preserves the original');
+    alpha = 255;
+    assert.equal(await imageHasTransparency({ type: 'image/png' }), false, 'opaque PNG still uses normal cleanup');
+    assert.equal(await imageHasTransparency({ type: 'image/jpeg' }), false, 'JPEG still uses normal cleanup');
+    assert.equal(closed, 3, 'decoded bitmaps are released after inspection');
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+    if (originalBitmapFactory === undefined) delete globalThis.createImageBitmap;
+    else globalThis.createImageBitmap = originalBitmapFactory;
+  }
+});
