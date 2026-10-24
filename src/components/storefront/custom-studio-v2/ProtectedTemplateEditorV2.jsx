@@ -1021,6 +1021,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       originalPath: uploaded.storage_path,
       backgroundMode: 'original',
       backgroundRemovalWarning: false,
+      transparencyPreserved: false,
       name: file.name || 'customer-photo',
       type: file.type || 'image/png',
     };
