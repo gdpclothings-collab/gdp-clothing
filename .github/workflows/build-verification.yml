@@ -64,6 +64,7 @@ jobs:
           node scripts/verify-custom-studio-hardening.mjs
           node scripts/verify-custom-studio-canonical-flow.mjs
           node scripts/verify-custom-studio-v2.mjs
+          node scripts/verify-custom-studio-premium-text-styles.mjs
           node --test tests/studio-my-designs.test.mjs
           node --test tests/studio-v2-browser-history.test.mjs
           node --test tests/studio-v2-navigation-polish.test.mjs
@@ -159,6 +160,9 @@ jobs:
       - name: Install Chromium
         run: npx playwright install chromium
         timeout-minutes: 5
+
+      - name: Compare premium text preview with 300-DPI render
+        run: node scripts/verify-premium-text-browser.mjs
 
       - name: Verify admin MFA Verifying state never repeats submission
         run: node --test tests/admin-smoke-mfa.browser.test.mjs

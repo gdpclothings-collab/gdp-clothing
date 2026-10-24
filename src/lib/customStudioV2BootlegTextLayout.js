@@ -1,3 +1,5 @@
+import { premiumTextEffectPadding } from './customStudioV2PremiumTextStyles.js';
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
 }
@@ -202,7 +204,7 @@ export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, wid
 
   const unrotatedBounds = mergeBounds([headlineBounds, sublineBounds, messageBounds]);
   const rotatedBounds = unrotatedBounds ? rotateBoundsAround(unrotatedBounds, centerX, centerY, groupRotation) : null;
-  const effectPadding = Math.max(headlineFontSize, sublineFontSize, messageFontSize) * 0.08;
+  const effectPadding = premiumTextEffectPadding(style, Math.max(headlineFontSize, sublineFontSize, messageFontSize));
   const bounds = padBounds(rotatedBounds, effectPadding);
 
   const rotateItem = (item) => {

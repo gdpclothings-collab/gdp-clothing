@@ -2,6 +2,7 @@ import { resolveBootlegTextLayers } from '@/lib/customStudioV2BootlegTextLayers'
 import { paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 import { createPhotoBorderImage, createBottomFadedPhotoImage, drawPreparedPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
+import { paintPremiumTextLayout, premiumTextPreset } from '@/lib/customStudioV2PremiumTextStyles';
 import { constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform, readTemplateAlphaBounds } from '@/lib/customStudioV2PrintBounds';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 1;
@@ -214,6 +215,10 @@ function drawBootlegText(context, text = {}, zone = {}, style = {}, widthPx, hei
   const safeStyle = /** @type {Record<string, any>} */ (constrained.style);
   const metrics = resolveTextMetrics(zone, safeStyle, widthPx, heightPx, true);
   const layout = constrained.layout || resolveBootlegTextLayout({ text, zone, style: safeStyle, width: widthPx, height: heightPx, anchorX: metrics.centerX, anchorY: metrics.centerY });
+  if (premiumTextPreset(safeStyle.premiumTextPresetId)) {
+    paintPremiumTextLayout(context, layout, safeStyle);
+    return;
+  }
   context.save();
   if (layout.horizontalFit < 1) {
     context.translate(layout.centerX, 0);
