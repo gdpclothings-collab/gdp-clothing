@@ -415,7 +415,7 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
       <div
         aria-hidden="true"
         data-gdp-photo-visible-hit-area="true"
-        className={`absolute inset-0 pointer-events-auto ${selected ? 'cursor-grab' : 'cursor-pointer'}`}
+        className={`absolute inset-0 ${selected ? 'pointer-events-auto cursor-grab' : 'pointer-events-auto cursor-pointer'}`}
         style={{
           touchAction: 'none',
           clipPath: visibleBounds ? `inset(${visibleBounds.y}% ${Math.max(0, 100 - visibleBounds.x - visibleBounds.width)}% ${Math.max(0, 100 - visibleBounds.y - visibleBounds.height)}% ${visibleBounds.x}%)` : undefined,

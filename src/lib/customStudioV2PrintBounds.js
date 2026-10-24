@@ -55,7 +55,7 @@ function fitAxisScales(baseWidth, baseHeight, rotation, canvasAspect, scale, wid
  * Return its visible source-pixel rectangle in percentages of the photo box.
  * Both the live editor and 300-DPI renderer use this exact geometry.
  */
-export function containPhotoAlphaBounds(alphaBounds = FULL_TEMPLATE_BOUNDS, imageWidth = 1, imageHeight = 1, zone = {}, canvasAspect = 1) {
+export function containPhotoAlphaBounds(alphaBounds = { x: 0, y: 0, width: 100, height: 100 }, imageWidth = 1, imageHeight = 1, zone = {}, canvasAspect = 1) {
   const boxWidth = clamp(finite(zone.width, 70), 1, 100);
   const boxHeight = clamp(finite(zone.height, 68), 1, 100);
   const frameRatio = boxWidth / boxHeight * aspect(canvasAspect);
