@@ -44,6 +44,7 @@ import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
+import { applyPremiumTextPreset, normalizePremiumTextPresets, paintPremiumTextGlyph, paintPremiumTextLayout, premiumTextPreset } from '@/lib/customStudioV2PremiumTextStyles';
 import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 import { DEFAULT_PHOTO_BORDER, PHOTO_BORDER_STYLES, normalizePhotoBorder, hasPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 
@@ -457,7 +458,7 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
       className={`absolute inset-0 z-30 ${scope === 'bootleg' ? 'pointer-events-none' : selected ? 'cursor-grab' : 'pointer-events-none'}`}
       style={gesture.style}
     >
-      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className={`h-full w-full overflow-visible ${scope === 'bootleg' ? 'pointer-events-none' : ''}`} role="img" aria-label={`Editable ${scope === 'memorial' ? 'Memorial Tribute' : 'Photo Bootleg'} ${layer.name || 'text'} layer`}>
+      {premiumTextPreset(style.premiumTextPresetId) ? <PremiumTextCanvas layout={layout} style={style} selected={selected} scope={scope} name={layer.name} /> : <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" className={`h-full w-full overflow-visible ${scope === 'bootleg' ? 'pointer-events-none' : ''}`} role="img" aria-label={`Editable ${scope === 'memorial' ? 'Memorial Tribute' : 'Photo Bootleg'} ${layer.name || 'text'} layer`}>
         <g data-gdp-text-autofit={layout.horizontalFit < 1 ? 'compressed' : 'normal'} transform={layout.horizontalFit < 1 ? `translate(${layout.centerX} 0) scale(${layout.horizontalFit} 1) translate(${-layout.centerX} 0)` : undefined}>
         {layout.headline?.kind === 'straight' ? (
           <text {...common} pointerEvents={selected && scope === 'bootleg' ? 'visiblePainted' : undefined} x={layout.headline.x} y={layout.headline.y} fontSize={layout.headline.fontSize} fontWeight="900" transform={`rotate(${layout.headline.rotation || 0} ${layout.headline.x} ${layout.headline.y})`} style={svgTextEffect(style, layout.headline.fontSize)}>{layout.headline.text}</text>
@@ -468,9 +469,40 @@ function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, sc
         {layout.subline ? <text {...common} pointerEvents={selected && scope === 'bootleg' ? 'visiblePainted' : undefined} x={layout.subline.x} y={layout.subline.y} fontSize={layout.subline.fontSize} fontWeight="700" transform={`rotate(${layout.subline.rotation || 0} ${layout.subline.x} ${layout.subline.y})`} style={svgTextEffect(style, layout.subline.fontSize)}>{layout.subline.text}</text> : null}
         {layout.message ? <text {...common} pointerEvents={selected && scope === 'bootleg' ? 'visiblePainted' : undefined} x={layout.message.x} y={layout.message.y} fontSize={layout.message.fontSize} fontWeight="600" transform={`rotate(${layout.message.rotation || 0} ${layout.message.x} ${layout.message.y})`} style={svgTextEffect(style, layout.message.fontSize)}>{layout.message.text}</text> : null}
         </g>
-      </svg>
+      </svg>}
     </div>
   );
+}
+
+function PremiumTextCanvas({ layout, style, selected, scope, name }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    canvas.width = Math.max(1, Math.round(layout.width));
+    canvas.height = Math.max(1, Math.round(layout.height));
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    paintPremiumTextLayout(context, layout, style);
+  }, [layout, style]);
+  return <canvas ref={ref} className="h-full w-full" style={{ pointerEvents: selected ? 'auto' : 'none' }} role="img" aria-label={`Editable ${scope === 'memorial' ? 'Memorial Tribute' : 'Photo Bootleg'} ${name || 'premium text'} layer`} data-gdp-premium-text-canvas="preview-shared-painter" />;
+}
+
+function PremiumTextPresetTile({ preset, selected, onSelect }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    canvas.width = 220;
+    canvas.height = 80;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.clearRect(0, 0, 220, 80);
+    context.font = `${preset.fontWeight || 900} 34px ${preset.family}`;
+    paintPremiumTextGlyph(context, 'GDP', 110, 36, 34, { premiumTextPresetId: preset.id });
+  }, [preset]);
+  return <button type="button" onClick={() => onSelect(preset.id)} aria-pressed={selected} className={`min-h-24 overflow-hidden rounded-xl border-2 p-1.5 text-center ${selected ? 'border-cyan-500 bg-slate-900 text-white' : 'border-slate-200 bg-slate-800 text-slate-100'}`}><canvas ref={ref} className="h-auto w-full" aria-hidden="true" /><span className="block text-[11px] font-black">{preset.label}</span></button>;
 }
 
 function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch, activeLayer = 'photo', onActiveLayerChange = (..._args) => undefined, compact = false }) {
@@ -866,6 +898,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const rawTextPosition = resolveBootlegTextPosition(rawTextStyle, textZone);
   const textConstraint = usesLayerLab && activeTextLayer ? constrainBootlegTextStyleToCanvas({ text: textContent, zone: textZone, style: { ...rawTextStyle, canvasX: rawTextPosition.x, canvasY: rawTextPosition.y }, width: layoutWidth, height: layoutHeight }) : null;
   const textStyle = textConstraint?.style || rawTextStyle;
+  const availablePremiumTextPresets = normalizePremiumTextPresets(settings?.premiumTextPresets).filter((preset) => preset.enabled || preset.id === textStyle?.premiumTextPresetId);
   const textPosition = resolveBootlegTextPosition(textStyle, textZone);
   const textLayout = textConstraint?.layout || null;
   const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
@@ -1423,7 +1456,20 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       {activeTextLayer ? <div className="space-y-2 rounded-2xl bg-slate-50 p-3" data-gdp-bootleg-active-text-editor="true">
         <div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected text</p><p className="text-xs font-black text-slate-700">{activeTextLayer.name}</p></div><span className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white">Text layer active</span></div>
         <label className="block text-xs font-black text-slate-600">Your Text<input value={activeTextLayer.text?.headline || ''} onFocus={() => setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
-        <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
+        <div data-gdp-premium-text-presets="true" className="rounded-xl border border-slate-200 bg-white p-2">
+          <div className="mb-2 flex items-center justify-between gap-2"><span className="text-xs font-black text-slate-700">Premium Text Styles</span><button type="button" className="min-h-9 rounded-lg border border-slate-200 px-2 text-[10px] font-black text-slate-600" onClick={() => patchTextStyle(applyPremiumTextPreset(textStyle, ''))}>Basic / Custom</button></div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{availablePremiumTextPresets.map((preset) => <PremiumTextPresetTile key={preset.id} preset={preset} selected={textStyle.premiumTextPresetId === preset.id} onSelect={(id) => patchTextStyle(applyPremiumTextPreset(textStyle, id))} />)}</div>
+          <p className="mt-2 text-[10px] font-medium text-slate-500">Pick a look, then edit your own wording, size, rotation and placement. Your style stays editable in saved designs.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value, premiumTextPresetId: '' })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">{textStyle.premiumTextPresetId ? 'Metallic accent' : 'Color'}<input type="color" value={textStyle.premiumTextPresetId ? (textStyle.premiumAccentColor || '#ffffff') : (textStyle.color || '#ffffff')} onChange={(event) => patchTextStyle(textStyle.premiumTextPresetId ? { premiumAccentColor: event.target.value, color: event.target.value } : { color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
+        {textStyle.premiumTextPresetId ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="text-xs font-black text-slate-600">Outline color<input type="color" value={textStyle.premiumOutlineColor || premiumTextPreset(textStyle.premiumTextPresetId)?.outline || '#111111'} onChange={(event) => patchTextStyle({ premiumOutlineColor: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
+            <div className="self-center">
+              <RangeControl label={premiumTextPreset(textStyle.premiumTextPresetId)?.finish === 'sunset-emboss' ? 'Emboss intensity' : '3D depth'} value={textStyle.premiumDepthScale ?? 100} min={0} max={200} suffix="%" onChange={(value) => patchTextStyle({ premiumDepthScale: value })} onReset={() => patchTextStyle({ premiumDepthScale: 100 })} />
+            </div>
+          </div>
+        ) : null}
         <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
         <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
         <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />

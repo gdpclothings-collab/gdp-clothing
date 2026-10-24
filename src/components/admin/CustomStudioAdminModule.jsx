@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import SeasonalProductionDetails from "./SeasonalProductionDetails";
 import {
   Sparkles,
+  ArrowUp,
+  ArrowDown,
   Image as ImageIcon,
   Clock3,
   CheckCircle2,
@@ -33,6 +35,7 @@ import {
   normalizeEditorTools,
   normalizeStickerLibrary,
 } from "@/components/storefront/CustomStudioAdvancedEditor";
+import { normalizePremiumTextPresets } from '@/lib/customStudioV2PremiumTextStyles';
 
 function prettify(value) {
   return String(value || "—").replaceAll("_", " ");
@@ -78,6 +81,7 @@ const DEFAULT_STUDIO_SETTINGS = {
     autoBackgroundRemoval: true,
   },
   stickerLibrary: [],
+  premiumTextPresets: [],
 };
 
 function normalizeIntensityExamples(examples = {}) {
@@ -102,6 +106,7 @@ function normalizeStudioSettings(settings = {}) {
     styleTemplates: settings?.styleTemplates && typeof settings.styleTemplates === "object" ? settings.styleTemplates : {},
     editorTools: normalizeEditorTools(settings?.editorTools),
     stickerLibrary: normalizeStickerLibrary(settings?.stickerLibrary),
+    premiumTextPresets: normalizePremiumTextPresets(settings?.premiumTextPresets).map(({ id, enabled }, order) => ({ id, enabled, order })),
   };
 }
 
@@ -478,6 +483,17 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
   const styleTemplates = normalizeStyleTemplates(settings.styleTemplates);
   const editorTools = normalizeEditorTools(settings.editorTools);
   const stickerLibrary = normalizeStickerLibrary(settings.stickerLibrary);
+  const premiumTextPresets = normalizePremiumTextPresets(settings.premiumTextPresets);
+
+  const updatePremiumTextPresets = (updated) => onChange('premiumTextPresets', updated.map(({ id, enabled }, order) => ({ id, enabled, order })));
+  const movePremiumTextPreset = (id, movement) => {
+    const next = [...premiumTextPresets];
+    const index = next.findIndex((preset) => preset.id === id);
+    const destination = index + movement;
+    if (index < 0 || destination < 0 || destination >= next.length) return;
+    [next[index], next[destination]] = [next[destination], next[index]];
+    updatePremiumTextPresets(next);
+  };
 
   const updateEditorTool = (key, value) => {
     onChange("editorTools", { ...editorTools, [key]: value });
@@ -934,6 +950,21 @@ function CustomStudioSettingsPanel({ settings, loading, saving, dirty, onChange,
         <div className="border-t border-[#e7e7e7] bg-blue-50 px-4 py-3 text-[11px] leading-5 text-blue-900">
           Protected template → customer photo → editable text layers → editable sticker layers. Bootleg and Memorial Tribute templates keep the artwork locked while customer layers stay editable. All coordinates and transforms are saved so production can reproduce the approved preview exactly.
         </div>
+      </section>
+
+      <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden" data-gdp-admin-premium-text="true">
+        <div className="flex items-center justify-between gap-3 border-b border-[#e8e8e8] px-4 py-3">
+          <div><div className="text-sm font-semibold">10 Premium Text Styles</div><div className="mt-1 text-xs text-[#777]">Enable, disable or reorder the customer lettering gallery. Existing saved styles remain printable.</div></div>
+          <button type="button" onClick={onSave} disabled={saving || !dirty} className="min-h-9 rounded-lg bg-[#222] px-3 text-xs font-semibold text-white disabled:opacity-40"><Save size={13} className="mr-1 inline" /> Save styles</button>
+        </div>
+        <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">{premiumTextPresets.map((preset, index) => (
+          <div key={preset.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+            <span className="w-5 text-center text-xs font-bold text-slate-400">{index + 1}</span>
+            <label className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={preset.enabled} onChange={(event) => updatePremiumTextPresets(premiumTextPresets.map((entry) => entry.id === preset.id ? { ...entry, enabled: event.target.checked } : entry))} /><span className="truncate">{preset.label}</span></label>
+            <button type="button" aria-label={`Move ${preset.label} up`} disabled={index === 0} onClick={() => movePremiumTextPreset(preset.id, -1)} className="grid h-8 w-8 place-items-center rounded border border-slate-200 bg-white disabled:opacity-30"><ArrowUp size={14}/></button>
+            <button type="button" aria-label={`Move ${preset.label} down`} disabled={index === premiumTextPresets.length - 1} onClick={() => movePremiumTextPreset(preset.id, 1)} className="grid h-8 w-8 place-items-center rounded border border-slate-200 bg-white disabled:opacity-30"><ArrowDown size={14}/></button>
+          </div>
+        ))}</div>
       </section>
 
       <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
