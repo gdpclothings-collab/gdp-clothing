@@ -20,6 +20,21 @@ for (const token of [
   '<GarmentInfoPanel product={product} sizes={sizes} />',
 ]) expect(page.includes(token), `Selected-garment information wiring missing: ${token}`);
 
+// The same read-only garment details must remain visible above all four
+// design editors and Final Review without changing upload/approval state.
+const selectedContext = page.split('function SelectedGarmentSummary({ product, state }) {')[1]?.split('function GarmentVariantControls')[0] || '';
+for (const token of [
+  'data-gdp-selected-garment-context="true"',
+  'data-gdp-selected-garment-step={state.step}',
+  "product?.name || 'Garment'",
+  'displayVariantLabel(state.color)',
+  '{state.size}',
+  '{state.quantity}',
+  'studioV2GarmentPreview(product, state.color,',
+]) expect(selectedContext.includes(token), `Persistent selected-garment context missing: ${token}`);
+expect(page.includes("state.step !== 'garment' && product && <SelectedGarmentSummary product={product} state={state} />"), 'Selected garment must appear on Design, Customize and Review, and must not duplicate Step 1.');
+expect(page.indexOf('<SelectedGarmentSummary product={product} state={state} />') < page.indexOf("{state.step === 'design' && <DesignStepV2"), 'Selected garment context must render before the step content.');
+
 for (const token of [
   'Front and Back keep independent artwork and positions.',
   'variantFor(product, state.color, state.size)',
