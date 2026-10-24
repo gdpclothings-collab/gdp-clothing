@@ -163,6 +163,17 @@ export function constrainStickerTransform(transform = {}, canvasAspect = 1) {
 
 export const FULL_TEMPLATE_BOUNDS = Object.freeze({ x: 0, y: 0, width: 100, height: 100 });
 
+/** Validate trusted cutout geometry before it can influence placement or print bounds.
+ * An invalid or absent provider rectangle falls back to scanning the PNG alpha.
+ */
+export function normalizePhotoAlphaBounds(bounds) {
+  if (!bounds || typeof bounds !== 'object') return null;
+  const { x, y, width, height } = bounds;
+  if (![x, y, width, height].every(value => typeof value === 'number' && Number.isFinite(value))) return null;
+  if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 100.001 || y + height > 100.001) return null;
+  return { x, y, width, height };
+}
+
 /** Read the visible alpha silhouette to allow full-print-area layout without losing print ink. */
 export function constrainTemplateTransform(transform = {}, bounds = { x: 0, y: 0, width: 100, height: 100 }, canvasAspect = 1) {
   const ratio = aspect(canvasAspect);

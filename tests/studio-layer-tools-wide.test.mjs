@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { containPhotoAlphaBounds, constrainFreePhotoTransform } from '../src/lib/customStudioV2PrintBounds.js';
+import { containPhotoAlphaBounds, constrainFreePhotoTransform, normalizePhotoAlphaBounds } from '../src/lib/customStudioV2PrintBounds.js';
 
 const editor = readFileSync('src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', 'utf8');
 const layout = readFileSync('src/lib/customStudioV2BootlegTextLayout.js', 'utf8');
 const api = readFileSync('src/lib/customerApi.js', 'utf8');
 const production = readFileSync('src/lib/customStudioV2ProtectedProduction.js', 'utf8');
+const backgroundRemoval = readFileSync('supabase/functions/remove-photo-background/index.ts', 'utf8');
 
 test('Layer buttons and template / photo / text / sticker selections reveal the inspector', () => {
   assert.match(editor, /const revealLayerControls = \(layer\) =>/);
@@ -82,7 +83,35 @@ test('Photo gesture hit areas exclude transparent/letterboxed margins without cl
   assert.match(editor, /className="pointer-events-none h-full w-full select-none object-contain"/);
   assert.match(editor, /onTransform=\{\(transform, visibleBounds\) => patchPhotoTransform/);
   assert.match(editor, /activePhotoVisibleBounds = usePhotoVisibleBounds/);
-  assert.match(production, /containPhotoAlphaBounds\(readTemplateAlphaBounds\(loaded.image\)/);
+  assert.match(production, /normalizePhotoAlphaBounds\(foregroundBounds\) \|\| readTemplateAlphaBounds\(loaded.image\)/);
+});
+
+test('Cleaned JPGs carry their actual foreground rectangle from background removal through preview and 300-DPI export', () => {
+  assert.match(backgroundRemoval, /X-Foreground-Left/);
+  assert.match(backgroundRemoval, /X-Foreground-Top/);
+  assert.match(backgroundRemoval, /X-Foreground-Width/);
+  assert.match(backgroundRemoval, /X-Foreground-Height/);
+  assert.match(backgroundRemoval, /\.\.\.\(foregroundBounds \? \{ foregroundBounds \} : \{\}\)/);
+  assert.match(editor, /foregroundBounds: normalizePhotoAlphaBounds\(cleaned.foregroundBounds\)/);
+  assert.match(editor, /providedBounds \|\| readTemplateAlphaBounds\(image\)/);
+  assert.match(editor, /if \(!providedBounds\) image.crossOrigin = 'anonymous'/);
+  assert.match(editor, /usePhotoVisibleBounds\(layer.asset, zone, canvasAspect\)/);
+  assert.match(production, /layer.asset\?\.backgroundMode === 'cleaned' \? layer.asset\?\.foregroundBounds : null/);
+
+  const valid = normalizePhotoAlphaBounds({ x: 18, y: 5, width: 76, height: 91 });
+  assert.deepEqual(valid, { x: 18, y: 5, width: 76, height: 91 });
+  assert.equal(normalizePhotoAlphaBounds({ x: 70, y: 20, width: 35, height: 40 }), null, 'invalid metadata never relaxes print boundaries');
+  assert.equal(normalizePhotoAlphaBounds({ x: 10, y: 15, width: NaN, height: 40 }), null);
+
+  const zone = { x: 15, y: 12, width: 70, height: 68 };
+  const bounds = containPhotoAlphaBounds(valid, 1230, 1536, zone, 0.75);
+  for (const scale of [100, 200, 400]) {
+    const right = constrainFreePhotoTransform({ scale, canvasX: 999, canvasY: 50 }, zone, 0.75, bounds);
+    const rightInk = right.canvasX + ((bounds.x + bounds.width) / 100 - 0.5) * zone.width * right.scale / 100;
+    assert.ok(Math.abs(rightInk - 100) < 0.001, `cleaned JPG dog reaches print's right edge at ${scale}%`);
+    const leftInk = right.canvasX + (bounds.x / 100 - 0.5) * zone.width * right.scale / 100;
+    assert.ok(leftInk >= -0.001, `cleaned JPG stays fully inside print at ${scale}%`);
+  }
 });
 
 test('Visible transparent pixels may reach a print corner without losing ink', () => {

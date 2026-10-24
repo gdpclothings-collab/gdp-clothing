@@ -47,6 +47,35 @@ function positiveIntEnv(name: string, fallback: number) {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : fallback;
 }
 
+// remove.bg reports its foreground rectangle in output-image pixels. Keep a
+// tiny safety margin around the detected subject so fine fur/hair stays inside
+// the printed area when a customer drags a JPG cutout to a corner.
+function foregroundBoundsFromProvider(response: Response) {
+  const field = (name: string) => Number(response.headers.get(name));
+  const imageWidth = field("X-Width");
+  const imageHeight = field("X-Height");
+  const left = field("X-Foreground-Left");
+  const top = field("X-Foreground-Top");
+  const width = field("X-Foreground-Width");
+  const height = field("X-Foreground-Height");
+  if (![imageWidth, imageHeight, left, top, width, height].every(Number.isFinite) ||
+      imageWidth <= 0 || imageHeight <= 0 || width <= 0 || height <= 0 ||
+      left < 0 || top < 0 || left + width > imageWidth || top + height > imageHeight) return null;
+
+  const marginX = imageWidth * 0.0025;
+  const marginY = imageHeight * 0.0025;
+  const x0 = Math.max(0, left - marginX);
+  const y0 = Math.max(0, top - marginY);
+  const x1 = Math.min(imageWidth, left + width + marginX);
+  const y1 = Math.min(imageHeight, top + height + marginY);
+  return {
+    x: x0 / imageWidth * 100,
+    y: y0 / imageHeight * 100,
+    width: (x1 - x0) / imageWidth * 100,
+    height: (y1 - y0) / imageHeight * 100,
+  };
+}
+
 function clientIp(req: Request) {
   const direct = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
   if (direct) return direct.trim().slice(0, 128);
@@ -203,6 +232,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const foregroundBounds = foregroundBoundsFromProvider(provider);
     const cleanedBytes = await provider.arrayBuffer();
     if (!cleanedBytes.byteLength) throw new Error("The background removal service returned an empty image.");
     const { error: cleanedError } = await service.storage
@@ -221,6 +251,7 @@ Deno.serve(async (req: Request) => {
       originalUrl: urlByPath.get(originalPath) || "",
       cleanedPath,
       cleanedUrl: urlByPath.get(cleanedPath) || "",
+      ...(foregroundBounds ? { foregroundBounds } : {}),
     });
   } catch (error) {
     console.error("remove-photo-background", error);

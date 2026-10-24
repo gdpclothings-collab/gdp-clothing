@@ -40,7 +40,7 @@ import {
   resolveBootlegTextLayers,
 } from '@/lib/customStudioV2BootlegTextLayers';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
-import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
+import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, normalizePhotoAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -76,16 +76,21 @@ function useTemplateAlphaBounds(assetUrl) {
 // Sample each uploaded image once, then reuse its visible-pixel rectangle for
 // desktop, mobile and all photo controls. Fail closed to the legacy full box.
 const photoAlphaGeometryCache = new Map();
-function usePhotoVisibleBounds(assetUrl, zone, canvasAspect) {
+function usePhotoVisibleBounds(asset, zone, canvasAspect) {
+  const assetUrl = asset?.url;
+  const providedBounds = asset?.backgroundMode === 'cleaned' ? normalizePhotoAlphaBounds(asset?.foregroundBounds) : null;
   const [snapshot, setSnapshot] = useState({ assetUrl: '', info: null });
   useEffect(() => {
     if (!assetUrl) return;
     if (!photoAlphaGeometryCache.has(assetUrl)) {
       photoAlphaGeometryCache.set(assetUrl, new Promise((resolve) => {
         const image = new Image();
-        image.crossOrigin = 'anonymous';
+        // With server-measured foreground bounds we only need intrinsic image
+        // dimensions, so a browser's cross-origin pixel-read policy cannot
+        // silently revert a cleaned JPG to its padded rectangular bounds.
+        if (!providedBounds) image.crossOrigin = 'anonymous';
         image.onload = () => resolve({
-          alpha: readTemplateAlphaBounds(image),
+          alpha: providedBounds || readTemplateAlphaBounds(image),
           width: image.naturalWidth,
           height: image.naturalHeight,
         });
@@ -100,7 +105,7 @@ function usePhotoVisibleBounds(assetUrl, zone, canvasAspect) {
     return () => { active = false; };
   }, [assetUrl]);
   if (snapshot.assetUrl !== assetUrl || !snapshot.info) return null;
-  return containPhotoAlphaBounds(snapshot.info.alpha, snapshot.info.width, snapshot.info.height, zone, canvasAspect);
+  return containPhotoAlphaBounds(providedBounds || snapshot.info.alpha, snapshot.info.width, snapshot.info.height, zone, canvasAspect);
 }
 
 function clamp(value, min, max) {
@@ -359,7 +364,7 @@ function resolvePhotoCanvasPosition(transform = {}, zone = {}) {
 }
 
 function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onSelect, onTransform, scope = 'bootleg' }) {
-  const visibleBounds = usePhotoVisibleBounds(layer.asset?.url, zone, canvasAspect);
+  const visibleBounds = usePhotoVisibleBounds(layer.asset, zone, canvasAspect);
   const safeTransform = constrainFreePhotoTransform(layer.transform || {}, zone, canvasAspect, visibleBounds);
   const position = { x: safeTransform.canvasX, y: safeTransform.canvasY };
   const gesture = useTouchTransformV2({
@@ -951,7 +956,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
   const textXSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
   const textYSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
-  const activePhotoVisibleBounds = usePhotoVisibleBounds(activePhoto?.asset?.url, template?.photoZone || {}, canvasAspect);
+  const activePhotoVisibleBounds = usePhotoVisibleBounds(activePhoto?.asset, template?.photoZone || {}, canvasAspect);
   const activePhotoCanvasPosition = usesLayerLab && activePhoto ? constrainFreePhotoTransform(activePhoto.transform || {}, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds) : null;
 
   const syncTextLayers = (next, activeId = '') => {
@@ -1082,6 +1087,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         path: cleaned.cleanedPath,
         cleanedUrl: cleaned.cleanedUrl,
         cleanedPath: cleaned.cleanedPath,
+        foregroundBounds: normalizePhotoAlphaBounds(cleaned.foregroundBounds),
         backgroundMode: 'cleaned',
       };
     } catch {
