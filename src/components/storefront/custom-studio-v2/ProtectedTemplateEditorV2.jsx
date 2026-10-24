@@ -40,7 +40,7 @@ import {
   resolveBootlegTextLayers,
 } from '@/lib/customStudioV2BootlegTextLayers';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
-import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
+import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -71,6 +71,36 @@ function useTemplateAlphaBounds(assetUrl) {
     return () => { active = false; };
   }, [assetUrl]);
   return snapshot.assetUrl === assetUrl ? snapshot.bounds : FULL_TEMPLATE_BOUNDS;
+}
+
+// Sample each uploaded image once, then reuse its visible-pixel rectangle for
+// desktop, mobile and all photo controls. Fail closed to the legacy full box.
+const photoAlphaGeometryCache = new Map();
+function usePhotoVisibleBounds(assetUrl, zone, canvasAspect) {
+  const [snapshot, setSnapshot] = useState({ assetUrl: '', info: null });
+  useEffect(() => {
+    if (!assetUrl) return;
+    if (!photoAlphaGeometryCache.has(assetUrl)) {
+      photoAlphaGeometryCache.set(assetUrl, new Promise((resolve) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.onload = () => resolve({
+          alpha: readTemplateAlphaBounds(image),
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
+        image.onerror = () => resolve(null);
+        image.src = assetUrl;
+      }));
+    }
+    let active = true;
+    photoAlphaGeometryCache.get(assetUrl).then((info) => {
+      if (active) setSnapshot({ assetUrl, info });
+    });
+    return () => { active = false; };
+  }, [assetUrl]);
+  if (snapshot.assetUrl !== assetUrl || !snapshot.info) return null;
+  return containPhotoAlphaBounds(snapshot.info.alpha, snapshot.info.width, snapshot.info.height, zone, canvasAspect);
 }
 
 function clamp(value, min, max) {
@@ -329,7 +359,8 @@ function resolvePhotoCanvasPosition(transform = {}, zone = {}) {
 }
 
 function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onSelect, onTransform, scope = 'bootleg' }) {
-  const safeTransform = constrainFreePhotoTransform(layer.transform || {}, zone, canvasAspect);
+  const visibleBounds = usePhotoVisibleBounds(layer.asset?.url, zone, canvasAspect);
+  const safeTransform = constrainFreePhotoTransform(layer.transform || {}, zone, canvasAspect, visibleBounds);
   const position = { x: safeTransform.canvasX, y: safeTransform.canvasY };
   const gesture = useTouchTransformV2({
     transform: {
@@ -343,7 +374,7 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
       rotation: next.rotation,
       canvasX: next.x + 50,
       canvasY: next.y + 50,
-    }, zone, canvasAspect)),
+    }, zone, canvasAspect, visibleBounds), visibleBounds),
     containerRef: canvasRef,
     // Every Bootleg and Memorial photo responds on first pointer-down,
     // including photos that are not currently selected.
@@ -364,7 +395,7 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
       data-gdp-bootleg-free-photo-layer={scope === 'bootleg' ? 'true' : undefined}
       data-gdp-memorial-free-photo-layer={scope === 'memorial' ? 'true' : undefined}
       onPointerDown={(event) => { if (!selected) onSelect(); gesture.onPointerDown(event); }}
-      className={`absolute origin-center overflow-hidden select-none ${selected ? 'pointer-events-auto cursor-grab ring-2 ring-cyan-400/90' : 'pointer-events-auto cursor-pointer'}`}
+      className={`pointer-events-none absolute origin-center overflow-visible select-none ${selected ? 'ring-2 ring-cyan-400/90' : ''}`}
       style={{
         ...gesture.style,
         zIndex: 5 + Number(layer.order || 0),
@@ -378,7 +409,18 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
         transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.scale * transform.widthScale / 10000}, ${transform.scale * transform.heightScale / 10000})`,
       }}
     >
-      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-contain" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
+      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="pointer-events-none h-full w-full select-none object-contain" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
+      {/* Transparent padding must not steal taps from visible subjects in lower layers.
+          The hit area affects pointer targeting only, never clips print pixels. */}
+      <div
+        aria-hidden="true"
+        data-gdp-photo-visible-hit-area="true"
+        className={`absolute inset-0 pointer-events-auto ${selected ? 'cursor-grab' : 'cursor-pointer'}`}
+        style={{
+          touchAction: 'none',
+          clipPath: visibleBounds ? `inset(${visibleBounds.y}% ${Math.max(0, 100 - visibleBounds.x - visibleBounds.width)}% ${Math.max(0, 100 - visibleBounds.y - visibleBounds.height)}% ${visibleBounds.x}%)` : undefined,
+        }}
+      />
     </div>
   );
 }
@@ -667,8 +709,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     maxY: 50,
   });
 
-  const patchPhotoTransform = (id, transform) => {
-    const next = photos.map((layer) => layer.id === id ? { ...layer, transform: usesLayerLab ? constrainFreePhotoTransform(transform, zone, canvasAspect) : transform } : layer);
+  const patchPhotoTransform = (id, transform, visibleBounds = null) => {
+    const next = photos.map((layer) => layer.id === id ? { ...layer, transform: usesLayerLab ? constrainFreePhotoTransform(transform, zone, canvasAspect, visibleBounds) : transform } : layer);
     const first = next[0] || null;
     onPatch({ photos: next, activePhotoId: id, photo: first?.asset || null, transform: first?.transform || editor.transform });
   };
@@ -707,7 +749,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 
   const bootlegPhotoCanvas = (
     <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10, pointerEvents: 'none' }}>
-      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} canvasAspect={canvasAspect} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
+      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} canvasAspect={canvasAspect} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform, visibleBounds) => patchPhotoTransform(layer.id, transform, visibleBounds)} />)}
 
     </div>
   );
@@ -905,7 +947,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
   const textXSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
   const textYSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
-  const activePhotoCanvasPosition = usesLayerLab && activePhoto ? constrainFreePhotoTransform(activePhoto.transform || {}, template?.photoZone || {}, canvasAspect) : null;
+  const activePhotoVisibleBounds = usePhotoVisibleBounds(activePhoto?.asset?.url, template?.photoZone || {}, canvasAspect);
+  const activePhotoCanvasPosition = usesLayerLab && activePhoto ? constrainFreePhotoTransform(activePhoto.transform || {}, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds) : null;
 
   const syncTextLayers = (next, activeId = '') => {
     const latestEditor = editorRef.current || editor;
@@ -1122,7 +1165,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         const position = resolvePhotoCanvasPosition(nextTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
         if (!Number.isFinite(Number(nextTransform.canvasX))) nextTransform.canvasX = position.x;
         if (!Number.isFinite(Number(nextTransform.canvasY))) nextTransform.canvasY = position.y;
-        nextTransform = constrainFreePhotoTransform(nextTransform, template?.photoZone || {}, canvasAspect);
+        nextTransform = constrainFreePhotoTransform(nextTransform, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds);
       }
       return { ...layer, transform: nextTransform };
     }), activePhoto.id);
@@ -1140,7 +1183,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     }
     const duplicatePosition = resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
     const duplicateTransform = usesLayerLab
-      ? constrainFreePhotoTransform({ ...activePhoto.transform, canvasX: duplicatePosition.x + 4, canvasY: duplicatePosition.y + 4 }, template?.photoZone || {}, canvasAspect)
+      ? constrainFreePhotoTransform({ ...activePhoto.transform, canvasX: duplicatePosition.x + 4, canvasY: duplicatePosition.y + 4 }, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds)
       : { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) };
     const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: duplicateTransform };
     syncPhotos([...photos, duplicate], duplicate.id);
