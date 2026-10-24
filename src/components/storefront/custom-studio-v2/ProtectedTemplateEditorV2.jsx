@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
+import { imageHasTransparency } from '@/lib/studioImageTransparency';
 import { normalizeStyleTemplates } from '@/lib/customStudioStyleTemplates';
 import {
   createV2PhotoLayer,
@@ -1008,6 +1009,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   };
 
   const prepareAsset = async (file) => {
+    setUploadMessage(`Checking ${file.name} for transparency…`);
+    const preserveTransparency = await imageHasTransparency(file);
     setUploadMessage(`Uploading ${file.name}…`);
     // Original file is persisted first; background cleanup is non-destructive.
     const uploaded = await customerApi.uploadArtwork(file);
@@ -1021,6 +1024,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       name: file.name || 'customer-photo',
       type: file.type || 'image/png',
     };
+    if (preserveTransparency) return { ...original, transparencyPreserved: true };
     try {
       setUploadMessage(`Removing background from ${file.name}…`);
       const cleaned = await customerApi.removePhotoBackground(file);
@@ -1062,12 +1066,14 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const additions = [];
     const failed = [];
     let backgroundFailures = 0;
+    let preservedTransparencyCount = 0;
 
     try {
       for (const file of selected) {
         try {
           const asset = await prepareAsset(file);
           if (asset.backgroundRemovalWarning) backgroundFailures += 1;
+          if (asset.transparencyPreserved) preservedTransparencyCount += 1;
           const currentCount = currentPhotoLayers(editorRef.current).length + additions.length;
           additions.push(createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
             scale: Number(template.defaultTransform?.scale || 100),
@@ -1088,7 +1094,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       if (safeAdditions.length) {
         syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
         if (usesLayerLab) revealLayerControls('photo');
-        setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}`);
+        setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}${preservedTransparencyCount ? ` · ${preservedTransparencyCount} transparent original${preservedTransparencyCount === 1 ? '' : 's'} preserved` : ''}`);
       } else {
         setUploadMessage('');
       }
@@ -1366,7 +1372,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const photoPanel = (
     <div data-gdp-bootleg-panel={isBootleg ? 'photo' : undefined} data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined} className="space-y-3 rounded-2xl border border-slate-100 p-3">
       <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} customer photo{photos.length === 1 ? '' : 's'} added · template artwork is separate</p></div><Layers size={16} className="text-slate-400" /></div>
-      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Uploaded photos are automatically cleaned for transparent printing. You can switch back to the untouched original at any time. If automatic cleanup is unavailable, the original stays usable.</p></div></div></div>
+      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Transparent PNG/WebP photos keep their original pixels and skip cleanup. Photos with an opaque background are automatically cleaned. You can switch back to the untouched original when cleanup runs, and the original stays usable if cleanup fails.</p></div></div></div>
       <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
       {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
