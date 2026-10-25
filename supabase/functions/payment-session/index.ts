@@ -52,7 +52,7 @@ async function sha256Hex(value: string) {
 }
 
 async function consumeRateLimit(service: any, req: Request, action: string) {
-  const normalizedAction = action === "createIntent" ? "createIntent" : "bootstrap";
+  const normalizedAction = action === "createIntent" ? "createIntent" : action === "inspectIntent" ? "inspectIntent" : "bootstrap";
   const key = await sha256Hex(`payment-session:${normalizedAction}:ip:${clientIp(req)}`);
   const { data, error } = await service.rpc("consume_checkout_rate_limit", {
     p_key: key,
@@ -355,6 +355,42 @@ async function createIntent(req: Request, service: any, body: any) {
   });
 }
 
+// Read-only diagnostic for an existing checkout. Only signed Stripe webhooks
+// may transition GDP orders to paid or release physical production.
+async function inspectIntent(req: Request, service: any, body: any) {
+  const orderNumber = String(body?.orderNumber || "").trim();
+  const confirmationToken = String(body?.confirmationToken || "").trim();
+  if (!orderNumber || !uuidRe.test(confirmationToken)) {
+    return respond(req, { error: true, message: "The order could not be verified." }, 400);
+  }
+
+  const { data: order, error: orderError } = await service.from("orders")
+    .select("id,payment_mode,payment_status,stripe_payment_intent_id")
+    .eq("order_number", orderNumber)
+    .eq("confirmation_token", confirmationToken)
+    .maybeSingle();
+  if (orderError) throw orderError;
+  if (!order) return respond(req, { error: true, message: "Order not found." }, 404);
+  if (!order.stripe_payment_intent_id) {
+    return respond(req, { status: "not_started", orderPaymentStatus: order.payment_status });
+  }
+
+  const mode = normalizePaymentMode(order.payment_mode);
+  const { stripeSecret, valid } = stripeEnvironment(mode);
+  if (!valid) return respond(req, { error: true, message: "Payment verification is unavailable." }, 503);
+  const result = await stripeRequest(stripeSecret, `/v1/payment_intents/${encodeURIComponent(order.stripe_payment_intent_id)}`);
+  if (!result.response.ok || result.data?.id !== order.stripe_payment_intent_id ||
+      Boolean(result.data?.livemode) !== (mode === "live") ||
+      String(result.data?.metadata?.order_id || "") !== order.id) {
+    return respond(req, { error: true, message: "The payment could not be verified safely." }, 502);
+  }
+  return respond(req, {
+    status: String(result.data.status || "unknown"),
+    orderPaymentStatus: order.payment_status,
+    failureCode: String(result.data?.last_payment_error?.code || "").slice(0, 64) || null,
+  });
+}
+
 Deno.serve(async (req: Request) => {
   const origin = requestOrigin(req);
   if (!isAllowedOrigin(origin)) return respond(req, { error: true, message: "Origin not allowed." }, 403);
@@ -392,6 +428,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "bootstrap") return await bootstrap(req, service);
     if (action === "createIntent") return await createIntent(req, service, body);
+    if (action === "inspectIntent") return await inspectIntent(req, service, body);
     return respond(req, { error: true, message: "Unsupported payment action." }, 400);
   } catch (error) {
     console.error("payment-session", error);

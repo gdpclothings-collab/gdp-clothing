@@ -43,4 +43,11 @@ export const paymentApi = {
       "Could not prepare the payment. Please try again."
     );
   },
+  async inspectPaymentIntent({ orderNumber, confirmationToken }) {
+    return invokePaymentSession(
+      "inspectIntent",
+      { orderNumber, confirmationToken },
+      "Could not verify the Stripe payment status."
+    );
+  },
 };

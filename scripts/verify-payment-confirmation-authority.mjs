@@ -28,7 +28,8 @@ assert(payBlock.includes('redirect:"if_required"'), "Stripe confirmation must pr
 assert(confirmation.includes('const paid = order?.paymentStatus === "paid"'), "Order Confirmed must depend on server payment_status");
 assert(!confirmation.includes('status === "success"'), "URL success flags must not mark an order paid");
 assert(confirmation.includes("window.setInterval(refresh, 2000)"), "pending redirect payments must be rechecked server-side");
-assert(confirmation.includes("if (!paid && <Link") || confirmation.includes("{!paid && <Link"), "unpaid orders must offer a safe return to checkout");
+assert(confirmation.includes("failed || stripeNeedsNewPaymentMethod"), "failed payment orders must offer a safe return to checkout");
+assert(confirmation.includes("!stripeSucceededButUnconfirmed"), "a succeeded Stripe payment awaiting webhook must never prompt a second payment");
 assert(confirmation.includes("paid && order.items?.some"), "production-ready custom messaging must be paid-only");
 
 assert(webhook.includes('event.type === "checkout.session.completed"'), "webhook must preserve legacy Checkout Session success handling during migration");

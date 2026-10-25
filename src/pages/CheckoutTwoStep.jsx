@@ -50,6 +50,7 @@ export default function CheckoutTwoStepMichaels() {
   const [canConfirm, setCanConfirm] = useState(false);
   const [paymentMode, setPaymentMode] = useState("live");
   const [paymentReady, setPaymentReady] = useState(false);
+  const placingRef = useRef(false);
   const paymentHost = useRef(null);
   const paymentElement = useRef(null);
   const tracking = useRef(null);
@@ -299,10 +300,14 @@ export default function CheckoutTwoStepMichaels() {
   };
 
   const pay = async () => {
+    // Guard synchronously, even if two click/tap events fire before React
+    // renders the disabled button. A payment attempt must have one token.
+    if (placingRef.current) return;
     setError("");
     if (!form.termsAccepted) return setError("Accept the Terms & Conditions and acknowledge the Privacy Policy to place your order.");
     if (!paymentClient?.stripe || !paymentClient?.elements || !canConfirm) return setError("Please complete your payment information before placing the order.");
 
+    placingRef.current = true;
     setPlacing(true);
     try {
       const submitted = await paymentClient.elements.submit();
@@ -359,7 +364,7 @@ export default function CheckoutTwoStepMichaels() {
 
       await customerApi.acceptCheckoutPolicies(orderData.orderNumber, orderData.confirmationToken, token);
 
-      const returnUrl = `${window.location.origin}/order/${encodeURIComponent(orderData.orderNumber)}?status=success&token=${encodeURIComponent(orderData.confirmationToken)}`;
+      const returnUrl = `${window.location.origin}/order/${encodeURIComponent(orderData.orderNumber)}?status=pending&token=${encodeURIComponent(orderData.confirmationToken)}`;
       const result = await paymentClient.stripe.confirmPayment({
         elements:paymentClient.elements,
         clientSecret:bridge.clientSecret,
@@ -367,11 +372,17 @@ export default function CheckoutTwoStepMichaels() {
         redirect:"if_required",
       });
       if (result?.error) throw new Error(result.error.message || "Payment could not be completed.");
-
-      navigate(`/order/${orderData.orderNumber}?status=success&token=${encodeURIComponent(orderData.confirmationToken)}`, { replace:true });
+      const intentStatus = result?.paymentIntent?.status;
+      if (["requires_payment_method", "requires_action", "requires_confirmation", "canceled"].includes(intentStatus)) {
+        throw new Error("Stripe has not completed this payment. Please review your payment details before trying again.");
+      }
+      // Never claim success or clear the cart from a client result alone.
+      // The signed Stripe webhook must mark the GDP order paid first.
+      navigate(`/order/${encodeURIComponent(orderData.orderNumber)}?status=pending&token=${encodeURIComponent(orderData.confirmationToken)}`, { replace:true });
     } catch (e) {
       setError(e?.message || "Payment could not be completed. Please try again.");
     } finally {
+      placingRef.current = false;
       setPlacing(false);
     }
   };
