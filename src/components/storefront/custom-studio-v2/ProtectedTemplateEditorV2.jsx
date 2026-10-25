@@ -877,7 +877,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
       className={compact ? 'mx-auto w-full rounded-xl bg-slate-100 p-1' : 'mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5'}
       style={!compact && isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}
     >
-      <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner" onPointerDownCapture={(event) => { if (templateEditing && !event.target?.closest?.('[data-gdp-template-selection-box="true"]')) onActiveLayerChange?.('photo'); }}>
+      <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner" onPointerDownCapture={(event) => { if (templateEditing && event.target instanceof Element && !event.target.closest('[data-gdp-template-selection-box="true"]')) onActiveLayerChange?.('photo'); }}>
         {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
         <div ref={canvasRef} data-gdp-print-guide="true" data-gdp-active-layer={usesLayerLab ? activeLayer : undefined} aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
           <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
