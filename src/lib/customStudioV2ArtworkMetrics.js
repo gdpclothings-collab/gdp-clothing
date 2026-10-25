@@ -293,8 +293,10 @@ export function resolveUploadArtworkPlacement(artwork, profile, transform = {}) 
   const scale = clamp(transform?.scale ?? 100, 1, 1000) / 100;
   const widthIn = base.widthIn * scale * clamp(transform?.widthScale ?? 100, 1, 1000) / 100;
   const heightIn = base.heightIn * scale * clamp(transform?.heightScale ?? 100, 1, 1000) / 100;
-  const centerXIn = profileWidth / 2 + clamp(transform?.x ?? 0, -42, 42) / 100 * profileWidth * LEGACY_BOX_RATIO;
-  const centerYIn = profileHeight / 2 + clamp(transform?.y ?? 0, -42, 42) / 100 * profileHeight * LEGACY_BOX_RATIO;
+  // New uploads may intentionally bleed; older drafts retain the ±42% controls.
+  const travel = transform?.bleedCrop === true ? 150 : 42;
+  const centerXIn = profileWidth / 2 + clamp(transform?.x ?? 0, -travel, travel) / 100 * profileWidth * LEGACY_BOX_RATIO;
+  const centerYIn = profileHeight / 2 + clamp(transform?.y ?? 0, -travel, travel) / 100 * profileHeight * LEGACY_BOX_RATIO;
   const radians = clamp(transform?.rotation ?? 0, -180, 180) * Math.PI / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -349,6 +351,17 @@ export function resolveUploadArtworkPlacement(artwork, profile, transform = {}) 
  */
 export function constrainUploadArtworkTransform(artwork, profile, proposed = {}) {
   if (!artwork) return proposed;
+  // The production PNG and the preview print-guide clip this geometry.
+  // Do not silently shrink/recenter intentional crop placements.
+  if (proposed.bleedCrop === true) return {
+    ...proposed,
+    scale: clamp(proposed.scale ?? 100, 1, 1000),
+    widthScale: clamp(proposed.widthScale ?? 100, 1, 1000),
+    heightScale: clamp(proposed.heightScale ?? 100, 1, 1000),
+    rotation: clamp(proposed.rotation ?? 0, -180, 180),
+    x: clamp(proposed.x ?? 0, -150, 150),
+    y: clamp(proposed.y ?? 0, -150, 150),
+  };
   const width = Math.max(0.01, finitePositive(profile?.widthIn));
   const height = Math.max(0.01, finitePositive(profile?.heightIn));
   const baseline = resolveUploadArtworkPlacement(artwork, profile, { scale: 100, rotation: 0, x: 0, y: 0 });
