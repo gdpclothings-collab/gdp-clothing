@@ -1129,12 +1129,14 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           if (asset.backgroundRemovalWarning) backgroundFailures += 1;
           if (asset.transparencyPreserved) preservedTransparencyCount += 1;
           const currentCount = currentPhotoLayers(editorRef.current).length + additions.length;
-          additions.push(createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
+          const newLayer = createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
             scale: Number(template.defaultTransform?.scale || 100),
             rotation: Number(template.defaultTransform?.rotation || 0),
             x: Number(template.defaultTransform?.offset?.x || 0),
             y: Number(template.defaultTransform?.offset?.y || 0),
-          } : {}));
+          } : {});
+          // New photos start in the existing fitted position but can bleed on edit.
+          additions.push({ ...newLayer, transform: { ...newLayer.transform, bleedCrop: true } });
         } catch (uploadError) {
           failed.push({ file, uploadError });
         }
@@ -1406,7 +1408,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const templatePanel = usesLayerLab && template ? (
     <div data-gdp-bootleg-template-controls="true" data-gdp-bootleg-panel="template" className="space-y-3 rounded-2xl border border-cyan-100 bg-cyan-50/50 p-3">
       <div className="flex items-center justify-between gap-2">
-        <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently anywhere inside the print area.</p></div>
+        <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently and crop at the print boundary.</p></div>
         <button type="button" onClick={() => setActiveBootlegLayer('photo')} className="min-h-10 rounded-xl bg-cyan-600 px-3 text-xs font-black text-white">Finish Template Editing</button>
       </div>
       <RangeControl label="Template size · keep proportions" value={templateTransform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTemplateTransform({ scale: value })} onReset={() => patchTemplateTransform({ scale: 100 })} />
@@ -1438,11 +1440,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <p className="text-[11px] font-bold text-slate-800">Free reshape · optional stretch</p>
           <RangeControl label="Photo width" value={activePhotoCanvasPosition?.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ widthScale: value })} onReset={() => patchActivePhotoTransform({ widthScale: 100 })} />
           <RangeControl label="Photo height" value={activePhotoCanvasPosition?.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ heightScale: value })} onReset={() => patchActivePhotoTransform({ heightScale: 100 })} />
-          <p className="text-[10px] font-medium text-slate-500">Use Photo size for natural proportions. Width and height stretch independently; all visible photo pixels remain inside print bounds.</p>
+          <p className="text-[10px] font-medium text-slate-500">Use Photo size for natural proportions. Width and height stretch independently. Bleed & Crop hides anything outside the printable boundary.</p>
         </div> : null}
         {usesLayerLab ? <>
-          <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.canvasX ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
-          <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.canvasY ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
+          <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.canvasX ?? 50} min={activePhotoCanvasPosition?.bleedCrop ? -100 : 0} max={activePhotoCanvasPosition?.bleedCrop ? 200 : 100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
+          <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.canvasY ?? 50} min={activePhotoCanvasPosition?.bleedCrop ? -100 : 0} max={activePhotoCanvasPosition?.bleedCrop ? 200 : 100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
         </> : <>
           <RangeControl label="Move left / right" value={activePhoto.transform?.x || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ x: value })} onReset={() => patchActivePhotoTransform({ x: 0 })} />
           <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} onReset={() => patchActivePhotoTransform({ y: 0 })} />
@@ -1486,6 +1488,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
             </div> : <p className="text-[11px] font-semibold text-slate-500">None (default) — existing photos remain unchanged.</p>}
           </div>
           </>
+        ) : null}
+        {usesLayerLab ? (
+          <label data-gdp-photo-bleed-crop="true" className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs font-bold text-cyan-950">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={activePhoto.transform?.bleedCrop === true} onChange={(event) => patchActivePhotoTransform({ bleedCrop: event.target.checked })} />
+            <span>Bleed &amp; Crop <span className="mt-1 block font-medium">Move or enlarge this photo past the dotted print boundary. Only what remains inside the box appears on the garment and 300-DPI print. Uncheck for the original safe-fit movement.</span></span>
+          </label>
         ) : null}
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
         <button type="button" onClick={() => {
@@ -1566,7 +1574,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   return (
     <div data-gdp-bootleg-workspace={isBootleg ? 'single-viewport' : undefined} className={`grid gap-4 xl:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.4fr)_minmax(300px,.86fr)] ${isBootleg ? 'xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden' : ''}`}>
       <section className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
-        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'GDP templates' : 'Protected GDP templates'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{isBootleg ? 'GDP template artwork is an independent editable layer. Resize, position and rotate it inside the print area; uploaded photos can also move independently across the printable boundary.' : 'Memorial template artwork stays protected while your photo and text remain editable.'}</p></div>
+        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'GDP templates' : 'Protected GDP templates'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{isBootleg ? 'GDP template artwork is an independent editable layer. Resize, position and rotate it inside the print area; uploaded photos can move beyond the printable boundary with Bleed & Crop.' : 'Memorial template artwork stays protected while your photo and text remain editable.'}</p></div>
         {isBootleg ? <div className="max-h-[470px] space-y-3 overflow-y-auto pr-1" data-gdp-bootleg-collections="expandable">{bootlegCollections.map((group) => { const expanded = expandedBootlegCollection === group.id; return <section key={group.id} className="overflow-hidden rounded-2xl border border-slate-200"><button type="button" aria-expanded={expanded} onClick={() => setExpandedBootlegCollection(expanded ? '' : group.id)} className="flex min-h-12 w-full items-center justify-between gap-3 bg-slate-50 px-3 py-3 text-left text-sm font-bold text-slate-900"><span>{group.name} <span className="text-xs font-medium text-slate-500">({group.items.length} colors)</span></span><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{expanded && <div className="grid grid-cols-2 gap-3 p-3">{group.items.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}</section>; })}</div> : <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}
 
         <div className="mt-5 border-t border-slate-100 pt-4"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Photo layers</p><p className="text-xs font-bold text-slate-600">{photos.length} of {BOOTLEG_MAX_PHOTOS} photos</p></div><Layers size={17} className="text-slate-400" /></div>
