@@ -74,7 +74,7 @@ test('non-serializable canvases are left unchanged and cannot crash review snaps
 });
 
 test('review snapshot uses cloned canvas bitmaps and captures on click before React unmount', () => {
-  assert.match(guard, /const clone = section\.cloneNode\(true\);\s*rasterizeReviewPreviewCanvases\(section, clone\)/s);
+  assert.match(guard, /const clone = section\.cloneNode\(true\);[\s\S]*?rasterizeReviewPreviewCanvases\(section, clone\)/s);
   assert.match(guard, /reviewPreviewSnapshots\.set\(side, clone\.outerHTML\)/);
   assert.match(guard, /const snapshotBeforeFinalReview = \(event\) =>/);
   assert.match(guard, /root\.addEventListener\('click', snapshotBeforeFinalReview, true\)/);
