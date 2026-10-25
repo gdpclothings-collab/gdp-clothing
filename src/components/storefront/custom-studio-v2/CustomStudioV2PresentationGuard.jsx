@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import CustomStudioV2 from '@/pages/CustomStudioV2';
+import { rasterizeReviewPreviewCanvases } from '@/lib/customStudioV2ReviewCanvasParity';
 import './customStudioV2MobileRepair.css';
 import './customStudioV2ApprovalRefinement.css';
 import './photoBootlegLayerOrder.css';
@@ -73,6 +74,9 @@ export default function CustomStudioV2PresentationGuard() {
           return;
         }
         const clone = section.cloneNode(true);
+        // Canvas pixels are not part of cloned HTML. Freeze premium text and
+        // painted artwork before the Step 3 editor unmounts for Final Review.
+        rasterizeReviewPreviewCanvases(section, clone);
 
         // Seasonal art is rendered inside moveable buttons. Convert each layer
         // to an inert positioned element BEFORE stripping editing controls,
@@ -399,6 +403,16 @@ export default function CustomStudioV2PresentationGuard() {
       });
     };
 
+    // Capture the approved artwork synchronously before React changes steps.
+    // The observer/RAF can run too late after the Step 3 canvases unmount.
+    const snapshotBeforeFinalReview = (event) => {
+      const button = event.target instanceof Element ? event.target.closest('button') : null;
+      if (button && !button.disabled && /^final review$/i.test((button.textContent || '').trim())) {
+        snapshotLiveGarmentPreviews();
+      }
+    };
+
+    root.addEventListener('click', snapshotBeforeFinalReview, true);
     root.addEventListener('load', syncPresentationLabels, true);
     root.addEventListener('error', syncPresentationLabels, true);
     syncPresentationLabels();
@@ -413,6 +427,7 @@ export default function CustomStudioV2PresentationGuard() {
 
     return () => {
       observer.disconnect();
+      root.removeEventListener('click', snapshotBeforeFinalReview, true);
       root.removeEventListener('load', syncPresentationLabels, true);
       root.removeEventListener('error', syncPresentationLabels, true);
       if (animationFrame) window.cancelAnimationFrame(animationFrame);

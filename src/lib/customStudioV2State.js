@@ -1,4 +1,5 @@
 import { sortApparelSizes } from './productVariants.js';
+import { appendStudioV2PhotoLayers } from './customStudioV2PhotoLayers.js';
 
 export const STUDIO_V2_STEPS = [
   { id: 'garment', label: 'Garment' },
@@ -217,6 +218,41 @@ export function studioV2Reducer(state, action) {
           sides: {
             ...state.seasonal.sides,
             [side]: { ...state.seasonal.sides[side], confirmed: Boolean(action.value) },
+          },
+        },
+      });
+    }
+    case 'APPEND_EDITOR_PHOTOS': {
+      const path = action.path;
+      const side = validSide(action.side ?? state.side);
+      if (!['bootleg', 'memorial'].includes(path)) return state;
+      const current = state[path].sides[side];
+      const existing = Array.isArray(current.photos) && current.photos.length
+        ? current.photos
+        : current.photo?.path
+          ? [{ id: 'primary-photo', type: 'photo', asset: current.photo, transform: current.transform, order: 0, visible: true }]
+          : [];
+      const photos = appendStudioV2PhotoLayers(existing, action.photos, 8);
+      if (photos.length === existing.length) return state;
+      const first = photos[0];
+      const activeId = action.activePhotoId && photos.some((layer) => layer.id === action.activePhotoId)
+        ? action.activePhotoId
+        : photos.at(-1)?.id || '';
+      return invalidateApproval({
+        ...state,
+        [path]: {
+          ...state[path],
+          sides: {
+            ...state[path].sides,
+            [side]: {
+              ...current,
+              photos,
+              activePhotoId: activeId,
+              activeStickerId: '',
+              photo: first?.asset || null,
+              transform: first?.transform || current.transform,
+              confirmed: false,
+            },
           },
         },
       });
