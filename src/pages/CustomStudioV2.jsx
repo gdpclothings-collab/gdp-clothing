@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import CustomStudioV2GeneratedGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedGallery';
 import CustomStudioV2GeneratedHero from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedHero';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -247,12 +247,12 @@ function PrintSideControl({ state, onChange }) {
   </div>;
 }
 
-function CustomizeApprovalPanel({ state, dispatch }) {
+function CustomizeApprovalPanel({ state, dispatch, previewVisibilityActive = false }) {
   const sides = studioV2PrintableSides(state);
   const rightsRequired = state.designPath !== 'seasonal';
   const hasArtwork = sides.length > 0;
   const missingArtworkMessage = studioV2MissingArtworkMessage(state);
-  const approved = hasArtwork &&
+  const approved = !previewVisibilityActive && hasArtwork &&
     sides.every((side) => Boolean(state?.[state.designPath]?.sides?.[side]?.confirmed)) &&
     Boolean(state.approval.finalDesignApproved) &&
     (!rightsRequired || Boolean(state.approval.rightsConfirmed));
@@ -272,7 +272,7 @@ function CustomizeApprovalPanel({ state, dispatch }) {
       className={[
         'mt-4 flex min-h-[94px] w-full items-start gap-4 rounded-2xl border-2 bg-white p-4 text-left transition sm:items-center',
         approved ? 'border-emerald-500 bg-emerald-50 shadow-[0_6px_16px_rgba(5,150,105,.10)]' : 'border-slate-300',
-        hasArtwork ? 'cursor-pointer hover:border-emerald-500' : 'cursor-not-allowed opacity-60',
+        hasArtwork && !previewVisibilityActive ? 'cursor-pointer hover:border-emerald-500' : 'cursor-not-allowed opacity-60',
       ].join(' ')}
     >
       <input
@@ -280,8 +280,8 @@ function CustomizeApprovalPanel({ state, dispatch }) {
         type="checkbox"
         className="peer sr-only"
         checked={approved}
-        disabled={!hasArtwork}
-        onChange={(event) => dispatch({ type: 'CONFIRM_FINAL_LAYOUT', value: event.target.checked })}
+        disabled={!hasArtwork || previewVisibilityActive}
+        onChange={(event) => { if (!previewVisibilityActive) dispatch({ type: 'CONFIRM_FINAL_LAYOUT', value: event.target.checked }); }}
       />
       <span aria-hidden="true" className={[
         'mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border-2 shadow-sm transition peer-focus-visible:outline peer-focus-visible:outline-4 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-emerald-300 sm:mt-0',
@@ -296,6 +296,7 @@ function CustomizeApprovalPanel({ state, dispatch }) {
         </span>
       </span>
     </label>
+    {previewVisibilityActive && <p role="status" data-gdp-preview-focus-approval-block="true" className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-bold text-cyan-950">Editing Focus Mode is active. Select Show All in the Photo layer controls to restore every photo and artwork layer before approving.</p>}
     {!hasArtwork && <p role="status" className="mt-3 text-xs font-bold text-amber-700">{missingArtworkMessage}</p>}
     {hasArtwork && <p className="mt-3 text-xs font-medium leading-5 text-slate-500">Your one confirmation covers {selectedSides.toLowerCase()} {sides.length > 1 ? 'designs' : 'design'}. Editing any approved artwork will require confirmation again.</p>}
   </div>;
@@ -388,6 +389,12 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   const [settings, setSettings] = useState(() => getStudioBrowseSnapshot()?.settings || { styleTemplates: {}, frontBackFee: 10 });
   const [loading, setLoading] = useState(() => !getStudioBrowseSnapshot());
   const [error, setError] = useState('');
+  const [previewVisibilityActive, setPreviewVisibilityActive] = useState(false);
+  const handlePreviewVisibilityChange = useCallback((isFiltered) => {
+    setPreviewVisibilityActive(Boolean(isFiltered));
+    // A partial editor preview must never retain an earlier print approval.
+    if (isFiltered) setState((current) => studioV2Reducer(current, { type: 'CONFIRM_FINAL_LAYOUT', value: false }));
+  }, []);
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState('');
   const [finalizeStage, setFinalizeStage] = useState('');
@@ -537,11 +544,11 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   const selectedGarmentVariant = state.step === 'garment' && product ? variantFor(product, state.color, state.size) : null;
   const canContinue = state.step === 'garment'
     ? Boolean(baseCanContinue && isProductColorAvailable(product, state.color) && isProductVariantAvailable(product, selectedGarmentVariant))
-    : baseCanContinue;
+    : (state.step === 'customize' ? Boolean(baseCanContinue && !previewVisibilityActive) : baseCanContinue);
   const currentEditor = state.designPath ? state[state.designPath]?.sides?.[state.side] : null;
 
   const next = () => {
-    if (!canContinue) return;
+    if (!canContinue || (state.step === 'customize' && previewVisibilityActive)) return;
     if (state.step === 'garment') dispatch({ type: 'SET_STEP', step: state.reusePending && state.designPath ? 'customize' : 'design' });
     else if (state.step === 'customize') dispatch({ type: 'SET_STEP', step: 'review' });
   };
@@ -782,16 +789,16 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
       <button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="gdp-premium-reset inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button>
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
-    <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
+    <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && !(step === 'review' && previewVisibilityActive) && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
       {state.step !== 'garment' && product && <SelectedGarmentSummary product={product} state={state} />}
       {state.step === 'garment' && state.reusePending && <div role="status" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">Your saved artwork is ready to reuse. Choose a garment, colour and size, then review and approve the new print layout.</div>}
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} garmentView={garmentView} onContinue={next} canContinue={canContinue} />}
       {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
       {state.step === 'customize' && state.designPath === 'seasonal' && product && <div><EditorHeading title="Seasonal Design Lab" description="Build each print side independently. Your Front and Back artwork, placement and sizing stay exactly as you set them." /><SeasonalEditorV2 product={product} color={state.color} side={state.side} size={state.size} layers={currentEditor?.layers || []} activeLayerId={currentEditor?.activeLayerId || ''} confirmed={Boolean(currentEditor?.confirmed)} onLayersChange={(layers, activeLayerId) => dispatch({ type: 'SET_SEASONAL_LAYERS', side: state.side, layers, activeLayerId })} onActiveLayerChange={(id) => dispatch({ type: 'SET_SEASONAL_ACTIVE', side: state.side, id })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_SEASONAL', side: state.side, value })} /></div>}
-      {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && <div><EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio' : 'Photo Bootleg Studio'} description="Your photo, text and editable details stay separate from the protected template artwork." /><ProtectedTemplateEditorV2 path={state.designPath} product={product} color={state.color} size={state.size} settings={settings} editor={currentEditor} side={state.side} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value })} /></div>}
+      {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && <div><EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio' : 'Photo Bootleg Studio'} description="Your photo, text and editable details stay separate from the protected template artwork." /><ProtectedTemplateEditorV2 path={state.designPath} product={product} color={state.color} size={state.size} settings={settings} editor={currentEditor} side={state.side} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value })} onPreviewVisibilityChange={handlePreviewVisibilityChange} /></div>}
       {state.step === 'customize' && state.designPath === 'upload' && product && <div><EditorHeading title="Upload My Own Artwork" description="Each print side keeps its own uploaded artwork, position, size and rotation." /><UploadArtworkEditorV2 product={product} color={state.color} size={state.size} side={state.side} editor={currentEditor} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: 'upload', side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })} /></div>}
-      {state.step === 'customize' && product && state.designPath && <CustomizeApprovalPanel state={state} dispatch={dispatch} />}
+      {state.step === 'customize' && product && state.designPath && <CustomizeApprovalPanel state={state} dispatch={dispatch} previewVisibilityActive={previewVisibilityActive} />}
       {state.step === 'review' && <ReviewStepV2 product={product} state={state} settings={settings} finalizing={finalizing} finalizeError={finalizeError} finalizeStage={finalizeStage} reviewPreviewReady={reviewPreviewReady} onEdit={() => dispatch({ type: 'SET_STEP', step: 'customize' })} onFinalize={finalizeToCart} />}
     </section></div>
     {state.step !== 'review' && state.step !== 'garment' && <div className="gdp-custom-studio-v2-actions relative z-20 mx-auto mt-4 flex max-w-2xl items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_12px_36px_rgba(15,23,42,.12)]">{state.step !== 'garment' && <button type="button" onClick={back} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700"><ArrowLeft size={17} /> Back</button>}<button type="button" onClick={next} disabled={!canContinue || state.step === 'design'} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-35">{state.step === 'customize' ? 'Final review' : 'Continue'} <ArrowRight size={17} /></button></div>}
