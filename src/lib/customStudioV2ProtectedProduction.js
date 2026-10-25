@@ -3,7 +3,7 @@ import { paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 import { createPhotoBorderImage, createBottomFadedPhotoImage, drawPreparedPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 import { constrainBootlegTextStyleToCanvas, resolveBootlegTextLayout } from '@/lib/customStudioV2BootlegTextLayout';
 import { paintPremiumTextLayout, premiumTextPreset } from '@/lib/customStudioV2PremiumTextStyles';
-import { constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform, readTemplateAlphaBounds } from '@/lib/customStudioV2PrintBounds';
+import { containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform, readTemplateAlphaBounds, normalizePhotoAlphaBounds } from '@/lib/customStudioV2PrintBounds';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 1;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 1000;
@@ -66,10 +66,11 @@ function photoLayers(editor) {
   return [];
 }
 
-function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, preparedBorder = null, mode = 'both') {
+function drawFreePhoto(context, loaded, zone, transform, widthPx, heightPx, preparedBorder = null, mode = 'both', foregroundBounds = null) {
   const boxWidth = Math.max(1, Number(zone?.width ?? 70) / 100 * widthPx);
   const boxHeight = Math.max(1, Number(zone?.height ?? 68) / 100 * heightPx);
-  const bounded = constrainFreePhotoTransform(transform, zone, widthPx / heightPx);
+  const visibleBounds = containPhotoAlphaBounds(normalizePhotoAlphaBounds(foregroundBounds) || readTemplateAlphaBounds(loaded.image), loaded.width, loaded.height, zone, widthPx / heightPx);
+  const bounded = constrainFreePhotoTransform(transform, zone, widthPx / heightPx, visibleBounds);
   const centerX = bounded.canvasX / 100 * widthPx;
   const centerY = bounded.canvasY / 100 * heightPx;
   const userScaleX = bounded.scale * bounded.widthScale / 10000;
@@ -353,7 +354,8 @@ export async function renderProtectedStudioV2PngAdvanced({ product, size, side, 
           try {
             // Photos are independent of the template (including migrated drafts).
             // Preview, production and effects mask use the same full-print-area bounds.
-            drawFreePhoto(context, photoSource, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode);
+            drawFreePhoto(context, photoSource, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode,
+              layer.asset?.backgroundMode === 'cleaned' ? layer.asset?.foregroundBounds : null);
           } finally { context.restore(); }
         };
         if (borderOutput) {

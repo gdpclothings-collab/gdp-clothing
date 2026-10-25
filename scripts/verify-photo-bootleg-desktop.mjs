@@ -146,7 +146,11 @@ assert(bootlegTextLayout.includes('overflow'), 'shared Bootleg layout still repo
 assert(bootlegTextLayout.includes('constrainBootlegTextStyleToCanvas'), 'shared Bootleg layout exposes a hard printable-boundary constraint');
 assert(protectedProduction.includes('constrainBootlegTextStyleToCanvas') && protectedProduction.includes('resolveBootlegTextLayout'), '300-DPI renderer consumes the same constrained Bootleg text geometry engine as the preview');
 assert(protectedProduction.includes('withTemplateTransform'), '300-DPI renderer has one shared template transform for aligned artwork/photo composition');
-assert(protectedProduction.includes('drawFreePhoto(context, photoSource, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode)'), 'production photos are independent from template transforms and remain within print bounds');
+assert(
+  protectedProduction.includes('drawFreePhoto(context, photoSource, template.photoZone || {}, layer.transform || {}, output.widthPx, output.heightPx, border, mode,') &&
+    protectedProduction.includes("layer.asset?.backgroundMode === 'cleaned' ? layer.asset?.foregroundBounds : null"),
+  'production photos are independent from template transforms, use cleaned-foreground bounds, and remain within print bounds',
+);
 assert(protectedProduction.includes('drawTemplateArtwork'), '300-DPI renderer applies GDP template transforms');
 assert(protectedProduction.includes('editor.textStyle?.templateTransform'), 'production renderer reads the approved template transform from the snapshot');
 assert(protectedProduction.includes('const bootlegPhotoForeground = editor.textStyle?.freeTextLayout === true'), '300-DPI foreground-photo ordering is scoped to Photo Bootleg and leaves Memorial overlay behavior unchanged');

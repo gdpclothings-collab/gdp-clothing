@@ -54,7 +54,8 @@ test('bottom fade masks source alpha before both border and actual photograph', 
   assert.match(output, /const photoSource = createBottomFadedPhotoImage\(loaded\.image, loaded\.width, loaded\.height, layer\.border\) \|\| loaded/);
   assert.match(output, /createPhotoBorderImage\(photoSource\.image, photoSource\.width, photoSource\.height, layer\.border\)/);
   assert.match(output, /drawFreePhoto\(context, photoSource/);
-  assert.match(output, /constrainFreePhotoTransform\(transform, zone, widthPx \/ heightPx\)/);
+  assert.match(output, /const visibleBounds = containPhotoAlphaBounds\(normalizePhotoAlphaBounds\(foregroundBounds\) \|\| readTemplateAlphaBounds\(loaded\.image\), loaded\.width, loaded\.height, zone, widthPx \/ heightPx\)/);
+  assert.match(output, /constrainFreePhotoTransform\(transform, zone, widthPx \/ heightPx, visibleBounds\)/);
 });
 
 test('stronger Bootleg Glow uses blur plus a saturated color rim, then a white cutout stroke', () => {

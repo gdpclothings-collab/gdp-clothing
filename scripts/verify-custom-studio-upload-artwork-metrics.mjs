@@ -92,7 +92,7 @@ for (const token of [
   'artworkForPlacement',
   'topAlignedArtworkTransform',
   'placement?.printableBounds?.minY',
-  'transform: constrainUploadArtworkTransform(artwork, printGuide, topAlignedArtworkTransform(artwork, printGuide))',
+  'transform: { ...constrainUploadArtworkTransform(artwork, printGuide, topAlignedArtworkTransform(artwork, printGuide)), bleedCrop: true }',
   'Fit to print area',
   'fitArtworkToPrintAreaTransform',
   'data-gdp-fit-artwork="true"',
@@ -103,8 +103,8 @@ for (const token of [
   'overflow-hidden',
   'border-amber-500',
   'ring-amber-500/90',
-  'Dragging, resizing and rotation stop at its boundaries',
-  'extends outside the {side} print area',
+  'With Bleed & Crop enabled, you can move and enlarge artwork beyond its boundaries',
+  'Bleed & Crop is on. Artwork outside the print area will be cut off',
 ]) assert(editor.includes(token), `upload editor contract is missing: ${token}`);
 
 assert(!editor.includes('onPatch({ artwork: { ...editor.artwork, pixelWidth, pixelHeight } })'), 'legacy dimension hydration must not invalidate an already confirmed restored design');

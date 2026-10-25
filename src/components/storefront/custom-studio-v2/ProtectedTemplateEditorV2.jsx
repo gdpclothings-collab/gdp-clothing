@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
+import { imageHasTransparency } from '@/lib/studioImageTransparency';
 import { normalizeStyleTemplates } from '@/lib/customStudioStyleTemplates';
 import {
   createV2PhotoLayer,
@@ -39,7 +40,7 @@ import {
   resolveBootlegTextLayers,
 } from '@/lib/customStudioV2BootlegTextLayers';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
-import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
+import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, normalizePhotoAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -70,6 +71,41 @@ function useTemplateAlphaBounds(assetUrl) {
     return () => { active = false; };
   }, [assetUrl]);
   return snapshot.assetUrl === assetUrl ? snapshot.bounds : FULL_TEMPLATE_BOUNDS;
+}
+
+// Sample each uploaded image once, then reuse its visible-pixel rectangle for
+// desktop, mobile and all photo controls. Fail closed to the legacy full box.
+const photoAlphaGeometryCache = new Map();
+function usePhotoVisibleBounds(asset, zone, canvasAspect) {
+  const assetUrl = asset?.url;
+  const providedBounds = asset?.backgroundMode === 'cleaned' ? normalizePhotoAlphaBounds(asset?.foregroundBounds) : null;
+  const [snapshot, setSnapshot] = useState({ assetUrl: '', info: null });
+  useEffect(() => {
+    if (!assetUrl) return;
+    if (!photoAlphaGeometryCache.has(assetUrl)) {
+      photoAlphaGeometryCache.set(assetUrl, new Promise((resolve) => {
+        const image = new Image();
+        // With server-measured foreground bounds we only need intrinsic image
+        // dimensions, so a browser's cross-origin pixel-read policy cannot
+        // silently revert a cleaned JPG to its padded rectangular bounds.
+        if (!providedBounds) image.crossOrigin = 'anonymous';
+        image.onload = () => resolve({
+          alpha: providedBounds || readTemplateAlphaBounds(image),
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
+        image.onerror = () => resolve(null);
+        image.src = assetUrl;
+      }));
+    }
+    let active = true;
+    photoAlphaGeometryCache.get(assetUrl).then((info) => {
+      if (active) setSnapshot({ assetUrl, info });
+    });
+    return () => { active = false; };
+  }, [assetUrl]);
+  if (snapshot.assetUrl !== assetUrl || !snapshot.info) return null;
+  return containPhotoAlphaBounds(providedBounds || snapshot.info.alpha, snapshot.info.width, snapshot.info.height, zone, canvasAspect);
 }
 
 function clamp(value, min, max) {
@@ -328,7 +364,8 @@ function resolvePhotoCanvasPosition(transform = {}, zone = {}) {
 }
 
 function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onSelect, onTransform, scope = 'bootleg' }) {
-  const safeTransform = constrainFreePhotoTransform(layer.transform || {}, zone, canvasAspect);
+  const visibleBounds = usePhotoVisibleBounds(layer.asset, zone, canvasAspect);
+  const safeTransform = constrainFreePhotoTransform(layer.transform || {}, zone, canvasAspect, visibleBounds);
   const position = { x: safeTransform.canvasX, y: safeTransform.canvasY };
   const gesture = useTouchTransformV2({
     transform: {
@@ -342,17 +379,21 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
       rotation: next.rotation,
       canvasX: next.x + 50,
       canvasY: next.y + 50,
-    }, zone, canvasAspect)),
+    }, zone, canvasAspect, visibleBounds), visibleBounds),
     containerRef: canvasRef,
     // Every Bootleg and Memorial photo responds on first pointer-down,
     // including photos that are not currently selected.
     enabled: true,
     minScale: 1,
     maxScale: 1000,
-    minX: -50,
-    maxX: 50,
-    minY: -50,
-    maxY: 50,
+    // The image anchor may need to leave the print rectangle so the actual
+    // visible pixels can touch its corners (especially when alpha padding is
+    // off-center or the photo is enlarged). constrainFreePhotoTransform is
+    // the authoritative visible-ink boundary in both preview and export.
+    minX: Number.NEGATIVE_INFINITY,
+    maxX: Number.POSITIVE_INFINITY,
+    minY: Number.NEGATIVE_INFINITY,
+    maxY: Number.POSITIVE_INFINITY,
   });
   const transform = safeTransform;
   const bottomFade = scope === 'bootleg' ? normalizePhotoBorder(layer.border).bottomFade : 0;
@@ -363,7 +404,7 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
       data-gdp-bootleg-free-photo-layer={scope === 'bootleg' ? 'true' : undefined}
       data-gdp-memorial-free-photo-layer={scope === 'memorial' ? 'true' : undefined}
       onPointerDown={(event) => { if (!selected) onSelect(); gesture.onPointerDown(event); }}
-      className={`absolute origin-center overflow-hidden select-none ${selected ? 'pointer-events-auto cursor-grab ring-2 ring-cyan-400/90' : 'pointer-events-auto cursor-pointer'}`}
+      className={`pointer-events-none absolute origin-center overflow-visible select-none ${selected ? 'ring-2 ring-cyan-400/90' : ''}`}
       style={{
         ...gesture.style,
         zIndex: 5 + Number(layer.order || 0),
@@ -377,7 +418,18 @@ function BootlegPhotoLayer({ layer, selected, canvasRef, zone, canvasAspect, onS
         transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.scale * transform.widthScale / 10000}, ${transform.scale * transform.heightScale / 10000})`,
       }}
     >
-      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="h-full w-full select-none object-contain" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
+      <img src={layer.asset?.url} alt="Customer photo layer" draggable="false" className="pointer-events-none h-full w-full select-none object-contain" style={fadeMask ? { maskImage: fadeMask, WebkitMaskImage: fadeMask } : undefined} />
+      {/* Transparent padding must not steal taps from visible subjects in lower layers.
+          The hit area affects pointer targeting only, never clips print pixels. */}
+      <div
+        aria-hidden="true"
+        data-gdp-photo-visible-hit-area="true"
+        className={`absolute inset-0 ${selected ? 'pointer-events-auto cursor-grab' : 'pointer-events-auto cursor-pointer'}`}
+        style={{
+          touchAction: 'none',
+          clipPath: visibleBounds ? `inset(${visibleBounds.y}% ${Math.max(0, 100 - visibleBounds.x - visibleBounds.width)}% ${Math.max(0, 100 - visibleBounds.y - visibleBounds.height)}% ${visibleBounds.x}%)` : undefined,
+        }}
+      />
     </div>
   );
 }
@@ -666,8 +718,8 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
     maxY: 50,
   });
 
-  const patchPhotoTransform = (id, transform) => {
-    const next = photos.map((layer) => layer.id === id ? { ...layer, transform: usesLayerLab ? constrainFreePhotoTransform(transform, zone, canvasAspect) : transform } : layer);
+  const patchPhotoTransform = (id, transform, visibleBounds = null) => {
+    const next = photos.map((layer) => layer.id === id ? { ...layer, transform: usesLayerLab ? constrainFreePhotoTransform(transform, zone, canvasAspect, visibleBounds) : transform } : layer);
     const first = next[0] || null;
     onPatch({ photos: next, activePhotoId: id, photo: first?.asset || null, transform: first?.transform || editor.transform });
   };
@@ -706,7 +758,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
 
   const bootlegPhotoCanvas = (
     <div data-gdp-bootleg-linked-photo-zone={isBootleg ? 'true' : undefined} data-gdp-bootleg-free-photo-canvas={isBootleg ? 'true' : undefined} data-gdp-memorial-free-photo-zone={isMemorial ? 'true' : undefined} className="absolute inset-0 overflow-hidden" style={{ zIndex: 10, pointerEvents: 'none' }}>
-      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} canvasAspect={canvasAspect} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform) => patchPhotoTransform(layer.id, transform)} />)}
+      {photos.map((layer) => <BootlegPhotoLayer key={layer.id} layer={layer} selected={layer.id === activePhotoId && activeLayer === 'photo'} canvasRef={canvasRef} zone={zone} canvasAspect={canvasAspect} scope={path} onSelect={() => { onActiveLayerChange?.('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} onTransform={(transform, visibleBounds) => patchPhotoTransform(layer.id, transform, visibleBounds)} />)}
 
     </div>
   );
@@ -904,7 +956,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
   const textXSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
   const textYSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
-  const activePhotoCanvasPosition = usesLayerLab && activePhoto ? constrainFreePhotoTransform(activePhoto.transform || {}, template?.photoZone || {}, canvasAspect) : null;
+  const activePhotoVisibleBounds = usePhotoVisibleBounds(activePhoto?.asset, template?.photoZone || {}, canvasAspect);
+  const activePhotoCanvasPosition = usesLayerLab && activePhoto ? constrainFreePhotoTransform(activePhoto.transform || {}, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds) : null;
 
   const syncTextLayers = (next, activeId = '') => {
     const latestEditor = editorRef.current || editor;
@@ -1008,6 +1061,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   };
 
   const prepareAsset = async (file) => {
+    setUploadMessage(`Checking ${file.name} for transparency…`);
+    const preserveTransparency = await imageHasTransparency(file);
     setUploadMessage(`Uploading ${file.name}…`);
     // Original file is persisted first; background cleanup is non-destructive.
     const uploaded = await customerApi.uploadArtwork(file);
@@ -1018,9 +1073,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       originalPath: uploaded.storage_path,
       backgroundMode: 'original',
       backgroundRemovalWarning: false,
+      transparencyPreserved: false,
       name: file.name || 'customer-photo',
       type: file.type || 'image/png',
     };
+    if (preserveTransparency) return { ...original, transparencyPreserved: true };
     try {
       setUploadMessage(`Removing background from ${file.name}…`);
       const cleaned = await customerApi.removePhotoBackground(file);
@@ -1030,6 +1087,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         path: cleaned.cleanedPath,
         cleanedUrl: cleaned.cleanedUrl,
         cleanedPath: cleaned.cleanedPath,
+        foregroundBounds: normalizePhotoAlphaBounds(cleaned.foregroundBounds),
         backgroundMode: 'cleaned',
       };
     } catch {
@@ -1062,19 +1120,23 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     const additions = [];
     const failed = [];
     let backgroundFailures = 0;
+    let preservedTransparencyCount = 0;
 
     try {
       for (const file of selected) {
         try {
           const asset = await prepareAsset(file);
           if (asset.backgroundRemovalWarning) backgroundFailures += 1;
+          if (asset.transparencyPreserved) preservedTransparencyCount += 1;
           const currentCount = currentPhotoLayers(editorRef.current).length + additions.length;
-          additions.push(createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
+          const newLayer = createV2PhotoLayer(asset, currentCount, currentCount === 0 && template ? {
             scale: Number(template.defaultTransform?.scale || 100),
             rotation: Number(template.defaultTransform?.rotation || 0),
             x: Number(template.defaultTransform?.offset?.x || 0),
             y: Number(template.defaultTransform?.offset?.y || 0),
-          } : {}));
+          } : {});
+          // New photos start in the existing fitted position but can bleed on edit.
+          additions.push({ ...newLayer, transform: { ...newLayer.transform, bleedCrop: true } });
         } catch (uploadError) {
           failed.push({ file, uploadError });
         }
@@ -1088,7 +1150,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       if (safeAdditions.length) {
         syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
         if (usesLayerLab) revealLayerControls('photo');
-        setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}`);
+        setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}${preservedTransparencyCount ? ` · ${preservedTransparencyCount} transparent original${preservedTransparencyCount === 1 ? '' : 's'} preserved` : ''}`);
       } else {
         setUploadMessage('');
       }
@@ -1115,7 +1177,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         const position = resolvePhotoCanvasPosition(nextTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
         if (!Number.isFinite(Number(nextTransform.canvasX))) nextTransform.canvasX = position.x;
         if (!Number.isFinite(Number(nextTransform.canvasY))) nextTransform.canvasY = position.y;
-        nextTransform = constrainFreePhotoTransform(nextTransform, template?.photoZone || {}, canvasAspect);
+        nextTransform = constrainFreePhotoTransform(nextTransform, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds);
       }
       return { ...layer, transform: nextTransform };
     }), activePhoto.id);
@@ -1133,7 +1195,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     }
     const duplicatePosition = resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
     const duplicateTransform = usesLayerLab
-      ? constrainFreePhotoTransform({ ...activePhoto.transform, canvasX: duplicatePosition.x + 4, canvasY: duplicatePosition.y + 4 }, template?.photoZone || {}, canvasAspect)
+      ? constrainFreePhotoTransform({ ...activePhoto.transform, canvasX: duplicatePosition.x + 4, canvasY: duplicatePosition.y + 4 }, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds)
       : { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) };
     const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: duplicateTransform };
     syncPhotos([...photos, duplicate], duplicate.id);
@@ -1346,7 +1408,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const templatePanel = usesLayerLab && template ? (
     <div data-gdp-bootleg-template-controls="true" data-gdp-bootleg-panel="template" className="space-y-3 rounded-2xl border border-cyan-100 bg-cyan-50/50 p-3">
       <div className="flex items-center justify-between gap-2">
-        <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently anywhere inside the print area.</p></div>
+        <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently and crop at the print boundary.</p></div>
         <button type="button" onClick={() => setActiveBootlegLayer('photo')} className="min-h-10 rounded-xl bg-cyan-600 px-3 text-xs font-black text-white">Finish Template Editing</button>
       </div>
       <RangeControl label="Template size · keep proportions" value={templateTransform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTemplateTransform({ scale: value })} onReset={() => patchTemplateTransform({ scale: 100 })} />
@@ -1366,7 +1428,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const photoPanel = (
     <div data-gdp-bootleg-panel={isBootleg ? 'photo' : undefined} data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined} className="space-y-3 rounded-2xl border border-slate-100 p-3">
       <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} customer photo{photos.length === 1 ? '' : 's'} added · template artwork is separate</p></div><Layers size={16} className="text-slate-400" /></div>
-      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Uploaded photos are automatically cleaned for transparent printing. You can switch back to the untouched original at any time. If automatic cleanup is unavailable, the original stays usable.</p></div></div></div>
+      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Transparent PNG/WebP photos keep their original pixels and skip cleanup. Photos with an opaque background are automatically cleaned. You can switch back to the untouched original when cleanup runs, and the original stays usable if cleanup fails.</p></div></div></div>
       <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
       {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
@@ -1378,11 +1440,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <p className="text-[11px] font-bold text-slate-800">Free reshape · optional stretch</p>
           <RangeControl label="Photo width" value={activePhotoCanvasPosition?.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ widthScale: value })} onReset={() => patchActivePhotoTransform({ widthScale: 100 })} />
           <RangeControl label="Photo height" value={activePhotoCanvasPosition?.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ heightScale: value })} onReset={() => patchActivePhotoTransform({ heightScale: 100 })} />
-          <p className="text-[10px] font-medium text-slate-500">Use Photo size for natural proportions. Width and height stretch independently; all visible photo pixels remain inside print bounds.</p>
+          <p className="text-[10px] font-medium text-slate-500">Use Photo size for natural proportions. Width and height stretch independently. Bleed & Crop hides anything outside the printable boundary.</p>
         </div> : null}
         {usesLayerLab ? <>
-          <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.canvasX ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
-          <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.canvasY ?? 50} min={0} max={100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
+          <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.canvasX ?? 50} min={activePhoto.transform?.bleedCrop ? -100 : 0} max={activePhoto.transform?.bleedCrop ? 200 : 100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
+          <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.canvasY ?? 50} min={activePhoto.transform?.bleedCrop ? -100 : 0} max={activePhoto.transform?.bleedCrop ? 200 : 100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
         </> : <>
           <RangeControl label="Move left / right" value={activePhoto.transform?.x || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ x: value })} onReset={() => patchActivePhotoTransform({ x: 0 })} />
           <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} onReset={() => patchActivePhotoTransform({ y: 0 })} />
@@ -1426,6 +1488,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
             </div> : <p className="text-[11px] font-semibold text-slate-500">None (default) — existing photos remain unchanged.</p>}
           </div>
           </>
+        ) : null}
+        {usesLayerLab ? (
+          <label data-gdp-photo-bleed-crop="true" className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs font-bold text-cyan-950">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={activePhoto.transform?.bleedCrop === true} onChange={(event) => patchActivePhotoTransform({ bleedCrop: event.target.checked })} />
+            <span>Bleed &amp; Crop <span className="mt-1 block font-medium">Move or enlarge this photo past the dotted print boundary. Only what remains inside the box appears on the garment and 300-DPI print. Uncheck for the original safe-fit movement.</span></span>
+          </label>
         ) : null}
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
         <button type="button" onClick={() => {
@@ -1506,7 +1574,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   return (
     <div data-gdp-bootleg-workspace={isBootleg ? 'single-viewport' : undefined} className={`grid gap-4 xl:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.4fr)_minmax(300px,.86fr)] ${isBootleg ? 'xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden' : ''}`}>
       <section className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
-        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'GDP templates' : 'Protected GDP templates'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{isBootleg ? 'GDP template artwork is an independent editable layer. Resize, position and rotate it inside the print area; uploaded photos can also move independently across the printable boundary.' : 'Memorial template artwork stays protected while your photo and text remain editable.'}</p></div>
+        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'GDP templates' : 'Protected GDP templates'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{isBootleg ? 'GDP template artwork is an independent editable layer. Resize, position and rotate it inside the print area; uploaded photos can move beyond the printable boundary with Bleed & Crop.' : 'Memorial template artwork stays protected while your photo and text remain editable.'}</p></div>
         {isBootleg ? <div className="max-h-[470px] space-y-3 overflow-y-auto pr-1" data-gdp-bootleg-collections="expandable">{bootlegCollections.map((group) => { const expanded = expandedBootlegCollection === group.id; return <section key={group.id} className="overflow-hidden rounded-2xl border border-slate-200"><button type="button" aria-expanded={expanded} onClick={() => setExpandedBootlegCollection(expanded ? '' : group.id)} className="flex min-h-12 w-full items-center justify-between gap-3 bg-slate-50 px-3 py-3 text-left text-sm font-bold text-slate-900"><span>{group.name} <span className="text-xs font-medium text-slate-500">({group.items.length} colors)</span></span><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{expanded && <div className="grid grid-cols-2 gap-3 p-3">{group.items.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}</section>; })}</div> : <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}
 
         <div className="mt-5 border-t border-slate-100 pt-4"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Photo layers</p><p className="text-xs font-bold text-slate-600">{photos.length} of {BOOTLEG_MAX_PHOTOS} photos</p></div><Layers size={17} className="text-slate-400" /></div>
