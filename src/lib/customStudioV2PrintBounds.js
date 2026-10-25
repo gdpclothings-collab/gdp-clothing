@@ -103,6 +103,21 @@ export function constrainFreePhotoTransform(transform = {}, zone = {}, canvasAsp
   const rawX = finite(transform.canvasX, zoneCenterX + finite(transform.x, 0) * boxWidth / 100);
   const rawY = finite(transform.canvasY, zoneCenterY + finite(transform.y, 0) * boxHeight / 100);
 
+  // Opt-in bleed/crop mode: allow the photo itself to cross the printable edge.
+  // The enclosing preview guide and the output PNG canvas crop the excess.
+  // Legacy drafts (without the flag) retain exact historical safe-fit behavior.
+  if (transform.bleedCrop === true) {
+    return {
+      ...transform,
+      scale: clamp(finite(transform.scale, 100), 1, 1000),
+      widthScale: clamp(finite(transform.widthScale, 100), 1, 1000),
+      heightScale: clamp(finite(transform.heightScale, 100), 1, 1000),
+      rotation,
+      canvasX: clamp(rawX, -100, 200),
+      canvasY: clamp(rawY, -100, 200),
+    };
+  }
+
   // Preserve the original full-rectangle constraint when alpha data is unavailable.
   if (!visibleBounds) {
     const { scale, widthScale, heightScale, projected } = fitAxisScales(
