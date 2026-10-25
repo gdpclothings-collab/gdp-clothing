@@ -66,6 +66,7 @@ jobs:
           node scripts/verify-custom-studio-v2.mjs
           node scripts/verify-custom-studio-premium-text-styles.mjs
           node --test tests/studio-my-designs.test.mjs
+          node --test tests/studio-working-draft-recovery.test.mjs
           node --test tests/studio-v2-browser-history.test.mjs
           node --test tests/studio-v2-navigation-polish.test.mjs
           node --test tests/studio-v2-scroll-restoration.test.mjs
