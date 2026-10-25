@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Clock, Package, Mail } from "lucide-react";
 import { customerApi } from "@/lib/customerApi";
+import { paymentApi } from "@/lib/paymentApi";
 import { useCart } from "@/lib/CartContext";
 import { useAuth } from "@/lib/AuthContext";
 import { scopedStorageKey } from "@/lib/customerStorageScope";
@@ -14,6 +15,8 @@ export default function OrderConfirmation() {
   const token = params.get("token") || "";
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [checkingTimedOut, setCheckingTimedOut] = useState(false);
+  const [stripeStatus, setStripeStatus] = useState(null);
   const { clearCart } = useCart();
   const { user } = useAuth();
 
@@ -21,6 +24,7 @@ export default function OrderConfirmation() {
     let active = true;
     let intervalId = null;
     let timeoutId = null;
+    setCheckingTimedOut(false);
 
     const refresh = async () => {
       try {
@@ -42,6 +46,7 @@ export default function OrderConfirmation() {
     timeoutId = window.setTimeout(() => {
       if (intervalId) window.clearInterval(intervalId);
       intervalId = null;
+      if (active) setCheckingTimedOut(true);
     }, 60000);
 
     return () => {
@@ -54,6 +59,21 @@ export default function OrderConfirmation() {
   const paid = order?.paymentStatus === "paid";
   const failed = order?.paymentStatus === "failed" || order?.status === "payment_failed";
   const pending = Boolean(order && !paid && !failed);
+  const stripeSucceededButUnconfirmed = !paid && stripeStatus === "succeeded";
+  const stripeNeedsNewPaymentMethod = stripeStatus === "requires_payment_method" || stripeStatus === "canceled";
+
+  useEffect(() => {
+    if (!order || paid || !token) return;
+    let active = true;
+    // Query Stripe once, server-to-server, only after the GDP order status has
+    // been loaded. The signed webhook remains authoritative for paid status.
+    const timer = window.setTimeout(() => {
+      paymentApi.inspectPaymentIntent({ orderNumber, confirmationToken:token })
+        .then((result) => { if (active) setStripeStatus(result?.status || null); })
+        .catch(() => {});
+    }, 5000);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [orderNumber, token, Boolean(order), paid]);
 
   useEffect(() => {
     if (!paid) return;
@@ -64,13 +84,13 @@ export default function OrderConfirmation() {
     clearCart();
   }, [paid, user, clearCart]);
 
-  const heading = paid ? "ORDER CONFIRMED" : failed ? "PAYMENT NOT COMPLETED" : loading ? "VERIFYING PAYMENT" : "PAYMENT PENDING";
+  const heading = paid ? "ORDER CONFIRMED" : stripeSucceededButUnconfirmed ? "PAYMENT NEEDS REVIEW" : stripeNeedsNewPaymentMethod ? "PAYMENT NEEDS ATTENTION" : failed ? "PAYMENT NOT COMPLETED" : loading ? "VERIFYING PAYMENT" : "PAYMENT PENDING";
 
   return (
     <div className="max-w-[800px] mx-auto px-4 py-16 text-center">
       {paid ? (
         <CheckCircle2 size={64} className="mx-auto text-accent mb-4" />
-      ) : failed ? (
+      ) : failed || stripeSucceededButUnconfirmed || stripeNeedsNewPaymentMethod ? (
         <AlertTriangle size={64} className="mx-auto text-destructive mb-4" />
       ) : (
         <Clock size={64} className="mx-auto text-accent mb-4" />
@@ -81,16 +101,20 @@ export default function OrderConfirmation() {
       <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
         {paid
           ? "Thank you! Your payment has been confirmed by our secure payment system. Your order is saved and ready for the next step."
+          : stripeSucceededButUnconfirmed
+            ? "Stripe reports this payment succeeded, but GDP Clothing has not confirmed it yet. Please do not pay again. Contact us with this order number so we can reconcile the payment safely."
+          : stripeNeedsNewPaymentMethod
+            ? "Stripe did not complete this payment. Your cart is saved; review your payment method before trying again."
           : failed
             ? "Your order was saved, but payment was not completed. Your cart has been kept so you can safely try payment again."
             : loading
               ? "We are checking the secure server for the latest payment status."
-              : "Your order is saved, but payment has not been confirmed yet. If you closed or cancelled Affirm, Klarna, or another payment window, production has not started and your cart is still kept."}
+              : "Your order is saved, but payment has not been confirmed yet. Production has not started. Please avoid submitting another payment while we verify this attempt."}
       </p>
 
       {pending && (
         <div className="mt-6 inline-flex items-center gap-2 text-sm bg-amber-50 text-amber-950 px-4 py-2 border border-amber-200">
-          <Clock size={16} /> Payment is not confirmed yet. This page will check again automatically.
+          <Clock size={16} /> {checkingTimedOut ? "Payment is still unverified. Refresh to check again or contact GDP Clothing before paying again." : "Payment is not confirmed yet. This page checks again automatically for up to one minute."}
         </div>
       )}
 
@@ -125,7 +149,7 @@ export default function OrderConfirmation() {
       )}
 
       <div className="mt-8 flex justify-center gap-3 flex-wrap">
-        {!paid && <Link to="/checkout/payment" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Return to Checkout</Link>}
+        {!stripeSucceededButUnconfirmed && (failed || stripeNeedsNewPaymentMethod) && <Link to="/checkout/payment" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Return to Checkout</Link>}
         <Link to="/account?tab=orders" className="border border-border px-5 py-3 font-bold uppercase text-sm hover:border-accent">Track in Account</Link>
         {paid && <Link to="/shop" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Keep Shopping</Link>}
       </div>
