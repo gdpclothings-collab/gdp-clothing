@@ -137,3 +137,46 @@ test('focus design uses one persistent layer list, compact tabs, and verified up
   assert.match(editor, /role="tabpanel" aria-label="Text position"/);
   assert.match(editor, /role="tabpanel" aria-label="Text effects"/);
 });
+
+test('on-canvas photo transforms never save the hide/focus preview subset', () => {
+  const previewComponent = editor.slice(
+    editor.indexOf('function ProtectedPreview('),
+    editor.indexOf('export default function ProtectedTemplateEditorV2('),
+  );
+  assert.match(
+    previewComponent,
+    /const next = currentPhotoLayers\(editor\)\.map\(\(layer\) => layer\.id === id/,
+    'photo transform must update the entire persisted editor layer collection',
+  );
+  assert.doesNotMatch(
+    previewComponent,
+    /const next = photos\.map\(/,
+    'filtered preview photos cannot be used as the next saved photos array',
+  );
+
+  const files = Array.from({ length: 5 }, (_, index) => ({
+    id: `photo-${index + 1}`,
+    asset: { path: `uploads/photo-${index + 1}.png` },
+    transform: { scale: 100, rotation: 0, x: 0, y: 0 },
+    visible: true,
+  }));
+  let state = studioV2Reducer(createInitialStudioV2State(), {
+    type: 'APPEND_EDITOR_PHOTOS', path: 'bootleg', side: 'front', photos: files,
+  });
+  const ids = files.map((file) => file.id);
+  const temporarilyHidden = ids.slice(1);
+  const all = state.bootleg.sides.front.photos;
+  assert.equal(all.filter((photo) => previewPhotoVisible(photo, temporarilyHidden, [])).length, 1);
+
+  // The component uses currentPhotoLayers(editor), not the filtered visible subset.
+  const updated = all.map((photo) => photo.id === ids[0]
+    ? { ...photo, transform: { ...photo.transform, scale: 120 } }
+    : photo);
+  state = studioV2Reducer(state, {
+    type: 'PATCH_EDITOR', path: 'bootleg', side: 'front', patch: { photos: updated, activePhotoId: ids[0] },
+  });
+  assert.deepEqual(state.bootleg.sides.front.photos.map((photo) => photo.id), ids);
+  assert.equal(state.bootleg.sides.front.photos[0].transform.scale, 120);
+  assert.equal(state.bootleg.sides.front.photos.length, 5, 'canvas drag must not turn 5/8 into 1/8');
+  assert.equal(state.bootleg.sides.front.photos.filter((photo) => previewPhotoVisible(photo, [], [])).length, 5, 'Show All restores every photo');
+});
