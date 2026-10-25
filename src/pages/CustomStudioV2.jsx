@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import CustomStudioV2GeneratedGallery from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedGallery';
 import CustomStudioV2GeneratedHero from '@/components/storefront/custom-studio-v2/CustomStudioV2GeneratedHero';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -390,7 +390,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   const [loading, setLoading] = useState(() => !getStudioBrowseSnapshot());
   const [error, setError] = useState('');
   const [previewVisibilityActive, setPreviewVisibilityActive] = useState(false);
-  const handlePreviewVisibilityChange = useCallback((isFiltered) => {
+  const handlePreviewVisibilityChange = React.useCallback((isFiltered) => {
     setPreviewVisibilityActive(Boolean(isFiltered));
     // A partial editor preview must never retain an earlier print approval.
     if (isFiltered) setState((current) => studioV2Reducer(current, { type: 'CONFIRM_FINAL_LAYOUT', value: false }));
