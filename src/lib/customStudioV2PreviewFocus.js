@@ -12,7 +12,7 @@ export function nextPreviewFocusPhotoIds(previous, photoId, maximum = 2) {
   if (!photoId) return current;
   if (current.includes(photoId)) return current.filter((id) => id !== photoId);
   const limit = Math.max(1, Math.min(2, Number(maximum) || 2));
-  return [...current.slice(-(limit - 1)), photoId];
+  return [...(limit > 1 ? current.slice(-(limit - 1)) : []), photoId];
 }
 
 export function previewPhotoVisible(layer, hiddenPhotoIds = [], focusPhotoIds = []) {
