@@ -867,7 +867,13 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
     }
   };
 
-  if (loading || !draftRecoveryReady) return (
+  if (!draftRecoveryReady) return (
+    <main data-gdp-working-draft-loading="true" aria-busy="true" className="grid min-h-[70vh] place-items-center bg-slate-50 px-4 text-sm font-semibold text-slate-600">
+      <span role="status">Checking for your unfinished design…</span>
+    </main>
+  );
+
+  if (loading) return (
     <main data-gdp-studio-initial-loading="true" aria-busy="true" className="min-h-[70vh] bg-slate-50 px-3 py-4 sm:px-5 lg:px-6">
       <div className="mx-auto max-w-[1800px] space-y-4 animate-pulse" aria-hidden="true">
         <div className="h-28 rounded-3xl bg-slate-200/75 sm:h-36" />
