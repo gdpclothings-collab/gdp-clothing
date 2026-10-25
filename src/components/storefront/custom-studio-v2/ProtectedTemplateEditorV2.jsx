@@ -46,6 +46,7 @@ import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTou
 import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, normalizePhotoAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
 import { templateSelectionGeometry, resizeTemplateFromHandle } from '@/lib/templateOnCanvasGeometry';
 import { nextPreviewHiddenPhotoIds, nextPreviewFocusPhotoIds, previewPhotoVisible, previewIsFiltered } from '@/lib/customStudioV2PreviewFocus';
+import { uploadedPhotoIdsPresent } from '@/lib/customStudioV2PhotoLayers';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -969,23 +970,27 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   );
 }
 
-export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange, onPreviewVisibilityChange }) {
+export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange, onPreviewVisibilityChange, onAppendPhotos }) {
   const fileRef = useRef(null);
   const inspectorRef = useRef(null);
   const mobilePreviewRef = useRef(null);
   const uploadInFlightRef = useRef(false);
+  const pendingPhotoBatchRef = useRef(null);
   const editorRef = useRef(editor);
   editorRef.current = editor;
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [error, setError] = useState('');
   const [activeBootlegLayer, setActiveBootlegLayer] = useState('photo');
+  const [libraryTab, setLibraryTab] = useState('templates');
+  const [textPanelTab, setTextPanelTab] = useState('text');
   const [previewHiddenPhotoIds, setPreviewHiddenPhotoIds] = useState([]);
   const [previewFocusPhotoIds, setPreviewFocusPhotoIds] = useState([]);
   const [mobilePreviewOutOfView, setMobilePreviewOutOfView] = useState(false);
   const [mobilePreviewDismissed, setMobilePreviewDismissed] = useState(false);
   const revealLayerControls = (layer) => {
     setActiveBootlegLayer(layer);
+    if (layer === 'photo') setLibraryTab('layers');
     if (typeof window === 'undefined') return;
     window.requestAnimationFrame(() => {
       const inspector = inspectorRef.current;
@@ -1053,6 +1058,13 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const template = templates.find((item) => item.id === editor.templateId) || null;
   const stickerLibrary = useMemo(() => normalizeV2StickerLibrary(settings?.stickerLibrary || []), [settings?.stickerLibrary]);
   const photos = [...currentPhotoLayers(editor)].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  // Report completion only after the parent actually retains every uploaded layer.
+  useEffect(() => {
+    const pending = pendingPhotoBatchRef.current;
+    if (!pending || !uploadedPhotoIdsPresent(photos, pending.ids)) return;
+    pendingPhotoBatchRef.current = null;
+    setUploadMessage(`${photos.length} photo${photos.length === 1 ? '' : 's'} ready · added ${pending.ids.length}${pending.transparentCount ? ` · ${pending.transparentCount} transparent original${pending.transparentCount === 1 ? '' : 's'} preserved` : ''}`);
+  }, [editor.photos]);
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
   const activePhoto = photos.find((layer) => layer.id === activePhotoId) || photos.at(-1) || null;
   const activePhotoBorder = normalizePhotoBorder(activePhoto?.border);
@@ -1310,9 +1322,20 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       const next = [...latestPhotos, ...safeAdditions];
 
       if (safeAdditions.length) {
-        syncPhotos(next, safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '');
+        const activeId = safeAdditions.at(-1)?.id || latestPhotos.at(-1)?.id || '';
+        if (onAppendPhotos) {
+          pendingPhotoBatchRef.current = {
+            ids: safeAdditions.map((layer) => layer.id),
+            transparentCount: preservedTransparencyCount,
+          };
+          setUploadMessage('Saving photo layers to your design…');
+          onAppendPhotos(safeAdditions, activeId);
+        } else {
+          syncPhotos(next, activeId);
+          setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}${preservedTransparencyCount ? ` · ${preservedTransparencyCount} transparent original${preservedTransparencyCount === 1 ? '' : 's'} preserved` : ''}`);
+        }
+        setLibraryTab('layers');
         if (usesLayerLab) revealLayerControls('photo');
-        setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}${preservedTransparencyCount ? ` · ${preservedTransparencyCount} transparent original${preservedTransparencyCount === 1 ? '' : 's'} preserved` : ''}`);
       } else {
         setUploadMessage('');
       }
@@ -1601,19 +1624,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
       {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
       {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
-      {photos.length ? <div data-gdp-bootleg-photo-layer-list="true" className="space-y-2">
-        {usesLayerLab ? <div data-gdp-photo-focus-mode="preview-only" className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
-          <div className="flex items-center justify-between gap-2"><strong className="text-xs text-cyan-950">Layers &amp; Focus</strong><button type="button" onClick={resetPreviewVisibility} disabled={!previewVisibilityChanged} className="min-h-9 rounded-lg bg-white px-3 text-xs font-black text-cyan-800 disabled:opacity-40">Show All</button></div>
-          <p className="mt-1 text-[11px] text-cyan-950">Eye hides a photo temporarily. Focus isolates up to two photos; template, text and effects return at review. Nothing is deleted or removed from print.</p>
-        </div> : null}
-        {photos.map((layer, index) => <div key={layer.id} className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
-          <button type="button" onClick={() => { if (usesLayerLab) revealLayerControls('photo'); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span></button>
-          {usesLayerLab ? <>
-            <button type="button" onClick={() => togglePreviewPhoto(layer.id)} aria-pressed={!previewHiddenPhotoIds.includes(layer.id)} aria-label={`${previewHiddenPhotoIds.includes(layer.id) ? 'Show' : 'Hide'} photo ${index + 1} temporarily`} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-700">{previewHiddenPhotoIds.includes(layer.id) ? <EyeOff size={17} /> : <Eye size={17} />}</button>
-            <button type="button" onClick={() => toggleFocusPhoto(layer.id)} aria-pressed={previewFocusPhotoIds.includes(layer.id)} aria-label={`Focus photo ${index + 1}`} className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg border ${previewFocusPhotoIds.includes(layer.id) ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 text-slate-700'}`}><Focus size={17} /></button>
-          </> : null}
-        </div>)}
-      </div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Add a photo to enable direct Photo layer editing.</div>}
+      <button type="button" onClick={() => setLibraryTab('layers')} className="min-h-10 w-full rounded-xl border border-cyan-100 bg-cyan-50 px-3 text-left text-xs font-bold text-cyan-900">Manage all {photos.length} photo layers in the Layers panel</button>
       {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
         <RangeControl label="Photo size · keep proportions" value={activePhotoCanvasPosition?.scale ?? activePhoto.transform?.scale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} onReset={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100 })} />
         {usesLayerLab ? <div data-gdp-photo-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
@@ -1704,13 +1715,42 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       {activeTextLayer ? <div className="space-y-2 rounded-2xl bg-slate-50 p-3" data-gdp-bootleg-active-text-editor="true">
         <div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected text</p><p className="text-xs font-black text-slate-700">{activeTextLayer.name}</p></div><span className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white">Text layer active</span></div>
         <label className="block text-xs font-black text-slate-600">Your Text<input value={activeTextLayer.text?.headline || ''} onFocus={() => setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
-        <div data-gdp-premium-text-presets="true" className="rounded-xl border border-slate-200 bg-white p-2">
-          <div className="mb-2 flex items-center justify-between gap-2"><span className="text-xs font-black text-slate-700">Premium Text Styles</span><button type="button" className="min-h-9 rounded-lg border border-slate-200 px-2 text-[10px] font-black text-slate-600" onClick={() => patchTextStyle(applyPremiumTextPreset(textStyle, ''))}>Basic / Custom</button></div>
+        <div role="tablist" aria-label="Selected text settings" data-gdp-modern-text-controls="three-tabs" className="grid grid-cols-3 gap-1 rounded-xl bg-slate-200 p-1">
+          {['text', 'position', 'effects'].map((tab) => <button key={tab} type="button" role="tab" aria-selected={textPanelTab === tab} onClick={() => setTextPanelTab(tab)} className={`min-h-11 rounded-lg px-1 text-xs font-black capitalize ${textPanelTab === tab ? 'bg-white text-slate-950 shadow' : 'text-slate-600'}`}>{tab}</button>)}
+        </div>
+        {textPanelTab === 'text' ? <div role="tabpanel" aria-label="Text styling" className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label></div>
+                  <FlexibleCurveControl style={textStyle} onChange={patchTextStyle} />
+
+                  <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
+
+          <details data-gdp-premium-style-picker="collapsed" className="rounded-xl border border-slate-200 bg-white p-2"><summary className="min-h-10 cursor-pointer py-2 text-xs font-black text-slate-800">Premium Text Styles · 10 presets</summary><div className="mt-2">
+                  <div data-gdp-premium-text-presets="true" className="rounded-xl border border-slate-200 bg-white p-2">
+          <div className="mb-2 flex items-center justify-end gap-2"><button type="button" className="min-h-9 rounded-lg border border-slate-200 px-2 text-[10px] font-black text-slate-600" onClick={() => patchTextStyle(applyPremiumTextPreset(textStyle, ''))}>Basic / Custom</button></div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{availablePremiumTextPresets.map((preset) => <PremiumTextPresetTile key={preset.id} preset={preset} selected={textStyle.premiumTextPresetId === preset.id} onSelect={(id) => patchTextStyle(applyPremiumTextPreset(textStyle, id))} />)}</div>
           <p className="mt-2 text-[10px] font-medium text-slate-500">Pick a look, then edit your own wording, size, rotation and placement. Your style stays editable in saved designs.</p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value, premiumTextPresetId: '' })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">{textStyle.premiumTextPresetId ? 'Metallic accent' : 'Color'}<input type="color" value={textStyle.premiumTextPresetId ? (textStyle.premiumAccentColor || '#ffffff') : (textStyle.color || '#ffffff')} onChange={(event) => patchTextStyle(textStyle.premiumTextPresetId ? { premiumAccentColor: event.target.value, color: event.target.value } : { color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
-        {textStyle.premiumTextPresetId ? (
+
+          </div></details>
+        </div> : null}
+        {textPanelTab === 'position' ? <div role="tabpanel" aria-label="Text position" className="space-y-3">
+                  <div data-gdp-text-edge-align="safe-print-boundary" className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
+          <p className="mb-2 text-xs font-black text-cyan-900">Align to print area</p>
+          <div className="grid grid-cols-3 gap-1">
+            {[[0, 'Left', 'x'], [50, 'Centre', 'x'], [100, 'Right', 'x'], [0, 'Top', 'y'], [50, 'Middle', 'y'], [100, 'Bottom', 'y']].map(([value, label, axis]) => <button key={`${axis}-${value}`} type="button" onClick={() => patchTextVisualPosition(axis, value)} className="min-h-10 rounded-lg border border-cyan-200 bg-white px-1 text-[11px] font-bold text-cyan-900">{label}</button>)}
+          </div>
+          <p className="mt-2 text-[10px] text-cyan-800">Snaps the full text and effects within the printable edge. Preview and 300-DPI print share these limits.</p>
+        </div>
+
+                  <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
+        <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />
+        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">{textLayout?.horizontalFit < 0.999 ? `Letter width auto-fitted to ${Math.round(textLayout.horizontalFit * 100)}% to keep your larger text within the printable area.` : 'Text stays fully inside the printable boundary.'}</p>}
+        <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
+
+        </div> : null}
+        {textPanelTab === 'effects' ? <div role="tabpanel" aria-label="Text effects" className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value, premiumTextPresetId: '' })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">{textStyle.premiumTextPresetId ? 'Metallic accent' : 'Color'}<input type="color" value={textStyle.premiumTextPresetId ? (textStyle.premiumAccentColor || '#ffffff') : (textStyle.color || '#ffffff')} onChange={(event) => patchTextStyle(textStyle.premiumTextPresetId ? { premiumAccentColor: event.target.value, color: event.target.value } : { color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
+                  {textStyle.premiumTextPresetId ? (
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="text-xs font-black text-slate-600">Outline color<input type="color" value={textStyle.premiumOutlineColor || premiumTextPreset(textStyle.premiumTextPresetId)?.outline || '#111111'} onChange={(event) => patchTextStyle({ premiumOutlineColor: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
             <div className="self-center">
@@ -1718,12 +1758,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
             </div>
           </div>
         ) : null}
-        <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
-        <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
-        <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />
-        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">{textLayout?.horizontalFit < 0.999 ? `Letter width auto-fitted to ${Math.round(textLayout.horizontalFit * 100)}% to keep your larger text within the printable area.` : 'Text stays fully inside the printable boundary.'}</p>}
-        <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
-        <FlexibleCurveControl style={textStyle} onChange={patchTextStyle} />
+
+        </div> : null}
       </div> : null}
     </div>
   ) : (
@@ -1753,13 +1789,33 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
 
   return (
     <div data-gdp-bootleg-workspace={isBootleg ? 'single-viewport' : undefined} className={`grid gap-4 xl:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.4fr)_minmax(300px,.86fr)] ${isBootleg ? 'xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden' : ''}`}>
-      <section className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
-        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{isBootleg ? 'GDP templates' : 'Protected GDP templates'}</p><h2 className="mt-1 text-xl font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-xs font-medium leading-5 text-slate-500">{isBootleg ? 'GDP template artwork is an independent editable layer. Resize, position and rotate it inside the print area; uploaded photos can move beyond the printable boundary with Bleed & Crop.' : 'Memorial template artwork stays protected while your photo and text remain editable.'}</p></div>
-        {isBootleg ? <div className="max-h-[470px] space-y-3 overflow-y-auto pr-1" data-gdp-bootleg-collections="expandable">{bootlegCollections.map((group) => { const expanded = expandedBootlegCollection === group.id; return <section key={group.id} className="overflow-hidden rounded-2xl border border-slate-200"><button type="button" aria-expanded={expanded} onClick={() => setExpandedBootlegCollection(expanded ? '' : group.id)} className="flex min-h-12 w-full items-center justify-between gap-3 bg-slate-50 px-3 py-3 text-left text-sm font-bold text-slate-900"><span>{group.name} <span className="text-xs font-medium text-slate-500">({group.items.length} colors)</span></span><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{expanded && <div className="grid grid-cols-2 gap-3 p-3">{group.items.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}</section>; })}</div> : <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}
-
-        <div className="mt-5 border-t border-slate-100 pt-4"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Photo layers</p><p className="text-xs font-bold text-slate-600">{photos.length} of {BOOTLEG_MAX_PHOTOS} photos</p></div><Layers size={17} className="text-slate-400" /></div>
-          <div className="mt-3 space-y-2">{photos.map((layer, index) => <button key={layer.id} type="button" onClick={() => { if (usesLayerLab) revealLayerControls('photo'); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 w-full items-center gap-2 rounded-xl border px-2 text-left ${layer.id === activePhotoId && (!isBootleg || activeBootlegLayer === 'photo') ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100"><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span><span className="min-w-0 flex-1 truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span><span className="text-[10px] opacity-60">{index + 1}</span></button>)}</div>
+      <section data-gdp-studio-library-pane="modern-tabs" className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
+        <div role="tablist" aria-label="Design assets" className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+          <button type="button" role="tab" aria-selected={libraryTab === 'templates'} onClick={() => setLibraryTab('templates')} className={`min-h-11 rounded-lg px-2 text-xs font-black ${libraryTab === 'templates' ? 'bg-white text-slate-950 shadow' : 'text-slate-600'}`}>Templates</button>
+          <button type="button" role="tab" aria-selected={libraryTab === 'layers'} onClick={() => setLibraryTab('layers')} className={`min-h-11 rounded-lg px-2 text-xs font-black ${libraryTab === 'layers' ? 'bg-white text-slate-950 shadow' : 'text-slate-600'}`}>Layers · {photos.length}/{BOOTLEG_MAX_PHOTOS}</button>
         </div>
+        {libraryTab === 'templates' ? <>
+          <div className="mb-3"><h2 className="text-base font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-[11px] leading-4 text-slate-500">Your selected template stays separate from photo, text and sticker layers.</p></div>
+        {isBootleg ? <div className="max-h-[470px] space-y-3 overflow-y-auto pr-1" data-gdp-bootleg-collections="expandable">{bootlegCollections.map((group) => { const expanded = expandedBootlegCollection === group.id; return <section key={group.id} className="overflow-hidden rounded-2xl border border-slate-200"><button type="button" aria-expanded={expanded} onClick={() => setExpandedBootlegCollection(expanded ? '' : group.id)} className="flex min-h-12 w-full items-center justify-between gap-3 bg-slate-50 px-3 py-3 text-left text-sm font-bold text-slate-900"><span>{group.name} <span className="text-xs font-medium text-slate-500">({group.items.length} colors)</span></span><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{expanded && <div className="grid grid-cols-2 gap-3 p-3">{group.items.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}</section>; })}</div> : <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}
+        </> : <div role="tabpanel" aria-label="Photo layers" data-gdp-bootleg-photo-layer-list="true" className="space-y-2">
+          <div data-gdp-photo-focus-mode="preview-only" className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+            <div className="flex items-center justify-between gap-2"><strong className="text-xs text-cyan-950">Photo Layers</strong><button type="button" onClick={resetPreviewVisibility} disabled={!previewVisibilityChanged} className="min-h-9 rounded-lg bg-white px-2 text-xs font-black text-cyan-800 disabled:opacity-40">Show All</button></div>
+            <p role="status" className="mt-1 text-[11px] text-cyan-900">{previewFocusPhotoIds.length ? `Focus ${previewFocusPhotoIds.length}/2 · only selected photos are shown` : previewHiddenPhotoIds.length ? `${previewHiddenPhotoIds.length} temporarily hidden` : 'All photo layers visible'}</p>
+            <p className="mt-1 text-[10px] text-cyan-800">Eye hides temporarily. Focus isolates up to two. Hidden photos always stay in this list and in your print design.</p>
+          </div>
+          {photos.length ? photos.map((layer, index) => {
+            const hidden = previewHiddenPhotoIds.includes(layer.id);
+            const focused = previewFocusPhotoIds.includes(layer.id);
+            return <div key={layer.id} data-gdp-photo-layer-row={layer.id} className={`flex min-h-12 items-center gap-1 rounded-xl border p-1 ${hidden ? 'border-slate-200 bg-slate-100' : focused ? 'border-cyan-400 bg-cyan-50' : 'border-slate-200 bg-white'}`}>
+              <button type="button" aria-label={`Select ${layer.asset?.name || `Photo ${index + 1}`}`} onClick={() => { revealLayerControls('photo'); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); setPreviewFocusPhotoIds((ids) => ids.length && !ids.includes(layer.id) ? nextPreviewFocusPhotoIds(ids, layer.id) : ids); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}>
+                <span className={`grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 ${hidden ? 'opacity-35' : ''}`}><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span>
+                <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span>{hidden ? <span className="text-[10px]">Hidden · tap to reveal</span> : focused ? <span className="text-[10px]">Focused</span> : null}</span>
+              </button>
+              <button type="button" onClick={() => togglePreviewPhoto(layer.id)} aria-pressed={!hidden} aria-label={`${hidden ? 'Show' : 'Hide'} photo ${index + 1} temporarily`} title={hidden ? 'Show photo' : 'Hide photo'} className="grid h-11 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700">{hidden ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+              <button type="button" onClick={() => toggleFocusPhoto(layer.id)} aria-pressed={focused} aria-label={`Focus photo ${index + 1}`} title="Focus this photo (max 2)" className={`grid h-11 w-10 shrink-0 place-items-center rounded-lg border ${focused ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><Focus size={16} /></button>
+            </div>;
+          }) : <p className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-600">No photos yet. Choose Photo above the preview to upload.</p>}
+        </div>}
       </section>
 
       <section ref={mobilePreviewRef} data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:h-full xl:overflow-hidden' : ''}`}>
