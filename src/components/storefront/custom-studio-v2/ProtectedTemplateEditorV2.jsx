@@ -41,6 +41,7 @@ import {
 } from '@/lib/customStudioV2BootlegTextLayers';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, normalizePhotoAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
+import { templateSelectionGeometry, resizeTemplateFromHandle } from '@/lib/templateOnCanvasGeometry';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -557,6 +558,113 @@ function PremiumTextPresetTile({ preset, selected, onSelect }) {
   return <button type="button" onClick={() => onSelect(preset.id)} aria-pressed={selected} className={`min-h-24 overflow-hidden rounded-xl border-2 p-1.5 text-center ${selected ? 'border-cyan-500 bg-slate-900 text-white' : 'border-slate-200 bg-slate-800 text-slate-100'}`}><canvas ref={ref} className="h-auto w-full" aria-hidden="true" /><span className="block text-[11px] font-black">{preset.label}</span></button>;
 }
 
+
+const TEMPLATE_HANDLE_POSITIONS = {
+  nw: 'left-0 top-0 -translate-x-1/2 -translate-y-1/2',
+  n: 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2',
+  ne: 'right-0 top-0 translate-x-1/2 -translate-y-1/2',
+  e: 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2',
+  se: 'right-0 bottom-0 translate-x-1/2 translate-y-1/2',
+  s: 'left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2',
+  sw: 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2',
+  w: 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2',
+};
+
+const TEMPLATE_HANDLE_LABELS = {
+  nw: 'top-left corner', n: 'top edge', ne: 'top-right corner',
+  e: 'right edge', se: 'bottom-right corner', s: 'bottom edge',
+  sw: 'bottom-left corner', w: 'left edge',
+};
+
+/** Editor chrome only: no handles or selection outline enter the production PNG. */
+function TemplateCanvasSelection({ transform, alphaBounds, canvasAspect, canvasRef, gesture, selected, onSelect, onDismiss, onTransform }) {
+  const dragRef = useRef(null);
+  const geometry = templateSelectionGeometry(transform, alphaBounds, canvasAspect);
+  const position = {
+    left: `${geometry.centerX}%`,
+    top: `${geometry.centerY}%`,
+    width: `${Math.max(0.1, geometry.width)}%`,
+    height: `${Math.max(0.1, geometry.height)}%`,
+    transform: `translate(-50%, -50%) rotate(${geometry.rotation}deg)`,
+  };
+
+  const startResize = (event, handle) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect?.width || !rect?.height) return;
+    dragRef.current = {
+      id: event.pointerId, handle,
+      x: event.clientX, y: event.clientY,
+      width: rect.width, height: rect.height, transform: { ...transform },
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const moveResize = (event) => {
+    const drag = dragRef.current;
+    if (!drag || event.pointerId !== drag.id) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onTransform(resizeTemplateFromHandle(
+      drag.transform, alphaBounds, canvasAspect, drag.handle,
+      (event.clientX - drag.x) / drag.width * 100,
+      (event.clientY - drag.y) / drag.height * 100
+    ));
+  };
+
+  const endResize = (event) => {
+    if (event.pointerId !== dragRef.current?.id) return;
+    event.stopPropagation();
+    dragRef.current = null;
+    try { event.currentTarget.releasePointerCapture?.(event.pointerId); } catch { /* capture may already be gone */ }
+  };
+
+  if (!selected) {
+    // The lower hit target lets visible artwork be selected without blocking
+    // customer photo hit areas layered above it.
+    return <button type="button" data-gdp-template-tap-to-select="true" aria-label="Select GDP template to move or resize" onPointerDown={(event) => { event.stopPropagation(); onSelect(); }} className="absolute cursor-pointer border-0 bg-transparent p-0" style={{ ...position, zIndex: 9, touchAction: 'manipulation' }} />;
+  }
+
+  return (
+    <>
+      <div data-gdp-template-selection-dismiss="true" className="absolute inset-0" style={{ zIndex: 46 }} onPointerDown={(event) => { if (event.target === event.currentTarget) { event.stopPropagation(); onDismiss(); } }} />
+      <div
+        {...gesture}
+        data-gdp-template-selection-box="true"
+        role="group"
+        aria-label="Selected GDP template. Drag inside to move, or drag handles to resize."
+        className="absolute cursor-move border-2 border-cyan-400 bg-cyan-400/5 shadow-[0_0_0_1px_rgba(8,145,178,.65)]"
+        style={{ ...position, zIndex: 48, touchAction: 'none' }}
+      >
+        {Object.entries(TEMPLATE_HANDLE_POSITIONS).map(([handle, location]) => (
+          <button
+            type="button"
+            key={handle}
+            data-gdp-template-resize-handle={handle}
+            aria-label={`Resize GDP template ${TEMPLATE_HANDLE_LABELS[handle]}`}
+            onPointerDown={(event) => startResize(event, handle)}
+            onPointerMove={moveResize}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            onKeyDown={(event) => {
+              const delta = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[event.key];
+              if (!delta) return;
+              event.preventDefault();
+              event.stopPropagation();
+              onTransform(resizeTemplateFromHandle(transform, alphaBounds, canvasAspect, handle, delta[0], delta[1]));
+            }}
+            className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full outline-offset-2 touch-none ${location} focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-800`}
+            style={{ cursor: handle === 'n' || handle === 's' ? 'ns-resize' : handle === 'e' || handle === 'w' ? 'ew-resize' : handle === 'ne' || handle === 'sw' ? 'nesw-resize' : 'nwse-resize' }}
+          >
+            <span className="block h-3 w-3 rounded-full border-2 border-white bg-cyan-500 shadow-[0_0_0_1px_#0891b2,0_2px_5px_#0004]" />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function ProtectedPreview({ product, color, size, template, editor, path, stickers, side, onPatch, activeLayer = 'photo', onActiveLayerChange = (..._args) => undefined, compact = false }) {
   const zoneRef = useRef(null);
   const canvasRef = useRef(null);
@@ -769,7 +877,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
       className={compact ? 'mx-auto w-full rounded-xl bg-slate-100 p-1' : 'mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5'}
       style={!compact && isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}
     >
-      <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
+      <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner" onPointerDownCapture={(event) => { if (templateEditing && event.target instanceof Element && !event.target.closest('[data-gdp-template-selection-box="true"]')) onActiveLayerChange?.('photo'); }}>
         {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
         <div ref={canvasRef} data-gdp-print-guide="true" data-gdp-active-layer={usesLayerLab ? activeLayer : undefined} aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
           <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
@@ -779,11 +887,10 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
           {template?.assetUrl ? (
             usesLayerLab ? (
               <div
-                {...(templateEditing ? templateGesture : {})}
                 data-gdp-bootleg-template-layer={isBootleg ? 'true' : undefined}
                 data-gdp-memorial-template-layer={isMemorial ? 'true' : undefined}
-                className={`absolute inset-0 select-none ${templateEditing ? 'cursor-grab ring-2 ring-cyan-400/90 ring-inset' : 'pointer-events-none'}`}
-                style={{ ...(templateEditing ? templateGesture.style : {}), zIndex: isBootleg ? 15 : 20, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}
+                className="pointer-events-none absolute inset-0 select-none"
+                style={{ zIndex: isBootleg ? 15 : 20, transform: `translate(${templateTransform.x}%, ${templateTransform.y}%)` }}
               >
                 <div className="absolute inset-0" style={{ transformOrigin: '50% 50%', transform: `rotate(${templateTransform.rotation}deg) scale(${templateTransform.scale * templateTransform.widthScale / 10000}, ${templateTransform.scale * templateTransform.heightScale / 10000})` }}>
                   <img src={template.assetUrl} alt="GDP template artwork" draggable="false" className="absolute inset-0 h-full w-full select-none object-fill" />
@@ -807,6 +914,19 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
           ) : null}
 
           {stickerLayers.map((layer) => <StickerLayer key={layer.id} layer={layer} selected={layer.id === activeStickerId && (isBootleg ? activeLayer === 'sticker' : true)} sticker={stickerById[layer.stickerId]} canvasRef={canvasRef} canvasAspect={canvasAspect} onSelect={() => { onActiveLayerChange?.('sticker'); onPatch({ activeStickerId: layer.id, activePhotoId: '' }); }} onTransform={(transform) => patchStickerTransform(layer.id, transform)} />)}
+          {usesLayerLab && template?.assetUrl && !compact ? (
+            <TemplateCanvasSelection
+              transform={templateTransform}
+              alphaBounds={templateAlphaBounds}
+              canvasAspect={canvasAspect}
+              canvasRef={canvasRef}
+              gesture={templateGesture}
+              selected={templateEditing}
+              onSelect={() => onActiveLayerChange?.('template')}
+              onDismiss={() => onActiveLayerChange?.('photo')}
+              onTransform={(next) => onPatch({ textStyle: { ...legacyStyle, ...(isBootleg ? { freeTextLayout: true, photoForeground: true } : { photoForeground: false }), templateTransform: constrainTemplateTransform(next, templateAlphaBounds, canvasAspect) } })}
+            />
+          ) : null}
         </div>
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
@@ -1411,6 +1531,10 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
         <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-cyan-700">GDP template artwork</p><p className="text-xs font-bold text-slate-600">Editable layer · uploaded photos can move independently and crop at the print boundary.</p></div>
         <button type="button" onClick={() => setActiveBootlegLayer('photo')} className="min-h-10 rounded-xl bg-cyan-600 px-3 text-xs font-black text-white">Finish Template Editing</button>
       </div>
+      <p className="rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-700">Tap the artwork to show its resize box. Drag a middle handle to move just that edge; drag a corner to reshape both. Drag inside the box to move the template. Tap outside to hide the box.</p>
+      <details data-gdp-template-precision-controls="collapsed" className="rounded-xl border border-cyan-100 bg-white/75 p-3">
+        <summary className="cursor-pointer text-xs font-black text-cyan-800">Precise adjustments (optional)</summary>
+        <div className="mt-3 space-y-3">
       <RangeControl label="Template size · keep proportions" value={templateTransform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTemplateTransform({ scale: value })} onReset={() => patchTemplateTransform({ scale: 100 })} />
       <div data-gdp-template-free-reshape="width-height" className="space-y-2 rounded-xl border border-cyan-100 bg-white/75 p-3">
         <p className="text-[11px] font-bold text-cyan-900">Free reshape · adjust width and height independently</p>
@@ -1421,6 +1545,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       <RangeControl label="Move template left / right" value={templateTransform.x} min={-50} max={50} suffix="%" onChange={(value) => patchTemplateTransform({ x: value })} onReset={() => patchTemplateTransform({ x: 0 })} />
       <RangeControl label="Move template up / down" value={templateTransform.y} min={-50} max={50} suffix="%" onChange={(value) => patchTemplateTransform({ y: value })} onReset={() => patchTemplateTransform({ y: 0 })} />
       <RangeControl label="Template rotation" value={templateTransform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTemplateTransform({ rotation: value })} onReset={() => patchTemplateTransform({ rotation: 0 })} />
+        </div>
+      </details>
       <button type="button" onClick={() => patchTemplateTransform({ scale: 100, widthScale: 100, heightScale: 100, rotation: 0, x: 0, y: 0 })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-3 text-xs font-black text-cyan-800"><RotateCcw size={14} /> Reset GDP template</button>
     </div>
   ) : null;

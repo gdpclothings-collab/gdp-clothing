@@ -116,6 +116,7 @@ jobs:
           node --test tests/studio-print-area-bounds.test.mjs
           node --test tests/studio-visual-smoke-bounds.test.mjs
           node --test tests/studio-free-reshape.test.mjs
+          node --test tests/studio-template-canvas-handles.test.mjs
           node --test tests/studio-mobile-live-preview.test.mjs
           node --test tests/bootleg-print-overlays.test.mjs
           node --test tests/bootleg-direct-photo-pointer.test.mjs
