@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { nextPreviewHiddenPhotoIds, nextPreviewFocusPhotoIds, previewPhotoVisible, previewIsFiltered } from '../src/lib/customStudioV2PreviewFocus.js';
+import { appendStudioV2PhotoLayers, uploadedPhotoIdsPresent } from '../src/lib/customStudioV2PhotoLayers.js';
+import { createInitialStudioV2State, studioV2Reducer } from '../src/lib/customStudioV2State.js';
 import { constrainBootlegTextStyleToCanvas } from '../src/lib/customStudioV2BootlegTextLayout.js';
 import { applyPremiumTextPreset } from '../src/lib/customStudioV2PremiumTextStyles.js';
 
@@ -86,4 +88,52 @@ test('premium arc up, arc down and wave keep preview/300-DPI glyph geometry alig
       assert.ok(Math.abs(a.rotation - b.rotation) < 0.3, `${curve}: rotation parity for glyph ${i}`);
     }
   }
+});
+
+test('five completed uploads append atomically and preserve each stable ID', () => {
+  const files = Array.from({ length: 5 }, (_, index) => ({
+    id: `photo-${index + 1}`,
+    type: 'photo',
+    asset: { name: `storm${index + 1}.png`, path: `uploads/storm${index + 1}.png` },
+    transform: { scale: 100, x: index, y: index },
+    visible: true,
+  }));
+  const originalIds = files.map((file) => file.id);
+  assert.equal(appendStudioV2PhotoLayers([], files).length, 5);
+  assert.equal(appendStudioV2PhotoLayers(files.slice(0, 2), files.slice(2)).length, 5);
+  assert.equal(appendStudioV2PhotoLayers(files, files.slice(0, 2)).length, 5, 'duplicate batch is idempotent');
+  assert.equal(appendStudioV2PhotoLayers(files, [{ id: 'sixth' }], 5).length, 5, 'slot limit retains prior items');
+
+  let state = createInitialStudioV2State();
+  state = studioV2Reducer(state, { type: 'APPEND_EDITOR_PHOTOS', path: 'bootleg', side: 'front', photos: files, activePhotoId: files.at(-1).id });
+  const editor = state.bootleg.sides.front;
+  assert.equal(editor.photos.length, 5, 'five uploaded files must yield five layers, not one');
+  assert.deepEqual(editor.photos.map((layer) => layer.id), originalIds);
+  assert.equal(editor.activePhotoId, 'photo-5');
+  assert.equal(editor.photo.path, 'uploads/storm1.png', 'legacy primary photo alias stays available');
+  assert.equal(uploadedPhotoIdsPresent(editor.photos, originalIds), true);
+  assert.equal(uploadedPhotoIdsPresent(editor.photos.slice(0, 1), originalIds), false);
+  const edited = studioV2Reducer(state, { type: 'PATCH_EDITOR', path: 'bootleg', side: 'front', patch: { textStyle: { curve: 'arc-up', curveAmount: 70 } } });
+  assert.equal(edited.bootleg.sides.front.photos.length, 5, 'text edits cannot discard uploaded photos');
+  const hidden = nextPreviewHiddenPhotoIds([], 'photo-2');
+  assert.equal(edited.bootleg.sides.front.photos.length, 5, 'hide changes the preview only');
+  assert.equal(previewPhotoVisible(edited.bootleg.sides.front.photos[1], hidden, []), false);
+  assert.equal(previewPhotoVisible(edited.bootleg.sides.front.photos[1], [], []), true);
+  const otherSide = studioV2Reducer(edited, { type: 'APPEND_EDITOR_PHOTOS', path: 'memorial', side: 'back', photos: files.slice(0, 2) });
+  assert.equal(otherSide.bootleg.sides.front.photos.length, 5, 'side and design path are isolated');
+  assert.equal(otherSide.memorial.sides.back.photos.length, 2);
+});
+
+test('focus design uses one persistent layer list, compact tabs, and verified upload confirmation', () => {
+  assert.match(editor, /data-gdp-studio-library-pane="modern-tabs"/);
+  assert.match(editor, /data-gdp-photo-layer-row=\{layer\.id\}/);
+  assert.equal((editor.match(/data-gdp-bootleg-photo-layer-list="true"/g) || []).length, 1, 'duplicate photo list removed');
+  assert.match(editor, /uploadedPhotoIdsPresent\(photos, pending\.ids\)/);
+  assert.match(editor, /onAppendPhotos\(safeAdditions, activeId\)/);
+  assert.match(page, /type: 'APPEND_EDITOR_PHOTOS'/);
+  assert.match(editor, /data-gdp-modern-text-controls="three-tabs"/);
+  assert.match(editor, /data-gdp-text-edge-align="safe-print-boundary"/);
+  assert.match(editor, /role="tabpanel" aria-label="Text styling"/);
+  assert.match(editor, /role="tabpanel" aria-label="Text position"/);
+  assert.match(editor, /role="tabpanel" aria-label="Text effects"/);
 });
