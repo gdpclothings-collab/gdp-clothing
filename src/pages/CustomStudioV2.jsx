@@ -72,6 +72,29 @@ function StudioStepRail({ currentStep, onStep }) {
   );
 }
 
+// Read-only order context for Steps 2-4. It derives entirely from the same
+// selected product/variant state used by checkout and does not mutate artwork.
+function SelectedGarmentSummary({ product, state }) {
+  const previewSource = studioV2GarmentPreview(product, state.color, 'front') || product?.images?.[0] || '/images/gdp-logo.webp';
+  const preview = studioV2DisplayPreviewUrl(previewSource, { width: 160 });
+  return (
+    <div data-gdp-selected-garment-context="true" data-gdp-selected-garment-step={state.step} role="group" aria-label="Your selected garment" className="mb-4 flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
+      <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50 p-1.5 sm:h-20 sm:w-20">
+        <img src={preview} alt="" aria-hidden="true" loading="lazy" decoding="async" className="h-full w-full object-contain" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">Selected garment</p>
+        <p className="mt-1 break-words text-sm font-black leading-snug text-slate-950 sm:text-base">{product?.name || 'Garment'}</p>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-slate-600">
+          <span>Color: <strong className="font-bold text-slate-800">{displayVariantLabel(state.color)}</strong></span>
+          <span>Size: <strong className="font-bold text-slate-800">{state.size}</strong></span>
+          <span>Qty: <strong className="font-bold text-slate-800">{state.quantity}</strong></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GarmentVariantControls({ product, state, dispatch, onContinue, canContinue }) {
   const colors = productColors(product);
   const sizes = productSizes(product, state.color);
@@ -760,6 +783,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
     <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
+      {state.step !== 'garment' && product && <SelectedGarmentSummary product={product} state={state} />}
       {state.step === 'garment' && state.reusePending && <div role="status" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">Your saved artwork is ready to reuse. Choose a garment, colour and size, then review and approve the new print layout.</div>}
       {state.step === 'garment' && <GarmentStepV2 catalog={catalog} state={state} dispatch={dispatch} garmentView={garmentView} onContinue={next} canContinue={canContinue} />}
       {state.step === 'design' && <DesignStepV2 dispatch={dispatch} />}
