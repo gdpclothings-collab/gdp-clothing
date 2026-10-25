@@ -1,3 +1,4 @@
+import '../tests/studio-layer-focus-flexible-curve.test.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
