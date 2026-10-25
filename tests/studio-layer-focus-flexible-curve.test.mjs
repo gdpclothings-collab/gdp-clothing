@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { nextPreviewHiddenPhotoIds, nextPreviewFocusPhotoIds, previewPhotoVisible, previewIsFiltered } from '../src/lib/customStudioV2PreviewFocus.js';
+import { constrainBootlegTextStyleToCanvas } from '../src/lib/customStudioV2BootlegTextLayout.js';
+import { applyPremiumTextPreset } from '../src/lib/customStudioV2PremiumTextStyles.js';
 
 const editor = readFileSync(new URL('../src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', import.meta.url), 'utf8');
 const page = readFileSync(new URL('../src/pages/CustomStudioV2.jsx', import.meta.url), 'utf8');
@@ -31,6 +33,7 @@ test('Focus Mode isolates one or two photos and replaces the oldest on a third s
   assert.equal(previewPhotoVisible({ id: 'p1' }, [], two), true);
   assert.equal(previewPhotoVisible({ id: 'p3' }, [], two), false);
   assert.deepEqual(nextPreviewFocusPhotoIds(third, 'p2'), ['p3']);
+  assert.deepEqual(nextPreviewFocusPhotoIds(['p1'], 'p2', 1), ['p2']);
   assert.deepEqual(nextPreviewFocusPhotoIds(['p3'], 'p3'), []);
   assert.equal(previewPhotoVisible({ id: 'p3', visible: false }, [], []), false);
 });
@@ -64,4 +67,23 @@ test('signed bend, wave depth and reset preserve the existing print curve contra
   assert.match(editor, /curve === 'wave'/);
   assert.equal((editor.match(/<FlexibleCurveControl style=\{textStyle\} onChange=\{patchTextStyle\}/g) || []).length, 2);
   assert.match(production, /renderProtectedStudioV2PngAdvanced/);
+});
+
+test('premium arc up, arc down and wave keep preview/300-DPI glyph geometry aligned', () => {
+  for (const curve of ['arc-up', 'arc-down', 'wave']) {
+    const style = { ...applyPremiumTextPreset({ fontScale: 100, canvasX: 50, canvasY: 50 }, 'gold-chrome'), curve, curveAmount: 80 };
+    const options = { text: { headline: 'STORM' }, zone: { x: 12, y: 78, width: 76, height: 16 }, style };
+    const low = constrainBootlegTextStyleToCanvas({ ...options, width: 1000, height: 1200 });
+    const high = constrainBootlegTextStyleToCanvas({ ...options, width: 3000, height: 3600 });
+    assert.equal(low.layout.headline.kind, 'glyphs', curve);
+    assert.equal(high.layout.headline.kind, 'glyphs', curve);
+    assert.equal(low.layout.headline.glyphs.length, high.layout.headline.glyphs.length, curve);
+    for (let i = 0; i < low.layout.headline.glyphs.length; i += 1) {
+      const a = low.layout.headline.glyphs[i];
+      const b = high.layout.headline.glyphs[i];
+      assert.ok(Math.abs(a.x / 1000 - b.x / 3000) < 0.003, `${curve}: X parity for glyph ${i}`);
+      assert.ok(Math.abs(a.y / 1200 - b.y / 3600) < 0.003, `${curve}: Y parity for glyph ${i}`);
+      assert.ok(Math.abs(a.rotation - b.rotation) < 0.3, `${curve}: rotation parity for glyph ${i}`);
+    }
+  }
 });
