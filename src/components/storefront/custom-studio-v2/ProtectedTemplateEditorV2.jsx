@@ -861,7 +861,9 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   });
 
   const patchPhotoTransform = (id, transform, visibleBounds = null) => {
-    const next = photos.map((layer) => layer.id === id ? { ...layer, transform: usesLayerLab ? constrainFreePhotoTransform(transform, zone, canvasAspect, visibleBounds) : transform } : layer);
+    // `photos` is filtered for focus/hide preview only; never persist that subset.
+    // Editing the one visible photo must keep every hidden photo in the design.
+    const next = currentPhotoLayers(editor).map((layer) => layer.id === id ? { ...layer, transform: usesLayerLab ? constrainFreePhotoTransform(transform, zone, canvasAspect, visibleBounds) : transform } : layer);
     const first = next[0] || null;
     onPatch({ photos: next, activePhotoId: id, photo: first?.asset || null, transform: first?.transform || editor.transform });
   };
