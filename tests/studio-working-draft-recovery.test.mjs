@@ -31,7 +31,7 @@ function photo(id, order) {
       url: 'https://example.test/image?token=temporary',
       originalUrl: 'https://example.test/original?token=temporary',
     },
-    transform: { scale: 123 + order, x: order * 7, y: -order * 9, rotation: order * 5, bleedCrop: true },
+    transform: { scale: 123 + order, x: order * 7, y: -(order * 9 + 1), rotation: order * 5, bleedCrop: true },
   };
 }
 
@@ -125,5 +125,6 @@ test('Studio wiring keeps cart edits first, flushes on pagehide, clears on reset
   assert.match(page, /window\.addEventListener\('pagehide', flush\)/);
   assert.match(page, /action\.type === 'RESET'[\s\S]*clearStudioV2WorkingDraft\(user\)/);
   assert.match(page, /draftFinalizedRef\.current = true;\s*clearStudioV2WorkingDraft\(user\)/);
-  assert.match(page, /if \(loading \|\| !draftRecoveryReady\) return/);
+  assert.match(page, /if \(!draftRecoveryReady\) return/);
+  assert.match(page, /if \(loading\) return/);
 });
