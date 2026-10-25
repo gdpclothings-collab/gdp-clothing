@@ -10,6 +10,9 @@ import UploadArtworkEditorV2 from '@/components/storefront/custom-studio-v2/Uplo
 import GarmentInfoPanel, { garmentColorSwatch } from '@/components/storefront/custom-studio-v2/GarmentInfoPanel';
 import { customerApi } from '@/lib/customerApi';
 import { useCart } from '@/lib/CartContext';
+import { useAuth } from '@/lib/AuthContext';
+import { customerStorageScope } from '@/lib/customerStorageScope';
+import { loadStudioV2WorkingDraft, saveStudioV2WorkingDraft, clearStudioV2WorkingDraft } from '@/lib/studioV2WorkingDraft';
 import { normalizeStyleTemplates } from '@/lib/customStudioStyleTemplates';
 import { isProductColorAvailable, isProductVariantAvailable } from '@/lib/productVariants';
 import {
@@ -377,14 +380,21 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { addItem, replaceItem } = useCart();
+  const { user, isLoadingAuth } = useAuth();
+  const draftScope = customerStorageScope(user);
+  const [draftRecoveryReady, setDraftRecoveryReady] = useState(false);
+  const [draftRecovered, setDraftRecovered] = useState(false);
+  const draftReadyScopeRef = useRef('');
+  const previousDraftScopeRef = useRef('');
+  const draftClearedRef = useRef(false);
+  const draftFinalizedRef = useRef(false);
   const editCartKey = String(location.state?.editCartKey || '');
   const [state, setState] = useState(() => {
     const draftState = location.state?.studioV2Draft?.state;
     if (!draftState || location.state?.studioV2Draft?.version !== 1) return createInitialStudioV2State();
     return createStudioV2ReuseState(draftState, location.state?.studioReuseMode === 'new-garment');
   });
-  // A same-session return from Shop/Home should not blank the Studio while
-  // public catalog data refreshes. No customer design state is cached here.
+  // Public catalog snapshots are separate from private, tab-scoped working drafts.
   const [catalog, setCatalog] = useState(() => getStudioBrowseSnapshot()?.catalog || []);
   const [settings, setSettings] = useState(() => getStudioBrowseSnapshot()?.settings || { styleTemplates: {}, frontBackFee: 10 });
   const [loading, setLoading] = useState(() => !getStudioBrowseSnapshot());
@@ -421,6 +431,14 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   // as a history entry. Never use native pushState: React Router owns history.
   // Other reducer actions (artwork, approval, sizing, etc.) remain unchanged.
   const dispatch = (action) => {
+    if (action.type === 'RESET') {
+      // Explicit discard must also remove the last recoverable copy.
+      draftClearedRef.current = true;
+      setDraftRecovered(false);
+      clearStudioV2WorkingDraft(user);
+    } else {
+      draftClearedRef.current = false;
+    }
     const reducerAction = action.type === 'SELECT_PRODUCT' && stateRef.current.reusePending
       ? { ...action, type: 'SELECT_PRODUCT_FOR_REUSE' }
       : action;
@@ -518,6 +536,91 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
       .catch(() => { /* Stable paths remain available; final rendering will surface an actionable error if refresh fails. */ });
     return () => { active = false; };
   }, []);
+
+  // Restore an unfinished layout from this tab after the signed-in identity
+  // is known. Router/cart-edit drafts always take precedence. Never recover
+  // a previous approval: the editor must be reviewed and approved again.
+  useEffect(() => {
+    if (isLoadingAuth) return undefined;
+    let active = true;
+    draftReadyScopeRef.current = '';
+    setDraftRecoveryReady(false);
+    const finish = () => {
+      if (!active) return;
+      draftReadyScopeRef.current = draftScope;
+      setDraftRecoveryReady(true);
+    };
+
+    const oldScope = previousDraftScopeRef.current;
+    previousDraftScopeRef.current = draftScope;
+    if (initialStudioDraftRef.current?.version === 1 && initialStudioDraftRef.current.state) {
+      finish();
+      return () => { active = false; };
+    }
+
+    const saved = loadStudioV2WorkingDraft(user);
+    if (!saved) {
+      if (oldScope && oldScope !== draftScope) {
+        // Never show one customer's in-memory editor to the next account.
+        const blank = createInitialStudioV2State();
+        initialStudioStepRef.current = 'garment';
+        currentStudioStepRef.current = 'garment';
+        initialGarmentViewRef.current = 'browse';
+        currentGarmentViewRef.current = 'browse';
+        pendingStudioNavigationRef.current = { step: 'garment', view: 'browse' };
+        setGarmentView('browse');
+        setState(blank);
+        setDraftRecovered(false);
+        navigate(studioHistoryDestination(locationRef.current, 'garment', 'browse'), {
+          replace: true,
+          state: { [STUDIO_HISTORY_STATE_KEY]: 'garment', [STUDIO_GARMENT_VIEW_STATE_KEY]: 'browse' },
+        });
+      }
+      finish();
+      return () => { active = false; };
+    }
+
+    refreshStudioV2DraftAssets(saved)
+      .catch(() => saved)
+      .then((refreshed) => {
+        if (!active) return;
+        const next = createStudioV2ReuseState(refreshed, false);
+        // A recovered draft is always editable, never pre-approved.
+        next.step = 'customize';
+        initialStudioStepRef.current = 'customize';
+        currentStudioStepRef.current = 'customize';
+        initialGarmentViewRef.current = 'focused';
+        currentGarmentViewRef.current = 'focused';
+        pendingStudioNavigationRef.current = { step: 'customize', view: 'focused' };
+        setGarmentView('focused');
+        setState(next);
+        setDraftRecovered(true);
+        navigate(studioHistoryDestination(locationRef.current, 'customize', 'focused'), {
+          replace: true,
+          state: { [STUDIO_HISTORY_STATE_KEY]: 'customize', [STUDIO_GARMENT_VIEW_STATE_KEY]: 'focused' },
+        });
+        finish();
+      });
+    return () => { active = false; };
+  }, [isLoadingAuth, draftScope]);
+
+  useEffect(() => {
+    if (isLoadingAuth || !draftRecoveryReady || draftReadyScopeRef.current !== draftScope ||
+        draftClearedRef.current || draftFinalizedRef.current) return;
+    saveStudioV2WorkingDraft(state, user);
+  }, [state, user, draftScope, isLoadingAuth, draftRecoveryReady]);
+
+  useEffect(() => {
+    if (isLoadingAuth || !draftRecoveryReady || draftReadyScopeRef.current !== draftScope) return undefined;
+    // Save the most recent drag / photo batch even if the tab is refreshed
+    // before the next React effect has had time to run.
+    const flush = () => {
+      if (!draftClearedRef.current && !draftFinalizedRef.current &&
+          draftReadyScopeRef.current === draftScope) saveStudioV2WorkingDraft(stateRef.current, user);
+    };
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); };
+  }, [user, draftScope, isLoadingAuth, draftRecoveryReady]);
 
   useEffect(() => {
     let active = true;
@@ -745,6 +848,10 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
       updateStage('Adding verified design to cart…');
       if (editCartKey) replaceItem(editCartKey, cartItem);
       else addItem(cartItem);
+      // A verified cart item now owns the design; never restore it as an
+      // unfinished tab draft on the next Studio visit.
+      draftFinalizedRef.current = true;
+      clearStudioV2WorkingDraft(user);
       navigate('/cart');
     } catch (err) {
       const detail = err?.message || 'The print files could not be prepared.';
@@ -760,7 +867,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
     }
   };
 
-  if (loading) return (
+  if (loading || !draftRecoveryReady) return (
     <main data-gdp-studio-initial-loading="true" aria-busy="true" className="min-h-[70vh] bg-slate-50 px-3 py-4 sm:px-5 lg:px-6">
       <div className="mx-auto max-w-[1800px] space-y-4 animate-pulse" aria-hidden="true">
         <div className="h-28 rounded-3xl bg-slate-200/75 sm:h-36" />
@@ -789,6 +896,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
       <button type="button" disabled={finalizing} onClick={() => dispatch({ type: 'RESET' })} className="gdp-premium-reset inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={15} /> Start over</button>
     </div>
     {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
+    {draftRecovered && <div data-gdp-working-draft-recovered="true" role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">Your unfinished design was recovered from this browser tab. Check your photo layers and approve the final layout again before adding to cart.</div>}
     <div data-gdp-premium-workspace="true" className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]"><StudioStepRail currentStep={state.step} onStep={(step) => !finalizing && !(step === 'review' && previewVisibilityActive) && dispatch({ type: 'SET_STEP', step })} /><section ref={studioPanelRef} tabIndex={-1} data-gdp-premium-main-panel="true" className="min-w-0 rounded-3xl border border-slate-200 bg-white/55 p-3 shadow-sm focus:outline-none sm:p-5">
       {state.step !== 'garment' && product && <SelectedGarmentSummary product={product} state={state} />}
       {state.step === 'garment' && state.reusePending && <div role="status" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">Your saved artwork is ready to reuse. Choose a garment, colour and size, then review and approve the new print layout.</div>}
