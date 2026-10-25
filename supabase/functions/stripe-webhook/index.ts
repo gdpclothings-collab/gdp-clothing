@@ -282,6 +282,14 @@ Deno.serve(async (req: Request) => {
     return respond({ error: "Invalid Stripe signature." }, 400);
   }
 
+  // Diagnostically useful without logging card data, customer details, or
+  // Stripe secrets. HTTP 200 by itself does not identify the delivered event.
+  console.info("Stripe webhook signature verified", {
+    eventType: String(event.type || "unknown").slice(0, 80),
+    paymentMode: matchedMode,
+    orderBound: Boolean(event.data?.object?.metadata?.order_id),
+  });
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const service = createClient(supabaseUrl, serviceKey, {
