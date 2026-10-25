@@ -45,6 +45,7 @@ import {
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, normalizePhotoAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
 import { templateSelectionGeometry, resizeTemplateFromHandle } from '@/lib/templateOnCanvasGeometry';
+import { nextPreviewHiddenPhotoIds, nextPreviewFocusPhotoIds, previewPhotoVisible, previewIsFiltered } from '@/lib/customStudioV2PreviewFocus';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -708,7 +709,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   const zone = template?.photoZone || { x: 15, y: 12, width: 70, height: 68, radius: 12, shape: 'rounded' };
   const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16, align: 'center' };
   // Preview-only filtering never alters saved layers or production.
-  const photos = currentPhotoLayers(editor).filter((layer) => layer.visible !== false && !previewHiddenPhotoIds.includes(layer.id) && (!previewFocusPhotoIds.length || previewFocusPhotoIds.includes(layer.id))).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  const photos = currentPhotoLayers(editor).filter((layer) => previewPhotoVisible(layer, previewHiddenPhotoIds, previewFocusPhotoIds)).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   const photoOnlyFocus = usesLayerLab && previewFocusPhotoIds.length > 0;
   const partialPhotoPreview = photoOnlyFocus || previewHiddenPhotoIds.length > 0;
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
@@ -968,7 +969,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
   );
 }
 
-export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange }) {
+export default function ProtectedTemplateEditorV2({ path, product, color, size, settings, editor, side = 'front', onPatch, onConfirmedChange, onPreviewVisibilityChange }) {
   const fileRef = useRef(null);
   const inspectorRef = useRef(null);
   const mobilePreviewRef = useRef(null);
@@ -1002,9 +1003,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const usesLayerLab = isBootleg || isMemorial;
   useEffect(() => { setPreviewHiddenPhotoIds([]); setPreviewFocusPhotoIds([]); }, [path, side]);
   const resetPreviewVisibility = () => { setPreviewHiddenPhotoIds([]); setPreviewFocusPhotoIds([]); };
-  const previewVisibilityChanged = previewHiddenPhotoIds.length > 0 || previewFocusPhotoIds.length > 0;
-  const togglePreviewPhoto = (id) => { setPreviewFocusPhotoIds([]); setPreviewHiddenPhotoIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]); };
-  const toggleFocusPhoto = (id) => { setPreviewHiddenPhotoIds((ids) => ids.filter((item) => item !== id)); setPreviewFocusPhotoIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : ids.length >= 2 ? [ids[1], id] : [...ids, id]); };
+  const previewVisibilityChanged = previewIsFiltered(previewHiddenPhotoIds, previewFocusPhotoIds);
+  useEffect(() => { onPreviewVisibilityChange?.(previewVisibilityChanged); }, [onPreviewVisibilityChange, previewVisibilityChanged]);
+  useEffect(() => () => onPreviewVisibilityChange?.(false), [onPreviewVisibilityChange]);
+  const togglePreviewPhoto = (id) => { setPreviewFocusPhotoIds([]); setPreviewHiddenPhotoIds((ids) => nextPreviewHiddenPhotoIds(ids, id)); };
+  const toggleFocusPhoto = (id) => { setPreviewHiddenPhotoIds((ids) => ids.filter((item) => item !== id)); setPreviewFocusPhotoIds((ids) => nextPreviewFocusPhotoIds(ids, id)); };
   // Only activate the small live preview while mobile customers are editing
   // below the main garment. No duplicate renderer is mounted on desktop.
   useEffect(() => {
