@@ -149,32 +149,54 @@ async function verify(browser, viewport) {
     // Assert recovery before resetting only this disposable smoke-test draft.
     await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible', timeout: 20000 });
     result.transitions.push('reload → unfinished draft recovered');
-    // Start the Home/Back gallery check in a clean browser context so that
-    // the recovery behaviour cannot be mistaken for a navigation failure.
-    await page.evaluate(() => sessionStorage.clear());
-    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-    await gallery(page).waitFor({ state: 'visible', timeout: 20000 });
-    await page.evaluate(() => {
-      window.__studioLoadingSpotted = false;
-      window.__studioLoadingObserver?.disconnect();
-      window.__studioLoadingObserver = new MutationObserver(() => {
-        if (document.querySelector('[data-gdp-studio-initial-loading="true"]')) {
-          window.__studioLoadingSpotted = true;
-        }
-      });
-      window.__studioLoadingObserver.observe(document.documentElement, { childList: true, subtree: true });
+    // Catalog navigation must start without a working draft. A same-context
+    // reload is NOT safe: Custom Studio persists its draft on pagehide, so
+    // even clearing sessionStorage just before reload recreates that draft.
+    // Keep the recovery test above intact, and use a genuinely fresh browser
+    // context to test Home → Back within the same SPA without a loader flash.
+    const catalogContext = await browser.newContext({
+      viewport: { width: viewport.width, height: viewport.height },
+      locale: 'en-CA',
+      timezoneId: 'America/Regina',
     });
-    // Both desktop and mobile navigation may render a matching home link.
-    // Use the header's first link so Playwright strict mode remains stable.
-    await page.getByRole('link', { name: 'GDP Clothing home' }).first().click();
-    await page.waitForURL((url) => url.pathname === '/', { timeout: 15000 });
-    await browserBack('Home to Studio return');
-    await gallery(page).waitFor({ state: 'visible', timeout: 15000 });
-    assert(
-      !(await page.evaluate(() => Boolean(window.__studioLoadingSpotted))),
-      'The public Studio catalog flashed a full-page loader when returning from Home',
-    );
-    result.transitions.push('Home → browser Back → Studio without loading flash');
+    const catalogPage = await catalogContext.newPage();
+    catalogPage.setDefaultTimeout(20000);
+    catalogPage.on('pageerror', (e) => pageErrors.push(e.message));
+    try {
+      const catalogResponse = await catalogPage.goto(BASE + '/custom-studio', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      assert(catalogResponse && catalogResponse.status() < 400, 'Clean Studio gallery did not load');
+      await gallery(catalogPage).waitFor({ state: 'visible', timeout: 20000 });
+      await catalogPage.evaluate(() => {
+        window.__studioLoadingSpotted = false;
+        window.__studioLoadingObserver?.disconnect();
+        window.__studioLoadingObserver = new MutationObserver(() => {
+          if (document.querySelector('[data-gdp-studio-initial-loading="true"]')) {
+            window.__studioLoadingSpotted = true;
+          }
+        });
+        window.__studioLoadingObserver.observe(document.documentElement, { childList: true, subtree: true });
+      });
+      // Both desktop and mobile navigation may render a matching home link.
+      // Use the header's first link so Playwright strict mode remains stable.
+      await catalogPage.getByRole('link', { name: 'GDP Clothing home' }).first().click();
+      await catalogPage.waitForURL((url) => url.pathname === '/', { timeout: 15000 });
+      await catalogPage.goBack({ timeout: 20000 });
+      assert(new URL(catalogPage.url()).pathname === '/custom-studio', 'Home to Studio return: browser Back left Studio');
+      await gallery(catalogPage).waitFor({ state: 'visible', timeout: 15000 });
+      assert(
+        !(await catalogPage.evaluate(() => Boolean(window.__studioLoadingSpotted))),
+        'The public Studio catalog flashed a full-page loader when returning from Home',
+      );
+      result.transitions.push('Home → browser Back → Studio without loading flash');
+    } catch (error) {
+      await catalogPage.screenshot({
+        path: path.join(ARTIFACT_DIR, 'studio-history-' + viewport.name + '-catalog-FAILED.png'),
+        fullPage: true,
+      }).catch(() => {});
+      throw error;
+    } finally {
+      await catalogContext.close();
+    }
 
     assert(pageErrors.length === 0, 'Page errors: ' + pageErrors.join(' | '));
     result.status = 'passed';
