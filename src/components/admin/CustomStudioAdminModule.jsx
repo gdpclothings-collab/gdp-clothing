@@ -25,6 +25,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { adminCustomStudioApi } from "@/lib/adminCustomStudioApi";
+import { productionHandoff } from "@/lib/customStudioPaymentGate";
 import { adminSettingsApi } from "@/lib/adminSettingsApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
 import {
@@ -222,7 +223,7 @@ export default function CustomStudioAdminModule() {
         data.proofs.find((item) => item.orderId === order.id) ||
         data.proofs.find((item) => item.customDesignId === designId);
 
-      return { order, design, proof };
+      return { order, design, proof, handoff: productionHandoff(order, design) };
     });
   }, [data]);
 
@@ -235,11 +236,11 @@ export default function CustomStudioAdminModule() {
       ["proof_ready", "awaiting_approval", "revision_requested"].includes(order.status) ||
       ["ready", "sent", "awaiting_approval", "revision_requested"].includes(proof?.status)
     ).length,
-    approved: rows.filter(({ order, proof, design }) =>
+    approved: rows.filter(({ order, proof, design, handoff }) => handoff.canRelease && (
       ["approved", "production_queue", "in_production"].includes(order.status) ||
       proof?.status === "approved" ||
       design?.renderStatus === "locked"
-    ).length,
+    )).length,
   }), [rows]);
 
   const startArtwork = async (order, proof) => {
@@ -254,6 +255,10 @@ export default function CustomStudioAdminModule() {
   };
 
   const releaseProduction = async (order) => {
+    if (order?.paymentStatus !== "paid" || order?.paymentMode !== "live") {
+      showNotice("Production Blocked: verified paid live order required.");
+      return;
+    }
     try {
       await adminCustomStudioApi.releaseApprovedOrder(order.id);
       showNotice(`${order.orderNumber} released to production.`);
@@ -309,7 +314,7 @@ export default function CustomStudioAdminModule() {
         <SummaryCard label="Custom orders" value={loading ? "—" : summary.orders} icon={Sparkles} />
         <SummaryCard label="Artwork" value={loading ? "—" : summary.artwork} icon={PencilRuler} />
         <SummaryCard label="Awaiting approval" value={loading ? "—" : summary.approval} icon={Clock3} />
-        <SummaryCard label="Approved" value={loading ? "—" : summary.approved} icon={CheckCircle2} />
+        <SummaryCard label="Paid & approved" value={loading ? "—" : summary.approved} icon={CheckCircle2} />
       </div>
 
       <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
@@ -334,7 +339,7 @@ export default function CustomStudioAdminModule() {
               <div className="font-medium mt-3">No custom orders yet</div>
             </div>
           ) : (
-            rows.map(({ order, design, proof }) => (
+            rows.map(({ order, design, proof, handoff }) => (
               <div key={order.id} className="rounded-xl border border-[#e2e2e2] overflow-hidden">
                 <div className="p-4 bg-[#fafafa] border-b border-[#e8e8e8] flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
                   <div>
@@ -344,6 +349,10 @@ export default function CustomStudioAdminModule() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusPill value={order.status} />
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${order.paymentStatus === "paid" ? "bg-emerald-100 text-emerald-800" : order.paymentStatus === "failed" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                      Payment: {prettify(order.paymentStatus || "pending")}
+                    </span>
+                    {handoff.qaOnly && <span className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold bg-violet-100 text-violet-800">QA Only · TEST</span>}
                     {order.status === "artwork_needed" && (
                       <button
                         onClick={() => startArtwork(order, proof)}
@@ -360,7 +369,7 @@ export default function CustomStudioAdminModule() {
                         Open proof
                       </button>
                     )}
-                    {(order.status === "approved" || proof?.status === "approved") && (
+                    {handoff.canRelease && (order.status === "approved" || proof?.status === "approved") && (
                       <button
                         onClick={() => releaseProduction(order)}
                         className="h-8 px-3 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-medium inline-flex items-center gap-1.5"
@@ -391,12 +400,12 @@ export default function CustomStudioAdminModule() {
                         <div className="text-[10px] font-mono text-emerald-700 mt-1">Render {String(design.lockedHash || "").slice(0, 16)}…</div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {Object.entries(design.productionFiles || {}).map(([side, file]) => (
-                            <a key={side} href={file.downloadUrl} download className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-800 px-3 text-xs font-semibold text-white">
-                              <Download size={13} /> Print {prettify(side)} PNG
+                            <a key={side} href={file.downloadUrl} download className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white ${handoff.canPrint ? "bg-emerald-800" : "bg-amber-700"}`}>
+                              <Download size={13} /> {handoff.canPrint ? "Print" : handoff.qaOnly ? "QA Only" : "QA preview"} {prettify(side)} PNG
                             </a>
                           ))}
                         </div>
-                        <div className="mt-2 text-[10px] font-semibold text-emerald-800">Print these locked files exactly. Do not rebuild the customer artwork.</div>
+                        <div className={`mt-2 text-[10px] font-semibold ${handoff.canPrint ? "text-emerald-800" : "text-amber-900"}`}>{handoff.canPrint ? "Print these locked files exactly. Do not rebuild the customer artwork." : "Production Blocked — artwork inspection only. No printing or fulfillment without verified live payment."}</div>
                       </div>
                     ) : design?.personalization?.previewState && (
                       <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3">
@@ -428,7 +437,7 @@ export default function CustomStudioAdminModule() {
                   <div className="rounded-lg border border-[#e2e2e2] p-3 h-fit">
                     <div className="text-[10px] uppercase tracking-wide text-[#888]">{design?.renderStatus === "locked" ? "Production handoff" : "Proof workspace"}</div>
                     <div className="font-semibold mt-1">
-                      {design?.renderStatus === "locked" ? "Ready to print" : proof ? `v${proof.currentVersion || 0} · ${prettify(proof.status)}` : "No proof record"}
+                      {handoff.label}{handoff.canPrint ? "" : proof ? ` · proof v${proof.currentVersion || 0}` : ""}
                     </div>
                     {proof && (
                       <>
@@ -446,7 +455,7 @@ export default function CustomStudioAdminModule() {
                         Proof workspace not created yet.
                       </div>
                     )}
-                    {design?.renderStatus === "locked" && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">No manual proof is required. Payment automatically releases this approved render to production.</div>}
+                    {design?.renderStatus === "locked" && <div className={`mt-3 rounded-lg border p-2 text-xs ${handoff.canPrint ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>{handoff.canPrint ? "This approved render is cleared for paid production." : "Production Blocked: locked artwork is saved, but it must not be printed or fulfilled until a live payment is verified."}</div>}
                   </div>
                 </div>
               </div>

@@ -28,6 +28,7 @@ const mapOrder = (row) => ({
   customerEmail: row.customer_email,
   customerPhone: row.customer_phone,
   paymentStatus: row.payment_status,
+  paymentMode: row.payment_mode,
   fulfillmentStatus: row.fulfillment_status,
   needByDate: row.need_by_date,
   productionChecklist: row.production_checklist || {},
@@ -185,9 +186,16 @@ export const adminCustomStudioApi = {
   },
 
   async releaseApprovedOrder(orderId) {
-    await adminApi.updateOrder(orderId, {
-      status: "production_queue",
-      productionStatus: "queued",
-    });
+    // Recheck payment in the database at the exact release write. A stale
+    // admin tab must never move an unpaid or Stripe test order into production.
+    const { data, error } = await supabase.from("orders")
+      .update({ status: "production_queue", production_status: "queued" })
+      .eq("id", orderId)
+      .eq("payment_status", "paid")
+      .eq("payment_mode", "live")
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error("Production Blocked: verified paid live order required.");
   },
 };
