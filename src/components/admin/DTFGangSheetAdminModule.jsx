@@ -14,6 +14,7 @@ import { adminDtfGangSheetApi } from "@/lib/adminDtfGangSheetApi";
 import { normalizeDtfSettings } from "@/lib/dtfGangSheet";
 import { exportProductionPackage } from "@/lib/dtfFilmExport";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
+import { productionPaymentGate } from "@/lib/productionPaymentGate";
 
 const moneyRate = (value) => Number(value || 0).toFixed(3);
 
@@ -298,6 +299,11 @@ export default function DTFGangSheetAdminModule() {
                       <Small label="Artworks" value={String(entry.spec.layout?.length || 0)} />
                       <Small label="Line total" value={`$${(entry.unitPrice * entry.quantity).toFixed(2)}`} />
                     </div>
+                    {!productionPaymentGate(entry).canRelease && (
+                      <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        <span className="font-semibold">{productionPaymentGate(entry).label}</span> · {productionPaymentGate(entry).detail}. Production ZIP unavailable; artwork remains viewable for QA.
+                      </div>
+                    )}
                     {entry.artworkUrl && (
                       <a
                         href={entry.artworkUrl}
@@ -308,7 +314,7 @@ export default function DTFGangSheetAdminModule() {
                         <FileImage size={14} /> Open first artwork
                       </a>
                     )}
-                    {form.adminProductionExportEnabled && (
+                    {form.adminProductionExportEnabled && productionPaymentGate(entry).canRelease && (
                       <button
                         type="button"
                         disabled={exportingId === entry.orderItemId}
@@ -316,7 +322,7 @@ export default function DTFGangSheetAdminModule() {
                           setExportingId(entry.orderItemId);
                           setError("");
                           try {
-                            await exportProductionPackage({ items: entry.spec.layout || [], width: Number(entry.spec.width), length: Number(entry.spec.length), settings: form, orderNumber: entry.orderNumber, itemId: entry.orderItemId });
+                            await exportProductionPackage({ items: entry.spec.layout || [], width: Number(entry.spec.width), length: Number(entry.spec.length), settings: form, orderNumber: entry.orderNumber, itemId: entry.orderItemId, authorizeProduction: () => adminDtfGangSheetApi.assertProductionExportReady(entry.orderId) });
                           } catch (err) {
                             setError(err?.message || "Could not export this film.");
                           } finally {

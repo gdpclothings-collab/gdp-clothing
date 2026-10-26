@@ -19,6 +19,7 @@ import {
   PRODUCTION_STATUSES,
 } from "@/lib/adminProductionApi";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
+import { productionPaymentGate } from "@/lib/productionPaymentGate";
 
 function prettify(value) {
   return String(value || "—").replaceAll("_", " ");
@@ -236,6 +237,7 @@ export default function ProductionModule() {
 }
 
 function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
+  const productionGate = productionPaymentGate(order);
   const [checklist, setChecklist] = useState(order.production_checklist || {});
   const [savingCheck, setSavingCheck] = useState("");
   const [status, setStatus] = useState(order.status);
@@ -312,15 +314,20 @@ function ProductionDrawer({ order, onClose, onChanged, onStatus }) {
         </div>
 
         <div className="p-5 space-y-4">
+          {!productionGate.canRelease && (
+            <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <span className="font-semibold">{productionGate.label}</span> · {productionGate.detail}
+            </div>
+          )}
           <section className="rounded-xl border border-[#dedede] bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-[#eaeaea] text-sm font-semibold">Production status</div>
             <div className="p-4 flex gap-2">
-              <select value={status} onChange={(event) => setStatus(event.target.value)} className="flex-1 h-10 rounded-lg border border-[#d4d4d4] px-3 text-sm bg-white">
+              <select value={status} disabled={order.payment_mode === "test"} onChange={(event) => setStatus(event.target.value)} className="flex-1 h-10 rounded-lg border border-[#d4d4d4] px-3 text-sm bg-white disabled:opacity-50">
                 {PRODUCTION_STATUSES.map((option) => <option key={option} value={option}>{prettify(option)}</option>)}
               </select>
               <button
                 onClick={saveStatus}
-                disabled={status === savedStatus}
+                disabled={status === savedStatus || order.payment_mode === "test"}
                 className="h-10 px-4 rounded-lg bg-[#222] text-white text-sm font-medium disabled:opacity-40"
               >
                 Update
