@@ -59,3 +59,15 @@ test('navigation polish respects same-route browser history and keeps Studio red
   assert.doesNotMatch(studio, /const frame = window\.requestAnimationFrame\(\(\) => \{/);
   assert.match(smoke, /Home → browser Back → Studio without loading flash/);
 });
+
+test('browser history smoke isolates draft recovery from clean catalog navigation', () => {
+  const smoke = fs.readFileSync('scripts/custom-studio-browser-history-smoke.mjs', 'utf8');
+  assert.match(smoke, /reload → unfinished draft recovered/);
+  assert.match(smoke, /const catalogContext = await browser\.newContext\(/);
+  assert.match(smoke, /const catalogPage = await catalogContext\.newPage\(/);
+  assert.match(smoke, /await gallery\(catalogPage\)\.waitFor/);
+  assert.match(smoke, /await catalogPage\.goBack\(/);
+  assert.match(smoke, /await catalogContext\.close\(\)/);
+  assert.doesNotMatch(smoke, /sessionStorage\.clear\(\)/,
+    'clearing session storage before reload lets the pagehide handler restore the draft');
+});
