@@ -1,3 +1,5 @@
+import { enteringProduction, productionPaymentGate } from "@/lib/productionPaymentGate";
+
 export const TERMINAL_ORDER_STATUSES = ["completed", "cancelled", "refunded"];
 
 export const isPickupOrder = (order = {}) => {
@@ -11,6 +13,7 @@ export const isPickupOrder = (order = {}) => {
 export const getWorkflowValues = (order = {}) => ({
   status: order.status || "pending_payment",
   paymentStatus: order.paymentStatus || order.payment_status || "pending",
+  paymentMode: order.paymentMode || order.payment_mode || "",
   designStatus: order.designStatus || order.design_status || "not_required",
   productionStatus: order.productionStatus || order.production_status || "not_started",
   fulfillmentStatus: order.fulfillmentStatus || order.fulfillment_status || "unfulfilled",
@@ -34,8 +37,15 @@ export function getWorkflowIssues(order) {
     "out_for_delivery", "delivered", "picked_up",
   ].includes(state.fulfillmentStatus);
 
-  if (productionStarted && !["paid", "partially_refunded"].includes(state.paymentStatus)) {
-    issues.push("Production cannot start until payment is confirmed.");
+  if (enteringProduction(order.originalProductionStatus ?? order.production_status ?? "not_started", state.productionStatus)) {
+    const gate = productionPaymentGate(state);
+    if (!gate.canRelease) issues.push(`${gate.label}: ${gate.detail}.`);
+  } else if (productionStarted && state.paymentMode === "test"
+    && (order.production_status ?? "not_started") !== state.productionStatus) {
+    issues.push("QA Only: Stripe test orders cannot advance in production.");
+  } else if (productionStarted && !["paid", "partially_refunded"].includes(state.paymentStatus)) {
+    // Existing in-progress orders retain the established payment correction rule.
+    issues.push("Production cannot continue until payment is confirmed.");
   }
   if (productionStarted && state.isCustom && state.designStatus !== "approved") {
     issues.push("Approve the customer artwork before starting production.");

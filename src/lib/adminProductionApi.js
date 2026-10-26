@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { adminApi } from "@/lib/adminApi";
 import { SEASONAL_BUCKET } from "@/lib/seasonalArtwork";
+import { assertPaidLiveProductionEntry } from "@/lib/adminProductionPaymentApi";
 
 export const PRODUCTION_STATUSES = [
   "production_queue",
@@ -169,7 +170,7 @@ export const adminProductionApi = {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, order_number, customer_name, customer_email, total, status, production_status, fulfillment_status, priority, need_by_date, production_checklist, tracking_number, carrier, created_at, order_items(id, name, image, variant, size, color, quantity, is_custom, custom_design_id)"
+        "id, order_number, customer_name, customer_email, total, status, payment_status, payment_mode, production_status, fulfillment_status, priority, need_by_date, production_checklist, tracking_number, carrier, created_at, order_items(id, name, image, variant, size, color, quantity, is_custom, custom_design_id)"
       )
       .in("status", PRODUCTION_STATUSES)
       .order("need_by_date", { ascending: true, nullsFirst: false })
@@ -245,6 +246,8 @@ export const adminProductionApi = {
             : status === "delivered"
               ? "delivered"
               : undefined;
+
+    await assertPaidLiveProductionEntry(orderId, productionStatus);
 
     await adminApi.updateOrder(orderId, {
       status,

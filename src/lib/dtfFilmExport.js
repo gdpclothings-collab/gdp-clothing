@@ -116,7 +116,11 @@ export async function downloadFilmPreview({ items, width, length, settings, file
   downloadBlob(await canvasBlob(canvas, "image/png"), ensurePngFilename(filename));
 }
 
-export async function exportProductionPackage({ items, width, length, settings, orderNumber = "DTF", itemId = "film" }) {
+export async function exportProductionPackage({ items, width, length, settings, orderNumber = "DTF", itemId = "film", authorizeProduction }) {
+  // A production ZIP must never be built from a stale or unverified order.
+  // Preview downloads use a separate path and remain available for QA.
+  if (typeof authorizeProduction !== "function") throw new Error("Production Blocked: payment authorization is required for production ZIP export.");
+  await authorizeProduction();
   const unsupported = items.filter((item) => !item.exportUrl || String(item.type || "").includes("pdf"));
   if (unsupported.length) throw new Error("Production export needs image source files. Open PDF artwork separately before printing.");
   const [{ default: JSZip }, { jsPDF }] = await Promise.all([import("jszip"), import("jspdf")]);

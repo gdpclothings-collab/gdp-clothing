@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { calculateDtfPrice, normalizeDtfSettings } from "@/lib/dtfGangSheet";
+import { productionPaymentGate } from "@/lib/productionPaymentGate";
 
 const mapDtfItem = async (order, item) => {
   const spec = item.custom_data || {};
@@ -18,6 +19,7 @@ const mapDtfItem = async (order, item) => {
     customerEmail: order.customer_email,
     status: order.status,
     paymentStatus: order.payment_status,
+    paymentMode: order.payment_mode,
     productionStatus: order.production_status,
     createdAt: order.created_at,
     orderItemId: item.id,
@@ -34,7 +36,7 @@ export const adminDtfGangSheetApi = {
       supabase.rpc("get_dtf_settings"),
       supabase
         .from("orders")
-        .select("id, order_number, customer_name, customer_email, status, payment_status, production_status, created_at, order_items(*)")
+        .select("id, order_number, customer_name, customer_email, status, payment_status, payment_mode, production_status, created_at, order_items(*)")
         .order("created_at", { ascending: false })
         .limit(250),
     ]);
@@ -56,6 +58,22 @@ export const adminDtfGangSheetApi = {
     }
 
     return { settings, queue };
+  },
+
+  // Re-read the order when export is requested: the queue snapshot might be
+  // stale after a failed payment or an admin changes an order's state.
+  async assertProductionExportReady(orderId) {
+    if (!orderId) throw new Error("Production Blocked: missing DTF order reference.");
+    const { data: order, error } = await supabase
+      .from("orders")
+      .select("id, payment_status, payment_mode")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!order) throw new Error("Production Blocked: DTF order was not found.");
+
+    const gate = productionPaymentGate(order);
+    if (!gate.canRelease) throw new Error(`${gate.label}: ${gate.detail}.`);
   },
 
   async saveSettings(settings) {

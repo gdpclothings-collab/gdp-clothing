@@ -28,6 +28,7 @@ import {
   getWorkflowIssues,
 } from "@/lib/orderWorkflow";
 import { useUnsavedChangesGuard } from "@/lib/UnsavedChangesContext";
+import { productionPaymentGate } from "@/lib/productionPaymentGate";
 
 const PAGE_SIZE = 25;
 
@@ -1006,6 +1007,8 @@ function OrderDrawer({ order, saving, onClose, onSave }) {
   };
 
   const workflowIssues = getWorkflowIssues({ ...order, ...values });
+  const productionGate = productionPaymentGate(order);
+  const productionEntryBlocked = !productionGate.canRelease && (order.production_status === "not_started" || order.payment_mode === "test");
 
   return (
     <div className="fixed inset-0 z-[70]">
@@ -1048,6 +1051,9 @@ function OrderDrawer({ order, saving, onClose, onSave }) {
           </div>
 
           <Section title="Workflow controls">
+            <div className={"mb-3 rounded-lg border px-3 py-2 text-xs " + (productionGate.canRelease ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900")} role="status">
+              <span className="font-semibold">{productionGate.label}</span> · {productionGate.detail}
+            </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="rounded-lg border border-[#d5d5d5] bg-[#f7f7f7] px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wide text-[#777]">Customer status · automatic</div>
@@ -1068,7 +1074,7 @@ function OrderDrawer({ order, saving, onClose, onSave }) {
               <WorkflowSelect
                 label="Production"
                 value={values.productionStatus}
-                options={PRODUCTION_STATUS_OPTIONS}
+                options={productionEntryBlocked ? [order.production_status || "not_started"] : PRODUCTION_STATUS_OPTIONS}
                 onChange={(value) => setField("productionStatus", value)}
               />
             </div>
