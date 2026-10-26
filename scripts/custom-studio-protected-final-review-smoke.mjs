@@ -74,6 +74,7 @@ async function inspect(browser, testCase, viewport) {
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
   const id = 'data-gdp-' + testCase.name;
+  let initialActiveLayer = null;
   try {
     await page.goto(BASE + '/cart', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.getByRole('button', { name: /^Edit design$/i }).first().click();
@@ -94,9 +95,24 @@ async function inspect(browser, testCase, viewport) {
     const activeToolbar = page.locator('[' + id + '-active-layer="true"]').first();
     await activeStatus.waitFor({ state: 'visible', timeout: 15000 });
     await activeToolbar.waitFor({ state: 'visible', timeout: 15000 });
-    assert(/Editing Photo/i.test(await activeStatus.innerText()), testCase.name + '/' + viewport.name + ': Step 3 must still show selected photo');
-    assert(await activeToolbar.getByRole('button', { name: /^Photo$/i }).isVisible(),
-      testCase.name + '/' + viewport.name + ': Step 3 layer selector was unexpectedly removed');
+    // The editor may restore a different active tool. Capture the initial
+    // state, then select Photo through the real Step 3 UI instead of assuming
+    // that the local selection defaults to Photo after cart-edit hydration.
+    initialActiveLayer = (await activeStatus.innerText()).trim();
+    const photoTool = activeToolbar.getByRole('button', { name: /^Photo$/i });
+    await photoTool.waitFor({ state: 'visible', timeout: 15000 });
+    assert(await photoTool.isEnabled(), testCase.name + '/' + viewport.name + ': Photo tool is disabled');
+    await photoTool.click();
+    await page.waitForFunction((selector) => /Editing Photo/i.test(document.querySelector(selector)?.textContent || ''),
+      '[' + id + '-active-status="true"]', { timeout: 5000 });
+    const selectedStatus = (await activeStatus.innerText()).trim();
+    assert(/Editing Photo/i.test(selectedStatus), testCase.name + '/' + viewport.name + ': selected Photo but active status is ' + JSON.stringify(selectedStatus));
+    assert(await photoTool.getAttribute('aria-pressed') === 'true', testCase.name + '/' + viewport.name + ': Photo tool did not stay selected');
+    assert(await photo.isVisible(), testCase.name + '/' + viewport.name + ': selected photo layer disappeared from Step 3');
+    assert(await imageLoaded(photo.locator('img[alt="Customer photo layer"]'), 'Selected photo') === initialPhotoImage,
+      testCase.name + '/' + viewport.name + ': selecting Photo changed the image source');
+    assert(await photo.getAttribute('style') === photoStyle,
+      testCase.name + '/' + viewport.name + ': selecting Photo changed its placement');
 
     const approvalCard = page.locator('[data-gdp-step3-unified-approval="true"]');
     const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
@@ -171,7 +187,31 @@ async function inspect(browser, testCase, viewport) {
     assert(width.scroll <= width.client + 3, 'Mobile horizontal overflow');
     assert(errors.length === 0, 'Browser errors: ' + errors.join(' | '));
     await page.screenshot({ path: path.join(DIR, 'protected-final-review-' + testCase.name + '-' + viewport.name + '.png'), fullPage: true });
-    return { designPath: testCase.name, viewport: viewport.name, status: 'passed' };
+    return { designPath: testCase.name, viewport: viewport.name, status: 'passed', initialActiveLayer };
+  } catch (error) {
+    // Record the actual editor selection and a screenshot when a synthetic
+    // read-only smoke case fails. Do not capture customer sessions or secrets.
+    const selection = await page.evaluate((scope) => {
+      const status = document.querySelector('[' + scope + '-active-status="true"]');
+      const toolbar = document.querySelector('[' + scope + '-active-layer="true"]');
+      return {
+        status: (status?.textContent || '').trim(),
+        tools: Array.from(toolbar?.querySelectorAll('button') || []).map((button) => ({
+          label: (button.textContent || '').trim(),
+          pressed: button.getAttribute('aria-pressed'),
+          disabled: button.disabled,
+        })),
+        photoLayers: document.querySelectorAll('[' + scope + '-free-photo-layer="true"]').length,
+        templateLayers: document.querySelectorAll('[' + scope + '-template-layer="true"]').length,
+      };
+    }, id).catch((diagnosticError) => ({ diagnosticError: String(diagnosticError) }));
+    await Promise.allSettled([
+      fs.writeFile(path.join(DIR, 'protected-final-review-' + testCase.name + '-' + viewport.name + '-FAILED.json'),
+        JSON.stringify({ case: testCase.name, viewport: viewport.name, error: String(error?.message || error),
+          initialActiveLayer, selection, pageErrors: errors }, null, 2)),
+      page.screenshot({ path: path.join(DIR, 'protected-final-review-' + testCase.name + '-' + viewport.name + '-FAILED.png'), fullPage: true }),
+    ]);
+    throw error;
   } finally {
     await context.close();
   }
