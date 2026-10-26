@@ -145,6 +145,14 @@ async function verify(browser, viewport) {
     // catalog snapshot instead of painting a fresh "Loading Custom Studio"
     // screen for one frame. Detect even very short flashes with an observer.
     await page.goto(BASE + '/custom-studio', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // An unfinished design is intentionally restored after a full reload.
+    // Assert recovery before resetting only this disposable smoke-test draft.
+    await page.getByRole('heading', { name: /^Upload My Own Artwork$/i }).first().waitFor({ state: 'visible', timeout: 20000 });
+    result.transitions.push('reload → unfinished draft recovered');
+    // Start the Home/Back gallery check in a clean browser context so that
+    // the recovery behaviour cannot be mistaken for a navigation failure.
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
     await gallery(page).waitFor({ state: 'visible', timeout: 20000 });
     await page.evaluate(() => {
       window.__studioLoadingSpotted = false;
