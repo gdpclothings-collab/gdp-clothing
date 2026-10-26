@@ -112,6 +112,22 @@ export const adminCustomStudioApi = {
 
     const designs = await Promise.all(
       (designsResult.data || []).map(async (row) => {
+        // Stored private bucket keys cannot be used directly as <img src>.
+        // Sign only the first six thumbnails visible in the admin grid, in a
+        // single Storage request per design, instead of signing every upload.
+        const photoAssets = row.photo_assets || [];
+        const visiblePaths = [...new Set([
+          ...photoAssets.slice(0, 6).map((asset) => asset?.path || asset?.storage_path || asset?.url || ""),
+          ...(!photoAssets.length ? (row.photos || []).slice(0, 6) : []),
+        ].filter((path) => path && !/^(https?:\/\/|data:image\/)/i.test(path)))];
+        const signedPhotos = new Map();
+        if (visiblePaths.length) {
+          const { data: signed, error: photoError } = await supabase.storage
+            .from("customer-uploads")
+            .createSignedUrls(visiblePaths, 3600);
+          if (!photoError) visiblePaths.forEach((path, i) => signedPhotos.set(path, signed?.[i]?.signedUrl || ""));
+        }
+        const photoUrl = (path) => /^(https?:\/\/|data:image\/)/i.test(path || "") ? path : signedPhotos.get(path) || "";
         const productionFiles = {};
         for (const side of ["front", "back"]) {
           const file = row.production_files?.[side];
@@ -124,6 +140,11 @@ export const adminCustomStudioApi = {
         return mapDesign({
           ...row,
           preview_url: await signedStorageUrl("customer-uploads", row.preview_url),
+          photo_assets: photoAssets.map((asset) => ({
+            ...asset,
+            url: photoUrl(asset?.path || asset?.storage_path || asset?.url),
+          })),
+          photos: (row.photos || []).map((path) => photoUrl(path)),
           production_files: productionFiles,
         });
       })

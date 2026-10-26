@@ -1156,7 +1156,7 @@ function PhotoGrid({ design }) {
       {visible.map((photo, index) => (
         <img
           key={index}
-          src={photo.url || photo}
+          src={photo?.url || design?.previewUrl || ""}
           alt=""
           className="aspect-square w-full object-cover bg-[#f2f2f2] rounded"
         />
