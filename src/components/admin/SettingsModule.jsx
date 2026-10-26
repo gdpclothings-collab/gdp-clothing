@@ -56,7 +56,15 @@ export default function SettingsModule() {
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   const save = async () => {
-    if (savedForm?.paymentMode !== form?.paymentMode) {
+    const paymentModeChanged = savedForm?.paymentMode !== form?.paymentMode;
+    if (paymentModeChanged) {
+      const otherUnsavedChanges = Object.keys(form).some(
+        (key) => key !== "paymentMode" && JSON.stringify(form[key]) !== JSON.stringify(savedForm?.[key])
+      );
+      if (otherUnsavedChanges) {
+        setError("Save or discard other settings first. Payment mode must be changed on its own.");
+        return false;
+      }
       const destination = form.paymentMode === "test" ? "TEST" : "LIVE";
       const warning = form.paymentMode === "test"
         ? "Turn on Payment Test Mode? Checkout will use Stripe test credentials and no real money will be collected."
@@ -65,10 +73,14 @@ export default function SettingsModule() {
     }
     setSaving(true);
     try {
-      await adminSettingsApi.save({
-        ...form,
-        lowStockThreshold: Number(form.lowStockThreshold || 0),
-      });
+      if (paymentModeChanged) {
+        await adminSettingsApi.savePaymentMode(savedForm.paymentMode, form.paymentMode);
+      } else {
+        await adminSettingsApi.save({
+          ...form,
+          lowStockThreshold: Number(form.lowStockThreshold || 0),
+        });
+      }
       setNotice("Store settings saved.");
       setError("");
       setSavedAt(new Date());

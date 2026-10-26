@@ -466,8 +466,9 @@ export const adminApi = {
       youtube: data.youtube || null,
       footer_text: data.footerText || null,
       custom_studio_settings: data.customStudioSettings || {},
-      payment_mode: data.paymentMode === "test" ? "test" : "live",
-      test_inventory_workflow: Boolean(data.testInventoryWorkflow),
+      ...(Object.prototype.hasOwnProperty.call(data, "testInventoryWorkflow")
+        ? { test_inventory_workflow: Boolean(data.testInventoryWorkflow) }
+        : {}),
     };
 
     throwIfError(await supabase.from("store_settings").update(payload).eq("id", id || 1));
