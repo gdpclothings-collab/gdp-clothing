@@ -106,7 +106,7 @@ await assert.rejects(exportProductionPackage({ items: [{ type: "pdf" }], width: 
 assert.equal(authorizationCalls, 2, "fresh authorization must run before any rendering or ZIP generation");
 delete globalThis.__gdpProductionTestSupabase;
 
-const migration = read("supabase/migrations/20261026031641_enforce_paid_live_production_entry.sql");
+const migration = read("supabase/migrations/20261026034340_enforce_paid_live_production_entry.sql");
 assert.match(migration, /create trigger orders_enforce_paid_live_production_entry/i);
 assert.match(migration, /before insert or update of production_status, payment_status, payment_mode/i);
 assert.match(migration, /old\.production_status = 'not_started'/);
