@@ -71,3 +71,16 @@ test('browser history smoke isolates draft recovery from clean catalog navigatio
   assert.doesNotMatch(smoke, /sessionStorage\.clear\(\)/,
     'clearing session storage before reload lets the pagehide handler restore the draft');
 });
+
+test('protected Final Review smoke selects Photo explicitly and preserves failure evidence', () => {
+  const smoke = fs.readFileSync('scripts/custom-studio-protected-final-review-smoke.mjs', 'utf8');
+  assert.match(smoke, /const photoTool = activeToolbar\.getByRole\('button', \{ name: \/\^Photo\$\/i \}\)/);
+  assert.match(smoke, /await photoTool\.click\(\)/);
+  assert.match(smoke, /await photoTool\.getAttribute\('aria-pressed'\)/);
+  assert.match(smoke, /initialActiveLayer/);
+  assert.match(smoke, /-FAILED\.json/);
+  assert.match(smoke, /-FAILED\.png/);
+  assert.match(smoke, /Approved photo.*initialPhotoImage/);
+  assert.match(smoke, /Approved template.*initialTemplateImage/);
+  assert.match(smoke, /Step 4 still contains layer selection\/status panels/);
+});
