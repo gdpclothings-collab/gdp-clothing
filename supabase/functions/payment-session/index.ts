@@ -64,7 +64,8 @@ async function consumeRateLimit(service: any, req: Request, action: string) {
 }
 
 function normalizePaymentMode(value: unknown): "live" | "test" {
-  return value === "test" ? "test" : "live";
+  if (value === "test" || value === "live") return value;
+  throw new Error("Checkout payment mode is missing or invalid. No charge was attempted.");
 }
 
 function stripeSecretMatchesMode(secret: string, paymentMode: "live" | "test") {
