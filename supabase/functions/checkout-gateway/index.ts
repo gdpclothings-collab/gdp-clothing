@@ -57,8 +57,9 @@ function safeMoney(value: unknown) {
   return Math.round(Math.min(number, 1_000_000) * 100) / 100;
 }
 
-function normalizePaymentMode(value: unknown) {
-  return value === "test" ? "test" : "live";
+function normalizePaymentMode(value: unknown): "test" | "live" {
+  if (value === "test" || value === "live") return value;
+  throw new Error("Checkout payment mode is missing or invalid. No charge was attempted.");
 }
 
 function stripeSecretMatchesMode(secret: string, paymentMode: "test" | "live") {

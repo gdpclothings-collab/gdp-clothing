@@ -38,4 +38,28 @@ assert(webhook.includes('paymentObject?.payment_status !== "paid"'), "legacy Che
 assert(webhook.includes('payment_status: "paid"'), "verified Stripe success must still finalize orders");
 assert(webhook.includes("finalizePaidOrder"), "all verified Stripe success paths must share one paid-order finalizer");
 
+// Invalid or absent payment-mode configuration must NEVER silently select live keys.
+// Exercise the three TypeScript normalizers directly, including their failure path.
+for (const filename of [
+  "supabase/functions/checkout-gateway/index.ts",
+  "supabase/functions/payment-session/index.ts",
+  "supabase/functions/payment-preflight/index.ts",
+]) {
+  const source = fs.readFileSync(filename, "utf8");
+  const extracted = source.match(/function normalizePaymentMode\(value: unknown\)(?:: "(?:live|test)" \| "(?:live|test)")? \{([\s\S]*?)\n\}/);
+  assert(Boolean(extracted), filename + ": missing explicit payment mode normalizer");
+  const normalize = new Function("value", extracted[1]);
+  assert(normalize("live") === "live" && normalize("test") === "test", filename + ": valid modes should round-trip");
+  for (const invalid of [null, undefined, "", "LIVE", "unknown", 0]) {
+    let rejected = false;
+    try { normalize(invalid); } catch { rejected = true; }
+    assert(rejected, filename + ": invalid value must fail closed, never default to live");
+  }
+}
+
+const checkoutCore = fs.readFileSync("supabase/functions/checkout/index.ts", "utf8");
+assert(checkoutCore.includes('const paymentMode = storeSettings?.payment_mode;'), "checkout core must read exact payment mode");
+assert(checkoutCore.includes('paymentMode !== "test" && paymentMode !== "live"'), "checkout core must reject missing/invalid mode");
+assert(!checkoutCore.includes('storeSettings?.payment_mode === "test" ? "test" : "live"'), "checkout core must not default to live");
+
 console.log("Payment confirmation authority regression checks passed.");
