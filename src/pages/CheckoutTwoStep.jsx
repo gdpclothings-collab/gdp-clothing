@@ -46,10 +46,12 @@ export default function CheckoutTwoStepMichaels() {
   const [config, setConfig] = useState(null);
   const [error, setError] = useState("");
   const [placing, setPlacing] = useState(false);
+  const [paymentProgress, setPaymentProgress] = useState("idle");
   const [paymentClient, setPaymentClient] = useState(null);
   const [canConfirm, setCanConfirm] = useState(false);
   const [paymentMode, setPaymentMode] = useState("live");
   const [paymentReady, setPaymentReady] = useState(false);
+  const payInFlightRef = useRef(false);
   const paymentHost = useRef(null);
   const paymentElement = useRef(null);
   const tracking = useRef(null);
@@ -299,14 +301,19 @@ export default function CheckoutTwoStepMichaels() {
   };
 
   const pay = async () => {
+    // A synchronous guard prevents rapid repeat clicks before React disables Pay.
+    if (payInFlightRef.current) return;
     setError("");
     if (!form.termsAccepted) return setError("Accept the Terms & Conditions and acknowledge the Privacy Policy to place your order.");
     if (!paymentClient?.stripe || !paymentClient?.elements || !canConfirm) return setError("Please complete your payment information before placing the order.");
 
+    payInFlightRef.current = true;
     setPlacing(true);
+    setPaymentProgress("checking");
     try {
       const submitted = await paymentClient.elements.submit();
       if (submitted?.error) throw new Error(submitted.error.message || "Please check your payment information.");
+      setPaymentProgress("preparing");
 
       const token = ensureToken();
       const checkoutForm = { ...form, postalCode:normalizePostal(form.postalCode), country:"Canada", termsAccepted:false };
@@ -358,6 +365,7 @@ export default function CheckoutTwoStepMichaels() {
       }
 
       await customerApi.acceptCheckoutPolicies(orderData.orderNumber, orderData.confirmationToken, token);
+      setPaymentProgress("verifying");
 
       const returnUrl = `${window.location.origin}/order/${encodeURIComponent(orderData.orderNumber)}?status=success&token=${encodeURIComponent(orderData.confirmationToken)}`;
       const result = await paymentClient.stripe.confirmPayment({
@@ -372,9 +380,17 @@ export default function CheckoutTwoStepMichaels() {
     } catch (e) {
       setError(e?.message || "Payment could not be completed. Please try again.");
     } finally {
+      payInFlightRef.current = false;
       setPlacing(false);
+      setPaymentProgress("idle");
     }
   };
+
+  const paymentProgressText = paymentProgress === "checking"
+    ? "Checking your payment details securely. Please keep this page open."
+    : paymentProgress === "preparing"
+      ? "Preparing your order and confirming the final total. Please do not click Pay again."
+      : "Stripe is verifying your payment. We will show your order status when it finishes.";
 
   if (!items.length) {
     return <div className="max-w-[1500px] mx-auto px-4 py-20 text-center"><h1 className="font-display text-4xl">Cart is empty</h1><Link to="/shop" className="text-accent mt-4 inline-block">Browse products</Link></div>;
@@ -464,7 +480,8 @@ export default function CheckoutTwoStepMichaels() {
           <div className="flex justify-between font-bold text-lg mt-3 pt-3 border-t border-border"><span>Total CAD</span><span className="font-mono">${total.toFixed(2)}</span></div>
           {error && <div className="mt-3 flex gap-2 text-sm text-destructive bg-destructive/10 p-3"><AlertTriangle size={16} /><span>{error}</span></div>}
           {!isPayment ? <button onClick={continueToPayment} disabled={!detailsComplete} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">Continue to payment →</button> : <>
-            <button onClick={pay} disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">{placing ? "Processing order…" : `Pay · $${total.toFixed(2)}`}</button>
+            <button type="button" onClick={pay} disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted} aria-busy={placing} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">{placing ? (paymentProgress === "checking" ? "Checking payment details…" : paymentProgress === "preparing" ? "Preparing your order…" : "Verifying payment…") : `Pay · ${total.toFixed(2)}`}</button>
+            {placing && <div role="status" aria-live="polite" aria-atomic="true" className="mt-3 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950"><Lock size={15} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{paymentProgressText}</span></div>}
             <label className="mt-3 flex items-start gap-3 rounded-xl border border-border p-3 text-xs text-left"><input type="checkbox" checked={!!form.termsAccepted} onChange={(e)=>set("termsAccepted",e.target.checked)} disabled={placing} className="mt-0.5" /><span>I agree to the <Link to="/pages/terms" target="_blank" className="text-accent font-semibold">Terms & Conditions</Link> and acknowledge the <Link to="/pages/privacy" target="_blank" className="text-accent font-semibold">Privacy Policy</Link>.</span></label>
           </>}
           <p className="text-[11px] text-muted-foreground mt-3 text-center"><Lock size={11} className="inline mr-1" />Secure payment fields are provided by Stripe.</p>
