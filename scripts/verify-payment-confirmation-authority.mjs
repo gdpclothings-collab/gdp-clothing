@@ -97,6 +97,8 @@ function mockPaymentAttempt() {
   const firstSubmit = new Promise((resolve) => { releaseFirstSubmit = resolve; });
   const env = {
     payInFlightRef,
+    activeConfig: { tax: 0, configured: true },
+    taxQuoteError: "",
     setError: (message) => trace.push(["error", message]),
     form: { termsAccepted: true, email: "qa@example.invalid", postalCode: "S7K2A1" },
     paymentClient: {
