@@ -202,7 +202,9 @@ function resolveBootlegTextPosition(style, textZone) {
   const directX = Number(style?.canvasX);
   const directY = Number(style?.canvasY);
   if (Number.isFinite(directX) && Number.isFinite(directY)) {
-    return { x: clamp(directX, 0, 100), y: clamp(directY, 0, 100) };
+    const minimum = style?.textEdgeCrop === true ? -100 : 0;
+    const maximum = style?.textEdgeCrop === true ? 200 : 100;
+    return { x: clamp(directX, minimum, maximum), y: clamp(directY, minimum, maximum) };
   }
   const zoneX = Number(textZone?.x ?? 12);
   const zoneY = Number(textZone?.y ?? 78);
@@ -503,27 +505,30 @@ function StickerLayer({ layer, selected, sticker, canvasRef, canvasAspect, onSel
 
 function BootlegTextLayer({ layer, layout, canvasRef, selected, onPatchStyle, scope = 'bootleg' }) {
   const style = layer?.style || {};
-  const rawLimits = layout ? bootlegGestureLimits(layout) : { minX: -50, maxX: 50, minY: -50, maxY: 50 };
-  const canvasX = Number.isFinite(Number(style.canvasX)) ? clamp(Number(style.canvasX), 0, 100) : 50;
-  const canvasY = Number.isFinite(Number(style.canvasY)) ? clamp(Number(style.canvasY), 0, 100) : 50;
+  // The first drag opts the layer into free edge positioning. Legacy saved
+  // layers remain unchanged until the customer actually repositions them.
+  const rawLimits = bootlegGestureLimits(layout, true);
+  const canvasX = Number.isFinite(Number(style.canvasX)) ? clamp(Number(style.canvasX), -100, 200) : 50;
+  const canvasY = Number.isFinite(Number(style.canvasY)) ? clamp(Number(style.canvasY), -100, 200) : 50;
   const gesture = useTouchTransformV2({
     transform: { scale: positiveScale(style.fontScale), rotation: style.rotation || 0, x: canvasX - 50, y: canvasY - 50 },
     onChange: (next) => onPatchStyle({
       ...style,
       freeTextLayout: true,
+      textEdgeCrop: true,
       fontScale: positiveScale(next.scale),
       rotation: next.rotation,
-      canvasX: clamp(next.x + 50, 0, 100),
-      canvasY: clamp(next.y + 50, 0, 100),
+      canvasX: clamp(next.x + 50, -100, 200),
+      canvasY: clamp(next.y + 50, -100, 200),
     }),
     containerRef: canvasRef,
     enabled: selected && Boolean(layout) && Boolean(layer?.text?.headline),
     minScale: 1,
     maxScale: 1000,
-    minX: clamp(rawLimits.minX, -50, 50),
-    maxX: clamp(rawLimits.maxX, -50, 50),
-    minY: clamp(rawLimits.minY, -50, 50),
-    maxY: clamp(rawLimits.maxY, -50, 50),
+    minX: rawLimits.minX,
+    maxX: rawLimits.maxX,
+    minY: rawLimits.minY,
+    maxY: rawLimits.maxY,
   });
   if (!layout || (!layout.headline && !layout.subline && !layout.message)) return null;
   const common = /** @type {const} */ ({
@@ -966,7 +971,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         </div>
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
-      {!compact && bootlegTextLayouts.some(({ layout }) => layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
+      {!compact && bootlegTextLayouts.some(({ layout }) => !layout?.textEdgeCrop && layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
       {!compact ? <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? (activeLayer === 'overlay' ? 'Overlay selected · use the sliders to adjust its effect · ' : activeLayer === 'template' ? 'Template layer selected · ' : activeLayer === 'photo' ? 'Tap any photo to switch · drag to move · pinch to resize/rotate · ' : activeLayer === 'text' ? 'Text layer selected · ' : 'Sticker layer selected · ') : ''}{activeLayer === 'overlay' ? '' : 'One finger moves · two fingers pinch/rotate · '}{String(side || 'front').toUpperCase()} side</p> : null}
     </div>
   );
@@ -1129,7 +1134,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const availablePremiumTextPresets = normalizePremiumTextPresets(settings?.premiumTextPresets).filter((preset) => preset.enabled || preset.id === textStyle?.premiumTextPresetId);
   const textPosition = resolveBootlegTextPosition(textStyle, textZone);
   const textLayout = textConstraint?.layout || null;
-  const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout) : null;
+  const textAnchorRanges = usesLayerLab && textLayout ? resolveBootlegAnchorRanges(textLayout, true) : null;
   const textXSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerX, textAnchorRanges.x) : 50;
   const textYSlider = usesLayerLab && textLayout && textAnchorRanges ? bootlegAnchorToSlider(textLayout.centerY, textAnchorRanges.y) : 50;
   const activePhotoVisibleBounds = usePhotoVisibleBounds(activePhoto?.asset, template?.photoZone || {}, canvasAspect);
@@ -1457,9 +1462,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const patchTextVisualPosition = (axis, value) => {
     if (!usesLayerLab || !activeTextLayer || !textLayout || !textAnchorRanges) return;
     const anchor = bootlegSliderToAnchor(value, textAnchorRanges[axis]);
-    const canvasX = axis === 'x' ? clamp(anchor / layoutWidth * 100, 0, 100) : textPosition.x;
-    const canvasY = axis === 'y' ? clamp(anchor / layoutHeight * 100, 0, 100) : textPosition.y;
-    patchTextStyle({ canvasX, canvasY });
+    const canvasX = axis === 'x' ? clamp(anchor / layoutWidth * 100, -100, 200) : textPosition.x;
+    const canvasY = axis === 'y' ? clamp(anchor / layoutHeight * 100, -100, 200) : textPosition.y;
+    patchTextStyle({ textEdgeCrop: true, canvasX, canvasY });
   };
 
   const nextTextName = () => {
@@ -1480,7 +1485,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       name: nextTextName(),
       ...(isMemorial ? { role: 'custom' } : {}),
       text: { headline: '', subline: '', message: '' },
-      style: normalizeBootlegTextStyle({ ...fallbackBootlegTextStyle, canvasX: 50, canvasY: clamp(50 + bootlegTextLayers.length * 5, 15, 85), fontScale: 100, rotation: 0 }, fallbackBootlegTextStyle),
+      style: normalizeBootlegTextStyle({ ...fallbackBootlegTextStyle, textEdgeCrop: true, canvasX: 50, canvasY: clamp(50 + bootlegTextLayers.length * 5, 15, 85), fontScale: 100, rotation: 0 }, fallbackBootlegTextStyle),
       order: bootlegTextLayers.length,
       visible: true,
     };
@@ -1741,12 +1746,12 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <div className="grid grid-cols-3 gap-1">
             {[[0, 'Left', 'x'], [50, 'Centre', 'x'], [100, 'Right', 'x'], [0, 'Top', 'y'], [50, 'Middle', 'y'], [100, 'Bottom', 'y']].map(([value, label, axis]) => <button key={`${axis}-${value}`} type="button" onClick={() => patchTextVisualPosition(axis, value)} className="min-h-10 rounded-lg border border-cyan-200 bg-white px-1 text-[11px] font-bold text-cyan-900">{label}</button>)}
           </div>
-          <p className="mt-2 text-[10px] text-cyan-800">Snaps the full text and effects within the printable edge. Preview and 300-DPI print share these limits.</p>
+          <p className="mt-2 text-[10px] text-cyan-800">Align visible lettering to the print edge, or drag beyond it to crop. Anything outside the dashed box is excluded from preview and 300-DPI print.</p>
         </div>
 
                   <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
         <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />
-        {textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">{textLayout?.horizontalFit < 0.999 ? `Letter width auto-fitted to ${Math.round(textLayout.horizontalFit * 100)}% to keep your larger text within the printable area.` : 'Text stays fully inside the printable boundary.'}</p>}
+        {textStyle.textEdgeCrop ? <p className="text-[10px] font-semibold leading-4 text-cyan-800">Free edge positioning is active. Only the lettering inside the print box will be printed.</p> : textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">{textLayout?.horizontalFit < 0.999 ? `Letter width auto-fitted to ${Math.round(textLayout.horizontalFit * 100)}% to keep your larger text within the printable area.` : 'Text stays fully inside the printable boundary.'}</p>}
         <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
 
         </div> : null}
