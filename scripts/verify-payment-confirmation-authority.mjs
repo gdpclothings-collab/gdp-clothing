@@ -82,4 +82,83 @@ assert(checkoutCore.includes('const paymentMode = storeSettings?.payment_mode;')
 assert(checkoutCore.includes('paymentMode !== "test" && paymentMode !== "live"'), "checkout core must reject missing/invalid mode");
 assert(!checkoutCore.includes('storeSettings?.payment_mode === "test" ? "test" : "live"'), "checkout core must not default to live");
 
+
+// Execute the actual Pay handler with isolated fakes. No network calls, orders,
+// Stripe intents or charges are created during these concurrency regressions.
+const handlerEnd = checkout.indexOf("\n  const paymentProgressText", payStart);
+assert(payStart >= 0 && handlerEnd > payStart, "mock QA could not isolate the Pay handler");
+const handlerSource = checkout.slice(payStart, handlerEnd);
+
+function mockPaymentAttempt() {
+  const trace = [];
+  const count = { submits: 0, orders: 0, confirmations: 0, navigations: 0 };
+  const payInFlightRef = { current: false };
+  let releaseFirstSubmit;
+  const firstSubmit = new Promise((resolve) => { releaseFirstSubmit = resolve; });
+  const env = {
+    payInFlightRef,
+    setError: (message) => trace.push(["error", message]),
+    form: { termsAccepted: true, email: "qa@example.invalid", postalCode: "S7K2A1" },
+    paymentClient: {
+      elements: {
+        submit: async () => { count.submits++; return count.submits === 1 ? firstSubmit : {}; },
+        update: () => {},
+      },
+      stripe: { confirmPayment: async () => { count.confirmations++; return {}; } },
+    },
+    canConfirm: true,
+    setPlacing: (value) => trace.push(["placing", value]),
+    setPaymentProgress: (value) => trace.push(["progress", value]),
+    ensureToken: () => "qa-token",
+    normalizePostal: () => "S7K 2A1",
+    items: [{ productId: "mock", quantity: 1, price: 12 }],
+    subtotal: 12, quantityDiscount: 0, coupon: 0, shipping: 0, tax: 0, total: 12,
+    tracking: { current: null }, trackedToken: { current: "" },
+    customerApi: {
+      trackCheckout: async () => {},
+      createOrder: async () => {
+        count.orders++;
+        return {
+          orderNumber: "QA-ORDER", confirmationToken: "qa-confirm",
+          clientSecret: "pi_mock_secret", paymentIntentId: "pi_mock",
+          pricing: { total: 12 },
+        };
+      },
+      acceptCheckoutPolicies: async () => {},
+    },
+    applyAuthoritativePricing: () => {},
+    paymentApi: { createPaymentIntent: async () => { throw new Error("unexpected fallback"); } },
+    navigate: () => { count.navigations++; },
+    clearCart: () => { throw new Error("unverified payment must not clear cart"); },
+    cents: () => 1200,
+    window: { location: { origin: "https://checkout-qa.invalid" } },
+  };
+  const pay = new Function(...Object.keys(env), handlerSource + "\nreturn pay;")(...Object.values(env));
+  return { pay, releaseFirstSubmit, trace, count, payInFlightRef };
+}
+
+const simultaneous = mockPaymentAttempt();
+const activePayment = simultaneous.pay();
+await simultaneous.pay();
+assert(simultaneous.count.submits === 1 && simultaneous.count.orders === 0, "rapid repeat Pay click must not submit again");
+assert(simultaneous.payInFlightRef.current, "in-flight guard must remain locked while Stripe validation is pending");
+simultaneous.releaseFirstSubmit({});
+await activePayment;
+assert(simultaneous.count.orders === 1 && simultaneous.count.confirmations === 1 && simultaneous.count.navigations === 1, "one valid click must create only one mocked order and Stripe confirmation");
+assert(!simultaneous.payInFlightRef.current, "completed Pay attempt must release the guard");
+assert(
+  JSON.stringify(simultaneous.trace.filter(([kind]) => kind === "progress").map(([, stage]) => stage)) ===
+  JSON.stringify(["checking", "preparing", "verifying", "idle"]),
+  "progress messages must match the existing async checkout stages"
+);
+
+const failedThenRetried = mockPaymentAttempt();
+const firstAttempt = failedThenRetried.pay();
+failedThenRetried.releaseFirstSubmit({ error: { message: "QA card validation failed" } });
+await firstAttempt;
+assert(failedThenRetried.count.orders === 0 && failedThenRetried.count.confirmations === 0, "invalid card must not create an order or confirm payment");
+assert(!failedThenRetried.payInFlightRef.current, "failed Pay attempt must release the guard");
+await failedThenRetried.pay();
+assert(failedThenRetried.count.submits === 2 && failedThenRetried.count.orders === 1 && failedThenRetried.count.confirmations === 1, "deliberate retry after error must remain possible");
+
 console.log("Payment confirmation authority regression checks passed.");
