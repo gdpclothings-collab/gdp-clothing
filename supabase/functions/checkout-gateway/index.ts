@@ -6,6 +6,8 @@ const allowedOrigins = new Set([
   "https://www.gdpclothing.ca",
 ]);
 const localOriginPattern = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+// Only GDP Clothing's own Cloudflare Pages deployment/branch subdomains.
+const cloudflarePreviewOriginPattern = /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.gdp-clothing\.pages\.dev$/;
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function requestOrigin(req: Request) {
@@ -13,7 +15,7 @@ function requestOrigin(req: Request) {
 }
 
 function isAllowedOrigin(origin: string) {
-  return !origin || allowedOrigins.has(origin) || localOriginPattern.test(origin);
+  return !origin || allowedOrigins.has(origin) || localOriginPattern.test(origin) || cloudflarePreviewOriginPattern.test(origin);
 }
 
 function corsHeaders(req: Request) {
