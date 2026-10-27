@@ -125,10 +125,14 @@ test('browser font ink measurements remove heuristic spacing without moving save
 test('mobile/desktop gestures, print clipping and the production painter use the same crop flag', () => {
   const editor = readFileSync(new URL('../src/components/storefront/custom-studio-v2/ProtectedTemplateEditorV2.jsx', import.meta.url), 'utf8');
   const production = readFileSync(new URL('../src/lib/customStudioV2ProtectedProduction.js', import.meta.url), 'utf8');
+  const selectionCss = readFileSync(new URL('../src/components/storefront/custom-studio-v2/selectionBorderFix.js', import.meta.url), 'utf8');
   assert.match(editor, /bootlegGestureLimits\(layout, true\)/);
   assert.match(editor, /textEdgeCrop: true,/);
   assert.match(editor, /patchTextStyle\(\{ textEdgeCrop: true, canvasX, canvasY \}\)/);
   assert.match(editor, /data-gdp-print-guide="true"[\s\S]*?overflow-hidden/);
+  const legacyOverflowRule = selectionCss.match(/\/\* Layers can move[\s\S]*?overflow: visible !important;/)?.[0] || '';
+  assert.ok(legacyOverflowRule, 'selection CSS must document why layer boxes may overflow');
+  assert.doesNotMatch(legacyOverflowRule, /data-gdp-print-guide/, 'print guide must clip visible bleed');
   assert.match(production, /constrainBootlegTextStyleToCanvas\(\{ text, zone, style, width: widthPx, height: heightPx \}\)/);
   assert.match(production, /paintPremiumTextLayout\(context, layout, safeStyle\)/);
 });

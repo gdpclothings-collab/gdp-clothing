@@ -19,9 +19,8 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
       outline: none !important;
     }
 
-    /* Keep customer photos complete at every scale/rotation. The Photo Zone
-       and print guide are placement guides only and must not mask the image. */
-    [data-gdp-print-guide="true"],
+    /* Layers can move and resize beyond their own boxes, but the printable
+       guide must still clip all overshoot to match the production PNG. */
     [data-gdp-bootleg-free-photo-layer="true"],
     [data-gdp-memorial-free-photo-layer="true"],
     div:has(> img[alt="Customer photo layer"]) {
