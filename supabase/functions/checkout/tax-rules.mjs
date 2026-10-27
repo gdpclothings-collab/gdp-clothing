@@ -20,13 +20,15 @@ function fallbackComponents(rule, regionCode) {
   }];
 }
 
-export function calculateTaxBreakdown(rule, regionCode, merchandiseAmount, shippingAmount) {
+export function calculateTaxBreakdown(rule, regionCode, merchandiseAmount, shippingAmount, taxableMerchandiseAmount = merchandiseAmount) {
   const merchandise = Math.max(0, roundMoney(merchandiseAmount));
+  const taxableMerchandise = Math.max(0, roundMoney(taxableMerchandiseAmount));
+  if (!Number.isFinite(taxableMerchandise) || taxableMerchandise > merchandise) throw new Error("Invalid server taxable merchandise amount.");
   const shipping = Math.max(0, roundMoney(shippingAmount));
   const components = fallbackComponents(rule, regionCode).map((row) => {
     const rate = Math.max(0, Number(row?.rate || 0));
     const taxShipping = row?.tax_shipping !== false;
-    const taxableBase = roundMoney(merchandise + (taxShipping ? shipping : 0));
+    const taxableBase = roundMoney(taxableMerchandise + (taxShipping ? shipping : 0));
     return {
       code: String(row?.code || "Tax"),
       bucket: row?.bucket === "pst" ? "pst" : "gst_hst",
