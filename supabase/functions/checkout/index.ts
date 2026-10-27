@@ -1387,7 +1387,10 @@ Deno.serve(async (req: Request) => {
     if (storeSettingsError) throw storeSettingsError;
 
     const dtfSettings = normalizeDtfSettings(storeSettings?.dtf_settings || {});
-    const paymentMode = storeSettings?.payment_mode === "test" ? "test" : "live";
+    const paymentMode = storeSettings?.payment_mode;
+    if (paymentMode !== "test" && paymentMode !== "live") {
+      return respond(req, { error: true, message: "Secure checkout payment mode is not configured. No charge was attempted." }, 503);
+    }
     const apparelPricing = normalizeApparelPricing(storeSettings?.apparel_pricing || {});
 
     const { data: variantRows, error: variantError } = await service
