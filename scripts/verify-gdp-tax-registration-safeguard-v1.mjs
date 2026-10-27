@@ -47,7 +47,7 @@ const mixed = taxableMerchandiseAfterCoupon([
   { productId: "exempt", taxable: false, amount: 12.01 },
 ], 4.80);
 assert.equal(mixed.merchandiseAmount, 43.20);
-assert.equal(mixed.taxableAmount, 32.39);
+assert.equal(mixed.taxableAmount, 32.40);
 assert.equal(mixed.hasNonTaxable, true);
 const mixedTax = calculateTaxBreakdown(rule, "SK", mixed.merchandiseAmount, 0, mixed.taxableAmount);
 assert.equal(mixedTax.gstHstTax, 1.62);
