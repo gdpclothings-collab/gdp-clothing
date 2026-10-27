@@ -1,4 +1,33 @@
-import { premiumTextEffectPadding } from './customStudioV2PremiumTextStyles.js';
+import { premiumTextEffectPadding, premiumTextPreset } from './customStudioV2PremiumTextStyles.js';
+
+let glyphMeasureContext = null;
+
+/** Measure the actual painted font silhouette for edge alignment in browsers.
+ * The heuristic fallback keeps tests and older/non-canvas environments safe.
+ * The measurement never changes the stored text positions or print geometry.
+ */
+function visibleGlyphBounds(text, fontSize, x, y, rotation, fontFamily, weight) {
+  if (typeof document === 'undefined') return null;
+  try {
+    glyphMeasureContext ||= document.createElement('canvas').getContext('2d');
+    const ctx = glyphMeasureContext;
+    if (!ctx) return null;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${weight} ${fontSize}px ${fontFamily || 'Arial, sans-serif'}`;
+    const metrics = ctx.measureText(String(text || ''));
+    const values = [metrics.actualBoundingBoxLeft, metrics.actualBoundingBoxRight,
+      metrics.actualBoundingBoxAscent, metrics.actualBoundingBoxDescent];
+    if (!values.every(Number.isFinite) || values[0] + values[1] <= 0) return null;
+    const bounds = {
+      minX: x - values[0], maxX: x + values[1],
+      minY: y - values[2], maxY: y + values[3],
+    };
+    return rotateBoundsAround(bounds, x, y, rotation);
+  } catch {
+    return null;
+  }
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value || 0)));
@@ -160,12 +189,16 @@ function layoutLine(text, fontSize, centerX, centerY, weight = 700) {
 export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, width, height, anchorX = Number.NaN, anchorY = Number.NaN }) {
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
+  const textEdgeCrop = style.textEdgeCrop === true;
   const zoneHeight = Math.max(1, clamp(zone?.height ?? 16, 1, 100) / 100 * safeHeight);
   const scale = positive(style.fontScale, 100);
-  const centerX = Number.isFinite(Number(anchorX)) ? Number(anchorX) : clamp(style.canvasX ?? 50, 0, 100) / 100 * safeWidth;
-  const centerY = Number.isFinite(Number(anchorY)) ? Number(anchorY) : clamp(style.canvasY ?? 50, 0, 100) / 100 * safeHeight;
+  const minimumAnchor = textEdgeCrop ? -100 : 0;
+  const maximumAnchor = textEdgeCrop ? 200 : 100;
+  const centerX = Number.isFinite(Number(anchorX)) ? Number(anchorX) : clamp(style.canvasX ?? 50, minimumAnchor, maximumAnchor) / 100 * safeWidth;
+  const centerY = Number.isFinite(Number(anchorY)) ? Number(anchorY) : clamp(style.canvasY ?? 50, minimumAnchor, maximumAnchor) / 100 * safeHeight;
   const groupRotation = clamp(style.rotation || 0, -180, 180);
   const curve = style.curve || 'straight';
+  const measuredWeight = premiumTextPreset(style.premiumTextPresetId)?.fontWeight || 900;
   const headlineText = String(text.headline || '').trim().toUpperCase();
   const sublineText = String(text.subline || '').trim();
   const messageText = String(text.message || '').trim();
@@ -190,17 +223,20 @@ export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, wid
         weight: 900,
       };
       headlineBounds = rotatedRectBounds(centerX, headlineCenterY, widthEstimate, headlineFontSize * 1.08, 0);
+      if (textEdgeCrop) headlineBounds = visibleGlyphBounds(headlineText, headlineFontSize, centerX, headlineCenterY, 0, style.fontFamily, measuredWeight) || headlineBounds;
     } else {
       const glyphs = curveGlyphs(headlineText, headlineFontSize, centerX, headlineCenterY, curve, style.curveAmount);
       headline = { kind: 'glyphs', glyphs, fontSize: headlineFontSize, weight: 900 };
-      headlineBounds = mergeBounds(glyphs.map((glyph) => rotatedRectBounds(glyph.x, glyph.y, Math.max(glyph.advance * 0.94, headlineFontSize * 0.2), headlineFontSize * 1.08, glyph.rotation)));
+      headlineBounds = mergeBounds(glyphs.map((glyph) =>
+        (textEdgeCrop && visibleGlyphBounds(glyph.character, glyph.fontSize, glyph.x, glyph.y, glyph.rotation, style.fontFamily, measuredWeight))
+        || rotatedRectBounds(glyph.x, glyph.y, Math.max(glyph.advance * 0.94, headlineFontSize * 0.2), headlineFontSize * 1.08, glyph.rotation)));
     }
   }
 
   const subline = layoutLine(sublineText, sublineFontSize, centerX, sublineCenterY, 700);
   const message = layoutLine(messageText, messageFontSize, centerX, messageCenterY, 600);
-  const sublineBounds = subline ? rotatedRectBounds(subline.x, subline.y, subline.width, subline.fontSize * 1.08, 0) : null;
-  const messageBounds = message ? rotatedRectBounds(message.x, message.y, message.width, message.fontSize * 1.08, 0) : null;
+  const sublineBounds = subline ? ((textEdgeCrop && visibleGlyphBounds(subline.text, subline.fontSize, subline.x, subline.y, 0, style.fontFamily, 700)) || rotatedRectBounds(subline.x, subline.y, subline.width, subline.fontSize * 1.08, 0)) : null;
+  const messageBounds = message ? ((textEdgeCrop && visibleGlyphBounds(message.text, message.fontSize, message.x, message.y, 0, style.fontFamily, 600)) || rotatedRectBounds(message.x, message.y, message.width, message.fontSize * 1.08, 0)) : null;
 
   const unrotatedBounds = mergeBounds([headlineBounds, sublineBounds, messageBounds]);
   const rotatedBounds = unrotatedBounds ? rotateBoundsAround(unrotatedBounds, centerX, centerY, groupRotation) : null;
@@ -225,6 +261,14 @@ export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, wid
     minY: bounds.minY - centerY,
     maxY: bounds.maxY - centerY,
   } : { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  // The estimated outer effects are needed for legacy safe-fit, but they
+  // leave a visible gap when a customer intentionally aligns ink to an edge.
+  const relativeGlyphBounds = rotatedBounds ? {
+    minX: rotatedBounds.minX - centerX,
+    maxX: rotatedBounds.maxX - centerX,
+    minY: rotatedBounds.minY - centerY,
+    maxY: rotatedBounds.maxY - centerY,
+  } : { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
   return {
     width: safeWidth,
@@ -233,11 +277,14 @@ export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, wid
     centerY,
     rotation: groupRotation,
     fontScale: scale,
+    textEdgeCrop,
     headline: rotatedHeadline,
     subline: rotatedSubline,
     message: rotatedMessage,
     bounds,
     relativeBounds,
+    glyphBounds: rotatedBounds,
+    relativeGlyphBounds,
     overflow: bounds ? {
       left: bounds.minX < 0,
       right: bounds.maxX > safeWidth,
@@ -248,8 +295,9 @@ export function resolveBootlegTextLayout({ text = {}, zone = {}, style = {}, wid
   };
 }
 
-export function resolveBootlegAnchorRanges(layout) {
-  const relative = layout?.relativeBounds || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+export function resolveBootlegAnchorRanges(layout, alignGlyphs = layout?.textEdgeCrop === true) {
+  const relative = (alignGlyphs ? layout?.relativeGlyphBounds : layout?.relativeBounds)
+    || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
   return {
     x: {
       start: -relative.minX,
@@ -275,7 +323,8 @@ export function bootlegAnchorToSlider(anchor, range) {
   return clamp(((Number(anchor || 0) - start) / span) * 100, 0, 100);
 }
 
-export function bootlegGestureLimits(layout) {
+export function bootlegGestureLimits(layout, allowCrop = layout?.textEdgeCrop === true) {
+  if (allowCrop) return { minX: -150, maxX: 150, minY: -150, maxY: 150 };
   const ranges = resolveBootlegAnchorRanges(layout);
   const width = Math.max(1, Number(layout?.width || 1));
   const height = Math.max(1, Number(layout?.height || 1));
@@ -313,16 +362,31 @@ export function constrainBootlegTextStyleToCanvas({
   const sourceStyle = /** @type {Record<string, any>} */ (style);
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
+  const textEdgeCrop = sourceStyle.textEdgeCrop === true;
   const boundaryInset = Math.max(0.5, Math.min(safeWidth, safeHeight) * 0.0005);
-  const requestedScale = positive(sourceStyle.fontScale, 100);
-  const requestedX = clamp(sourceStyle.canvasX ?? 50, 0, 100);
-  const requestedY = clamp(sourceStyle.canvasY ?? 50, 0, 100);
+  const requestedScale = textEdgeCrop
+    ? clamp(positive(sourceStyle.fontScale, 100), 1, 1000)
+    : positive(sourceStyle.fontScale, 100);
+  const requestedX = clamp(sourceStyle.canvasX ?? 50, textEdgeCrop ? -100 : 0, textEdgeCrop ? 200 : 100);
+  const requestedY = clamp(sourceStyle.canvasY ?? 50, textEdgeCrop ? -100 : 0, textEdgeCrop ? 200 : 100);
   const baseStyle = /** @type {Record<string, any>} */ ({
     ...sourceStyle,
     fontScale: requestedScale,
     canvasX: requestedX,
     canvasY: requestedY,
   });
+
+  // Opt-in text bleed mirrors the established photo crop: the print guide and
+  // final PNG are the clipping boundary. Never auto-shrink or snap this layer.
+  // Saved layers without the flag retain their historical safe-fit geometry.
+  if (textEdgeCrop) {
+    const layout = resolveBootlegTextLayout({ text, zone, style: baseStyle, width: safeWidth, height: safeHeight });
+    return {
+      style: baseStyle,
+      layout: { ...layout, horizontalFit: 1 },
+      adjusted: false,
+    };
+  }
 
   // Large bootleg headlines can grow vertically without exceeding print width.
   // Use the same horizontal auto-fit in preview and 300-DPI production renders.
