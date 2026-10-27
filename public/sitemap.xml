@@ -6,6 +6,8 @@
   <url><loc>https://gdpclothing.ca/custom-orders</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://gdpclothing.ca/dtf</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://gdpclothing.ca/products/dtf-gang-sheet</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://gdpclothing.ca/products/kids-custom-tee</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://gdpclothing.ca/products/sometimes-all-we-need-is-a-hug-adult-short-sleeve-tee</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://gdpclothing.ca/faq</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://gdpclothing.ca/pages/about</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://gdpclothing.ca/pages/contact</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
