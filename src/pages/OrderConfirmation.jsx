@@ -14,6 +14,7 @@ export default function OrderConfirmation() {
   const token = params.get("token") || "";
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [verificationExpired, setVerificationExpired] = useState(false);
   const { clearCart } = useCart();
   const { user } = useAuth();
 
@@ -21,6 +22,7 @@ export default function OrderConfirmation() {
     let active = true;
     let intervalId = null;
     let timeoutId = null;
+    setVerificationExpired(false);
 
     const refresh = async () => {
       try {
@@ -42,6 +44,7 @@ export default function OrderConfirmation() {
     timeoutId = window.setTimeout(() => {
       if (intervalId) window.clearInterval(intervalId);
       intervalId = null;
+      if (active) setVerificationExpired(true);
     }, 60000);
 
     return () => {
@@ -54,6 +57,8 @@ export default function OrderConfirmation() {
   const paid = order?.paymentStatus === "paid";
   const failed = order?.paymentStatus === "failed" || order?.status === "payment_failed";
   const pending = Boolean(order && !paid && !failed);
+  const finalizing = pending && !verificationExpired;
+  const unavailable = !loading && !order;
 
   useEffect(() => {
     if (!paid) return;
@@ -64,7 +69,7 @@ export default function OrderConfirmation() {
     clearCart();
   }, [paid, user, clearCart]);
 
-  const heading = paid ? "ORDER CONFIRMED" : failed ? "PAYMENT NOT COMPLETED" : loading ? "VERIFYING PAYMENT" : "PAYMENT PENDING";
+  const heading = paid ? "ORDER CONFIRMED" : failed ? "PAYMENT NOT COMPLETED" : loading ? "VERIFYING PAYMENT" : unavailable ? "ORDER STATUS UNAVAILABLE" : finalizing ? "FINALIZING YOUR ORDER" : "PAYMENT NOT YET CONFIRMED";
 
   return (
     <div className="max-w-[800px] mx-auto px-4 py-16 text-center">
@@ -85,12 +90,18 @@ export default function OrderConfirmation() {
             ? "Your order was saved, but payment was not completed. Your cart has been kept so you can safely try payment again."
             : loading
               ? "We are checking the secure server for the latest payment status."
-              : "Your order is saved, but payment has not been confirmed yet. If you closed or cancelled Affirm, Klarna, or another payment window, production has not started and your cart is still kept."}
+              : unavailable
+                ? "We could not retrieve your order status. Please do not submit another payment yet. Refresh this page or contact us if the issue continues."
+                : finalizing
+                  ? "We are verifying your payment and preparing your order confirmation. Please wait. This page updates automatically."
+                  : "Payment has not yet been confirmed. Your cart is kept and production has not started. Please do not submit another payment while this status is unresolved. Refresh this page to check again, or contact us for help."}
       </p>
 
       {pending && (
-        <div className="mt-6 inline-flex items-center gap-2 text-sm bg-amber-50 text-amber-950 px-4 py-2 border border-amber-200">
-          <Clock size={16} /> Payment is not confirmed yet. This page will check again automatically.
+        <div className={`mt-6 inline-flex items-center gap-2 text-sm px-4 py-2 border ${finalizing ? "bg-sky-50 text-sky-950 border-sky-200" : "bg-amber-50 text-amber-950 border-amber-200"}`}>
+          <Clock size={16} /> {finalizing
+            ? "Secure payment verification is in progress. We will update this page automatically."
+            : "Payment is not yet confirmed. Refresh this page to check again."}
         </div>
       )}
 
@@ -125,7 +136,7 @@ export default function OrderConfirmation() {
       )}
 
       <div className="mt-8 flex justify-center gap-3 flex-wrap">
-        {!paid && <Link to="/checkout/payment" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Return to Checkout</Link>}
+        {failed && <Link to="/checkout/payment" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Try Payment Again</Link>}
         <Link to="/account?tab=orders" className="border border-border px-5 py-3 font-bold uppercase text-sm hover:border-accent">Track in Account</Link>
         {paid && <Link to="/shop" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Keep Shopping</Link>}
       </div>
