@@ -30,6 +30,11 @@ assert(!confirmation.includes('status === "success"'), "URL success flags must n
 assert(confirmation.includes("window.setInterval(refresh, 2000)"), "pending redirect payments must be rechecked server-side");
 assert(confirmation.includes("if (!paid && <Link") || confirmation.includes("{!paid && <Link"), "unpaid orders must offer a safe return to checkout");
 assert(confirmation.includes("paid && order.items?.some"), "production-ready custom messaging must be paid-only");
+assert(confirmation.includes('"FINALIZING YOUR ORDER"'), "brief pending verification must be described as order finalization");
+assert(confirmation.includes('"PAYMENT NOT YET CONFIRMED"'), "unresolved payment must retain an honest pending state");
+assert(confirmation.includes("setVerificationExpired(true)"), "verification messaging must stop promising automatic updates after polling stops");
+assert(confirmation.includes('"ORDER STATUS UNAVAILABLE"'), "missing server response must not be treated as a payment success");
+assert(!confirmation.includes('"PAYMENT PENDING"'), "old alarming intermediate heading must be retired");
 
 assert(webhook.includes('event.type === "checkout.session.completed"'), "webhook must preserve legacy Checkout Session success handling during migration");
 assert(webhook.includes('event.type === "checkout.session.async_payment_succeeded"'), "webhook must preserve delayed Checkout Session success handling");
