@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { calculateProfileShipping } from "./shipping-profile-rules.mjs";
 import { calculateTaxBreakdown } from "./tax-rules.mjs";
+import { TaxConfigurationReviewError, assertTaxRegistration, checkoutTaxProvince, taxableMerchandiseAfterCoupon } from "./checkout-tax-safeguard.mjs";
 import { couponAmountForBase, couponIsUsable, publicPromotion } from "./discount-rules.mjs";
 
 const baseCors = {
@@ -557,6 +558,8 @@ async function getCheckoutRules(
   amountAfterDiscounts: number,
   freeShipping = false,
   shippingItems: any[] = [],
+  taxableMerchandise = amountAfterDiscounts,
+  hasNonTaxableMerchandise = false,
 ) {
   const amount = Math.max(0, roundMoney(amountAfterDiscounts));
   const shippingMethod = customer?.shippingMethod === "pickup" ? "pickup" : "standard";
@@ -566,9 +569,18 @@ async function getCheckoutRules(
       ? 0
       : roundMoney(Number(shippingQuote?.shipping || 0));
 
-  const regionCode = normalizeProvinceCode(customer?.province);
-  const taxRule = await getTaxRule(service, customer?.province);
-  const taxBreakdown = calculateTaxBreakdown(taxRule, regionCode, amount, shipping);
+  // Pickup is a Saskatchewan place of supply even for an out-of-province customer.
+  const regionCode = checkoutTaxProvince(shippingMethod, normalizeProvinceCode(customer?.province));
+  const taxRule = await getTaxRule(service, regionCode);
+  // Mixed-taxability freight must not be guessed: its GST/PST treatment requires an
+  // explicit reviewed classification, not allocation from user-controlled cart data.
+  if (hasNonTaxableMerchandise && shipping > 0) throw new TaxConfigurationReviewError();
+  const taxBreakdown = calculateTaxBreakdown(taxRule, regionCode, amount, shipping, taxableMerchandise);
+  const { data: registrations, error: registrationError } = await service
+    .from("finance_tax_registration_settings")
+    .select("tax_type,registered,account_number,effective_from");
+  if (registrationError) throw new TaxConfigurationReviewError();
+  assertTaxRegistration(registrations, taxBreakdown.components);
 
   return {
     shippingMethod,
@@ -1088,12 +1100,40 @@ Deno.serve(async (req: Request) => {
             quantity: Math.max(1, Math.min(99, Math.floor(Number(item?.quantity || 1)))),
           }))
         : [];
+      // The preview is not payment authority. Read product taxability from the
+      // database; never trust a browser-supplied taxable flag or exemption.
+      const ids = [...new Set(shippingItems.map((item: any) => item.productId).filter((id: string) => uuidRe.test(id)))];
+      if (amount > 0 && (!ids.length || ids.length !== new Set(shippingItems.map((item: any) => item.productId)).size)) {
+        throw new TaxConfigurationReviewError();
+      }
+      const { data: taxProducts, error: productTaxError } = ids.length
+        ? await service.from("products").select("id,taxable").in("id", ids).eq("status", "active")
+        : { data: [], error: null };
+      if (productTaxError || (taxProducts || []).length !== ids.length) throw new TaxConfigurationReviewError();
+      const taxableById = new Map((taxProducts || []).map((row: any) => [row.id, row.taxable]));
+      const previewLines = shippingItems.map((item: any) => ({
+        productId: item.productId,
+        amount: item.amount,
+        taxable: taxableById.get(item.productId),
+      }));
+      // Discounts for non-taxable items need an authoritative per-line quote.
+      // Do not approximate their taxable proportion from client-submitted totals.
+      const previewBase = previewLines.reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
+      const hasNonTaxable = previewLines.some((item: any) => item.taxable === false);
+      if (hasNonTaxable && Math.abs(roundMoney(previewBase) - roundMoney(amount)) > 0.01) {
+        throw new TaxConfigurationReviewError();
+      }
+      const previewTaxable = hasNonTaxable
+        ? taxableMerchandiseAfterCoupon(previewLines).taxableAmount
+        : amount;
       const rules = await getCheckoutRules(
         service,
         customer,
         amount,
         Boolean(body?.freeShipping),
         shippingItems,
+        previewTaxable,
+        hasNonTaxable,
       );
       return respond(req, { configured: true, ...rules });
     }
@@ -1845,6 +1885,20 @@ Deno.serve(async (req: Request) => {
     }
 
     const afterCoupon = roundMoney(Math.max(0, discounted - couponAmount));
+    const couponTargets = coupon
+      ? welcomeRequested
+        ? new Set(normalizedItems.filter((item) => !item.discountExempt).map((item) => String(item.product?.id || "")))
+        : await couponTargetProductIds(service, coupon, normalizedItems.map((item) => String(item.product?.id || "")))
+      : null;
+    const taxLines = normalizedItems.map((item) => ({
+      productId: String(item.product?.id || ""),
+      taxable: item.product?.taxable,
+      amount: item.discountExempt
+        ? roundMoney(Number(item.unitPrice || 0) * Number(item.quantity || 1))
+        : Number(item.customData?.discountedLineSubtotal ?? (Number(item.unitPrice || 0) * Number(item.quantity || 1))),
+    }));
+    const taxableMerchandise = taxableMerchandiseAfterCoupon(taxLines, couponAmount, couponTargets);
+    if (Math.abs(taxableMerchandise.merchandiseAmount - afterCoupon) > 0.01) throw new TaxConfigurationReviewError();
     const shippingItems = normalizedItems
       .filter((item) => item.product?.requires_shipping !== false)
       .map((item) => ({
@@ -1852,7 +1906,7 @@ Deno.serve(async (req: Request) => {
         amount: roundMoney(Number(item.unitPrice || 0) * Number(item.quantity || 1)),
         quantity: Math.max(1, Number(item.quantity || 1)),
       }));
-    const checkoutRules = await getCheckoutRules(service, customer, afterCoupon, freeShipping, shippingItems);
+    const checkoutRules = await getCheckoutRules(service, customer, afterCoupon, freeShipping, shippingItems, taxableMerchandise.taxableAmount, taxableMerchandise.hasNonTaxable);
     const shippingMethod = checkoutRules.shippingMethod;
     const shipping = checkoutRules.shipping;
     const tax = checkoutRules.tax;
@@ -2217,6 +2271,9 @@ Deno.serve(async (req: Request) => {
       },
     });
   } catch (error) {
+    if (error instanceof TaxConfigurationReviewError) {
+      return respond(req, { error: true, taxReviewRequired: true, message: error.message }, 503);
+    }
     console.error("checkout error", error);
     return respond(req, { error: true, message: error?.message || "Checkout failed." }, 500);
   }
