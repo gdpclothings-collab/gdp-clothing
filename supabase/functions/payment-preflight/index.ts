@@ -109,7 +109,8 @@ async function isAdminRequest(
 }
 
 function normalizePaymentMode(value: unknown): "test" | "live" {
-  return value === "test" ? "test" : "live";
+  if (value === "test" || value === "live") return value;
+  throw new Error("Checkout payment mode is missing or invalid. No charge was attempted.");
 }
 
 function stripeSecretMatchesMode(secret: string, paymentMode: "test" | "live") {
