@@ -34,6 +34,7 @@ assert(payBlock.includes('setPaymentProgress("checking")') && payBlock.includes(
 assert(checkout.includes('role="status" aria-live="polite" aria-atomic="true"'), "secure payment progress must be accessible");
 assert(checkout.includes("disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted}"), "Pay button must remain disabled while an attempt is in flight");
 assert(!checkout.includes('"Processing order…"'), "generic long-running processing copy should be retired");
+assert(checkout.includes('`Pay · $${total.toFixed(2)}`'), "Pay button must retain currency formatting");
 
 
 assert(confirmation.includes('const paid = order?.paymentStatus === "paid"'), "Order Confirmed must depend on server payment_status");
