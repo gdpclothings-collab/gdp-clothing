@@ -40,7 +40,10 @@ assert(checkout.includes('`Pay · $${total.toFixed(2)}`'), "Pay button must reta
 assert(confirmation.includes('const paid = order?.paymentStatus === "paid"'), "Order Confirmed must depend on server payment_status");
 assert(!confirmation.includes('status === "success"'), "URL success flags must not mark an order paid");
 assert(confirmation.includes("window.setInterval(refresh, 2000)"), "pending redirect payments must be rechecked server-side");
-assert(confirmation.includes("if (!paid && <Link") || confirmation.includes("{!paid && <Link"), "unpaid orders must offer a safe return to checkout");
+assert(confirmation.includes('{failed && <Link to="/checkout/payment"'), "only confirmed failed payments may offer a checkout retry");
+assert(!confirmation.includes('{!paid && <Link'), "unresolved payments must not invite duplicate payment attempts");
+assert(confirmation.includes("Please do not submit another payment while this status is unresolved."), "expired verification must discourage an unsafe repeat payment");
+assert(confirmation.includes("Please do not submit another payment yet."), "unavailable order state must discourage an unsafe repeat payment");
 assert(confirmation.includes("paid && order.items?.some"), "production-ready custom messaging must be paid-only");
 assert(confirmation.includes('"FINALIZING YOUR ORDER"'), "brief pending verification must be described as order finalization");
 assert(confirmation.includes('"PAYMENT NOT YET CONFIRMED"'), "unresolved payment must retain an honest pending state");
