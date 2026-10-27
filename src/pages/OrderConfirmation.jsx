@@ -91,10 +91,10 @@ export default function OrderConfirmation() {
             : loading
               ? "We are checking the secure server for the latest payment status."
               : unavailable
-                ? "We could not retrieve your order status. Please refresh this page or contact us if the issue continues."
+                ? "We could not retrieve your order status. Please do not submit another payment yet. Refresh this page or contact us if the issue continues."
                 : finalizing
                   ? "We are verifying your payment and preparing your order confirmation. Please wait. This page updates automatically."
-                  : "Payment has not yet been confirmed. Your cart is kept and production has not started. Refresh this page to check again, or return to checkout if you still need to complete payment."}
+                  : "Payment has not yet been confirmed. Your cart is kept and production has not started. Please do not submit another payment while this status is unresolved. Refresh this page to check again, or contact us for help."}
       </p>
 
       {pending && (
@@ -136,7 +136,7 @@ export default function OrderConfirmation() {
       )}
 
       <div className="mt-8 flex justify-center gap-3 flex-wrap">
-        {!paid && <Link to="/checkout/payment" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Return to Checkout</Link>}
+        {failed && <Link to="/checkout/payment" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Try Payment Again</Link>}
         <Link to="/account?tab=orders" className="border border-border px-5 py-3 font-bold uppercase text-sm hover:border-accent">Track in Account</Link>
         {paid && <Link to="/shop" className="bg-primary text-primary-foreground px-5 py-3 font-bold uppercase text-sm hover:opacity-90">Keep Shopping</Link>}
       </div>
