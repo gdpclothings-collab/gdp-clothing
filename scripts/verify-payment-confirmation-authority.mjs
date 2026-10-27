@@ -25,6 +25,17 @@ assert(payBlock.includes("orderData?.paid"), "a resumed checkout must trust the 
 assert(payBlock.indexOf("clearCart()") > payBlock.indexOf("orderData?.paid"), "cart clearing must only occur behind a server-verified paid response");
 assert(payBlock.includes('redirect:"if_required"'), "Stripe confirmation must preserve redirect-capable payment methods");
 
+assert(checkout.includes("const payInFlightRef = useRef(false);"), "checkout must retain a synchronous duplicate-pay guard");
+assert(payBlock.includes("if (payInFlightRef.current) return;"), "second Pay click must exit synchronously");
+assert(payBlock.indexOf("payInFlightRef.current = true;") > payBlock.indexOf("if (payInFlightRef.current) return;"), "guard must lock before async work");
+assert(payBlock.indexOf("payInFlightRef.current = true;") < payBlock.indexOf("customerApi.createOrder"), "guard must lock before order creation");
+assert(payBlock.indexOf("payInFlightRef.current = false;") > payBlock.indexOf("confirmPayment"), "guard must release in final cleanup to allow a safe retry");
+assert(payBlock.includes('setPaymentProgress("checking")') && payBlock.includes('setPaymentProgress("preparing")') && payBlock.includes('setPaymentProgress("verifying")'), "payment stages must follow actual checkout operations");
+assert(checkout.includes('role="status" aria-live="polite" aria-atomic="true"'), "secure payment progress must be accessible");
+assert(checkout.includes("disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted}"), "Pay button must remain disabled while an attempt is in flight");
+assert(!checkout.includes('"Processing order…"'), "generic long-running processing copy should be retired");
+
+
 assert(confirmation.includes('const paid = order?.paymentStatus === "paid"'), "Order Confirmed must depend on server payment_status");
 assert(!confirmation.includes('status === "success"'), "URL success flags must not mark an order paid");
 assert(confirmation.includes("window.setInterval(refresh, 2000)"), "pending redirect payments must be rechecked server-side");
