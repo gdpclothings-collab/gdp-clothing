@@ -40,6 +40,7 @@ assert.throws(() => assertTaxRegistration(missingRegistration, original.componen
 assert.throws(() => assertTaxRegistration(registered.slice(0, 1), original.components, now), TaxConfigurationReviewError, "SK PST cannot be silently omitted");
 assert.throws(() => assertTaxRegistration([{ ...registered[0], effective_from: "2026-11-01" }, registered[1]], original.components, now), TaxConfigurationReviewError, "future registration not active");
 assert.throws(() => assertTaxRegistration([{ ...registered[0], account_number: "" }, registered[1]], original.components, now), TaxConfigurationReviewError, "no account number");
+assert.throws(() => assertTaxRegistration([{ ...registered[0], effective_from: "2026-02-31" }, registered[1]], original.components, now), TaxConfigurationReviewError, "impossible effective date rejected");
 assert.throws(() => assertTaxRegistration(null, original.components, now), TaxConfigurationReviewError, "missing finance table must fail closed");
 
 const mixed = taxableMerchandiseAfterCoupon([
