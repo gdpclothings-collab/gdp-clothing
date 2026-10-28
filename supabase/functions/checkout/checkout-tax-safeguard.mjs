@@ -66,7 +66,8 @@ export function assertTaxRegistration(rows, components, now = new Date()) {
         !String(registration?.account_number || "").trim() ||
         !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
         date > day ||
-        Number.isNaN(Date.parse(date + "T00:00:00Z"))) {
+        !Number.isFinite(Date.parse(date + "T00:00:00Z")) ||
+        new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) {
       throw new TaxConfigurationReviewError();
     }
   }
