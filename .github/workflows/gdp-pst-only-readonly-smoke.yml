@@ -39,5 +39,25 @@ jobs:
           assert.equal(body.taxBreakdown?.jurisdiction, 'SK');
           assert.equal(body.taxBreakdown?.policy, 'gst_small_supplier_pst_only');
           assert.equal(body.taxName, 'Saskatchewan PST (6%)');
-          console.log('PST-only pickup quote passes. No order, PaymentIntent, or charge created.');
+          const readQuote = async (overrides) => {
+            const next = { ...payload, ...overrides };
+            const res = await fetch('https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout', {
+              method: 'POST', headers: {'content-type':'application/json', origin:'https://gdpclothing.ca'},
+              body: JSON.stringify(next), signal: AbortSignal.timeout(15000),
+            });
+            return {res, body: await res.json()};
+          };
+          const shipping = await readQuote({shippingMethod:'standard'});
+          console.log(JSON.stringify({kind:'shipping',status:shipping.res.status,tax:shipping.body.tax,shipping:shipping.body.shipping,gst:shipping.body.gstHstTax,pst:shipping.body.pstTax}));
+          assert.equal(shipping.res.status,200, 'Saskatchewan shipping quote must succeed');
+          assert.equal(Math.round(Number(shipping.body.tax)*100),216, 'SK-origin separately stated delivery is excluded from PST');
+          assert.equal(Number(shipping.body.gstHstTax),0);
+          const discount = await readQuote({amount:29.99});
+          assert.equal(discount.res.status,200, 'Discounted Saskatchewan pickup quote must succeed');
+          assert.equal(Math.round(Number(discount.body.tax)*100),180, 'Discounted $29.99 taxable base must have 6% PST');
+          assert.equal(Number(discount.body.gstHstTax),0);
+          const outside = await readQuote({province:'Ontario',postalCode:'M5V 1A1',shippingMethod:'standard'});
+          assert.equal(outside.res.status,503,'Unreviewed non-SK tax obligations fail closed');
+          assert.equal(outside.body.taxReviewRequired,true);
+          console.log('PST-only pickup, shipping, discount, and non-SK fail-closed quotes pass. No payment was created.');
           NODE
