@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { calculateProfileShipping } from "./shipping-profile-rules.mjs";
 import { calculateTaxBreakdown } from "./tax-rules.mjs";
-import { TaxConfigurationReviewError, assertTaxRegistration, checkoutTaxProvince, taxableMerchandiseAfterCoupon } from "./checkout-tax-safeguard.mjs";
+import { TaxConfigurationReviewError, applyCheckoutTaxPolicy, checkoutTaxProvince, taxableMerchandiseAfterCoupon } from "./checkout-tax-safeguard.mjs";
 import { couponAmountForBase, couponIsUsable, publicPromotion } from "./discount-rules.mjs";
 
 const baseCors = {
@@ -575,12 +575,23 @@ async function getCheckoutRules(
   // Mixed-taxability freight must not be guessed: its GST/PST treatment requires an
   // explicit reviewed classification, not allocation from user-controlled cart data.
   if (hasNonTaxableMerchandise && shipping > 0) throw new TaxConfigurationReviewError();
-  const taxBreakdown = calculateTaxBreakdown(taxRule, regionCode, amount, shipping, taxableMerchandise);
+  const configuredBreakdown = calculateTaxBreakdown(taxRule, regionCode, amount, shipping, taxableMerchandise);
   const { data: registrations, error: registrationError } = await service
     .from("finance_tax_registration_settings")
     .select("tax_type,registered,account_number,effective_from");
   if (registrationError) throw new TaxConfigurationReviewError();
-  assertTaxRegistration(registrations, taxBreakdown.components);
+  const taxBreakdown = applyCheckoutTaxPolicy({
+    breakdown: configuredBreakdown,
+    registrations,
+    province: regionCode,
+    merchandiseAmount: amount,
+    shippingAmount: shipping,
+    policy: {
+      mode: Deno.env.get("GDP_CHECKOUT_TAX_POLICY"),
+      reviewedOn: Deno.env.get("GDP_GST_SMALL_SUPPLIER_REVIEWED_ON"),
+      expiresOn: Deno.env.get("GDP_GST_SMALL_SUPPLIER_EXPIRES_ON"),
+    },
+  });
 
   return {
     shippingMethod,
@@ -592,12 +603,12 @@ async function getCheckoutRules(
     shippingProfileCount: shippingQuote?.groups?.length || 1,
     tax: taxBreakdown.tax,
     taxRate: taxBreakdown.effectiveRate,
-    taxName: taxRule?.name || "Canada GST/HST",
+    taxName: taxBreakdown.taxName || taxRule?.name || "Canada GST/HST",
     taxShipping: taxBreakdown.clientTaxShipping,
     regionCode,
     gstHstTax: taxBreakdown.gstHstTax,
     pstTax: taxBreakdown.pstTax,
-    taxBreakdown: { jurisdiction: regionCode, components: taxBreakdown.components },
+    taxBreakdown: { jurisdiction: regionCode, components: taxBreakdown.components, policy: taxBreakdown.policy },
   };
 }
 
