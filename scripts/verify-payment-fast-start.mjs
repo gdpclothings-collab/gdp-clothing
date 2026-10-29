@@ -22,7 +22,7 @@ const checks = [
   [source.includes("setTimeout(() => beginCheckoutTracking().catch(() => {}), 900)"), "non-critical checkout tracking is delayed off the payment render path"],
   [payBlock.indexOf("paymentClient.elements.submit()") < payBlock.indexOf("customerApi.createOrder"), "payment details are validated before authoritative order creation"],
   [payBlock.indexOf("acceptCheckoutPolicies") < payBlock.indexOf("confirmPayment"), "final policy acceptance remains required before Stripe confirmation"],
-  [source.includes("disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted}"), "Pay remains gated by payment readiness and policy acceptance"],
+  [source.includes("disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted || !activeConfig || Boolean(taxQuoteError)}"), "Pay remains gated by payment readiness, verified tax quote and policy acceptance"],
   [paymentApi.includes("bootstrapPromise"), "Stripe bootstrap request is cached"],
   [html.includes('rel="preconnect" href="https://js.stripe.com"'), "Stripe origin is preconnected"],
   [!source.includes("paymentPreparation.current"), "unsafe Step-1 order/session prewarm remains removed"],

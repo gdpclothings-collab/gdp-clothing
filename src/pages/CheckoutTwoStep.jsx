@@ -11,7 +11,6 @@ import { scopedStorageKey } from "@/lib/customerStorageScope";
 import { isIframe } from "@/lib/utils";
 
 const PROVINCES = ["Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland and Labrador","Northwest Territories","Nova Scotia","Nunavut","Ontario","Prince Edward Island","Quebec","Saskatchewan","Yukon"];
-const FALLBACK_TAX_RATES = { Alberta:.05,"British Columbia":.05,Manitoba:.05,"New Brunswick":.15,"Newfoundland and Labrador":.15,"Northwest Territories":.05,"Nova Scotia":.14,Nunavut:.05,Ontario:.13,"Prince Edward Island":.15,Quebec:.05,Saskatchewan:.11,Yukon:.05 };
 const POSTAL = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i;
 const FORM_KEY = "gdp_checkout_form_v3";
 
@@ -44,6 +43,7 @@ export default function CheckoutTwoStepMichaels() {
   const [form, setForm] = useState(initialForm);
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [config, setConfig] = useState(null);
+  const [taxQuoteError, setTaxQuoteError] = useState("");
   const [error, setError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [paymentProgress, setPaymentProgress] = useState("idle");
@@ -89,17 +89,15 @@ export default function CheckoutTwoStepMichaels() {
   const activeConfig = config?.requestKey === checkoutConfigKey ? config : null;
   const fallbackShipping = form.shippingMethod === "pickup" || appliedDiscount?.type === "free_shipping" ? 0 : (afterCoupon >= 150 ? 0 : 12.99);
   const shipping = activeConfig?.shipping ?? fallbackShipping;
-  const taxRate = activeConfig?.taxRate ?? (FALLBACK_TAX_RATES[form.province] ?? .05);
-  const tax = activeConfig
-    ? (afterCoupon + ((activeConfig?.taxShipping ?? true) ? shipping : 0)) * taxRate
-    : form.province === "Saskatchewan"
-      ? (afterCoupon + shipping) * 0.05 + afterCoupon * 0.06
-      : (afterCoupon + shipping) * taxRate;
+  // Never display provisional browser-only taxes as an authoritative quote.
+  const tax = activeConfig ? Number(activeConfig.tax || 0) : 0;
   const total = afterCoupon + shipping + tax;
 
   useEffect(() => {
     if (!items.length || placing) return;
     const requestKey = checkoutConfigKey;
+    let cancelled = false;
+    setTaxQuoteError("");
     const timer = setTimeout(async () => {
       try {
         const nextConfig = await customerApi.getCheckoutConfig({
@@ -110,12 +108,19 @@ export default function CheckoutTwoStepMichaels() {
           freeShipping:appliedDiscount?.type === "free_shipping",
           shippingItems:checkoutShippingItems,
         });
+        if (cancelled) return;
+        if (nextConfig?.error || !Number.isFinite(Number(nextConfig?.tax)) || !nextConfig?.configured) {
+          throw new Error("The authoritative checkout tax quote is unavailable.");
+        }
         setConfig({ ...nextConfig, requestKey });
+        setTaxQuoteError("");
       } catch {
-        setConfig((v) => v?.requestKey === requestKey ? null : v);
+        if (cancelled) return;
+        setConfig(null);
+        setTaxQuoteError("Secure checkout is paused until the business tax configuration can be verified. No charge was attempted.");
       }
     }, 180);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [items.length, checkoutConfigKey, placing]);
 
   const set = (key, value) => {
@@ -174,6 +179,7 @@ export default function CheckoutTwoStepMichaels() {
   const continueToPayment = () => {
     setError("");
     if (!detailsComplete) return setError("Please complete the required contact and delivery fields.");
+    if (!activeConfig || taxQuoteError) return setError("Wait for the verified tax quote before continuing to payment.");
     const postalCode = normalizePostal(form.postalCode);
     if (!postalCode) return setError("Enter a valid Canadian postal code in the format A1A 1A1.");
 
@@ -291,6 +297,7 @@ export default function CheckoutTwoStepMichaels() {
       ...(v?.requestKey === checkoutConfigKey ? v : {}),
       requestKey:checkoutConfigKey,
       shipping:Number(data.pricing.shipping || 0),
+      tax:Number(data.pricing.tax || 0),
       taxRate:Number(data.pricing.taxRate || 0),
       taxName:data.pricing.taxName || (v?.requestKey === checkoutConfigKey ? v?.taxName : null) || "Tax",
     }));
@@ -304,6 +311,7 @@ export default function CheckoutTwoStepMichaels() {
     // A synchronous guard prevents rapid repeat clicks before React disables Pay.
     if (payInFlightRef.current) return;
     setError("");
+    if (!activeConfig || taxQuoteError) return setError("Secure checkout is paused while taxes are verified. No charge was attempted.");
     if (!form.termsAccepted) return setError("Accept the Terms & Conditions and acknowledge the Privacy Policy to place your order.");
     if (!paymentClient?.stripe || !paymentClient?.elements || !canConfirm) return setError("Please complete your payment information before placing the order.");
 
@@ -476,11 +484,12 @@ export default function CheckoutTwoStepMichaels() {
         <aside className="bg-card border border-border rounded-2xl p-6 h-fit shadow-sm lg:sticky" style={{top:"calc(var(--gdp-store-header-height, 70px) + 1rem)"}}>
           <h2 className="font-display text-3xl mb-4">YOUR ORDER</h2>
           <div className="space-y-3 max-h-72 overflow-y-auto mb-4">{items.map((i)=><div key={i.key} className="flex justify-between gap-2 text-sm"><span className="min-w-0 flex-1">{i.quantity}× {i.name} <span className="text-muted-foreground">({i.color} {i.size})</span></span><span className="font-mono">${(i.price*i.quantity).toFixed(2)}</span></div>)}</div>
-          <div className="space-y-1.5 text-sm border-t border-border pt-4"><Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} />{quantityDiscount>0 && <Row k="Qty discount" v={`-$${quantityDiscount.toFixed(2)}`} accent />}{coupon>0 && <Row k="Coupon" v={`-$${coupon.toFixed(2)}`} accent />}<Row k="Shipping" v={shipping===0?"FREE":`$${shipping.toFixed(2)}`} /><Row k={activeConfig?.taxName||"Tax"} v={`$${tax.toFixed(2)}`} /></div>
+          <div className="space-y-1.5 text-sm border-t border-border pt-4"><Row k="Subtotal" v={`$${subtotal.toFixed(2)}`} />{quantityDiscount>0 && <Row k="Qty discount" v={`-$${quantityDiscount.toFixed(2)}`} accent />}{coupon>0 && <Row k="Coupon" v={`-$${coupon.toFixed(2)}`} accent />}<Row k="Shipping" v={shipping===0?"FREE":`$${shipping.toFixed(2)}`} /><Row k={activeConfig?.taxName||"Tax (awaiting verification)"} v={activeConfig ? `${tax.toFixed(2)}` : "Checking…"} /></div>
           <div className="flex justify-between font-bold text-lg mt-3 pt-3 border-t border-border"><span>Total CAD</span><span className="font-mono">${total.toFixed(2)}</span></div>
+          {taxQuoteError && <div role="alert" className="mt-3 flex gap-2 text-sm text-destructive bg-destructive/10 p-3"><AlertTriangle size={16} /><span>{taxQuoteError}</span></div>}
           {error && <div className="mt-3 flex gap-2 text-sm text-destructive bg-destructive/10 p-3"><AlertTriangle size={16} /><span>{error}</span></div>}
-          {!isPayment ? <button onClick={continueToPayment} disabled={!detailsComplete} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">Continue to payment →</button> : <>
-            <button type="button" onClick={pay} disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted} aria-busy={placing} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">{placing ? (paymentProgress === "checking" ? "Checking payment details…" : paymentProgress === "preparing" ? "Preparing your order…" : "Verifying payment…") : `Pay · $${total.toFixed(2)}`}</button>
+          {!isPayment ? <button onClick={continueToPayment} disabled={!detailsComplete || !activeConfig || Boolean(taxQuoteError)} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">Continue to payment →</button> : <>
+            <button type="button" onClick={pay} disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted || !activeConfig || Boolean(taxQuoteError)} aria-busy={placing} className="w-full mt-5 rounded-lg py-4 font-bold uppercase bg-accent text-accent-foreground disabled:opacity-50">{placing ? (paymentProgress === "checking" ? "Checking payment details…" : paymentProgress === "preparing" ? "Preparing your order…" : "Verifying payment…") : `Pay · $${total.toFixed(2)}`}</button>
             {placing && <div role="status" aria-live="polite" aria-atomic="true" className="mt-3 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950"><Lock size={15} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{paymentProgressText}</span></div>}
             <label className="mt-3 flex items-start gap-3 rounded-xl border border-border p-3 text-xs text-left"><input type="checkbox" checked={!!form.termsAccepted} onChange={(e)=>set("termsAccepted",e.target.checked)} disabled={placing} className="mt-0.5" /><span>I agree to the <Link to="/pages/terms" target="_blank" className="text-accent font-semibold">Terms & Conditions</Link> and acknowledge the <Link to="/pages/privacy" target="_blank" className="text-accent font-semibold">Privacy Policy</Link>.</span></label>
           </>}

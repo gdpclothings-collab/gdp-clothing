@@ -32,7 +32,7 @@ assert(payBlock.indexOf("payInFlightRef.current = true;") < payBlock.indexOf("cu
 assert(payBlock.indexOf("payInFlightRef.current = false;") > payBlock.indexOf("confirmPayment"), "guard must release in final cleanup to allow a safe retry");
 assert(payBlock.includes('setPaymentProgress("checking")') && payBlock.includes('setPaymentProgress("preparing")') && payBlock.includes('setPaymentProgress("verifying")'), "payment stages must follow actual checkout operations");
 assert(checkout.includes('role="status" aria-live="polite" aria-atomic="true"'), "secure payment progress must be accessible");
-assert(checkout.includes("disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted}"), "Pay button must remain disabled while an attempt is in flight");
+assert(checkout.includes("disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted || !activeConfig || Boolean(taxQuoteError)}"), "Pay button must remain disabled while an attempt is in flight");
 assert(!checkout.includes('"Processing order…"'), "generic long-running processing copy should be retired");
 assert(checkout.includes('`Pay · $${total.toFixed(2)}`'), "Pay button must retain currency formatting");
 
@@ -97,6 +97,8 @@ function mockPaymentAttempt() {
   const firstSubmit = new Promise((resolve) => { releaseFirstSubmit = resolve; });
   const env = {
     payInFlightRef,
+    activeConfig: { tax: 0, configured: true },
+    taxQuoteError: "",
     setError: (message) => trace.push(["error", message]),
     form: { termsAccepted: true, email: "qa@example.invalid", postalCode: "S7K2A1" },
     paymentClient: {

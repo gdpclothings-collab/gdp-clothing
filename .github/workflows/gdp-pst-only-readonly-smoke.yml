@@ -1,0 +1,63 @@
+name: GDP PST-only read-only checkout smoke
+on:
+  push:
+    branches:
+      - fix/gdp-pst-only-checkout-safeguard-v1-20261029
+permissions:
+  contents: read
+jobs:
+  nonpaid-quote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify SK PST-only server quote without payment
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const payload = {
+            action: 'checkoutConfig', amount: 35.99, province: 'Saskatchewan',
+            postalCode: 'S7K 0A1', shippingMethod: 'pickup',
+            shippingItems: [{ productId: 'fb18f361-9927-4c86-b859-81c2f7625e3c', amount: 35.99, quantity: 1 }],
+          };
+          const response = await fetch('https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout', {
+            method: 'POST',
+            headers: {'content-type': 'application/json', origin: 'https://gdpclothing.ca'},
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(15000),
+          });
+          const body = await response.json();
+          console.log(JSON.stringify({httpStatus: response.status, configured: body.configured, tax: body.tax, gstHstTax: body.gstHstTax, pstTax: body.pstTax, taxName: body.taxName, jurisdiction: body.taxBreakdown?.jurisdiction, policy: body.taxBreakdown?.policy, reviewRequired: body.taxReviewRequired}));
+          assert.equal(response.status, 200, 'Non-paid quote endpoint must succeed');
+          assert.equal(body.configured, true);
+          assert.equal(Math.round(Number(body.tax) * 100), 216);
+          assert.equal(Number(body.gstHstTax), 0);
+          assert.equal(Math.round(Number(body.pstTax) * 100), 216);
+          assert.equal(body.taxBreakdown?.jurisdiction, 'SK');
+          assert.equal(body.taxBreakdown?.policy, 'gst_small_supplier_pst_only');
+          assert.equal(body.taxName, 'Saskatchewan PST (6%)');
+          const readQuote = async (overrides) => {
+            const next = { ...payload, ...overrides };
+            const res = await fetch('https://mcmancxsqlhxnjhlnfkz.supabase.co/functions/v1/checkout', {
+              method: 'POST', headers: {'content-type':'application/json', origin:'https://gdpclothing.ca'},
+              body: JSON.stringify(next), signal: AbortSignal.timeout(15000),
+            });
+            return {res, body: await res.json()};
+          };
+          const shipping = await readQuote({shippingMethod:'standard'});
+          console.log(JSON.stringify({kind:'shipping',status:shipping.res.status,tax:shipping.body.tax,shipping:shipping.body.shipping,gst:shipping.body.gstHstTax,pst:shipping.body.pstTax}));
+          assert.equal(shipping.res.status,200, 'Saskatchewan shipping quote must succeed');
+          assert.equal(Math.round(Number(shipping.body.tax)*100),216, 'SK-origin separately stated delivery is excluded from PST');
+          assert.equal(Number(shipping.body.gstHstTax),0);
+          const discount = await readQuote({amount:29.99});
+          assert.equal(discount.res.status,200, 'Discounted Saskatchewan pickup quote must succeed');
+          assert.equal(Math.round(Number(discount.body.tax)*100),180, 'Discounted $29.99 taxable base must have 6% PST');
+          assert.equal(Number(discount.body.gstHstTax),0);
+          const outside = await readQuote({province:'Ontario',postalCode:'M5V 1A1',shippingMethod:'standard'});
+          assert.equal(outside.res.status,503,'Unreviewed non-SK tax obligations fail closed');
+          assert.equal(outside.body.taxReviewRequired,true);
+          console.log('PST-only pickup, shipping, discount, and non-SK fail-closed quotes pass. No payment was created.');
+          NODE
