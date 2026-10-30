@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
+import StudioDesktopViewZoom from '@/components/storefront/custom-studio-v2/StudioDesktopViewZoom';
 import StudioArtworkComparison from '@/components/storefront/custom-studio-v2/StudioArtworkComparison';
 import useStudioMobileFloatingPreview from '@/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview';
 import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RotateCcw } from 'lucide-react';
@@ -243,6 +244,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
       <section ref={garmentRef} className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview · {side}</p><p className="text-sm font-bold text-slate-700">Drag with one finger. Pinch with two fingers to resize and rotate.</p></div>
         <div className="mx-auto w-full max-w-[680px] rounded-[28px] bg-slate-100 p-3 sm:p-5">
+          <StudioDesktopViewZoom side={side}>
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
             {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
             <div data-gdp-print-guide="true" data-gdp-upload-overflow-preview={outsideRecommendedArea ? 'outside' : 'inside'} aria-label={`Recommended ${side} print area ${printGuide.label}`} className={`absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed ${outsideRecommendedArea ? 'border-amber-500 bg-amber-50/10' : 'border-slate-500/50 bg-white/5'}`} style={{ ...printGuide.style, overflow: 'hidden' }}>
@@ -267,6 +269,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
               ) : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
             </div>
           </div>
+          </StudioDesktopViewZoom>
         </div>
         {editor.artwork ? <button type="button" onClick={() => inspectorRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })} className="mt-3 flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 sm:hidden">Edit selected artwork controls</button> : null}
         <p className="mt-2 text-center text-[10px] font-bold text-slate-400">The dashed fabric box uses the garment print profile. With Bleed & Crop enabled, you can move and enlarge artwork beyond its boundaries; the excess is cut off in preview and print. Reliable embedded DPI preserves physical size; mobile/screen files use a fitted base size.</p>

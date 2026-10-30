@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
+import StudioDesktopViewZoom from '@/components/storefront/custom-studio-v2/StudioDesktopViewZoom';
 import useStudioMobileFloatingPreview from '@/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview';
 import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
@@ -469,6 +470,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
         </div>
 
         <div className="mx-auto w-full rounded-[28px] bg-slate-100 p-3 sm:p-5" style={{ maxWidth: 'min(620px, max(300px, calc((100vh - 320px) * 0.8)))' }}>
+          <StudioDesktopViewZoom side={side}>
           <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner">
             {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain opacity-95" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
             <div data-gdp-print-guide="true" data-gdp-print-side={side} aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed border-white/80 bg-black/5 shadow-[0_0_0_1px_rgba(15,23,42,.15)]" style={printGuide.style}>
@@ -479,6 +481,7 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
               {!layers.length ? <div data-gdp-seasonal-empty-overlay="true" className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">{catalog ? 'Choose your first artwork from the library' : 'No artwork on this side yet'}</div> : null}
             </div>
           </div>
+          </StudioDesktopViewZoom>
         </div>
       </section>
 

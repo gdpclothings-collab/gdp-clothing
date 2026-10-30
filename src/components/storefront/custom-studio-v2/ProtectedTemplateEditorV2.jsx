@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import StudioMobilePreviewMirror from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
+import StudioDesktopViewZoom from '@/components/storefront/custom-studio-v2/StudioDesktopViewZoom';
 import {
   AlertTriangle,
   ArrowDown,
@@ -918,6 +919,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
       className={compact ? 'mx-auto w-full rounded-xl bg-slate-100 p-1' : 'mx-auto w-full max-w-[620px] rounded-[28px] bg-slate-100 p-3 sm:p-5'}
       style={!compact && isBootleg ? { maxWidth: 'min(620px, calc((100dvh - 16rem) * 0.8))' } : undefined}
     >
+      <StudioDesktopViewZoom side={side} disabled={compact}>
       <div className="relative mx-auto aspect-[4/5] overflow-hidden rounded-2xl bg-white shadow-inner" onPointerDownCapture={(event) => { if (templateEditing && event.target instanceof Element && !event.target.closest('[data-gdp-template-selection-box="true"]')) onActiveLayerChange?.('photo'); }}>
         {garmentPreview ? <img src={garmentPreview} alt={`${product.name} ${side} preview`} className="absolute inset-0 h-full w-full object-contain" /> : <div className="absolute inset-[8%] rounded-[42%_42%_18%_18%] bg-slate-200/80" aria-label={`${product?.name || 'Garment'} ${side} silhouette`} />}
         <div ref={canvasRef} data-gdp-print-guide="true" data-gdp-active-layer={usesLayerLab ? activeLayer : undefined} aria-label={`Recommended ${side} print area ${printGuide.label}`} className="absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border border-dashed border-slate-400/70 bg-white/10" style={printGuide.style}>
@@ -971,6 +973,7 @@ function ProtectedPreview({ product, color, size, template, editor, path, sticke
         </div>
         {!template && <div className="absolute inset-x-4 bottom-4 rounded-xl bg-slate-950/80 p-3 text-center text-xs font-bold text-white">Choose a {path === 'memorial' ? 'memorial' : 'bootleg'} template to begin.</div>}
       </div>
+      </StudioDesktopViewZoom>
       {!compact && bootlegTextLayouts.some(({ layout }) => !layout?.textEdgeCrop && layout?.overflow?.any) ? <div data-gdp-bootleg-print-boundary-warning="true" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-[11px] font-bold leading-4 text-red-900"><AlertTriangle size={15} className="mt-0.5 shrink-0" /> <span>This text could not be safely fitted inside the print area. Reduce the text length before approval.</span></div> : null}
       {!compact ? <p className="mt-2 text-center text-[10px] font-bold text-slate-400">{usesLayerLab ? (activeLayer === 'overlay' ? 'Overlay selected · use the sliders to adjust its effect · ' : activeLayer === 'template' ? 'Template layer selected · ' : activeLayer === 'photo' ? 'Tap any photo to switch · drag to move · pinch to resize/rotate · ' : activeLayer === 'text' ? 'Text layer selected · ' : 'Sticker layer selected · ') : ''}{activeLayer === 'overlay' ? '' : 'One finger moves · two fingers pinch/rotate · '}{String(side || 'front').toUpperCase()} side</p> : null}
     </div>
