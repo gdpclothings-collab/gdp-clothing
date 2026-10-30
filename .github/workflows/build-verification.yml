@@ -123,6 +123,7 @@ jobs:
           node --test tests/studio-template-canvas-handles.test.mjs
           node --test tests/studio-final-review-text-parity.test.mjs
           node --test tests/studio-mobile-live-preview.test.mjs
+          node --test tests/studio-desktop-view-zoom.test.mjs
           node --test tests/bootleg-print-overlays.test.mjs
           node --test tests/bootleg-direct-photo-pointer.test.mjs
           node --test tests/bootleg-photo-borders.test.mjs
