@@ -11,10 +11,11 @@ export function clampStudioViewZoom(value) {
 
 export function clampStudioViewPan(zoom, viewportWidth, viewportHeight, x, y) {
   const scale = clampStudioViewZoom(zoom) / 100;
+  if (scale <= 1) return { x: 0, y: 0 };
   const limitX = Math.max(0, (scale - 1) * Math.max(0, Number(viewportWidth) || 0) / 2);
   const limitY = Math.max(0, (scale - 1) * Math.max(0, Number(viewportHeight) || 0) / 2);
   return {
-    x: Math.max(-limitX, Math.min(limitX, Number(x) || 0)),
-    y: Math.max(-limitY, Math.min(limitY, Number(y) || 0)),
+    x: limitX > 0 ? Math.max(-limitX, Math.min(limitX, Number(x) || 0)) : 0,
+    y: limitY > 0 ? Math.max(-limitY, Math.min(limitY, Number(y) || 0)) : 0,
   };
 }
