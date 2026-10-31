@@ -4,6 +4,9 @@ on:
     paths:
       - 'src/pages/CheckoutTwoStep.jsx'
       - 'scripts/verify-checkout-terms-hotfix.mjs'
+      - 'supabase/functions/checkout/index.ts'
+      - 'supabase/functions/checkout-gateway/index.ts'
+      - 'tests/checkout-gateway-email-alignment.test.mjs'
       - '.github/workflows/verify-checkout-regression.yml'
 jobs:
   checkout-regression:
@@ -16,4 +19,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/verify-checkout-terms-hotfix.mjs
+      - run: node --test tests/checkout-gateway-email-alignment.test.mjs
       - run: npm run build
