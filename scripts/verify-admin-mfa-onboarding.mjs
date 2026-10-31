@@ -5,6 +5,7 @@ const migrationPath = "supabase/migrations/202610080458_admin_mfa_profile_bootst
 
 const gate = fs.readFileSync(gatePath, "utf8");
 const migration = fs.readFileSync(migrationPath, "utf8");
+const decision = fs.readFileSync("src/lib/adminMfaGateDecision.js", "utf8");
 
 function requireMatch(condition, message) {
   if (!condition) {
@@ -34,15 +35,15 @@ requireMatch(
   "grace bypass must require an unexpired server deadline"
 );
 requireMatch(
-  gate.includes('aalResult.data?.currentLevel === "aal2"'),
+  gate.includes('if (decision === "allow")') && decision.includes('currentLevel === "aal2"'),
   "AAL2 success path is missing"
 );
 requireMatch(
-  gate.includes('item.status === "verified"'),
+  gate.includes('if (decision === "challenge")') && decision.includes('factor?.status === "verified"'),
   "verified-factor challenge path is missing"
 );
 requireMatch(
-  gate.includes("setVerifiedFactor(factor)") && gate.includes('setMode("verify")'),
+  gate.includes('setVerifiedFactor(totpFactors.find((item) => item.status === "verified"))') && gate.includes('setMode("verify")'),
   "verified factors must still route to the verification challenge"
 );
 
