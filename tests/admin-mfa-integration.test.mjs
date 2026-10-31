@@ -58,7 +58,7 @@ test("server rejects non-admin even when token has AAL2", () => {
   assert.match(migration, /not public\.is_admin\(\)/);
 });
 test("atomic payment-mode update has expected-value condition and conflict error", () => {
-  assert.match(migration, /where id = 1 and payment_mode = p_expected_mode/);
+  assert.match(migration, /where\s+id\s*=\s*1\s+and\s+payment_mode\s*=\s*p_expected_mode/i);
   assert.match(migration, /Payment mode changed in another session/);
 });
 test("MFA challenge refresh is checked before verification is recorded", () => {
