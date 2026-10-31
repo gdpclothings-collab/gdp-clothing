@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { adminMfaSecurityApi } from "@/lib/adminMfaSecurityApi";
+import { decideAdminMfaGate } from "@/lib/adminMfaGateDecision";
 import { useAuth } from "@/lib/AuthContext";
 
 const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -86,36 +87,35 @@ export default function AdminMfaGate() {
         Number.isFinite(expiresAt) &&
         expiresAt > Date.now();
 
-      // The server-backed grace record is the source of truth for first-time
-      // admin onboarding. If it is active and the admin has not enrolled MFA,
-      // do not block dashboard access on optional browser MFA SDK checks.
-      if (graceIsActive) {
-        setGraceBypass(true);
-        return;
-      }
-
+      // Always inspect the real MFA factors before honoring a grace record.
+      // A stale enrollment-state row must never bypass an enrolled factor.
       const [aalResult, factorsResult] = await Promise.all([
         supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
         supabase.auth.mfa.listFactors(),
       ]);
-
       if (aalResult.error) throw aalResult.error;
       if (factorsResult.error) throw factorsResult.error;
 
-      if (aalResult.data?.currentLevel === "aal2") {
+      const totpFactors = factorsResult.data?.totp || [];
+      const decision = decideAdminMfaGate({
+        currentLevel: aalResult.data?.currentLevel,
+        totpFactors,
+        graceActive: graceIsActive,
+      });
+
+      if (decision === "allow") {
         setAal2(true);
         clearReminder(user?.id);
         adminMfaSecurityApi.recordVerified().catch(() => {});
         return;
       }
-
-      const totpFactors = factorsResult.data?.totp || [];
-      const factor =
-        totpFactors.find((item) => item.status === "verified") || null;
-
-      if (factor) {
-        setVerifiedFactor(factor);
+      if (decision === "challenge") {
+        setVerifiedFactor(totpFactors.find((item) => item.status === "verified"));
         setMode("verify");
+        return;
+      }
+      if (decision === "grace") {
+        setGraceBypass(true);
         return;
       }
 

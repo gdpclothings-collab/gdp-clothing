@@ -1,0 +1,78 @@
+name: GDP Admin MFA Isolated QA (PR 585)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - fix/gdp-paymentmode-securefix-v1-20261031
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gdp-admin-mfa-isolated-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mfa-regression:
+    name: MFA integration regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: MFA integration tests
+        run: node --test tests/admin-mfa-integration.test.mjs
+
+  payment-security:
+    name: Payment-mode security regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Payment-mode RPC and admin settings tests
+        run: node --test tests/admin-payment-mode-rpc.test.mjs tests/admin-dashboard-settings-read.test.mjs
+
+  build:
+    name: Production build (no deploy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+
+  typecheck:
+    name: TypeScript check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
