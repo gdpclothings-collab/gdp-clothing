@@ -49,16 +49,13 @@ test("payment-mode save is isolated from ordinary store settings and cannot mix 
   assert.match(settingsModule, /if \(paymentModeChanged\) \{\s*await adminSettingsApi\.savePaymentMode/);
 });
 
-test("payment-mode update requires verified MFA and writes only one column with optimistic match", () => {
+test("payment-mode save delegates to the secure RPC without direct table access", () => {
   const start = settingsApi.indexOf("  async savePaymentMode(");
   assert.ok(start >= 0, "dedicated payment-mode method is missing");
   const body = settingsApi.slice(start, settingsApi.indexOf("\n  async loadDtfSettings()", start));
-  assert.match(body, /getAuthenticatorAssuranceLevel\(\)/);
-  assert.match(body, /assurance\?\.currentLevel !== "aal2"/);
-  assert.match(body, /\.update\(\{ payment_mode: nextMode \}\)/);
-  assert.match(body, /\.eq\("payment_mode", expectedMode\)/);
-  assert.match(body, /\.select\("payment_mode"\)/);
-  assert.match(body, /data\?\.payment_mode !== nextMode/);
+  assert.match(settingsApi, /import \{ requestAdminPaymentModeSwitch \} from "@\/lib\/paymentModeSecureSwitch"/);
+  assert.match(body, /requestAdminPaymentModeSwitch\(supabase, expectedMode, nextMode\)/);
+  assert.doesNotMatch(body, /\.from\("store_settings"\)|\.update\(|\.select\(/);
   assert.doesNotMatch(body, /service_role|STRIPE_SECRET|\.from\("orders"\)|stripe-webhook/i);
 });
 

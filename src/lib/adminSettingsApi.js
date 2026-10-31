@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { adminApi } from "@/lib/adminApi";
 import { calculateDtfPrice, normalizeDtfSettings } from "@/lib/dtfGangSheet";
+import { requestAdminPaymentModeSwitch } from "@/lib/paymentModeSecureSwitch";
 
 const mapSettings = (row) =>
   row
@@ -51,33 +52,7 @@ export const adminSettingsApi = {
   },
 
   async savePaymentMode(expectedMode, nextMode) {
-    if (!["live", "test"].includes(expectedMode) ||
-        !["live", "test"].includes(nextMode) ||
-        expectedMode === nextMode) {
-      throw new Error("Invalid payment-mode change. Reload store settings.");
-    }
-
-    // Defense in depth: RLS also requires admin + step-up authorization.
-    const { data: assurance, error: assuranceError } =
-      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (assuranceError) throw assuranceError;
-    if (assurance?.currentLevel !== "aal2") {
-      throw new Error("Verify admin MFA (AAL2) before changing payment mode.");
-    }
-
-    const { data, error } = await supabase
-      .from("store_settings")
-      .update({ payment_mode: nextMode })
-      .eq("id", 1)
-      .eq("payment_mode", expectedMode)
-      .select("payment_mode")
-      .maybeSingle();
-
-    if (error) throw error;
-    if (data?.payment_mode !== nextMode) {
-      throw new Error("Payment mode changed in another session. Reload settings and try again.");
-    }
-    return data.payment_mode;
+    return requestAdminPaymentModeSwitch(supabase, expectedMode, nextMode);
   },
 
   async loadDtfSettings() {

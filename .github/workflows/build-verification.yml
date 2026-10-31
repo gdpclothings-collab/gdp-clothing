@@ -91,6 +91,7 @@ jobs:
           node scripts/verify-admin-neumorphism-accessibility.mjs
           node scripts/verify-admin-authenticated-smoke.mjs
           node --test tests/admin-dashboard-settings-read.test.mjs
+          node --test tests/admin-payment-mode-rpc.test.mjs
           node --test tests/admin-data-cleanup.test.mjs
           node --test tests/google-oauth-policy-receipt.test.mjs
           node --test tests/admin-smoke-origin.test.mjs
