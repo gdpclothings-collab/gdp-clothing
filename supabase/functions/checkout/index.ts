@@ -1941,7 +1941,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         order_number: orderNumber,
         user_id: user?.id || null,
-        customer_email: user?.email || customer.email,
+        customer_email: customer.email,
         customer_name: customerName,
         customer_phone: customer.phone || null,
         subtotal,
@@ -1977,8 +1977,8 @@ Deno.serve(async (req: Request) => {
     if (customer.termsAccepted === true) {
       const acceptedAt = new Date().toISOString();
       const { error: policyAcceptanceError } = await service.from("policy_acceptances").insert([
-        { user_id: user?.id || null, email: user?.email || customer.email, order_id: order.id, policy_key: "terms_conditions", policy_version: "2026-09-07", source: "checkout", accepted_at: acceptedAt },
-        { user_id: user?.id || null, email: user?.email || customer.email, order_id: order.id, policy_key: "privacy_policy", policy_version: "2026-09-07", source: "checkout", accepted_at: acceptedAt },
+        { user_id: user?.id || null, email: customer.email, order_id: order.id, policy_key: "terms_conditions", policy_version: "2026-09-07", source: "checkout", accepted_at: acceptedAt },
+        { user_id: user?.id || null, email: customer.email, order_id: order.id, policy_key: "privacy_policy", policy_version: "2026-09-07", source: "checkout", accepted_at: acceptedAt },
       ]);
       if (policyAcceptanceError) console.error("checkout policy acceptance audit failed", policyAcceptanceError);
     }
@@ -1986,7 +1986,7 @@ Deno.serve(async (req: Request) => {
     if (customer.marketingConsent === true) {
       const { error: marketingConsentError } = await service.from("marketing_consents").insert({
         user_id: user?.id || null,
-        email: user?.email || customer.email,
+        email: customer.email,
         status: "subscribed",
         source: "checkout",
         consent_text_version: "2026-09-07",
@@ -2180,7 +2180,7 @@ Deno.serve(async (req: Request) => {
       "return_url",
       `${origin}/order/${encodeURIComponent(order.order_number)}?status=success&token=${order.confirmation_token}&session_id={CHECKOUT_SESSION_ID}`
     );
-    form.set("customer_email", user?.email || customer.email);
+    form.set("customer_email", customer.email);
     form.set("line_items[0][price_data][currency]", "cad");
     form.set(
       "line_items[0][price_data][product_data][name]",
