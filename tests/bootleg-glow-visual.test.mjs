@@ -67,12 +67,11 @@ test('stronger Bootleg Glow uses blur plus a saturated color rim, then a white c
   assert.match(borders, /softCtx\.filter = blurRadius > 0/);
   assert.match(borders, /spreadCtx\.fillStyle = border\.glowColor/);
   assert.match(borders, /rimCtx\.fillStyle = border\.innerColor/);
-  assert.match(editor, /data-gdp-bootleg-glow-controls="true"/);
+  assert.doesNotMatch(editor, /data-gdp-bootleg-glow-controls/, 'legacy Glow is no longer customer-editable');
 });
 
 test('mobile preview and 300-DPI export share a non-destructive bottom fade', () => {
-  assert.match(editor, /data-gdp-bootleg-photo-bottom-fade="selected-photo-only"/);
-  assert.match(editor, /<RangeControl label="Bottom edge fade" value=\{activePhotoBorder\.bottomFade\}/);
+  assert.doesNotMatch(editor, /data-gdp-bootleg-photo-bottom-fade|<RangeControl label="Bottom edge fade"/, 'retired border effects do not clutter photo controls');
   assert.match(editor, /const fadeMask = bottomFade > 0/);
   assert.match(editor, /maskImage: fadeMask, WebkitMaskImage: fadeMask/);
   assert.match(editor, /scope === 'bootleg' \? normalizePhotoBorder\(layer\.border\)\.bottomFade : 0/);

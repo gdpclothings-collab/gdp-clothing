@@ -33,8 +33,10 @@ test('compact mirror removes redundant footer and warning but retains print geom
   assert.match(source, /<div ref=\{canvasRef\} data-gdp-print-guide="true"/);
   assert.match(source, /transform: `rotate\(\$\{templateTransform\.rotation\}deg\) scale/);
 });
-test('desktop layout stays three-column and mobile layer picker fits on one row', () => {
+test('desktop uses two columns until Template is selected, and the mobile layer picker stays on one row', () => {
   assert.match(source,/xl:grid-cols-\[minmax\(280px,\.82fr\)_minmax\(420px,1\.4fr\)_minmax\(300px,\.86fr\)\]/);
+  assert.match(source, /usesLayerLab && activeBootlegLayer !== 'template'/);
+  assert.match(source, /xl:grid-cols-\[minmax\(420px,1\.4fr\)_minmax\(300px,\.86fr\)\]/);
   assert.match(source,/bootlegLayerButtons\.length === 5 \? 'grid-cols-5' : bootlegLayerButtons\.length === 4 \? 'grid-cols-4'/);
   assert.match(source,/sm:hidden/);
   assert.match(source,/data-gdp-bootleg-confirm-action=\{isBootleg \? 'persistent'/);

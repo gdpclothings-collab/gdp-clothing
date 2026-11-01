@@ -33,7 +33,7 @@ test('live border output is cut out from EVERY photo interior, protecting visibl
 
 test('every RangeControl in the protected editor has an individually accessible reset', () => {
   const usages = editor.split('\n').filter((line) => line.includes('<RangeControl'));
-  assert.ok(usages.length >= 34, 'expected all existing photo, template, text, sticker and effect sliders');
+  assert.ok(usages.length >= 25, 'expected photo, template, text, sticker and overlay sliders after retiring border effects');
   for (const line of usages) {
     assert.match(line, /onReset=\{\(\) =>/, line.slice(0, 110));
   }
@@ -41,24 +41,18 @@ test('every RangeControl in the protected editor has an individually accessible 
   assert.match(editor, /onDoubleClick=\{onReset \?/);
 });
 
-test('color controls and whole glow preset have reliable per-photo resets', () => {
-  for (const label of ['border color', 'inner stroke color', 'glow color', 'tint color']) {
-    assert.ok(editor.includes('aria-label="Reset ' + label + '"'), label);
-  }
-  assert.match(editor, /Reset Bootleg Glow settings/);
-  assert.match(editor, /Remove border \(keep photo fade\)/);
-  assert.match(editor, /const resetPhotoBorderStyle = \(\) => updateActivePhotoBorder\(\{ \.\.\.DEFAULT_PHOTO_BORDER, bottomFade: activePhotoBorder\.bottomFade \}\)/);
-  assert.match(editor, /const resetBootlegGlow = \(\) => updateActivePhotoBorder\(\{/);
-  assert.match(editor, /const photoBorderDefault = \(key\) => settings\?\.photoBorderOptions\?\.\[key\]/);
-  assert.match(editor, /layer\.id === activePhoto\.id \? \{ \.\.\.layer, border: normalized \} : layer/);
+test('retired photo border controls are absent, while overlay tint has its reset', () => {
+  assert.doesNotMatch(editor, /Photo Border Effects|data-gdp-bootleg-photo-borders|data-gdp-bootleg-glow-controls|Bottom edge fade/);
+  assert.doesNotMatch(editor, /resetPhotoBorderStyle|resetBootlegGlow|updateActivePhotoBorder/);
+  assert.match(editor, /aria-label="Reset tint color"/);
 });
 
-test('photo, template, sticker and bottom fade resets stay independent', () => {
+test('photo, template and sticker resets remain independently accessible', () => {
   assert.match(editor, /patchTemplateTransform\(\{ scale: 100 \}\)/);
   assert.match(editor, /patchActivePhotoTransform\(\{ scale: template\?\.defaultTransform\?\.scale \|\| 100 \}\)/);
   assert.match(editor, /patchActivePhotoTransform\(\{ canvasX: resolvePhotoCanvasPosition\(\{\}, template\?\.photoZone \|\| \{\}\)\.x \}\)/);
   assert.match(editor, /patchActivePhotoTransform\(\{ rotation: 0 \}\)/);
   assert.match(editor, /patchActiveSticker\(\{ scale: 42 \}\)/);
   assert.match(editor, /patchActiveSticker\(\{ rotation: 0 \}\)/);
-  assert.match(editor, /updateActivePhotoBorder\(\{ bottomFade: 0 \}\)/);
+  assert.doesNotMatch(editor, /updateActivePhotoBorder/);
 });
