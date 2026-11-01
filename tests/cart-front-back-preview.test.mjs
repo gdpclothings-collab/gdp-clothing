@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { cartPreviewSides } from '../src/lib/cartPreviewSides.js';
+import { cartPreviewSides, mergeRefreshedCartPreviews } from '../src/lib/cartPreviewSides.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -74,6 +74,51 @@ test('cart reload re-signs side-specific customer paths using existing authorize
   assert.match(cart, /createSignedUrl\(path, 3600\)/);
   assert.match(cart, /action: "signGuestCustomUpload", path/);
   assert.match(cart, /\.map\(persistableCartItem\)/);
+});
+
+test('delayed mockup signing preserves cart edits, additions, and removals', () => {
+  const original = {
+    key: 'custom-one', isCustom: true, placement: 'front_back', imagePath: 'guest/one/front.png',
+    image: 'expired-front', quantity: 1,
+    customerMockups: {
+      front: { path: 'guest/one/front.png', url: 'expired-front' },
+      back: { path: 'guest/one/back.png', url: 'expired-back' },
+    },
+    productionFiles: { front: { dpi: 300, path: 'print-front' }, back: { dpi: 300, path: 'print-back' } },
+  };
+  const refreshed = {
+    ...original, image: 'signed-front',
+    customerMockups: {
+      front: { ...original.customerMockups.front, url: 'signed-front' },
+      back: { ...original.customerMockups.back, url: 'signed-back' },
+    },
+  };
+  const added = { key: 'custom-two', isCustom: true, image: 'new-design', quantity: 1 };
+  const changedQuantity = { ...original, quantity: 3 };
+  const merged = mergeRefreshedCartPreviews([changedQuantity, added], [original], [refreshed]);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].quantity, 3);
+  assert.equal(merged[0].image, 'signed-front');
+  assert.equal(merged[0].customerMockups.back.url, 'signed-back');
+  assert.deepEqual(merged[0].productionFiles, original.productionFiles);
+  assert.equal(merged[1], added);
+  assert.deepEqual(mergeRefreshedCartPreviews([], [original], [refreshed]), []);
+
+  const editedArtwork = {
+    ...original,
+    customerMockups: { ...original.customerMockups, back: { path: 'guest/two/back.png', url: 'new-back' } },
+  };
+  assert.equal(mergeRefreshedCartPreviews([editedArtwork], [original], [refreshed])[0], editedArtwork);
+  const movedToSaved = { ...original, placement: 'back' };
+  assert.equal(mergeRefreshedCartPreviews([movedToSaved], [original], [refreshed])[0], movedToSaved);
+});
+
+test('saved cart URL refresh never replaces whole arrays with an older snapshot', () => {
+  const cart = read('../src/lib/CartContext.jsx');
+  assert.doesNotMatch(cart, /setItems\(refreshed\)/);
+  assert.doesNotMatch(cart, /setSaved\(refreshed\)/);
+  assert.match(cart, /setItems\(\(current\) => mergeRefreshedCartPreviews\(current, storedItems, refreshed\)\)/);
+  assert.match(cart, /setSaved\(\(current\) => mergeRefreshedCartPreviews\(current, storedSaved, refreshed\)\)/);
 });
 
 test('the cart uses a keyboard-accessible, mobile-friendly front/back selector', () => {

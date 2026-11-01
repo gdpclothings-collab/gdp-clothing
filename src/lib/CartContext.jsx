@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
+import { mergeRefreshedCartPreviews } from "@/lib/cartPreviewSides";
 import {
   readStoredJson,
   removeStoredKey,
@@ -140,9 +141,13 @@ export function CartProvider({ children }) {
     setLoadedStorageSignature(storageSignature);
 
     Promise.all(storedItems.map((item) => refreshCustomPreview(item, user)))
-      .then((refreshed) => { if (active) setItems(refreshed); });
+      .then((refreshed) => {
+        if (active) setItems((current) => mergeRefreshedCartPreviews(current, storedItems, refreshed));
+      });
     Promise.all(storedSaved.map((item) => refreshCustomPreview(item, user)))
-      .then((refreshed) => { if (active) setSaved(refreshed); });
+      .then((refreshed) => {
+        if (active) setSaved((current) => mergeRefreshedCartPreviews(current, storedSaved, refreshed));
+      });
 
     // The old v1 keys were shared by every account in the browser. Remove
     // them after auth resolution so they can never leak into another user.
