@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import StudioMobilePreviewMirror from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
 import StudioDesktopViewZoom from '@/components/storefront/custom-studio-v2/StudioDesktopViewZoom';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
   AlertTriangle,
   ArrowDown,
@@ -11,6 +12,7 @@ import {
   Eye,
   EyeOff,
   Focus,
+  GripVertical,
   Layers,
   Loader2,
   RotateCcw,
@@ -47,7 +49,7 @@ import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTou
 import { FULL_TEMPLATE_BOUNDS, readTemplateAlphaBounds, normalizePhotoAlphaBounds, containPhotoAlphaBounds, constrainFreePhotoTransform, constrainStickerTransform, constrainTemplateTransform } from '@/lib/customStudioV2PrintBounds';
 import { templateSelectionGeometry, resizeTemplateFromHandle } from '@/lib/templateOnCanvasGeometry';
 import { nextPreviewHiddenPhotoIds, nextPreviewFocusPhotoIds, previewPhotoVisible, previewIsFiltered } from '@/lib/customStudioV2PreviewFocus';
-import { uploadedPhotoIdsPresent } from '@/lib/customStudioV2PhotoLayers';
+import { reorderStudioV2PhotoLayers, uploadedPhotoIdsPresent } from '@/lib/customStudioV2PhotoLayers';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
@@ -1169,6 +1171,15 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     onPatch(patch);
   };
 
+  const handlePhotoDragEnd = ({ source, destination }) => {
+    if (!destination || source.index === destination.index) return;
+    const topFirst = [...photos].reverse();
+    const dragged = topFirst[source.index];
+    if (!dragged) return;
+    const reordered = reorderStudioV2PhotoLayers(photos, source.index, destination.index);
+    syncPhotos(reordered, dragged.id);
+  };
+
   const syncStickers = (next, activeId = '') => {
     const latestEditor = editorRef.current || editor;
     const byId = new Map();
@@ -1811,20 +1822,50 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <div data-gdp-photo-focus-mode="preview-only" className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
             <div className="flex items-center justify-between gap-2"><strong className="text-xs text-cyan-950">Photo Layers</strong><button type="button" onClick={resetPreviewVisibility} disabled={!previewVisibilityChanged} className="min-h-9 rounded-lg bg-white px-2 text-xs font-black text-cyan-800 disabled:opacity-40">Show All</button></div>
             <p role="status" className="mt-1 text-[11px] text-cyan-900">{previewFocusPhotoIds.length ? `Focus ${previewFocusPhotoIds.length}/2 · only selected photos are shown` : previewHiddenPhotoIds.length ? `${previewHiddenPhotoIds.length} temporarily hidden` : 'All photo layers visible'}</p>
-            <p className="mt-1 text-[10px] text-cyan-800">Eye hides temporarily. Focus isolates up to two. Hidden photos always stay in this list and in your print design.</p>
+            <p className="mt-1 text-[10px] text-cyan-800">Drag the grip to rearrange photos. Top = in front, bottom = behind. Eye/Focus only change the preview; hidden photos stay in your print design.</p>
           </div>
-          {photos.length ? photos.map((layer, index) => {
-            const hidden = previewHiddenPhotoIds.includes(layer.id);
-            const focused = previewFocusPhotoIds.includes(layer.id);
-            return <div key={layer.id} data-gdp-photo-layer-row={layer.id} className={`flex min-h-12 items-center gap-1 rounded-xl border p-1 ${hidden ? 'border-slate-200 bg-slate-100' : focused ? 'border-cyan-400 bg-cyan-50' : 'border-slate-200 bg-white'}`}>
-              <button type="button" aria-label={`Select ${layer.asset?.name || `Photo ${index + 1}`}`} onClick={() => { revealLayerControls('photo'); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); setPreviewFocusPhotoIds((ids) => ids.length && !ids.includes(layer.id) ? nextPreviewFocusPhotoIds(ids, layer.id) : ids); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}>
-                <span className={`grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 ${hidden ? 'opacity-35' : ''}`}><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span>
-                <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span>{hidden ? <span className="text-[10px]">Hidden · tap to reveal</span> : focused ? <span className="text-[10px]">Focused</span> : null}</span>
-              </button>
-              <button type="button" onClick={() => togglePreviewPhoto(layer.id)} aria-pressed={!hidden} aria-label={`${hidden ? 'Show' : 'Hide'} photo ${index + 1} temporarily`} title={hidden ? 'Show photo' : 'Hide photo'} className="grid h-11 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700">{hidden ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-              <button type="button" onClick={() => toggleFocusPhoto(layer.id)} aria-pressed={focused} aria-label={`Focus photo ${index + 1}`} title="Focus this photo (max 2)" className={`grid h-11 w-10 shrink-0 place-items-center rounded-lg border ${focused ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><Focus size={16} /></button>
-            </div>;
-          }) : <p className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-600">No photos yet. Choose Photo above the preview to upload.</p>}
+          {photos.length ? (
+            <DragDropContext onDragEnd={handlePhotoDragEnd}>
+              <Droppable droppableId={`gdp-photo-layers-${path}-${side}`} direction="vertical">
+                {(dropProvided) => (
+                  <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} className="space-y-2" data-gdp-photo-sort-direction="top-first">
+                    {[...photos].reverse().map((layer, index) => {
+                      const hidden = previewHiddenPhotoIds.includes(layer.id);
+                      const focused = previewFocusPhotoIds.includes(layer.id);
+                      return (
+                        <Draggable key={layer.id} draggableId={String(layer.id)} index={index}>
+                          {(dragProvided, dragSnapshot) => (
+                            <div
+                              ref={dragProvided.innerRef}
+                              {...dragProvided.draggableProps}
+                              data-gdp-photo-layer-row={layer.id}
+                              className={`flex min-h-12 items-center gap-1 rounded-xl border p-1 ${dragSnapshot.isDragging ? 'z-50 border-cyan-500 bg-cyan-50 shadow-xl' : hidden ? 'border-slate-200 bg-slate-100' : focused ? 'border-cyan-400 bg-cyan-50' : 'border-slate-200 bg-white'}`}
+                            >
+                              <button
+                                type="button"
+                                {...dragProvided.dragHandleProps}
+                                data-gdp-photo-drag-handle={layer.id}
+                                aria-label={`Rearrange ${layer.asset?.name || `Photo ${index + 1}`}. Press space to pick up, then arrow keys to move.`}
+                                title="Hold and drag to reorder · top is in front"
+                                className="grid h-11 w-8 shrink-0 touch-none cursor-grab place-items-center rounded-lg text-slate-500 active:cursor-grabbing"
+                              ><GripVertical size={18} /></button>
+                              <button type="button" aria-label={`Select ${layer.asset?.name || `Photo ${index + 1}`}`} onClick={() => { revealLayerControls('photo'); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); setPreviewFocusPhotoIds((ids) => ids.length && !ids.includes(layer.id) ? nextPreviewFocusPhotoIds(ids, layer.id) : ids); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}>
+                                <span className={`grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 ${hidden ? 'opacity-35' : ''}`}><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span>
+                                <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span>{hidden ? <span className="text-[10px]">Hidden · tap to reveal</span> : focused ? <span className="text-[10px]">Focused</span> : null}</span>
+                              </button>
+                              <button type="button" onClick={() => togglePreviewPhoto(layer.id)} aria-pressed={!hidden} aria-label={`${hidden ? 'Show' : 'Hide'} photo ${index + 1} temporarily`} title={hidden ? 'Show photo' : 'Hide photo'} className="grid h-11 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700">{hidden ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                              <button type="button" onClick={() => toggleFocusPhoto(layer.id)} aria-pressed={focused} aria-label={`Focus photo ${index + 1}`} title="Focus this photo (max 2)" className={`grid h-11 w-10 shrink-0 place-items-center rounded-lg border ${focused ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><Focus size={16} /></button>
+                            </div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {dropProvided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          ) : <p className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-600">No photos yet. Choose Photo above the preview to upload.</p>}
         </div>}
       </section>
 

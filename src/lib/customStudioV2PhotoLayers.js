@@ -21,3 +21,21 @@ export function uploadedPhotoIdsPresent(layers = [], ids = []) {
   const present = new Set((Array.isArray(layers) ? layers : []).map((layer) => layer?.id));
   return ids.every((id) => present.has(id));
 }
+
+// Reorder the visible list (top = foreground) while keeping the saved order
+// canonical (bottom = 0, foreground = largest). The preview and 300-DPI
+// production renderer both draw photos in ascending saved order.
+export function reorderStudioV2PhotoLayers(layers = [], fromTopIndex, toTopIndex) {
+  const bottomToTop = [...(Array.isArray(layers) ? layers : [])]
+    .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+  const count = bottomToTop.length;
+  if (!Number.isInteger(fromTopIndex) || !Number.isInteger(toTopIndex)
+    || fromTopIndex < 0 || toTopIndex < 0
+    || fromTopIndex >= count || toTopIndex >= count
+    || fromTopIndex === toTopIndex) return bottomToTop;
+
+  const topToBottom = bottomToTop.reverse();
+  const [moved] = topToBottom.splice(fromTopIndex, 1);
+  topToBottom.splice(toTopIndex, 0, moved);
+  return topToBottom.reverse().map((layer, index) => ({ ...layer, order: index }));
+}
