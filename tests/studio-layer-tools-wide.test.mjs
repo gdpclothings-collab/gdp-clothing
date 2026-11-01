@@ -10,11 +10,12 @@ const production = readFileSync('src/lib/customStudioV2ProtectedProduction.js', 
 const backgroundRemoval = readFileSync('supabase/functions/remove-photo-background/index.ts', 'utf8');
 
 test('Layer buttons and template / photo / text / sticker selections reveal the inspector', () => {
-  assert.match(editor, /const revealLayerControls = \(layer\) =>/);
-  assert.match(editor, /onClick=\{\(\) => revealLayerControls\(value\)\}/);
+  assert.match(editor, /const revealLayerControls = \(layer, showTemplatePicker = false\) =>/);
+  assert.match(editor, /onClick=\{\(\) => revealLayerControls\(value, value === 'template'\)\}/);
+  assert.match(editor, /ref=\{templateLibraryRef\} data-gdp-studio-library-pane=/);
   assert.match(editor, /ref=\{inspectorRef\} data-gdp-bootleg-inspector-scroll/);
-  assert.match(editor, /inspector\.scrollIntoView\(\{ behavior, block: 'start' \}\)/);
-  assert.match(editor, /inspector\.scrollTo\(\{ top: 0, behavior \}\)/);
+  assert.match(editor, /inspector\?\.scrollIntoView\(\{ behavior, block: 'start' \}\)/);
+  assert.match(editor, /inspector\?\.scrollTo\(\{ top: 0, behavior \}\)/);
   assert.match(editor, /revealLayerControls\('template'\)/);
   assert.match(editor, /revealLayerControls\('text'\)/);
   assert.match(editor, /revealLayerControls\('sticker'\)/);
