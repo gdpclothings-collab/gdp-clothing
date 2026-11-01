@@ -9,7 +9,9 @@ export default function CartGarmentPreview({ item }) {
   const sides = cartPreviewSides(item);
   const [selectedSide, setSelectedSide] = React.useState(null);
   const [zoom, setZoom] = React.useState(1);
+  const [previewFailed, setPreviewFailed] = React.useState(false);
   const active = sides.find((entry) => entry.side === selectedSide) || sides[0];
+  React.useEffect(() => { setPreviewFailed(false); }, [active?.url, item.image]);
   const adjustZoom = (delta) => setZoom((value) => Math.max(0.8, Math.min(1.8, Number((value + delta).toFixed(2)))));
   const chooseSide = (side) => {
     setSelectedSide(side);
@@ -24,10 +26,16 @@ export default function CartGarmentPreview({ item }) {
       >
         {item.isDtf ? (
           <img src={item.image} alt={`${item.name} film layout`} className="h-full w-full bg-white object-contain" />
+        ) : isCustom && (previewFailed || !(active?.url || item.image)) ? (
+          <div role="status" className="flex h-full w-full flex-col items-center justify-center gap-2 px-5 text-center text-xs text-[#52616F]">
+            <span className="font-bold text-[#17324D]">Saved preview unavailable</span>
+            <span>The preview link may have expired. Your cart item and print files remain saved; reopen the design and re-upload artwork to restore access.</span>
+          </div>
         ) : isCustom ? (
           <img
             src={active?.url || item.image}
             alt={`${item.name} approved ${active?.side === 'back' ? 'back' : 'front'} garment preview`}
+            onError={() => setPreviewFailed(true)}
             className="h-full w-full object-contain transition-transform duration-200 ease-out"
             style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
           />

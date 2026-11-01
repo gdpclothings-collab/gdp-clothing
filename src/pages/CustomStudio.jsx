@@ -879,11 +879,11 @@ async function removePhotoBackground(file) {
     URL.revokeObjectURL(sourceUrl);
   }
 }
-async function uploadWithRetry(file, attempts = 2) {
+async function uploadWithRetry(file, attempts = 2, purpose = "source") {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      return await customerApi.uploadArtwork(file);
+      return await customerApi.uploadArtwork(file, purpose);
     } catch (error) {
       lastError = error;
       if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 650));
@@ -892,7 +892,7 @@ async function uploadWithRetry(file, attempts = 2) {
   throw lastError || new Error("Upload failed.");
 }
 
-async function captureElementAsPng(elementId, targetWidthPx, fileName) {
+async function captureElementAsPng(elementId, targetWidthPx, fileName, purpose = "source") {
   const element = document.getElementById(elementId);
   if (!element) throw new Error("The final preview is not ready yet. Please try again.");
   await document.fonts?.ready;
@@ -914,7 +914,7 @@ async function captureElementAsPng(elementId, targetWidthPx, fileName) {
   });
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("Could not create the production PNG.");
-  const upload = await uploadWithRetry(new File([blob], fileName, { type: "image/png" }));
+  const upload = await uploadWithRetry(new File([blob], fileName, { type: "image/png" }), 2, purpose);
   return { upload, widthPx: canvas.width, heightPx: canvas.height };
 }
 
@@ -2129,7 +2129,7 @@ export default function CustomStudio() {
         [production.blob],
         `gdp-${String(seasonalPrepared.designPayload.lockedHash || 'seasonal').slice(0, 12)}-front-300dpi.png`,
         { type: 'image/png' }
-      ));
+      ), 2, "production");
       const productionFiles = {
         front: {
           path: productionUpload.storage_path,
@@ -2302,7 +2302,8 @@ export default function CustomStudio() {
         const rendered = await captureElementAsPng(
           `gdp-production-${side}`,
           Math.round(Number(profile.widthIn || 12) * 300),
-          `gdp-${lockedHash.slice(0, 12)}-${side}-300dpi.png`
+          `gdp-${lockedHash.slice(0, 12)}-${side}-300dpi.png`,
+          "production"
         );
         productionFiles[side] = {
           path: rendered.upload.storage_path,
@@ -2319,7 +2320,8 @@ export default function CustomStudio() {
         const mockup = await captureElementAsPng(
           `gdp-mockup-${side}`,
           900,
-          `gdp-${lockedHash.slice(0, 12)}-${side}-approved-mockup.png`
+          `gdp-${lockedHash.slice(0, 12)}-${side}-approved-mockup.png`,
+          "mockup"
         );
         customerMockups[side] = { path: mockup.upload.storage_path, url: mockup.upload.file_url };
       }

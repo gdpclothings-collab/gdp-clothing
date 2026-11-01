@@ -722,7 +722,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
         const sideHash = await digestStudioV2Snapshot(snapshot);
         const file = new File([rendered.blob], `gdp-${state.designPath}-${side}-${sideHash.slice(0, 12)}.png`, { type: 'image/png', lastModified: Date.now() });
         updateStage(`Uploading ${side} production file…`);
-        const upload = await customerApi.uploadArtwork(file);
+        const upload = await customerApi.uploadArtwork(file, 'production');
         uploads[side] = upload;
         productionFiles[side] = { path: upload.storage_path, widthPx: rendered.widthPx, heightPx: rendered.heightPx, widthIn: rendered.widthIn, heightIn: rendered.heightIn, dpi: rendered.dpi, mimeType: rendered.mimeType };
       }
@@ -775,7 +775,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
           { type: customerMockup.mimeType || 'image/png', lastModified: Date.now() }
         );
         updateStage(`Uploading ${side} customer mockup…`);
-        const upload = await customerApi.uploadArtwork(mockupFile);
+        const upload = await customerApi.uploadArtwork(mockupFile, 'mockup');
         customerMockups[side] = { path: upload.storage_path, url: upload.file_url };
       }
       const primaryMockup = customerMockups[firstSide];

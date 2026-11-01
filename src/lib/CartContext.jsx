@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState, useCall
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 import { mergeRefreshedCartPreviews } from "@/lib/cartPreviewSides";
+import { guestUploadProofForPath } from "@/lib/guestUploadProofs";
 import {
   readStoredJson,
   removeStoredKey,
@@ -70,7 +71,7 @@ function persistableCartItem(item) {
   };
 }
 
-async function signCustomPreviewPath(path, user) {
+async function signCustomPreviewPath(path, user, item, side) {
   if (!path) return "";
   try {
     if (user && user.is_anonymous !== true) {
@@ -78,9 +79,19 @@ async function signCustomPreviewPath(path, user) {
         .from("customer-uploads")
         .createSignedUrl(path, 3600);
       if (!error && data?.signedUrl) return data.signedUrl;
-    } else {
+      // A direct authenticated RLS denial never licenses a guest bypass.
+    }
+    if (path.startsWith("guest/")) {
+      const uploadProof = guestUploadProofForPath(path, "mockup");
+      if (!uploadProof && !(item?.guestDesignToken && item?.customDesignId && side)) return "";
       const { data, error } = await supabase.functions.invoke("checkout", {
-        body: { action: "signGuestCustomUpload", path },
+        body: {
+          action: "signGuestCustomUpload", path, purpose: "mockup",
+          ...(uploadProof ? { uploadProof } : {}),
+          ...(item?.guestDesignToken && item?.customDesignId && side ? {
+            guestDesignToken: item.guestDesignToken, designId: item.customDesignId, side,
+          } : {}),
+        },
       });
       if (!error && !data?.error && data?.signedUrl) return data.signedUrl;
     }
@@ -99,11 +110,11 @@ async function refreshCustomPreview(item, user) {
 
   const refreshedEntries = await Promise.all(mockupEntries.map(async ([side, mockup]) => [
     side,
-    { ...mockup, url: await signCustomPreviewPath(mockup.path, user) || mockup.url },
+    { ...mockup, url: await signCustomPreviewPath(mockup.path, user, storedItem, side) || mockup.url },
   ]));
   const customerMockups = Object.fromEntries(refreshedEntries);
   const primarySide = storedItem.placement === "back" ? "back" : "front";
-  const primaryUrl = customerMockups[primarySide]?.url || await signCustomPreviewPath(imagePath, user);
+  const primaryUrl = customerMockups[primarySide]?.url || await signCustomPreviewPath(imagePath, user, storedItem, primarySide);
 
   return {
     ...storedItem,
