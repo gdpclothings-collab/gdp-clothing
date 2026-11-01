@@ -53,31 +53,62 @@ function customerUploadPathFromUrl(value) {
 function persistableCartItem(item) {
   if (!item?.isCustom || item?.isDtf) return item;
   const imagePath = item.imagePath || customerUploadPathFromUrl(item.image);
-  return imagePath ? { ...item, imagePath } : item;
+  const customerMockups = Object.fromEntries(
+    Object.entries(item.customerMockups || {}).filter(([side]) => side === "front" || side === "back").map(([side, mockup]) => [
+      side,
+      {
+        ...mockup,
+        path: mockup?.path || customerUploadPathFromUrl(mockup?.url),
+      },
+    ])
+  );
+  return {
+    ...item,
+    ...(imagePath ? { imagePath } : {}),
+    ...(Object.keys(customerMockups).length ? { customerMockups } : {}),
+  };
 }
 
-async function refreshCustomPreview(item, user) {
-  if (!item?.isCustom || item?.isDtf) return persistableCartItem(item);
-  const imagePath = item.imagePath || customerUploadPathFromUrl(item.image);
-  if (!imagePath) return item;
-
+async function signCustomPreviewPath(path, user) {
+  if (!path) return "";
   try {
     if (user && user.is_anonymous !== true) {
       const { data, error } = await supabase.storage
         .from("customer-uploads")
-        .createSignedUrl(imagePath, 3600);
-      if (!error && data?.signedUrl) return { ...item, imagePath, image: data.signedUrl };
+        .createSignedUrl(path, 3600);
+      if (!error && data?.signedUrl) return data.signedUrl;
     } else {
       const { data, error } = await supabase.functions.invoke("checkout", {
-        body: { action: "signGuestCustomUpload", path: imagePath },
+        body: { action: "signGuestCustomUpload", path },
       });
-      if (!error && !data?.error && data?.signedUrl) return { ...item, imagePath, image: data.signedUrl };
+      if (!error && !data?.error && data?.signedUrl) return data.signedUrl;
     }
   } catch {
-    // Keep the stored item intact. A later cart load can retry signing it.
+    // Keep the existing URL. A later cart load can retry signing it.
   }
+  return "";
+}
 
-  return { ...item, imagePath };
+async function refreshCustomPreview(item, user) {
+  if (!item?.isCustom || item?.isDtf) return persistableCartItem(item);
+  const storedItem = persistableCartItem(item);
+  const imagePath = storedItem.imagePath;
+  const mockupEntries = Object.entries(storedItem.customerMockups || {});
+  if (!imagePath && !mockupEntries.length) return storedItem;
+
+  const refreshedEntries = await Promise.all(mockupEntries.map(async ([side, mockup]) => [
+    side,
+    { ...mockup, url: await signCustomPreviewPath(mockup.path, user) || mockup.url },
+  ]));
+  const customerMockups = Object.fromEntries(refreshedEntries);
+  const primarySide = storedItem.placement === "back" ? "back" : "front";
+  const primaryUrl = customerMockups[primarySide]?.url || await signCustomPreviewPath(imagePath, user);
+
+  return {
+    ...storedItem,
+    ...(mockupEntries.length ? { customerMockups } : {}),
+    image: primaryUrl || storedItem.image,
+  };
 }
 
 export function CartProvider({ children }) {
