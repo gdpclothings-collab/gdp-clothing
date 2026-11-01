@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { selectSafeCheckoutSmokeItem, checkoutSmokeRequestGuard, assertSaskatchewanPstOnlyQuote } from "./production-checkout-smoke-helpers.mjs";
 
 const BASE_URL = (process.env.PRODUCTION_BASE_URL || "https://gdpclothing.ca").replace(/\/+$/, "");
 const ARTIFACT_DIR = process.env.SMOKE_ARTIFACT_DIR || "production-smoke-results";
@@ -25,23 +26,16 @@ async function main() {
     const request = route.request();
     const method = request.method().toUpperCase();
     const url = request.url();
-    const writeMethod = !["GET", "HEAD", "OPTIONS"].includes(method);
-
     let action = null;
     try { action = request.postDataJSON()?.action || null; } catch {}
-    if (/\/functions\/v1\/payment-session(?:\?|$|\/)/i.test(url) && action) {
+    if (new URL(url).pathname.replace(/\/+$/, "") === "/functions/v1/payment-session" && action) {
       observedPaymentActions.push(action);
     }
-
-    const protectedTarget =
-      /\/functions\/v1\/checkout(?:-gateway)?(?:\?|$|\/)/i.test(url) ||
-      /\/rest\/v1\/(orders|order_items|inventory|inventory_reservations|payments)(?:\?|$|\/)/i.test(url);
-
-    if (writeMethod && protectedTarget) {
+    const decision = checkoutSmokeRequestGuard({ url, method, action });
+    if (decision.blocked) {
       blocked.push({ method, url, action });
       return route.abort("blockedbyclient");
     }
-
     return route.continue();
   });
 
@@ -51,21 +45,20 @@ async function main() {
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   try {
-    await page.addInitScript(() => {
-      window.localStorage.setItem("gdp_cart_v2__guest", JSON.stringify([
-        {
-          productId: "wiring-fallback-product",
-          variantId: "wiring-fallback-variant",
-          key: "wiring-fallback-item",
-          name: "GDP Wiring Canary",
-          price: 1,
-          quantity: 1,
-          size: "M",
-          color: "Black",
-          image: "/images/gdp-tshirt.svg",
-        },
-      ]));
-    });
+    // Resolve a real active, available public SKU using the storefront's own
+    // read-only catalog GET. Never inject a made-up product ID: checkoutConfig
+    // correctly rejects those before it can return an authoritative tax quote.
+    const catalogResponsePromise = page.waitForResponse((response) => {
+      return response.request().method() === "GET" &&
+        new URL(response.url()).pathname === "/rest/v1/products";
+    }, { timeout: 30000 });
+    await page.goto(`${BASE_URL}/shop`, { waitUntil: "domcontentloaded", timeout: 30000 });
+    const catalogResponse = await catalogResponsePromise;
+    assert(catalogResponse.ok(), "Public catalog did not load for the safe checkout smoke.");
+    const cartItem = selectSafeCheckoutSmokeItem(await catalogResponse.json());
+    await page.evaluate((item) => {
+      window.localStorage.setItem("gdp_cart_v2__guest", JSON.stringify([item]));
+    }, cartItem);
 
     await page.goto(`${BASE_URL}/cart`, { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.locator("body").waitFor({ state: "visible" });
@@ -80,11 +73,39 @@ async function main() {
     await page.locator("#checkout-last-name").fill("Smoke");
     await page.locator("#checkout-address").fill("123 Test Avenue");
     await page.locator("#checkout-city").fill("Saskatoon");
-    await page.locator("#checkout-postal-code").fill("S7K 0J5");
+
+    // checkoutConfig is a POST but READ-ONLY. Wait for its actual server result
+    // instead of checking the button during the 180ms debounce/network request.
+    const quoteResults = [];
+    const waitForVerifiedQuote = async (shippingMethod, updateForm) => {
+      const quoteResponsePromise = page.waitForResponse((response) => {
+        if (response.request().method() !== "POST" ||
+            new URL(response.url()).pathname !== "/functions/v1/checkout") return false;
+        try {
+          const body = response.request().postDataJSON();
+          return body?.action === "checkoutConfig" &&
+            body?.shippingMethod === shippingMethod &&
+            String(body?.postalCode || "").replace(/\s/g, "") === "S7K0J5";
+        } catch { return false; }
+      }, { timeout: 30000 });
+      await updateForm();
+      const response = await quoteResponsePromise;
+      const payload = await response.json().catch(() => null);
+      assert(response.ok(), "Authoritative checkoutConfig returned HTTP " + response.status() + ".");
+      assertSaskatchewanPstOnlyQuote(payload, shippingMethod, cartItem.price);
+      quoteResults.push({ shippingMethod, pst: payload.pstTax, gst: payload.gstHstTax, shipping: payload.shipping });
+    };
+    await waitForVerifiedQuote("standard", () => page.locator("#checkout-postal-code").fill("S7K 0J5"));
+    await waitForVerifiedQuote("pickup", () => page.getByRole("button", { name: /Local Pickup/i }).first().click());
+    await waitForVerifiedQuote("standard", () => page.getByRole("button", { name: /Standard Shipping/i }).first().click());
 
     const continueButton = page.getByRole("button", { name: /Continue to payment/i }).first();
     await continueButton.waitFor({ state: "visible" });
-    assert(await continueButton.isEnabled(), "Continue to payment did not enable after required checkout fields were completed.");
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("button")].some((button) =>
+        /Continue to payment/i.test(button.textContent || "") && !button.disabled),
+      undefined, { timeout: 15000 });
+    assert(await continueButton.isEnabled(), "Continue to payment stayed disabled despite a verified tax quote.");
 
     const clickStartedAt = Date.now();
     await continueButton.click();
@@ -127,6 +148,7 @@ async function main() {
       payEnabled: false,
       paymentReadyMs,
       paymentActions: observedPaymentActions,
+      verifiedReadOnlyTaxQuotes: quoteResults,
       blockedCheckoutActions: checkoutBlocks.map((entry) => entry.action).filter(Boolean),
       safety: "Deferred Payment Element rendered before order/PaymentIntent creation; no charge was attempted.",
     }, null, 2));
