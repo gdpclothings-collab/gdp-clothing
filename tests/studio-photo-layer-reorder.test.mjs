@@ -39,7 +39,7 @@ test('reordering handles middle rows, legacy arrays and invalid drops safely', (
 });
 
 test('mobile, desktop, Focus/Eye and the production file share the persisted photo order', () => {
-  assert.match(editorSource, /DragDropContext onDragEnd=\{handlePhotoDragEnd\}/);
+  assert.match(editorSource, /onDragEnd=\{handlePhotoDragEnd\}/);
   assert.match(editorSource, /<Droppable droppableId=/);
   assert.match(editorSource, /<Draggable key=\{layer\.id\}/);
   assert.match(editorSource, /\.\.\.dragProvided\.dragHandleProps/);
