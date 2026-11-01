@@ -174,8 +174,9 @@ assert(page.includes('The cart changes only after rendering, upload, verificatio
 assert(mockup.includes('renderStudioV2CustomerMockup'), 'customer garment mockup renderer is missing');
 assert(mockup.includes('productionBlob'), 'customer mockup must be derived from approved production artwork');
 assert(page.includes('renderStudioV2CustomerMockup'), 'customer mockup renderer is not wired into finalization');
-assert(page.includes('customerMockupPath: customerMockupUpload.storage_path'), 'custom design must persist the customer mockup path separately');
-assert(page.includes('image: customerMockupUpload.file_url'), 'cart must show the customer garment mockup instead of the print PNG');
+assert(page.includes('customerMockupPath: primaryMockup.path'), 'custom design must persist the primary customer garment mockup separately');
+assert(page.includes('image: primaryMockup.url'), 'cart must continue using the customer garment mockup instead of the print PNG');
+assert(page.includes('customerMockups,'), 'cart must preserve individual front/back customer garment mockups');
 assert(page.includes("designStyle: templateNames.join(' / ') || designPathLabel"), 'customer design style must use a meaningful path label');
 
 // Stable-path reopening for authenticated and guest uploads.
