@@ -7,6 +7,8 @@ const production = readFileSync(new URL('../src/lib/customStudioV2ProtectedProdu
 
 test('the entire Photo Layers card is separate and immediately after the upload card', () => {
   assert.match(editor, /data-gdp-studio-library-pane="templates-only"/);
+  assert.match(editor, /!editor\.templateId\) \? 'template' : 'photo'/, 'new designs open the Template picker so the flow cannot deadlock');
+  assert.match(editor, /if \(\(path === 'bootleg' \|\| path === 'memorial'\) && !editor\.templateId\) setActiveBootlegLayer\('template'\)/, 'new sides also reveal their missing template');
   assert.match(editor, /\{\(!usesLayerLab \|\| activeBootlegLayer === 'template'\) \? <section data-gdp-studio-library-pane=/, 'template picker appears only while the Template tab is active');
   assert.match(editor, /usesLayerLab && activeBootlegLayer !== 'template' \? 'xl:grid-cols-\[minmax\(420px,1\.4fr\)_minmax\(300px,\.86fr\)\]'/, 'desktop removes the hidden template column');
   assert.doesNotMatch(editor, /libraryTab|setLibraryTab/);

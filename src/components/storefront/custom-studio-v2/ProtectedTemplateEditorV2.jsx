@@ -991,7 +991,11 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [error, setError] = useState('');
-  const [activeBootlegLayer, setActiveBootlegLayer] = useState('photo');
+  const [activeBootlegLayer, setActiveBootlegLayer] = useState(() => ((path === 'bootleg' || path === 'memorial') && !editor.templateId) ? 'template' : 'photo');
+  // A fresh side must expose its template picker before photo tools can unlock.
+  useEffect(() => {
+    if ((path === 'bootleg' || path === 'memorial') && !editor.templateId) setActiveBootlegLayer('template');
+  }, [path, side, editor.templateId]);
   const [photoToolTab, setPhotoToolTab] = useState('size');
   const [textPanelTab, setTextPanelTab] = useState('text');
   const [expandedPhotoId, setExpandedPhotoId] = useState('');
