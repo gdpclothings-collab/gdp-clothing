@@ -147,7 +147,8 @@ for (const token of forbiddenGuardTokens) {
 assert(page.includes('renderSeasonalStudioV2Png(snapshot, 300)'), 'Seasonal production output must remain 300 DPI');
 assert(page.includes('renderProtectedStudioV2PngAdvanced({ product, size: state.size, side, editor, template, profile: resolveStudioV2PrintProfile, dpi: 300 })'), 'protected production output must remain 300 DPI');
 assert(page.includes("renderUploadStudioV2Png({ product, size: state.size, side, editor, dpi: 300 })"), 'uploaded-artwork production output must remain 300 DPI');
-assert(page.includes('garmentUrl: studioV2GarmentPreview(product, state.color, firstSide)'), 'customer mockup must continue using the canonical garment source');
+assert(page.includes('garmentUrl: studioV2GarmentPreview(product, state.color, side)'), 'each customer mockup must use its canonical garment-side source');
+assert(page.includes('for (const side of sides) {\n        updateStage(`Generating ${side} customer mockup…`);'), 'both approved print sides must generate separate garment mockups');
 assert(page.indexOf('customerApi.createCustomDesign') < page.indexOf('replaceItem(editCartKey, cartItem)'), 'secure design persistence must still precede edited-cart mutation');
 assert(page.indexOf('customerApi.createCustomDesign') < page.indexOf('else addItem(cartItem)'), 'secure design persistence must still precede new-cart mutation');
 
