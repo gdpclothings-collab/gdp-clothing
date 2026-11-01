@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
 import StudioDesktopViewZoom from '@/components/storefront/custom-studio-v2/StudioDesktopViewZoom';
 import useStudioMobileFloatingPreview from '@/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview';
-import { Check, Eye, EyeOff, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
+import { Check, Eye, EyeOff, GripVertical, Lock, Plus, RotateCcw, Search, Trash2, Unlock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fitSeasonalArtwork, constrainSeasonalArtworkLayer, resolveSeasonalReshapedLayout } from '@/lib/seasonalArtwork';
 import { orderSeasonalArtworks, resolveSeasonalFeature } from '@/lib/seasonalRotation';
+import { reorderSeasonalArtworkLayers } from '@/lib/seasonalLayerReorder';
 import { studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 
@@ -192,6 +194,8 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
   const [retryVersion, setRetryVersion] = useState(0);
   const [pendingArtworkId, setPendingArtworkId] = useState('');
   const [addingArtwork, setAddingArtwork] = useState(false);
+  const [expandedArtworkId, setExpandedArtworkId] = useState('');
+  const [artworkToolTab, setArtworkToolTab] = useState('size');
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
@@ -214,6 +218,8 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
   useEffect(() => {
     requestKeyRef.current = requestKey;
+    setExpandedArtworkId('');
+    setArtworkToolTab('size');
     setAddingArtwork(false);
   }, [requestKey]);
 
@@ -380,6 +386,14 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
     if (!next.length) setAddingArtwork(false);
     commit(next, next[next.length - 1]?.id || '');
   };
+  const onArtworkDragEnd = ({ source, destination }) => {
+    if (!destination || source.index === destination.index) return;
+    const reordered = reorderSeasonalArtworkLayers(layers, source.index, destination.index);
+    if (reordered === layers) return;
+    const selected = [...layers].reverse()[source.index];
+    commit(reordered, selected.id);
+    setExpandedArtworkId(selected.id);
+  };
 
   const resetLayer = (id) => {
     const entry = resolved.find((item) => item.layer.id === id);
@@ -406,6 +420,52 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
   const nextArtworkNumber = Math.min(MAX_LAYERS, layers.length + 1);
   const choiceLabel = !layers.length ? 'Use artwork' : addingArtwork ? `Add as Artwork ${nextArtworkNumber}` : 'Use this instead';
+
+
+  // The existing constrained production layout owns all edits. These tabs
+  // reorganize controls only; dragging rows changes the array stacking order.
+  const selectedArtworkControls = activeEntry?.artwork && area ? (
+    <div data-gdp-seasonal-modern-controls="three-tabs" className="space-y-3 rounded-2xl bg-white p-2">
+      <div role="tablist" aria-label="Seasonal artwork adjustment tools" className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+        {[{ id: 'size', label: 'Size' }, { id: 'position', label: 'Position' }, { id: 'more', label: 'More' }].map((tab) =>
+          <button key={tab.id} type="button" role="tab" aria-selected={artworkToolTab === tab.id} onClick={() => setArtworkToolTab(tab.id)} className={['min-h-11 rounded-lg px-2 text-xs font-black transition', artworkToolTab === tab.id ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-white'].join(' ')}>{tab.label}</button>
+        )}
+      </div>
+      {artworkToolTab === 'size' ? <div role="tabpanel" aria-label="Seasonal artwork size" className="space-y-3 rounded-xl bg-slate-50 p-3">
+        <label className="block">
+          <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>Width · keep proportions</span><span>{Math.round((activeEntry.layout?.width || 0) * 10) / 10} in</span></div>
+          <input type="range" min={Math.min(0.5, Number(activeEntry.layout?.maxWidth || 0.5))} max={Math.max(0.5, Number(activeEntry.layout?.maxWidth || area.width))} step="any" value={Number(activeEntry.layout?.width || 1)} onChange={(event) => patchLayer(activeEntry.layer.id, { requested: Number(event.target.value) })} aria-label="Seasonal artwork print width in inches" className="h-11 w-full" />
+        </label>
+        <div data-gdp-seasonal-free-reshape="height" className="rounded-xl border border-slate-200 bg-white p-3">
+          <label className="block text-xs font-black text-slate-700">Free reshape · artwork height · {Math.round(activeEntry.layer.heightScale ?? 100)}%
+            <input type="range" min="1" max="1000" step="1" value={activeEntry.layer.heightScale ?? 100} onChange={(event) => patchLayer(activeEntry.layer.id, { heightScale: Number(event.target.value) })} className="mt-2 h-11 w-full" aria-label="Seasonal artwork height stretch" />
+          </label>
+          <button type="button" className="mt-2 min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold" onClick={() => patchLayer(activeEntry.layer.id, { heightScale: 100 })}>Reset original proportions</button>
+          <p className="mt-1 text-[10px] font-medium text-slate-500">Original master, 200 PPI minimum and print edges stay protected.</p>
+        </div>
+        <button type="button" data-seasonal-max-print-size="true" onClick={() => maximizeLayer(activeEntry)} disabled={!area || !activeEntry.artwork} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 disabled:opacity-40">Maximize print area</button>
+        <p data-seasonal-effective-dpi="true" className="text-[11px] font-semibold text-slate-600">{Math.round(Number(activeEntry.layout?.width || 0) * 100) / 100} × {Math.round(Number(activeEntry.layout?.height || 0) * 100) / 100} in · {activeEntry.layout?.effectiveDpi || 300} PPI · 300 PPI preferred</p>
+      </div> : null}
+      {artworkToolTab === 'position' ? <div role="tabpanel" aria-label="Seasonal artwork position" className="space-y-3 rounded-xl bg-slate-50 p-3">
+        <label className="block text-xs font-bold text-slate-600">Move left / right · {Math.round(Number(activeEntry.layout?.x || 0) * 10) / 10} in
+          <input type="range" min="0" max={Math.max(0, area.width - Number(activeEntry.layout?.width || 0))} step="0.1" value={Number(activeEntry.layout?.x || 0)} onChange={(event) => patchLayer(activeEntry.layer.id, { position: { ...activeEntry.layer.position, x: Number(event.target.value), y: Number(activeEntry.layout?.y || 0) } })} className="mt-2 h-11 w-full" aria-label="Move seasonal artwork horizontally" />
+        </label>
+        <label className="block text-xs font-bold text-slate-600">Move up / down · {Math.round(Number(activeEntry.layout?.y || 0) * 10) / 10} in
+          <input type="range" min="0" max={Math.max(0, area.height - Number(activeEntry.layout?.height || 0))} step="0.1" value={Number(activeEntry.layout?.y || 0)} onChange={(event) => patchLayer(activeEntry.layer.id, { position: { ...activeEntry.layer.position, x: Number(activeEntry.layout?.x || 0), y: Number(event.target.value) } })} className="mt-2 h-11 w-full" aria-label="Move seasonal artwork vertically" />
+        </label>
+        <label className="block">
+          <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>Rotation</span><span>{Math.round(Number(activeEntry.layer.rotation || 0))}°</span></div>
+          <input type="range" min="-180" max="180" step="1" value={Number(activeEntry.layer.rotation || 0)} onChange={(event) => patchLayer(activeEntry.layer.id, { rotation: Number(event.target.value) })} className="h-11 w-full" />
+        </label>
+      </div> : null}
+      {artworkToolTab === 'more' ? <div role="tabpanel" aria-label="More seasonal artwork tools" className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3">
+        <ToolbarButton label={activeEntry.layer.locked ? 'Unlock' : 'Lock'} onClick={() => patchLayer(activeEntry.layer.id, { locked: !activeEntry.layer.locked })}>{activeEntry.layer.locked ? <Unlock size={15} /> : <Lock size={15} />}</ToolbarButton>
+        <ToolbarButton label={activeEntry.layer.visible === false ? 'Show' : 'Hide'} onClick={() => patchLayer(activeEntry.layer.id, { visible: activeEntry.layer.visible === false })}>{activeEntry.layer.visible === false ? <Eye size={15} /> : <EyeOff size={15} />}</ToolbarButton>
+        <ToolbarButton label="Reset" onClick={() => resetLayer(activeEntry.layer.id)}><RotateCcw size={15} /></ToolbarButton>
+        <p className="col-span-2 text-[11px] font-medium text-slate-600">Use Add another artwork to create layers. Show/Hide and Delete are beside each row; print-area and source-resolution guards remain active.</p>
+      </div> : null}
+    </div>
+  ) : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Artwork controls are unavailable until its library source finishes loading.</div>;
 
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(280px,.75fr)_minmax(420px,1.4fr)_minmax(280px,.75fr)]">
@@ -507,19 +567,37 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
           <p className="mt-1 text-xs font-medium leading-5 text-slate-500">Select a layer here to edit it. New layers can only be created with Add another artwork.</p>
         </div>
 
-        {resolved.filter((entry) => entry.artwork).length > 0 && (
-          <div data-seasonal-v2-artwork-list="true" className="space-y-2">
-            {resolved.filter((entry) => entry.artwork).map((entry, index) => {
-              const selected = entry.layer.id === activeLayerId || (!activeLayerId && entry.layer.id === activeEntry?.layer.id);
-              return <div key={entry.layer.id} className={`flex items-center gap-2 rounded-2xl border p-2 ${selected ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white'}`}>
-                <button type="button" onClick={() => onActiveLayerChange(entry.layer.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                  <img src={entry.artwork.preview} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1" />
-                  <span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-[.1em] text-slate-400">Artwork {index + 1}</span><span className="block truncate text-xs font-black text-slate-800">{entry.artwork.title}</span>{selected && <span className="mt-0.5 block text-[10px] font-bold text-emerald-700">Selected</span>}</span>
-                </button>
-                <button type="button" onClick={() => removeLayer(entry.layer.id)} aria-label={`Delete Artwork ${index + 1}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button>
-              </div>;
-            })}
-          </div>
+
+        {resolved.length > 0 && (
+          <DragDropContext onBeforeCapture={() => setExpandedArtworkId('')} onDragEnd={onArtworkDragEnd}>
+            <Droppable droppableId="seasonal-artwork-stack">
+              {(dropProvided) => (
+                <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} data-seasonal-v2-artwork-list="true" data-gdp-seasonal-drag-order="top-to-bottom" className="space-y-2">
+                  {resolved.slice().reverse().map((entry, index) => {
+                    const selected = entry.layer.id === activeLayerId || (!activeLayerId && entry.layer.id === activeEntry?.layer.id);
+                    const expanded = selected && expandedArtworkId === entry.layer.id;
+                    return <Draggable key={entry.layer.id} draggableId={String(entry.layer.id)} index={index} isDragDisabled={libraryBusy || Boolean(pendingArtworkId)}>
+                      {(dragProvided, snapshot) => (
+                        <div ref={dragProvided.innerRef} {...dragProvided.draggableProps} data-seasonal-artwork-row={entry.layer.id} className={['overflow-hidden rounded-2xl border p-2 transition', selected ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white', snapshot.isDragging ? 'shadow-xl' : ''].join(' ')}>
+                          <div className="flex items-center gap-2">
+                            <button type="button" {...dragProvided.dragHandleProps} aria-label={'Drag Artwork ' + (index + 1) + ' to change stacking order'} className="grid h-11 w-8 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><GripVertical size={18} /></button>
+                            <button type="button" onClick={() => { onActiveLayerChange(entry.layer.id); setExpandedArtworkId((current) => current === entry.layer.id ? '' : entry.layer.id); setArtworkToolTab('size'); setMobilePreviewMinimized(true); }} aria-expanded={expanded} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl text-left">
+                              {entry.artwork ? <img src={entry.artwork.preview} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1" /> : <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-slate-100 text-xs font-bold text-slate-400">?</span>}
+                              <span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-[.1em] text-slate-400">Artwork {index + 1} · {index === 0 ? 'Top' : index === resolved.length - 1 ? 'Bottom' : 'Layer'}</span><span className="block truncate text-xs font-black text-slate-800">{entry.artwork?.title || entry.layer.artworkTitle || 'Unavailable artwork'}</span>{selected && <span className="mt-0.5 block text-[10px] font-bold text-emerald-700">Selected · tap to {expanded ? 'close' : 'edit'}</span>}</span>
+                            </button>
+                            <button data-seasonal-artwork-visibility={entry.layer.id} type="button" onClick={() => patchLayer(entry.layer.id, { visible: entry.layer.visible === false })} aria-label={(entry.layer.visible === false ? 'Show Artwork ' : 'Hide Artwork ') + (index + 1)} className="grid h-11 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">{entry.layer.visible === false ? <Eye size={16} /> : <EyeOff size={16} />}</button>
+                            <button data-seasonal-artwork-delete={entry.layer.id} type="button" onClick={() => removeLayer(entry.layer.id)} aria-label={'Delete Artwork ' + (index + 1)} className="grid h-11 w-10 shrink-0 place-items-center rounded-xl border border-red-100 bg-white text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
+                          </div>
+                          {expanded ? <div data-seasonal-inline-artwork-controls={entry.layer.id} className="mt-2 border-t border-slate-200 pt-3">{selectedArtworkControls}</div> : null}
+                        </div>
+                      )}
+                    </Draggable>;
+                  })}
+                  {dropProvided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         )}
 
         {layers.length > 0 && (
@@ -536,51 +614,8 @@ export default function SeasonalEditorV2({ product, color, side = 'front', size,
 
         {libraryBusy && !catalog && layers.length ? (
           <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">Loading the controls for this print side. Your saved layers are being kept.</div>
-        ) : activeEntry ? (
-          <>
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <div className="flex items-center gap-3">
-                <img src={activeEntry.artwork.preview} alt="" className="h-14 w-14 rounded-xl bg-white object-contain p-1" />
-                <div className="min-w-0"><p className="truncate text-sm font-black text-slate-800">{activeEntry.artwork.title}</p><p className="text-xs text-slate-500">Selected artwork controls</p></div>
-              </div>
-            </div>
-
-            <label className="block">
-              <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>Size</span><span>{Math.round((activeEntry.layout?.width || 0) * 10) / 10} in</span></div>
-              <input type="range" min={Math.min(0.5, Number(activeEntry.layout?.maxWidth || 0.5))} max={Math.max(0.5, Number(activeEntry.layout?.maxWidth || area?.width || 12))} step="any" value={Number(activeEntry.layout?.width || 1)} onChange={(event) => patchLayer(activeEntry.layer.id, { requested: Number(event.target.value) })} aria-label="Seasonal artwork print width in inches" className="w-full" />
-              <span className="mt-2 block text-[10px] font-semibold text-slate-500">Width can be adjusted independently from height.</span>
-            </label>
-            <div data-gdp-seasonal-free-reshape="height" className="rounded-xl border border-slate-200 bg-white p-3">
-              <label className="block text-xs font-black text-slate-700">Artwork height · {Math.round(activeEntry.layer.heightScale ?? 100)}%
-                <input type="range" min="1" max="1000" step="1" value={activeEntry.layer.heightScale ?? 100} onChange={(event) => patchLayer(activeEntry.layer.id, { heightScale: Number(event.target.value) })} className="mt-2 w-full" aria-label="Seasonal artwork height stretch" />
-              </label>
-              <button type="button" className="mt-2 min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold" onClick={() => patchLayer(activeEntry.layer.id, { heightScale: 100 })}>Reset original proportions</button>
-              <p className="mt-1 text-[10px] font-medium text-slate-500">Stretch height independently; the approved master, 200 PPI minimum and print edges remain protected.</p>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p data-seasonal-effective-dpi="true" className="text-[11px] font-semibold text-slate-600">
-                {Math.round(Number(activeEntry.layout?.width || 0) * 100) / 100} × {Math.round(Number(activeEntry.layout?.height || 0) * 100) / 100} in · {activeEntry.layout?.effectiveDpi || 300} PPI
-              </p>
-              <button type="button" data-seasonal-max-print-size="true" onClick={() => maximizeLayer(activeEntry)} disabled={!area || !activeEntry.artwork}
-                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 hover:border-slate-500 disabled:opacity-40">Maximize print area</button>
-            </div>
-            <p className="text-[11px] text-slate-500">Fills as much of the approved print area as the artwork proportions and source resolution allow. 300 PPI preferred · 200 PPI minimum.</p>
-
-            <label className="block">
-              <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600"><span>Rotation</span><span>{Math.round(Number(activeEntry.layer.rotation || 0))}°</span></div>
-              <input type="range" min="-180" max="180" step="1" value={Number(activeEntry.layer.rotation || 0)} onChange={(event) => patchLayer(activeEntry.layer.id, { rotation: Number(event.target.value) })} className="w-full" />
-            </label>
-
-            <div className="grid grid-cols-2 gap-2">
-              <ToolbarButton label={activeEntry.layer.locked ? 'Unlock' : 'Lock'} onClick={() => patchLayer(activeEntry.layer.id, { locked: !activeEntry.layer.locked })}>{activeEntry.layer.locked ? <Unlock size={15} /> : <Lock size={15} />}</ToolbarButton>
-              <ToolbarButton label={activeEntry.layer.visible === false ? 'Show' : 'Hide'} onClick={() => patchLayer(activeEntry.layer.id, { visible: activeEntry.layer.visible === false })}>{activeEntry.layer.visible === false ? <Eye size={15} /> : <EyeOff size={15} />}</ToolbarButton>
-              <ToolbarButton label="Reset" onClick={() => resetLayer(activeEntry.layer.id)}><RotateCcw size={15} /></ToolbarButton>
-              <ToolbarButton label="Delete" onClick={() => removeLayer(activeEntry.layer.id)}><Trash2 size={15} /></ToolbarButton>
-            </div>
-          </>
-        ) : (
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">Choose your first artwork from the library.</div>
-        )}
+        ) : null}
+        {!layers.length ? <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">Choose your first artwork from the library.</div> : null}
 
         <button
           type="button"
