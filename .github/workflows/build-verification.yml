@@ -195,6 +195,10 @@ jobs:
             cat /tmp/gdp-preview.log
             exit 1
           }
+          node scripts/verify-cart-front-back-browser.mjs || {
+            cat /tmp/gdp-preview.log
+            exit 1
+          }
 
       - name: Upload storefront render guard evidence
         if: always()
