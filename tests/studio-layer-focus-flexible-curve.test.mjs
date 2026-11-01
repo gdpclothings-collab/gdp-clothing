@@ -124,8 +124,9 @@ test('five completed uploads append atomically and preserve each stable ID', () 
   assert.equal(otherSide.memorial.sides.back.photos.length, 2);
 });
 
-test('focus design uses one persistent layer list, compact tabs, and verified upload confirmation', () => {
-  assert.match(editor, /data-gdp-studio-library-pane="modern-tabs"/);
+test('focus design uses one photo layer list below upload, text tabs, and verified uploads', () => {
+  assert.match(editor, /data-gdp-studio-library-pane="templates-only"/);
+  assert.match(editor, /data-gdp-photo-layers-location="below-upload"/);
   assert.match(editor, /data-gdp-photo-layer-row=\{layer\.id\}/);
   assert.equal((editor.match(/data-gdp-bootleg-photo-layer-list="true"/g) || []).length, 1, 'duplicate photo list removed');
   assert.match(editor, /uploadedPhotoIdsPresent\(photos, pending\.ids\)/);

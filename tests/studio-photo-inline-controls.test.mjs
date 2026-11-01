@@ -30,7 +30,8 @@ test('all selected-photo actions are reused exactly once, not duplicated below p
   assert.match(editor, /onClick=\{toggleActiveBackground\}/);
   assert.match(editor, /<RangeControl label="Rotation"/);
   assert.match(editor, /selectedPhotoControls\}\s*<\/div>/, 'reused inline below selected row');
-  assert.match(editor, /\{!usesLayerLab \? selectedPhotoControls : <p data-gdp-photo-controls-relocated=/, 'keep legacy upload editor while removing duplicate bootleg/memorial inspector controls');
+  assert.match(editor, /\{!usesLayerLab \? selectedPhotoControls : null\}/, 'legacy upload editor retains controls without duplication');
+  assert.match(editor, /\{activeBootlegLayer === 'photo' \? <>\{photoPanel\}\{photoLayersPanel\}<\/> : null\}/, 'upload and photo layer cards are siblings');
 });
 
 test('upload, hide/focus, reordering, saved photo state and print renderer remain unchanged', () => {
