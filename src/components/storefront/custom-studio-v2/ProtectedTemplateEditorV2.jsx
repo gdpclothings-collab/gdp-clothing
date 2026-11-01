@@ -55,6 +55,7 @@ import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2Protecte
 import { applyPremiumTextPreset, normalizePremiumTextPresets, paintPremiumTextGlyph, paintPremiumTextLayout, premiumTextPreset } from '@/lib/customStudioV2PremiumTextStyles';
 import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
 import { normalizePhotoBorder, hasPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
+import { STUDIO_TEXT_COLOR_PRESETS, parseStudioHexColorCode, studioHexColorForInput } from '@/lib/customStudioV2ColorCode';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 1;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 1000;
@@ -134,6 +135,45 @@ function RangeControl({ label, value, min, max, step = 1, suffix = '', onChange,
   );
 }
 
+
+function StudioHexColorControl({ label, value, onChange, showSwatches = true }) {
+  const currentHex = studioHexColorForInput(value);
+  const [draft, setDraft] = useState(currentHex);
+  useEffect(() => { setDraft(currentHex); }, [currentHex]);
+
+  const onCodeChange = (event) => {
+    const next = event.target.value.toUpperCase();
+    setDraft(next);
+    // Wait for all six digits so #ABC can still become #ABCDEF while typing.
+    if (/^#?[0-9A-F]{6}$/.test(next.trim())) {
+      const valid = parseStudioHexColorCode(next);
+      if (valid) onChange(valid);
+    }
+  };
+  const commitCode = () => {
+    const valid = parseStudioHexColorCode(draft);
+    if (valid) onChange(valid);
+    else setDraft(currentHex);
+  };
+  const invalidCharacter = !/^#?[0-9A-F]{0,6}$/.test(draft.trim());
+  return (
+    <div data-gdp-text-color-code={label} className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-2"><span className="text-xs font-black text-slate-800">{label}</span><span className="font-mono text-[11px] font-bold tracking-wide text-slate-500">{currentHex}</span></div>
+      <div className="flex items-end gap-3">
+        <label className="shrink-0 text-[10px] font-bold text-slate-500">Pick color
+          <input type="color" value={currentHex} onChange={(event) => onChange(event.target.value.toUpperCase())} aria-label={`Pick ${label.toLowerCase()} visually`} className="mt-1 block h-12 w-14 cursor-pointer rounded-xl border border-slate-200 bg-white p-1" />
+        </label>
+        <label className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">HEX code
+          <input type="text" inputMode="text" autoComplete="off" spellCheck={false} maxLength={7} value={draft} onChange={onCodeChange} onBlur={commitCode} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} aria-label={`${label} HEX color code`} aria-invalid={invalidCharacter} placeholder="#FFFFFF" className="mt-1 h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-sm font-black uppercase tracking-wide text-slate-900 outline-none focus:border-cyan-600 aria-[invalid=true]:border-red-400" />
+        </label>
+      </div>
+      {showSwatches ? <div role="group" aria-label={`${label} quick colors`} className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+        {STUDIO_TEXT_COLOR_PRESETS.map((preset) => <button key={preset.value} type="button" onClick={() => onChange(preset.value)} aria-label={`${preset.name} ${preset.value}`} aria-pressed={currentHex === preset.value} title={`${preset.name} · ${preset.value}`} className={`grid min-h-10 place-items-center rounded-lg border-2 p-1 transition ${currentHex === preset.value ? 'border-cyan-600 ring-2 ring-cyan-100' : 'border-slate-200 hover:border-slate-400'}`}><span className="h-6 w-full rounded-md border border-black/10" style={{ backgroundColor: preset.value }} /></button>)}
+      </div> : null}
+      <p className="text-[10px] font-medium leading-4 text-slate-500">Enter an exact HEX color, such as #FFFFFF. Three-digit codes also work when you finish editing.</p>
+    </div>
+  );
+}
 
 function FlexibleCurveControl({ style, onChange }) {
   const curve = style?.curve || 'straight';
@@ -1007,7 +1047,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   // Keep the compact photo inspector reachable on narrow screens; the preview
   // can still be reopened with its floating Show preview button.
   useEffect(() => {
-    if (activeBootlegLayer === 'photo' && expandedPhotoId) setMobilePreviewDismissed(true);
+    if ((activeBootlegLayer === 'photo' && expandedPhotoId) || activeBootlegLayer === 'text') setMobilePreviewDismissed(true);
   }, [activeBootlegLayer, expandedPhotoId]);
   const revealLayerControls = (layer, showTemplatePicker = false) => {
     setActiveBootlegLayer(layer);
@@ -1469,6 +1509,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const selectTextLayer = (layer) => {
     if (!layer) return;
     revealLayerControls('text');
+    setTextPanelTab('text');
     syncTextLayers(bootlegTextLayers, layer.id);
   };
   const addTextLayer = () => {
@@ -1483,28 +1524,34 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       visible: true,
     };
     revealLayerControls('text');
+    setTextPanelTab('text');
     syncTextLayers([...bootlegTextLayers, layer], layer.id);
   };
-  const duplicateActiveTextLayer = () => {
-    if (!activeTextLayer || bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS) return;
-    const style = normalizeBootlegTextStyle(activeTextLayer.style || {}, fallbackBootlegTextStyle);
+  const duplicateActiveTextLayer = (textId = activeTextLayer?.id) => {
+    const source = bootlegTextLayers.find((layer) => layer.id === textId);
+    if (!source || bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS) return;
+    const style = normalizeBootlegTextStyle(source.style || {}, fallbackBootlegTextStyle);
     const duplicate = {
-      ...activeTextLayer,
+      ...source,
       id: v2LayerId('text'),
       name: nextTextName(),
-      text: { ...activeTextLayer.text },
+      text: { ...source.text },
       style: { ...style, canvasX: clamp(Number(style.canvasX ?? 50) + 4, 0, 100), canvasY: clamp(Number(style.canvasY ?? 50) + 4, 0, 100) },
-      order: bootlegTextLayers.length,
     };
+    const next = [...bootlegTextLayers];
+    next.splice(next.findIndex((layer) => layer.id === textId) + 1, 0, duplicate);
     revealLayerControls('text');
-    syncTextLayers([...bootlegTextLayers, duplicate], duplicate.id);
+    setTextPanelTab('text');
+    syncTextLayers(next.map((layer, index) => ({ ...layer, order: index })), duplicate.id);
   };
-  const deleteActiveTextLayer = () => {
-    if (!activeTextLayer) return;
-    const index = bootlegTextLayers.findIndex((layer) => layer.id === activeTextLayer.id);
-    const remaining = bootlegTextLayers.filter((layer) => layer.id !== activeTextLayer.id);
-    const nextActive = remaining[Math.max(0, index - 1)] || remaining[0] || null;
-    syncTextLayers(remaining, nextActive?.id || '');
+  const deleteActiveTextLayer = (textId = activeTextLayer?.id) => {
+    const index = bootlegTextLayers.findIndex((layer) => layer.id === textId);
+    if (index < 0) return;
+    const remaining = bootlegTextLayers.filter((layer) => layer.id !== textId);
+    const nextActive = activeTextLayer?.id !== textId
+      ? activeTextLayer
+      : remaining[Math.max(0, index - 1)] || remaining[0] || null;
+    syncTextLayers(remaining.map((layer, position) => ({ ...layer, order: position })), nextActive?.id || '');
     setActiveBootlegLayer('text');
   };
 
@@ -1747,74 +1794,89 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   );
 
   const textPanel = usesLayerLab ? (
-    <div data-gdp-bootleg-panel="text" data-gdp-bootleg-multi-text="true" className="space-y-3 rounded-2xl border border-slate-100 p-3">
+    <div data-gdp-bootleg-panel="text" data-gdp-bootleg-multi-text="true" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
       <div className="flex items-center justify-between gap-3">
-        <div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Text</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{bootlegTextLayers.length} / {BOOTLEG_MAX_TEXT_LAYERS} text layers</p></div>
-        <button type="button" onClick={addTextLayer} disabled={bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS} className="min-h-10 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">+ Add Text</button>
+        <div><p className="text-sm font-black text-slate-900">Text Layers</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{bootlegTextLayers.length} / {BOOTLEG_MAX_TEXT_LAYERS} layers · tap to edit</p></div>
+        <button type="button" onClick={addTextLayer} disabled={bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS} className="min-h-11 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">+ Add Text</button>
       </div>
-      <p className="text-[10px] font-semibold leading-4 text-slate-400">Only the active text layer can move, resize or rotate on the print area.</p>
       {bootlegTextLayers.length ? <div data-gdp-bootleg-text-layer-list="true" className="space-y-2">{bootlegTextLayers.map((layer, index) => {
         const selected = layer.id === activeTextLayer?.id;
-        return <div key={layer.id} className={`flex items-center gap-1 rounded-xl border p-1 ${selected ? 'border-slate-900 bg-slate-900' : 'border-slate-200 bg-white'}`}><button type="button" onClick={() => selectTextLayer(layer)} className={`min-h-10 min-w-0 flex-1 rounded-lg px-2 text-left text-xs font-black ${selected ? 'text-white' : 'text-slate-700'}`}><span className="block truncate">{layer.name || `Text ${index + 1}`}</span><span className={`block truncate text-[10px] font-semibold ${selected ? 'text-white/60' : 'text-slate-400'}`}>{layer.text?.headline || 'Empty text'}</span></button>{selected ? <><button type="button" onClick={duplicateActiveTextLayer} disabled={bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS} className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white disabled:opacity-30" aria-label="Duplicate selected text layer"><Copy size={14} /></button><button type="button" onClick={deleteActiveTextLayer} className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-red-200" aria-label="Delete selected text layer"><Trash2 size={14} /></button></> : null}</div>;
-      })}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500"><p>No text added yet.</p><button type="button" onClick={addTextLayer} className="mt-2 min-h-10 rounded-xl bg-slate-900 px-3 text-xs font-black text-white">+ Add Text</button></div>}
+        return <div key={layer.id} data-gdp-text-layer-row={layer.id} className={`flex min-h-12 items-center gap-1 rounded-xl border p-1 ${selected ? 'border-slate-900 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+          <button type="button" onClick={() => selectTextLayer(layer)} aria-pressed={selected} className={`min-h-11 min-w-0 flex-1 rounded-lg px-2 text-left text-xs font-black ${selected ? 'text-white' : 'text-slate-700'}`}><span className="block truncate">{layer.name || `Text ${index + 1}`}</span><span className={`block truncate text-[10px] font-semibold ${selected ? 'text-white/70' : 'text-slate-400'}`}>{layer.text?.headline || 'Tap to enter text'}</span></button>
+          <button type="button" onClick={() => duplicateActiveTextLayer(layer.id)} disabled={bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS} aria-label={`Duplicate ${layer.name || 'text layer'}`} title="Copy text layer" className={`grid h-11 w-10 shrink-0 place-items-center rounded-lg disabled:opacity-30 ${selected ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-700'}`}><Copy size={16} /></button>
+          <button type="button" onClick={() => deleteActiveTextLayer(layer.id)} aria-label={`Delete ${layer.name || 'text layer'}`} title="Delete text layer" className={`grid h-11 w-10 shrink-0 place-items-center rounded-lg ${selected ? 'bg-white/10 text-red-200' : 'bg-red-50 text-red-600'}`}><Trash2 size={16} /></button>
+        </div>;
+      })}</div> : <div className="rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-600">No text yet. Add a layer to place lettering on your garment.</div>}
       {bootlegTextLayers.length >= BOOTLEG_MAX_TEXT_LAYERS ? <p className="text-[10px] font-bold text-amber-700">Maximum {BOOTLEG_MAX_TEXT_LAYERS} text layers.</p> : null}
-      {activeTextLayer ? <div className="space-y-2 rounded-2xl bg-slate-50 p-3" data-gdp-bootleg-active-text-editor="true">
-        <div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected text</p><p className="text-xs font-black text-slate-700">{activeTextLayer.name}</p></div><span className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-black text-white">Text layer active</span></div>
-        <label className="block text-xs font-black text-slate-600">Your Text<input value={activeTextLayer.text?.headline || ''} onFocus={() => setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
+      {activeTextLayer ? <div data-gdp-bootleg-active-text-editor="true" data-gdp-modern-text-editor="compact" className="space-y-3 rounded-2xl bg-slate-50 p-2 sm:p-3">
+        <div className="flex items-center justify-between gap-2 px-1"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.13em] text-slate-400">Editing text</p><p className="truncate text-sm font-black text-slate-800">{activeTextLayer.name}</p></div><span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800">Selected</span></div>
+        <label className="block text-xs font-black text-slate-700">Your Text<input value={activeTextLayer.text?.headline || ''} onFocus={() => setActiveBootlegLayer('text')} onChange={(event) => patchText({ headline: event.target.value })} placeholder="Type your message here…" maxLength={80} className="mt-1 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-950 outline-none focus:border-cyan-600" />
+          <span className="mt-1 block text-right text-[10px] font-medium text-slate-400">{(activeTextLayer.text?.headline || '').length}/80 characters</span>
+        </label>
         <div role="tablist" aria-label="Selected text settings" data-gdp-modern-text-controls="three-tabs" className="grid grid-cols-3 gap-1 rounded-xl bg-slate-200 p-1">
-          {['text', 'position', 'effects'].map((tab) => <button key={tab} type="button" role="tab" aria-selected={textPanelTab === tab} onClick={() => setTextPanelTab(tab)} className={`min-h-11 rounded-lg px-1 text-xs font-black capitalize ${textPanelTab === tab ? 'bg-white text-slate-950 shadow' : 'text-slate-600'}`}>{tab}</button>)}
+          {[
+            { id: 'text', label: 'Style' },
+            { id: 'position', label: 'Position' },
+            { id: 'effects', label: 'Effects' },
+          ].map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={textPanelTab === tab.id} onClick={() => setTextPanelTab(tab.id)} className={`min-h-11 rounded-lg px-1 text-xs font-black transition ${textPanelTab === tab.id ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>{tab.label}</button>)}
         </div>
-        {textPanelTab === 'text' ? <div role="tabpanel" aria-label="Text styling" className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label></div>
-                  <FlexibleCurveControl style={textStyle} onChange={patchTextStyle} />
-
-                  <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
-
-          <details data-gdp-premium-style-picker="collapsed" className="rounded-xl border border-slate-200 bg-white p-2"><summary className="min-h-10 cursor-pointer py-2 text-xs font-black text-slate-800">Premium Text Styles · 10 presets</summary><div className="mt-2">
-                  <div data-gdp-premium-text-presets="true" className="rounded-xl border border-slate-200 bg-white p-2">
-          <div className="mb-2 flex items-center justify-end gap-2"><button type="button" className="min-h-9 rounded-lg border border-slate-200 px-2 text-[10px] font-black text-slate-600" onClick={() => patchTextStyle(applyPremiumTextPreset(textStyle, ''))}>Basic / Custom</button></div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{availablePremiumTextPresets.map((preset) => <PremiumTextPresetTile key={preset.id} preset={preset} selected={textStyle.premiumTextPresetId === preset.id} onSelect={(id) => patchTextStyle(applyPremiumTextPreset(textStyle, id))} />)}</div>
-          <p className="mt-2 text-[10px] font-medium text-slate-500">Pick a look, then edit your own wording, size, rotation and placement. Your style stays editable in saved designs.</p>
-        </div>
-
-          </div></details>
-        </div> : null}
-        {textPanelTab === 'position' ? <div role="tabpanel" aria-label="Text position" className="space-y-3">
-                  <div data-gdp-text-edge-align="safe-print-boundary" className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
-          <p className="mb-2 text-xs font-black text-cyan-900">Align to print area</p>
-          <div className="grid grid-cols-3 gap-1">
-            {[[0, 'Left', 'x'], [50, 'Centre', 'x'], [100, 'Right', 'x'], [0, 'Top', 'y'], [50, 'Middle', 'y'], [100, 'Bottom', 'y']].map(([value, label, axis]) => <button key={`${axis}-${value}`} type="button" onClick={() => patchTextVisualPosition(axis, value)} className="min-h-10 rounded-lg border border-cyan-200 bg-white px-1 text-[11px] font-bold text-cyan-900">{label}</button>)}
+        {textPanelTab === 'text' ? <div role="tabpanel" aria-label="Text styling" className="space-y-3 rounded-xl bg-white p-3">
+          <div><p className="text-xs font-black text-slate-900">Typography</p><p className="mt-1 text-[11px] font-medium text-slate-500">Change size and font, then use Curve for curved lettering.</p></div>
+          <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-black text-slate-700">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label>
+            <label className="text-xs font-black text-slate-700">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label>
           </div>
-          <p className="mt-2 text-[10px] text-cyan-800">Align visible lettering to the print edge, or drag beyond it to crop. Anything outside the dashed box is excluded from preview and 300-DPI print.</p>
-        </div>
-
-                  <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
-        <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />
-        {textStyle.textEdgeCrop ? <p className="text-[10px] font-semibold leading-4 text-cyan-800">Free edge positioning is active. Only the lettering inside the print box will be printed.</p> : textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">{textLayout?.horizontalFit < 0.999 ? `Letter width auto-fitted to ${Math.round(textLayout.horizontalFit * 100)}% to keep your larger text within the printable area.` : 'Text stays fully inside the printable boundary.'}</p>}
-        <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
-
+          <details data-gdp-text-curve-precision="collapsed" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <summary className="min-h-10 cursor-pointer py-2 text-xs font-black text-slate-700">Fine-tune curve (optional)</summary>
+            <div className="mt-2"><FlexibleCurveControl style={textStyle} onChange={patchTextStyle} /></div>
+          </details>
         </div> : null}
-        {textPanelTab === 'effects' ? <div role="tabpanel" aria-label="Text effects" className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value, premiumTextPresetId: '' })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">{textStyle.premiumTextPresetId ? 'Metallic accent' : 'Color'}<input type="color" value={textStyle.premiumTextPresetId ? (textStyle.premiumAccentColor || '#ffffff') : (textStyle.color || '#ffffff')} onChange={(event) => patchTextStyle(textStyle.premiumTextPresetId ? { premiumAccentColor: event.target.value, color: event.target.value } : { color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
-                  {textStyle.premiumTextPresetId ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="text-xs font-black text-slate-600">Outline color<input type="color" value={textStyle.premiumOutlineColor || premiumTextPreset(textStyle.premiumTextPresetId)?.outline || '#111111'} onChange={(event) => patchTextStyle({ premiumOutlineColor: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label>
-            <div className="self-center">
-              <RangeControl label={premiumTextPreset(textStyle.premiumTextPresetId)?.finish === 'sunset-emboss' ? 'Emboss intensity' : '3D depth'} value={textStyle.premiumDepthScale ?? 100} min={0} max={200} suffix="%" onChange={(value) => patchTextStyle({ premiumDepthScale: value })} onReset={() => patchTextStyle({ premiumDepthScale: 100 })} />
+        {textPanelTab === 'position' ? <div role="tabpanel" aria-label="Text position" className="space-y-3 rounded-xl bg-white p-3">
+          <div><p className="text-xs font-black text-slate-900">Placement</p><p className="mt-1 text-[11px] font-medium text-slate-500">Drag the lettering on the garment, use quick alignment, or make precise adjustments.</p></div>
+          <div data-gdp-text-edge-align="safe-print-boundary" className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
+            <p className="mb-2 text-xs font-black text-cyan-900">Quick alignment</p>
+            <div className="grid grid-cols-3 gap-1">
+              {[[0, 'Left', 'x'], [50, 'Centre', 'x'], [100, 'Right', 'x'], [0, 'Top', 'y'], [50, 'Middle', 'y'], [100, 'Bottom', 'y']].map(([value, label, axis]) => <button key={`${axis}-${value}`} type="button" onClick={() => patchTextVisualPosition(axis, value)} className="min-h-10 rounded-lg border border-cyan-200 bg-white px-1 text-[11px] font-bold text-cyan-900">{label}</button>)}
             </div>
+            <p className="mt-2 text-[10px] text-cyan-800">Lettering beyond the dashed print box is cropped from preview and the 300-DPI export.</p>
           </div>
-        ) : null}
-
+          <RangeControl label="Move text left / right" value={textXSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('x', value)} onReset={() => patchTextStyle({ canvasX: 50 })} />
+          <RangeControl label="Move text up / down" value={textYSlider} min={0} max={100} suffix="%" onChange={(value) => patchTextVisualPosition('y', value)} onReset={() => patchTextStyle({ canvasY: 50 })} />
+          <RangeControl label="Text rotation" value={textStyle.rotation || 0} min={-180} max={180} suffix="°" onChange={(value) => patchTextStyle({ rotation: value })} onReset={() => patchTextStyle({ rotation: 0 })} />
+          {textStyle.textEdgeCrop ? <p className="text-[10px] font-semibold leading-4 text-cyan-800">Free edge positioning is active. Only lettering inside the print box is printed.</p> : textLayout?.overflow?.any ? <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[10px] font-bold leading-4 text-red-900"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> This text cannot fit safely inside the printable boundary. Shorten the text before approval.</div> : <p className="text-[10px] font-semibold leading-4 text-emerald-700">{textLayout?.horizontalFit < 0.999 ? `Letter width auto-fitted to ${Math.round(textLayout.horizontalFit * 100)}% to stay within the printable area.` : 'Text stays fully inside the printable boundary.'}</p>}
+        </div> : null}
+        {textPanelTab === 'effects' ? <div role="tabpanel" aria-label="Text effects" className="space-y-3 rounded-xl bg-white p-3">
+          <div><p className="text-xs font-black text-slate-900">Color &amp; Effects</p><p className="mt-1 text-[11px] font-medium text-slate-500">Use a swatch, pick a color, or enter its exact HEX code.</p></div>
+          <StudioHexColorControl label={textStyle.premiumTextPresetId ? 'Metallic accent' : 'Text color'} value={textStyle.premiumTextPresetId ? (textStyle.premiumAccentColor || '#FFFFFF') : (textStyle.color || '#FFFFFF')} onChange={(value) => patchTextStyle(textStyle.premiumTextPresetId ? { premiumAccentColor: value, color: value } : { color: value })} />
+          <label className="block text-xs font-black text-slate-700">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value, premiumTextPresetId: '' })} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label>
+          {textStyle.premiumTextPresetId ? <div className="space-y-3 rounded-xl bg-slate-50 p-2">
+            <StudioHexColorControl label="Outline color" value={textStyle.premiumOutlineColor || premiumTextPreset(textStyle.premiumTextPresetId)?.outline || '#111111'} onChange={(value) => patchTextStyle({ premiumOutlineColor: value })} showSwatches={false} />
+            <RangeControl label={premiumTextPreset(textStyle.premiumTextPresetId)?.finish === 'sunset-emboss' ? 'Emboss intensity' : '3D depth'} value={textStyle.premiumDepthScale ?? 100} min={0} max={200} suffix="%" onChange={(value) => patchTextStyle({ premiumDepthScale: value })} onReset={() => patchTextStyle({ premiumDepthScale: 100 })} />
+          </div> : null}
+          <details data-gdp-premium-style-picker="collapsed" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <summary className="min-h-10 cursor-pointer py-2 text-xs font-black text-slate-800">Premium Text Styles · 10 presets</summary>
+            <div data-gdp-premium-text-presets="true" className="mt-2 space-y-2">
+              <button type="button" className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-black text-slate-700" onClick={() => patchTextStyle(applyPremiumTextPreset(textStyle, ''))}>Basic / Custom</button>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{availablePremiumTextPresets.map((preset) => <PremiumTextPresetTile key={preset.id} preset={preset} selected={textStyle.premiumTextPresetId === preset.id} onSelect={(id) => patchTextStyle(applyPremiumTextPreset(textStyle, id))} />)}</div>
+              <p className="text-[10px] font-medium leading-4 text-slate-500">Premium looks remain editable; customize colors, size and placement after choosing one.</p>
+            </div>
+          </details>
         </div> : null}
       </div> : null}
     </div>
   ) : (
-    <div className="space-y-2 rounded-2xl border border-slate-100 p-3">
+    <div className="space-y-3 rounded-2xl border border-slate-100 p-3">
       <div className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Text</div>
       <label className="block text-xs font-black text-slate-600">Name<input value={editor.text?.headline || ''} onChange={(event) => patchText({ headline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
       <label className="block text-xs font-black text-slate-600">Dates<input value={editor.text?.subline || ''} onChange={(event) => patchText({ subline: event.target.value })} maxLength={80} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-slate-500" /></label>
       <label className="block text-xs font-black text-slate-600">Message<textarea value={editor.text?.message || ''} onChange={(event) => patchText({ message: event.target.value })} maxLength={180} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-slate-500" /></label>
-      <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label><label className="text-xs font-black text-slate-600">Color<input type="color" value={textStyle.color || '#ffffff'} onChange={(event) => patchTextStyle({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label></div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="text-xs font-black text-slate-600">Font<select value={textStyle.fontFamily} onChange={(event) => patchTextStyle({ fontFamily: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_FONT_PRESETS.map((font) => <option key={font.id} value={font.family}>{font.label}</option>)}</select></label>
+        <label className="text-xs font-black text-slate-600">Curve<select value={textStyle.curve} onChange={(event) => patchTextStyle({ curve: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_CURVES.map((curve) => <option key={curve.id} value={curve.id}>{curve.label}</option>)}</select></label>
+        <label className="text-xs font-black text-slate-600">Effect<select value={textStyle.effect} onChange={(event) => patchTextStyle({ effect: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold">{V2_TEXT_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label>
+      </div>
+      <StudioHexColorControl label="Text color" value={textStyle.color || '#FFFFFF'} onChange={(value) => patchTextStyle({ color: value })} />
       <PrintAreaTextSizeControl value={textStyle.fontScale} onChange={(value) => patchTextStyle({ fontScale: value })} onReset={() => patchTextStyle({ fontScale: 100 })} />
       <RangeControl label="Move text left / right" value={textStyle.x || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ x: value })} onReset={() => patchTextStyle({ x: 0 })} />
       <RangeControl label="Move text up / down" value={textStyle.y || 0} min={-42} max={42} suffix="%" onChange={(value) => patchTextStyle({ y: value })} onReset={() => patchTextStyle({ y: 0 })} />

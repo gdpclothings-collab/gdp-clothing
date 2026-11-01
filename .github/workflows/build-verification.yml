@@ -119,6 +119,7 @@ jobs:
           node --test tests/bootleg-text-autofit.test.mjs
           node --test tests/studio-text-edge-crop.test.mjs
           node --test tests/studio-layer-tools-wide.test.mjs
+          node --test tests/studio-text-color-code.test.mjs
           node --test tests/studio-photo-layer-reorder.test.mjs
           node --test tests/studio-photo-inline-controls.test.mjs
           node --test tests/studio-photo-card-placement.test.mjs
