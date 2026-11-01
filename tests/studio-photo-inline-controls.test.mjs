@@ -31,7 +31,7 @@ test('Copy and Delete belong to each photo row and target that row rather than o
   assert.match(editor, /const source = photos\.find\(\(layer\) => layer\.id === photoId\)/);
   assert.match(editor, /remaining = photos\.filter\(\(layer\) => layer\.id !== photoId\)/);
   assert.match(editor, /nextPhotos\.splice\(insertionIndex \+ 1, 0, duplicate\)/, 'copies appear directly above the source in the stack');
-  assert.match(panel, /<GripVertical size=\{18\}/>, 'drag grip remains available');
+  assert.ok(panel.includes('<GripVertical size={18} />'), 'drag grip remains available');
   assert.doesNotMatch(panel, /Send photo backward|Bring photo forward|moveActivePhoto/, 'layer arrows were removed');
 });
 
