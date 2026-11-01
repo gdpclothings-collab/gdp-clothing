@@ -107,15 +107,11 @@ test('Cutout effect shares the protected production render path with preview and
   assert.match(checkout, /border: layer\.border \|\| \{ style: 'none' \}/);
 });
 
-test('Glow controls affect the selected photo only and are admin-toggleable', () => {
-  assert.match(editor, /data-gdp-bootleg-glow-controls="true"/);
-  for (const name of ['innerColor', 'innerThickness', 'glowColor', 'glowSize', 'glowOpacity', 'feather', 'roughness']) {
-    assert.match(editor, new RegExp('updateActivePhotoBorder\\(\\{ ' + name + ':'));
-    assert.match(editor, new RegExp('activePhotoBorder\\.' + name));
-  }
-  assert.match(editor, /layer\.id === activePhoto\.id \? \{ \.\.\.layer, border: normalized \} : layer/);
+test('Legacy Glow stays compatible with production and admin settings, without customer controls', () => {
+  assert.doesNotMatch(editor, /data-gdp-bootleg-glow-controls|updateActivePhotoBorder|Photo Border Effects/);
+  assert.match(editor, /paintPhotoBorders\(rendered\.borderCanvas\)/);
+  assert.match(production, /createPhotoBorderImage\(photoSource\.image, photoSource\.width, photoSource\.height, layer\.border\)/);
   assert.match(admin, /data-gdp-admin-bootleg-glow="true"/);
   assert.match(admin, /enabledBorderStyles\.includes\(style\.id\)/);
   assert.match(admin, /saveCustomStudioSettings\(settings\)/);
-  assert.match(editor, /settings\.photoBorderOptions\.enabledStyles\.includes\(preset\.id\)/);
 });

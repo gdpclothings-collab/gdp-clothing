@@ -120,8 +120,9 @@ assert(uploadEditor.includes('useTouchTransformV2'), 'Upload editor touch manipu
 assert(protectedEditor.includes('multiple accept="image/png,image/jpeg,image/webp"'), 'multi-photo upload is missing');
 assert(protectedEditor.includes('Up to 8 photos') || protectedEditor.includes('BOOTLEG_MAX_PHOTOS = 8'), 'multi-photo limit/UX is missing');
 assert(protectedEditor.includes('Duplicate photo'), 'photo duplication is missing');
-assert(protectedEditor.includes('Bring photo forward'), 'photo layer ordering is missing');
-assert(protectedEditor.includes('Send photo backward'), 'photo layer ordering is missing');
+assert(protectedEditor.includes('data-gdp-photo-drag-handle={layer.id}'), 'photo layer drag grip is missing');
+assert(protectedEditor.includes('reorderStudioV2PhotoLayers(photos, source.index, destination.index)'), 'photo layer ordering is missing');
+assert(!protectedEditor.includes('Bring photo forward') && !protectedEditor.includes('Send photo backward'), 'obsolete layer arrows must stay removed');
 assert(protectedEditor.includes('Restore original background'), 'background restore is missing');
 assert(protectedEditor.includes('V2_FONT_PRESETS'), 'font choices are missing');
 assert(protectedEditor.includes('V2_TEXT_CURVES'), 'curved-text controls are missing');

@@ -4,8 +4,6 @@ import StudioDesktopViewZoom from '@/components/storefront/custom-studio-v2/Stud
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   Check,
   Copy,
   ImagePlus,
@@ -56,7 +54,7 @@ import { resolveStudioV2PrintProfile } from '@/lib/customStudioV2Production';
 import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2ProtectedProduction';
 import { applyPremiumTextPreset, normalizePremiumTextPresets, paintPremiumTextGlyph, paintPremiumTextLayout, premiumTextPreset } from '@/lib/customStudioV2PremiumTextStyles';
 import { BOOTLEG_OVERLAY_PRESETS, DEFAULT_BOOTLEG_OVERLAY, normalizeBootlegOverlay, paintBootlegOverlay } from '@/lib/customStudioV2BootlegOverlays';
-import { DEFAULT_PHOTO_BORDER, PHOTO_BORDER_STYLES, normalizePhotoBorder, hasPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
+import { normalizePhotoBorder, hasPhotoBorder } from '@/lib/customStudioV2PhotoBorders';
 
 const BOOTLEG_TEMPLATE_MIN_SCALE = 1;
 const BOOTLEG_TEMPLATE_MAX_SCALE = 1000;
@@ -994,12 +992,18 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const [uploadMessage, setUploadMessage] = useState('');
   const [error, setError] = useState('');
   const [activeBootlegLayer, setActiveBootlegLayer] = useState('photo');
+  const [photoToolTab, setPhotoToolTab] = useState('size');
   const [textPanelTab, setTextPanelTab] = useState('text');
   const [expandedPhotoId, setExpandedPhotoId] = useState('');
   const [previewHiddenPhotoIds, setPreviewHiddenPhotoIds] = useState([]);
   const [previewFocusPhotoIds, setPreviewFocusPhotoIds] = useState([]);
   const [mobilePreviewOutOfView, setMobilePreviewOutOfView] = useState(false);
   const [mobilePreviewDismissed, setMobilePreviewDismissed] = useState(false);
+  // Keep the compact photo inspector reachable on narrow screens; the preview
+  // can still be reopened with its floating Show preview button.
+  useEffect(() => {
+    if (activeBootlegLayer === 'photo' && expandedPhotoId) setMobilePreviewDismissed(true);
+  }, [activeBootlegLayer, expandedPhotoId]);
   const revealLayerControls = (layer) => {
     setActiveBootlegLayer(layer);
     if (typeof window === 'undefined') return;
@@ -1078,41 +1082,6 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   }, [editor.photos]);
   const activePhotoId = editor.activePhotoId || photos.at(-1)?.id || '';
   const activePhoto = photos.find((layer) => layer.id === activePhotoId) || photos.at(-1) || null;
-  const activePhotoBorder = normalizePhotoBorder(activePhoto?.border);
-  const photoBorderDefault = (key) => settings?.photoBorderOptions?.[key] ?? DEFAULT_PHOTO_BORDER[key];
-  const resetPhotoBorderStyle = () => updateActivePhotoBorder({ ...DEFAULT_PHOTO_BORDER, bottomFade: activePhotoBorder.bottomFade });
-  const resetBootlegGlow = () => updateActivePhotoBorder({
-    style: 'bootlegGlow',
-    opacity: 100,
-    innerColor: photoBorderDefault('innerColor'),
-    innerThickness: photoBorderDefault('innerThickness'),
-    glowColor: photoBorderDefault('glowColor'),
-    glowSize: photoBorderDefault('glowSize'),
-    glowOpacity: photoBorderDefault('glowOpacity'),
-    feather: photoBorderDefault('feather'),
-    roughness: photoBorderDefault('roughness'),
-  });
-  const updateActivePhotoBorder = (patch) => {
-    if (!isBootleg || !activePhoto) return;
-    const latest = editorRef.current || editor;
-    const layers = [...currentPhotoLayers(latest)];
-    const useAdminDefaults = patch.style && patch.style !== 'none' && activePhotoBorder.style === 'none';
-    const configured = settings?.photoBorderOptions || {};
-    const initialSettings = useAdminDefaults ? {
-      color: configured.color ?? DEFAULT_PHOTO_BORDER.color,
-      thickness: configured.thickness ?? DEFAULT_PHOTO_BORDER.thickness,
-      softness: configured.softness ?? DEFAULT_PHOTO_BORDER.softness,
-      innerColor: configured.innerColor ?? DEFAULT_PHOTO_BORDER.innerColor,
-      innerThickness: configured.innerThickness ?? DEFAULT_PHOTO_BORDER.innerThickness,
-      glowColor: configured.glowColor ?? DEFAULT_PHOTO_BORDER.glowColor,
-      glowSize: configured.glowSize ?? DEFAULT_PHOTO_BORDER.glowSize,
-      glowOpacity: configured.glowOpacity ?? DEFAULT_PHOTO_BORDER.glowOpacity,
-      feather: configured.feather ?? DEFAULT_PHOTO_BORDER.feather,
-      roughness: configured.roughness ?? DEFAULT_PHOTO_BORDER.roughness,
-    } : {};
-    const normalized = normalizePhotoBorder({ ...activePhotoBorder, ...initialSettings, ...patch });
-    syncPhotos(layers.map((layer) => layer.id === activePhoto.id ? { ...layer, border: normalized } : layer), activePhoto.id);
-  };
   const fallbackBootlegTextStyle = defaultV2TextStyle(path);
   const legacyTextStyle = { ...fallbackBootlegTextStyle, ...(editor.textStyle || {}) };
   const textZone = template?.textZone || { x: 12, y: 78, width: 76, height: 16 };
@@ -1386,36 +1355,38 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       return { ...layer, transform: nextTransform };
     }), activePhoto.id);
   };
-  const deleteActivePhoto = () => {
-    if (!activePhoto) return;
-    const remaining = photos.filter((layer) => layer.id !== activePhoto.id);
-    const nextSelectedId = remaining.at(-1)?.id || '';
+  // Row actions target the clicked photo, even when another layer is selected.
+  const deletePhoto = (photoId) => {
+    const remaining = photos.filter((layer) => layer.id !== photoId);
+    const nextSelectedId = activePhotoId !== photoId && remaining.some((layer) => layer.id === activePhotoId)
+      ? activePhotoId
+      : remaining.at(-1)?.id || '';
     syncPhotos(remaining, nextSelectedId);
-    if (usesLayerLab) setExpandedPhotoId(nextSelectedId);
+    setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== photoId));
+    setPreviewFocusPhotoIds((ids) => ids.filter((id) => id !== photoId));
+    if (usesLayerLab) setExpandedPhotoId((id) => id === photoId ? nextSelectedId : id);
   };
-  const duplicateActivePhoto = () => {
-    if (!activePhoto) return;
+  const duplicatePhoto = (photoId) => {
+    const source = photos.find((layer) => layer.id === photoId);
+    if (!source) return;
     if (photos.length >= BOOTLEG_MAX_PHOTOS) {
       setError(`Photo limit reached. You can use up to ${BOOTLEG_MAX_PHOTOS} photos.`);
       return;
     }
-    const duplicatePosition = resolvePhotoCanvasPosition(activePhoto.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
+    const duplicatePosition = resolvePhotoCanvasPosition(source.transform || {}, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
     const duplicateTransform = usesLayerLab
-      ? constrainFreePhotoTransform({ ...activePhoto.transform, canvasX: duplicatePosition.x + 4, canvasY: duplicatePosition.y + 4 }, template?.photoZone || {}, canvasAspect, activePhotoVisibleBounds)
-      : { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) };
-    const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: duplicateTransform };
-    syncPhotos([...photos, duplicate], duplicate.id);
-    if (usesLayerLab) { setActiveBootlegLayer('photo'); setExpandedPhotoId(duplicate.id); }
-  };
-  const moveActivePhoto = (delta) => {
-    if (!activePhoto) return;
-    const index = photos.findIndex((layer) => layer.id === activePhoto.id);
-    const target = clamp(index + delta, 0, photos.length - 1);
-    if (target === index) return;
-    const next = [...photos];
-    const [moved] = next.splice(index, 1);
-    next.splice(target, 0, moved);
-    syncPhotos(next, moved.id);
+      ? constrainFreePhotoTransform({ ...source.transform, canvasX: duplicatePosition.x + 4, canvasY: duplicatePosition.y + 4 }, template?.photoZone || {}, canvasAspect, source.id === activePhotoId ? activePhotoVisibleBounds : undefined)
+      : { ...source.transform, x: clamp(Number(source.transform?.x || 0) + 8, -48, 48), y: clamp(Number(source.transform?.y || 0) + 8, -48, 48) };
+    const duplicate = { ...source, id: v2LayerId('photo'), transform: duplicateTransform };
+    const insertionIndex = photos.findIndex((layer) => layer.id === photoId);
+    const nextPhotos = [...photos];
+    nextPhotos.splice(insertionIndex + 1, 0, duplicate);
+    syncPhotos(nextPhotos, duplicate.id);
+    if (usesLayerLab) {
+      setActiveBootlegLayer('photo');
+      setPhotoToolTab('size');
+      setExpandedPhotoId(duplicate.id);
+    }
   };
   const toggleActiveBackground = () => {
     if (!activePhoto) return;
@@ -1638,14 +1609,27 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   ) : null;
 
   const selectedPhotoControls = activePhoto ? (
-    <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
+    <div data-gdp-modern-photo-controls="three-tabs" className="space-y-3 rounded-2xl bg-white p-2 sm:p-3">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Adjust photo</p><p className="truncate text-sm font-black text-slate-900">{activePhoto.asset?.name || 'Selected photo'}</p></div>
+        {usesLayerLab ? <span className="shrink-0 rounded-full bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800">Selected</span> : <div className="flex gap-1">
+          <button type="button" onClick={() => duplicatePhoto(activePhoto.id)} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} aria-label="Duplicate photo" className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-700 disabled:opacity-30"><Copy size={16} /></button>
+          <button type="button" onClick={() => deletePhoto(activePhoto.id)} aria-label="Delete photo" className="grid h-10 w-10 place-items-center rounded-lg bg-red-50 text-red-600"><Trash2 size={16} /></button>
+        </div>}
+      </div>
+      <div role="tablist" aria-label="Photo adjustment tools" className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+        {[
+          { id: 'size', label: 'Size' },
+          { id: 'position', label: 'Position' },
+          { id: 'more', label: 'More' },
+        ].map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={photoToolTab === tab.id} onClick={() => setPhotoToolTab(tab.id)} className={`min-h-11 rounded-lg px-1 text-xs font-black transition ${photoToolTab === tab.id ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>{tab.label}</button>)}
+      </div>
+      {photoToolTab === 'size' ? <div role="tabpanel" aria-label="Photo size and rotation" className="space-y-3 rounded-xl bg-slate-50 p-3">
         <RangeControl label="Photo size · keep proportions" value={activePhotoCanvasPosition?.scale ?? activePhoto.transform?.scale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} onReset={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100 })} />
-        {usesLayerLab ? <div data-gdp-photo-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
-          <p className="text-[11px] font-bold text-slate-800">Free reshape · optional stretch</p>
-          <RangeControl label="Photo width" value={activePhotoCanvasPosition?.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ widthScale: value })} onReset={() => patchActivePhotoTransform({ widthScale: 100 })} />
-          <RangeControl label="Photo height" value={activePhotoCanvasPosition?.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ heightScale: value })} onReset={() => patchActivePhotoTransform({ heightScale: 100 })} />
-          <p className="text-[10px] font-medium text-slate-500">Use Photo size for natural proportions. Width and height stretch independently. Bleed & Crop hides anything outside the printable boundary.</p>
-        </div> : null}
+        <RangeControl label="Rotation" value={activePhotoCanvasPosition?.rotation ?? activePhoto.transform?.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} onReset={() => patchActivePhotoTransform({ rotation: 0 })} />
+        <p className="text-[11px] font-medium leading-5 text-slate-500">You can also pinch the photo on the garment to resize or rotate it.</p>
+      </div> : null}
+      {photoToolTab === 'position' ? <div role="tabpanel" aria-label="Photo position" className="space-y-3 rounded-xl bg-slate-50 p-3">
         {usesLayerLab ? <>
           <RangeControl label="Move photo left / right" value={activePhotoCanvasPosition?.canvasX ?? 50} min={activePhoto.transform?.bleedCrop ? -100 : 0} max={activePhoto.transform?.bleedCrop ? 200 : 100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasX: value })} onReset={() => patchActivePhotoTransform({ canvasX: resolvePhotoCanvasPosition({}, template?.photoZone || {}).x })} />
           <RangeControl label="Move photo up / down" value={activePhotoCanvasPosition?.canvasY ?? 50} min={activePhoto.transform?.bleedCrop ? -100 : 0} max={activePhoto.transform?.bleedCrop ? 200 : 100} suffix="%" onChange={(value) => patchActivePhotoTransform({ canvasY: value })} onReset={() => patchActivePhotoTransform({ canvasY: resolvePhotoCanvasPosition({}, template?.photoZone || {}).y })} />
@@ -1653,63 +1637,29 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           <RangeControl label="Move left / right" value={activePhoto.transform?.x || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ x: value })} onReset={() => patchActivePhotoTransform({ x: 0 })} />
           <RangeControl label="Move up / down" value={activePhoto.transform?.y || 0} min={-48} max={48} suffix="%" onChange={(value) => patchActivePhotoTransform({ y: value })} onReset={() => patchActivePhotoTransform({ y: 0 })} />
         </>}
-        <RangeControl label="Rotation" value={activePhotoCanvasPosition?.rotation ?? activePhoto.transform?.rotation ?? 0} min={-180} max={180} suffix="°" onChange={(value) => patchActivePhotoTransform({ rotation: value })} onReset={() => patchActivePhotoTransform({ rotation: 0 })} />
-        {isBootleg ? (
-          <>
-          <div data-gdp-bootleg-photo-bottom-fade="selected-photo-only" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
-            <RangeControl label="Bottom edge fade" value={activePhotoBorder.bottomFade} min={0} max={80} suffix="%" onChange={(value) => updateActivePhotoBorder({ bottomFade: value })} onReset={() => updateActivePhotoBorder({ bottomFade: 0 })} />
-            <p className="text-[11px] font-medium leading-4 text-slate-500">Optional: blend away a hard, straight bottom photo edge. Zero keeps the original image untouched.</p>
-          </div>
-          <div data-gdp-bootleg-photo-borders="selected-photo-only" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
-            <div><p className="text-xs font-black uppercase tracking-wide text-slate-800">Photo Border Effects</p><p className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">Only this photo gets a border. Cutout shapes and transparent areas stay clear; the edge is clipped to the print area.</p></div>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Border style for selected photo">
-              {PHOTO_BORDER_STYLES.filter((preset) => preset.id === 'none' || preset.id === activePhotoBorder.style || !Array.isArray(settings?.photoBorderOptions?.enabledStyles) || settings.photoBorderOptions.enabledStyles.includes(preset.id)).map((preset) => <button key={preset.id} type="button" onClick={() => updateActivePhotoBorder({ style: preset.id })} aria-pressed={activePhotoBorder.style === preset.id} className={`min-h-11 rounded-xl border px-2 text-xs font-black ${activePhotoBorder.style === preset.id ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{preset.label}</button>)}
-            </div>
-            {activePhotoBorder.style !== 'none' ? <div className="space-y-3">
-              {activePhotoBorder.style !== 'bootlegGlow' ? <>
-                <label className="block text-xs font-black text-slate-600">Border color<input type="color" value={activePhotoBorder.color} onChange={(event) => updateActivePhotoBorder({ color: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label><button type="button" onClick={() => updateActivePhotoBorder({ color: photoBorderDefault('color') })} className="min-h-9 rounded-lg px-2 text-[11px] font-bold text-slate-600 underline" aria-label="Reset border color">Reset color</button>
-                <RangeControl label="Thickness" value={activePhotoBorder.thickness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ thickness: value })} onReset={() => updateActivePhotoBorder({ thickness: DEFAULT_PHOTO_BORDER.thickness })} />
-              </> : null}
-              <RangeControl label={activePhotoBorder.style === 'bootlegGlow' ? 'Overall border opacity' : 'Opacity'} value={activePhotoBorder.opacity} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ opacity: value })} onReset={() => updateActivePhotoBorder({ opacity: 100 })} />
-              {activePhotoBorder.style === 'bootlegGlow' ? (
-                <div data-gdp-bootleg-glow-controls="true" className="space-y-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/50 p-3">
-                  <p className="text-[11px] font-bold leading-5 text-fuchsia-900">White cutout stroke + airbrushed colored halo, like a classic bootleg tee. Only the selected photo is affected.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block text-xs font-black text-slate-600">Inner stroke color<input type="color" value={activePhotoBorder.innerColor} onChange={(event) => updateActivePhotoBorder({ innerColor: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label><button type="button" onClick={() => updateActivePhotoBorder({ innerColor: photoBorderDefault('innerColor') })} className="min-h-9 rounded-lg px-2 text-[11px] font-bold text-slate-600 underline" aria-label="Reset inner stroke color">Reset color</button>
-                    <label className="block text-xs font-black text-slate-600">Glow color<input type="color" value={activePhotoBorder.glowColor} onChange={(event) => updateActivePhotoBorder({ glowColor: event.target.value })} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white p-1" /></label><button type="button" onClick={() => updateActivePhotoBorder({ glowColor: photoBorderDefault('glowColor') })} className="min-h-9 rounded-lg px-2 text-[11px] font-bold text-slate-600 underline" aria-label="Reset glow color">Reset color</button>
-                  </div>
-                  <RangeControl label="Inner stroke thickness" value={activePhotoBorder.innerThickness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ innerThickness: value })} onReset={() => updateActivePhotoBorder({ innerThickness: photoBorderDefault('innerThickness') })} />
-                  <RangeControl label="Glow size" value={activePhotoBorder.glowSize} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ glowSize: value })} onReset={() => updateActivePhotoBorder({ glowSize: photoBorderDefault('glowSize') })} />
-                  <RangeControl label="Glow opacity" value={activePhotoBorder.glowOpacity} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ glowOpacity: value })} onReset={() => updateActivePhotoBorder({ glowOpacity: photoBorderDefault('glowOpacity') })} />
-                  <RangeControl label="Feather / softness" value={activePhotoBorder.feather} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ feather: value })} onReset={() => updateActivePhotoBorder({ feather: photoBorderDefault('feather') })} />
-                  <RangeControl label="Roughness / spray" value={activePhotoBorder.roughness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ roughness: value })} onReset={() => updateActivePhotoBorder({ roughness: photoBorderDefault('roughness') })} />
-                </div>
-              ) : null}
-              {activePhotoBorder.style === 'glow' ? <RangeControl label="Glow softness" value={activePhotoBorder.softness} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ softness: value })} onReset={() => updateActivePhotoBorder({ softness: photoBorderDefault('softness') })} /> : null}
-              {activePhotoBorder.style === 'rough' ? <RangeControl label="Distress amount" value={activePhotoBorder.distress} min={0} max={100} suffix="%" onChange={(value) => updateActivePhotoBorder({ distress: value })} onReset={() => updateActivePhotoBorder({ distress: DEFAULT_PHOTO_BORDER.distress })} /> : null}
-              {activePhotoBorder.style === 'bootlegGlow' ? <button type="button" onClick={resetBootlegGlow} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-fuchsia-200 bg-white text-xs font-black text-fuchsia-800"><RotateCcw size={14} /> Reset Bootleg Glow settings</button> : null}
-              <button type="button" onClick={resetPhotoBorderStyle} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700"><RotateCcw size={14} /> Remove border (keep photo fade)</button>
-            </div> : <p className="text-[11px] font-semibold text-slate-500">None (default) — existing photos remain unchanged.</p>}
-          </div>
-          </>
-        ) : null}
-        {usesLayerLab ? (
-          <label data-gdp-photo-bleed-crop="true" className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs font-bold text-cyan-950">
-            <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={activePhoto.transform?.bleedCrop === true} onChange={(event) => patchActivePhotoTransform({ bleedCrop: event.target.checked })} />
-            <span>Bleed &amp; Crop <span className="mt-1 block font-medium">Move or enlarge this photo past the dotted print boundary. Only what remains inside the box appears on the garment and 300-DPI print. Uncheck for the original safe-fit movement.</span></span>
-          </label>
-        ) : null}
+        {usesLayerLab ? <label data-gdp-photo-bleed-crop="true" className="flex items-start gap-3 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs font-bold text-cyan-950">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={activePhoto.transform?.bleedCrop === true} onChange={(event) => patchActivePhotoTransform({ bleedCrop: event.target.checked })} />
+          <span>Bleed &amp; Crop <span className="mt-1 block font-medium">Allow movement past the print boundary. Only artwork inside the boundary gets printed.</span></span>
+        </label> : null}
+      </div> : null}
+      {photoToolTab === 'more' ? <div role="tabpanel" aria-label="More photo adjustments" className="space-y-3 rounded-xl bg-slate-50 p-3">
+        {usesLayerLab ? <div data-gdp-photo-free-reshape="width-height" className="space-y-3">
+          <div><p className="text-xs font-black text-slate-800">Free reshape</p><p className="mt-1 text-[11px] font-medium text-slate-500">Stretch width and height separately if needed.</p></div>
+          <RangeControl label="Photo width" value={activePhotoCanvasPosition?.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ widthScale: value })} onReset={() => patchActivePhotoTransform({ widthScale: 100 })} />
+          <RangeControl label="Photo height" value={activePhotoCanvasPosition?.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ heightScale: value })} onReset={() => patchActivePhotoTransform({ heightScale: 100 })} />
+        </div> : <p className="text-xs font-semibold text-slate-500">Select Size or Position for your photo adjustments.</p>}
         {(activePhoto.asset?.originalUrl && activePhoto.asset?.cleanedUrl) ? <button type="button" onClick={toggleActiveBackground} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">{activePhoto.asset.backgroundMode === 'original' ? 'Use removed background' : 'Restore original background'}</button> : null}
-        <button type="button" onClick={() => {
-          const resetTransform = { scale: template?.defaultTransform?.scale || 100, rotation: 0, x: Number(template?.defaultTransform?.offset?.x || 0), y: Number(template?.defaultTransform?.offset?.y || 0) };
-          if (usesLayerLab) {
-            const resetPosition = resolvePhotoCanvasPosition(resetTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
-            patchActivePhotoTransform({ ...resetTransform, canvasX: resetPosition.x, canvasY: resetPosition.y });
-          } else {
-            patchActivePhotoTransform(resetTransform);
-          }
-        }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset selected photo</button>
-      </div>
+      </div> : null}
+      <button type="button" onClick={() => {
+        const resetTransform = { scale: template?.defaultTransform?.scale || 100, rotation: 0, x: Number(template?.defaultTransform?.offset?.x || 0), y: Number(template?.defaultTransform?.offset?.y || 0) };
+        if (usesLayerLab) {
+          const resetPosition = resolvePhotoCanvasPosition(resetTransform, template?.photoZone || { x: 15, y: 12, width: 70, height: 68 });
+          patchActivePhotoTransform({ ...resetTransform, widthScale: 100, heightScale: 100, canvasX: resetPosition.x, canvasY: resetPosition.y });
+        } else {
+          patchActivePhotoTransform(resetTransform);
+        }
+      }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset selected photo</button>
+    </div>
   ) : null;
 
   const photoLayersPanel = usesLayerLab ? (
@@ -1745,12 +1695,17 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
                                 title="Hold and drag to reorder · top is in front"
                                 className="grid h-11 w-8 shrink-0 touch-none cursor-grab place-items-center rounded-lg text-slate-500 active:cursor-grabbing"
                               ><GripVertical size={18} /></button>
-                              <button type="button" aria-label={`Select ${layer.asset?.name || `Photo ${index + 1}`}`} aria-expanded={expandedPhotoId === layer.id && activePhotoId === layer.id} onClick={() => { setActiveBootlegLayer('photo'); setExpandedPhotoId((id) => id === layer.id ? '' : layer.id); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); setPreviewFocusPhotoIds((ids) => ids.length && !ids.includes(layer.id) ? nextPreviewFocusPhotoIds(ids, layer.id) : ids); if (activePhotoId !== layer.id || editor.activeStickerId) onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}>
+                              <button type="button" aria-label={`Select ${layer.asset?.name || `Photo ${index + 1}`}`} aria-expanded={expandedPhotoId === layer.id && activePhotoId === layer.id} onClick={() => { setActiveBootlegLayer('photo'); if (activePhotoId !== layer.id) setPhotoToolTab('size'); setExpandedPhotoId((id) => id === layer.id ? '' : layer.id); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); setPreviewFocusPhotoIds((ids) => ids.length && !ids.includes(layer.id) ? nextPreviewFocusPhotoIds(ids, layer.id) : ids); if (activePhotoId !== layer.id || editor.activeStickerId) onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}>
                                 <span className={`grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 ${hidden ? 'opacity-35' : ''}`}><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span>
                                 <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span>{hidden ? <span className="text-[10px]">Hidden · tap to reveal</span> : focused ? <span className="text-[10px]">Focused</span> : null}</span>
                               </button>
-                              <button type="button" onClick={() => togglePreviewPhoto(layer.id)} aria-pressed={!hidden} aria-label={`${hidden ? 'Show' : 'Hide'} photo ${index + 1} temporarily`} title={hidden ? 'Show photo' : 'Hide photo'} className="grid h-11 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700">{hidden ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-                              <button type="button" onClick={() => toggleFocusPhoto(layer.id)} aria-pressed={focused} aria-label={`Focus photo ${index + 1}`} title="Focus this photo (max 2)" className={`grid h-11 w-10 shrink-0 place-items-center rounded-lg border ${focused ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><Focus size={16} /></button>
+                              <button type="button" data-gdp-photo-row-copy={layer.id} onClick={() => duplicatePhoto(layer.id)} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} aria-label={`Duplicate ${layer.asset?.name || 'photo'}`} title="Duplicate photo" className="grid h-11 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-30"><Copy size={16} /></button>
+                              <button type="button" data-gdp-photo-row-delete={layer.id} onClick={() => deletePhoto(layer.id)} aria-label={`Delete ${layer.asset?.name || 'photo'}`} title="Delete photo" className="grid h-11 w-10 shrink-0 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"><Trash2 size={16} /></button>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center justify-end gap-1 pl-9">
+                                <span className="mr-auto text-[10px] font-semibold text-slate-400">{index === 0 ? 'Front' : index === photos.length - 1 ? 'Back' : `Layer ${photos.length - index}`}</span>
+                                <button type="button" onClick={() => togglePreviewPhoto(layer.id)} aria-pressed={!hidden} aria-label={`${hidden ? 'Show' : 'Hide'} photo ${index + 1} temporarily`} title={hidden ? 'Show photo' : 'Hide photo'} className="flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 text-[11px] font-bold text-slate-700">{hidden ? <EyeOff size={16} /> : <Eye size={16} />} {hidden ? 'Show' : 'Visible'}</button>
+                                <button type="button" onClick={() => toggleFocusPhoto(layer.id)} aria-pressed={focused} aria-label={`Focus photo ${index + 1}`} title="Focus this photo (max 2)" className={`flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold ${focused ? 'bg-cyan-600 text-white' : 'bg-slate-50 text-slate-700'}`}><Focus size={16} /> Focus</button>
                               </div>
                               {expandedPhotoId === layer.id && activePhotoId === layer.id ? (
                                 <div data-gdp-inline-selected-photo-controls={layer.id} role="region" aria-label={`Controls for ${layer.asset?.name || 'selected photo'}`} className="mt-2 max-h-[65vh] overflow-y-auto overscroll-contain rounded-xl border border-cyan-100 bg-slate-50 p-2" onPointerDown={(event) => event.stopPropagation()}>
@@ -1871,13 +1826,13 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   ) : null;
 
   return (
-    <div data-gdp-bootleg-workspace={isBootleg ? 'single-viewport' : undefined} className={`grid gap-4 xl:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.4fr)_minmax(300px,.86fr)] ${isBootleg ? 'xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden' : ''}`}>
-      <section data-gdp-studio-library-pane="templates-only" className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
+    <div data-gdp-bootleg-workspace={isBootleg ? 'single-viewport' : undefined} className={`grid gap-4 ${usesLayerLab && activeBootlegLayer !== 'template' ? 'xl:grid-cols-[minmax(420px,1.4fr)_minmax(300px,.86fr)]' : 'xl:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.4fr)_minmax(300px,.86fr)]'} ${isBootleg ? 'xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden' : ''}`}>
+      {(!usesLayerLab || activeBootlegLayer === 'template') ? <section data-gdp-studio-library-pane="templates-only" className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${isBootleg ? 'xl:h-full xl:overflow-y-auto xl:overscroll-contain' : ''}`}>
 
           <div className="mb-3"><h2 className="text-base font-black text-slate-900">Choose a layout</h2><p className="mt-1 text-[11px] leading-4 text-slate-500">{isMemorial ? 'Protected GDP templates' : 'Your selected template stays separate from photo, text and sticker layers.'}</p>{isMemorial && <p className="mt-1 text-[11px] leading-4 text-slate-500">Memorial template artwork stays protected while your photo and text remain editable.</p>}</div>
         {isBootleg ? <div className="max-h-[470px] space-y-3 overflow-y-auto pr-1" data-gdp-bootleg-collections="expandable">{bootlegCollections.map((group) => { const expanded = expandedBootlegCollection === group.id; return <section key={group.id} className="overflow-hidden rounded-2xl border border-slate-200"><button type="button" aria-expanded={expanded} onClick={() => setExpandedBootlegCollection(expanded ? '' : group.id)} className="flex min-h-12 w-full items-center justify-between gap-3 bg-slate-50 px-3 py-3 text-left text-sm font-bold text-slate-900"><span>{group.name} <span className="text-xs font-medium text-slate-500">({group.items.length} colors)</span></span><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{expanded && <div className="grid grid-cols-2 gap-3 p-3">{group.items.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}</section>; })}</div> : <div className="grid max-h-[420px] grid-cols-2 gap-3 overflow-y-auto pr-1">{templates.map((item) => { const selected = item.id === editor.templateId; return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selectTemplate(item)} className={`overflow-hidden rounded-2xl border-2 bg-slate-50 text-left transition ${selected ? 'border-slate-950 shadow-md' : 'border-slate-200 hover:border-slate-400'}`}><div className="aspect-square bg-white p-2"><img src={item.thumbnail || item.assetUrl} alt={item.name} className="h-full w-full object-contain" loading="lazy" /></div><div className="p-2.5"><div className="flex items-center gap-1.5">{isBootleg ? <Layers size={12} className="text-slate-400" /> : <ShieldCheck size={12} className="text-slate-400" />}<span className="line-clamp-1 text-xs font-black text-slate-800">{item.name}</span></div></div></button>; })}</div>}
 
-      </section>
+      </section> : null}
 
       <section ref={mobilePreviewRef} data-gdp-bootleg-sticky-preview={isBootleg ? 'true' : undefined} className={`rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 ${isBootleg ? 'xl:h-full xl:overflow-hidden' : ''}`}>
         <div className="mb-3 px-1"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Live garment preview</p><p className="hidden text-sm font-bold text-slate-700 sm:block">{isBootleg ? 'Tap any photo to select and move it immediately. Pinch to resize or rotate; other design layers stay independent.' : 'Tap a layer in the list, then drag or pinch directly on the fabric.'}</p><p className="text-xs font-semibold text-slate-600 sm:hidden">Drag or pinch on the garment. Photo tools are below the upload card.</p></div>

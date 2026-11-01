@@ -25,7 +25,7 @@ test('Settings sanitize untrusted values and preserve admin-configured defaults'
   const safe = normalizePhotoBorder({ style: 'outline', color: 'url(x)', thickness: 999, opacity: -1, softness: 200, distress: -1 });
   assert.deepEqual([safe.style, safe.color, safe.thickness, safe.opacity, safe.softness, safe.distress], ['outline', '#ffffff', 100, 0, 100, 0]);
   assert.equal(DEFAULT_PHOTO_BORDER.style, 'none');
-  assert.match(editor, /settings\?\.photoBorderOptions/);
+  assert.doesNotMatch(editor, /photoBorderOptions/, 'customer border settings are no longer exposed');
   assert.match(admin, /data-gdp-admin-photo-borders="true"/);
   assert.match(admin, /saveCustomStudioSettings\(settings\)/);
 });
@@ -93,9 +93,10 @@ test('Compositor draws borders with photos and mirrors them to preview before ov
   assert.match(producer, /globalCompositeOperation = 'source-atop'/);
 });
 
-test('Each selected photo owns independent border settings included in order hash', () => {
-  assert.match(editor, /data-gdp-bootleg-photo-borders="selected-photo-only"/);
-  assert.match(editor, /layer\.id === activePhoto\.id \? \{ \.\.\.layer, border: normalized \} : layer/);
-  assert.match(editor, /activePhotoBorder\.style === preset\.id/);
+test('Legacy per-photo borders remain printable and saved, while their customer controls are removed', () => {
+  assert.doesNotMatch(editor, /Photo Border Effects|data-gdp-bootleg-photo-borders|updateActivePhotoBorder/);
+  assert.match(editor, /hasPhotoBorder\(layer\.border\)/);
+  assert.match(editor, /paintPhotoBorders\(rendered\.borderCanvas\)/);
+  assert.match(producer, /createPhotoBorderImage\(photoSource\.image, photoSource\.width, photoSource\.height, layer\.border\)/);
   assert.match(snapshot, /border: layer\.border \|\| \{ style: 'none' \}/);
 });
