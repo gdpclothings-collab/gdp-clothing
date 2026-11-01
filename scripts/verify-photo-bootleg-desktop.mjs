@@ -99,7 +99,8 @@ assert(protectedV2.includes('const next = [...latestPhotos, ...safeAdditions]'),
 assert(protectedV2.includes("data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined}"), 'Photo panel exposes the append-only multi-photo contract');
 assert(protectedV2.includes("{ value: 'photo', label: 'Photo', enabled: true }"), 'Photo tab remains available before the first upload so Add Photo is reachable');
 assert(protectedV2.includes("activeBootlegLayer === 'template' ? templatePanel"), 'Template controls render only when Template is the active Bootleg layer');
-assert(protectedV2.includes("activeBootlegLayer === 'photo' ? photoPanel"), 'Photo controls render only when Photo is the active Bootleg layer');
+assert(protectedV2.includes("activeBootlegLayer === 'photo' ? <>{photoPanel}{photoLayersPanel}</> : null"), 'Photo upload and layer cards render together only when Photo is the active Bootleg layer');
+assert(protectedV2.includes('data-gdp-photo-layers-location="below-upload"'), 'whole Photo Layers card must live below the upload card');
 assert(protectedV2.includes("activeBootlegLayer === 'text' ? textPanel"), 'Text controls render only when Text is the active Bootleg layer');
 assert(protectedV2.includes('data-gdp-bootleg-workspace={isBootleg ? \'single-viewport\' : undefined}'), 'Bootleg uses a dedicated single-viewport desktop workspace contract');
 assert(protectedV2.includes('xl:h-[calc(100dvh-7rem)] xl:items-stretch xl:overflow-hidden'), 'desktop workspace owns a viewport-bounded height instead of growing the page with the inspector');
