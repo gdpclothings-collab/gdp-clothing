@@ -1,0 +1,46 @@
+name: GDP Guest Mockup RLS Integration
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/checkout/**'
+      - 'supabase/migrations/20261101000100_guest_custom_upload_ownership_grants.sql'
+      - 'tests/sql/guest-mockup-*'
+      - '.github/workflows/guest-mockup-rls-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guest-mockup-rls:
+    name: Isolated PostgreSQL 17 grant/RLS validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: guest_mockup_qa
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d guest_mockup_qa"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: guest_mockup_qa
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare synthetic Supabase role and table fixtures (no customer data)
+        run: psql -v ON_ERROR_STOP=1 -f tests/sql/guest-mockup-fixture.sql
+      - name: Apply exact unmodified proposed migration to disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101000100_guest_custom_upload_ownership_grants.sql
+      - name: Assert role isolation, denied client reads, binding, revocation columns
+        run: psql -v ON_ERROR_STOP=1 -f tests/sql/guest-mockup-rls-qa.sql
