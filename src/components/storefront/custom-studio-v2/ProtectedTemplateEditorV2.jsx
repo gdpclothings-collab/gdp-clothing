@@ -996,6 +996,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const [activeBootlegLayer, setActiveBootlegLayer] = useState('photo');
   const [libraryTab, setLibraryTab] = useState('templates');
   const [textPanelTab, setTextPanelTab] = useState('text');
+  const [expandedPhotoId, setExpandedPhotoId] = useState('');
   const [previewHiddenPhotoIds, setPreviewHiddenPhotoIds] = useState([]);
   const [previewFocusPhotoIds, setPreviewFocusPhotoIds] = useState([]);
   const [mobilePreviewOutOfView, setMobilePreviewOutOfView] = useState(false);
@@ -1018,7 +1019,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const isBootleg = path === 'bootleg';
   const isMemorial = path === 'memorial';
   const usesLayerLab = isBootleg || isMemorial;
-  useEffect(() => { setPreviewHiddenPhotoIds([]); setPreviewFocusPhotoIds([]); }, [path, side]);
+  useEffect(() => { setPreviewHiddenPhotoIds([]); setPreviewFocusPhotoIds([]); setExpandedPhotoId(''); }, [path, side]);
   const resetPreviewVisibility = () => { setPreviewHiddenPhotoIds([]); setPreviewFocusPhotoIds([]); };
   const previewVisibilityChanged = previewIsFiltered(previewHiddenPhotoIds, previewFocusPhotoIds);
   useEffect(() => { onPreviewVisibilityChange?.(previewVisibilityChanged); }, [onPreviewVisibilityChange, previewVisibilityChanged]);
@@ -1356,7 +1357,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
           setUploadMessage(`${next.length} photo${next.length === 1 ? '' : 's'} ready · added ${safeAdditions.length}${preservedTransparencyCount ? ` · ${preservedTransparencyCount} transparent original${preservedTransparencyCount === 1 ? '' : 's'} preserved` : ''}`);
         }
         setLibraryTab('layers');
-        if (usesLayerLab) revealLayerControls('photo');
+        if (usesLayerLab) { setExpandedPhotoId(activeId); revealLayerControls('photo'); }
       } else {
         setUploadMessage('');
       }
@@ -1391,7 +1392,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
   const deleteActivePhoto = () => {
     if (!activePhoto) return;
     const remaining = photos.filter((layer) => layer.id !== activePhoto.id);
-    syncPhotos(remaining, remaining.at(-1)?.id || '');
+    const nextSelectedId = remaining.at(-1)?.id || '';
+    syncPhotos(remaining, nextSelectedId);
+    if (usesLayerLab) setExpandedPhotoId(nextSelectedId);
   };
   const duplicateActivePhoto = () => {
     if (!activePhoto) return;
@@ -1405,7 +1408,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
       : { ...activePhoto.transform, x: clamp(Number(activePhoto.transform?.x || 0) + 8, -48, 48), y: clamp(Number(activePhoto.transform?.y || 0) + 8, -48, 48) };
     const duplicate = { ...activePhoto, id: v2LayerId('photo'), transform: duplicateTransform };
     syncPhotos([...photos, duplicate], duplicate.id);
-    if (usesLayerLab) setActiveBootlegLayer('photo');
+    if (usesLayerLab) { setActiveBootlegLayer('photo'); setExpandedPhotoId(duplicate.id); }
   };
   const moveActivePhoto = (delta) => {
     if (!activePhoto) return;
@@ -1637,16 +1640,8 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
     </div>
   ) : null;
 
-  const photoPanel = (
-    <div data-gdp-bootleg-panel={isBootleg ? 'photo' : undefined} data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined} className="space-y-3 rounded-2xl border border-slate-100 p-3">
-      <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} customer photo{photos.length === 1 ? '' : 's'} added · template artwork is separate</p></div><Layers size={16} className="text-slate-400" /></div>
-      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Transparent PNG/WebP photos keep their original pixels and skip cleanup. Photos with an opaque background are automatically cleaned. You can switch back to the untouched original when cleanup runs, and the original stays usable if cleanup fails.</p></div></div></div>
-      <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
-      <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
-      {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
-      {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
-      <button type="button" onClick={() => setLibraryTab('layers')} className="min-h-10 w-full rounded-xl border border-cyan-100 bg-cyan-50 px-3 text-left text-xs font-bold text-cyan-900">Manage all {photos.length} photo layers in the Layers panel</button>
-      {activePhoto ? <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
+  const selectedPhotoControls = activePhoto ? (
+    <div className="space-y-3 rounded-2xl bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Selected photo</p><span className="block truncate text-xs font-black text-slate-700">{activePhoto.asset?.name}</span></div><div className="flex gap-1"><button type="button" onClick={() => moveActivePhoto(-1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Send photo backward"><ArrowDown size={14} /></button><button type="button" onClick={() => moveActivePhoto(1)} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600" aria-label="Bring photo forward"><ArrowUp size={14} /></button><button type="button" onClick={duplicateActivePhoto} disabled={photos.length >= BOOTLEG_MAX_PHOTOS} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-600 disabled:opacity-30" aria-label="Duplicate photo"><Copy size={14} /></button><button type="button" onClick={deleteActivePhoto} className="grid h-9 w-9 place-items-center rounded-lg bg-white text-red-600" aria-label="Delete photo"><Trash2 size={14} /></button></div></div>
         <RangeControl label="Photo size · keep proportions" value={activePhotoCanvasPosition?.scale ?? activePhoto.transform?.scale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchActivePhotoTransform({ scale: value })} onReset={() => patchActivePhotoTransform({ scale: template?.defaultTransform?.scale || 100 })} />
         {usesLayerLab ? <div data-gdp-photo-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
           <p className="text-[11px] font-bold text-slate-800">Free reshape · optional stretch</p>
@@ -1717,7 +1712,19 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
             patchActivePhotoTransform(resetTransform);
           }
         }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset selected photo</button>
-      </div> : null}
+      </div>
+  ) : null;
+
+  const photoPanel = (
+    <div data-gdp-bootleg-panel={isBootleg ? 'photo' : undefined} data-gdp-bootleg-multi-photo={isBootleg ? 'append' : undefined} className="space-y-3 rounded-2xl border border-slate-100 p-3">
+      <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.12em] text-slate-500">Photos</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{photos.length} / {BOOTLEG_MAX_PHOTOS} customer photo{photos.length === 1 ? '' : 's'} added · template artwork is separate</p></div><Layers size={16} className="text-slate-400" /></div>
+      <div data-gdp-photo-upload-guidance="auto-remove-background" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950"><div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><div><p className="text-xs font-black">For best print results</p><p className="mt-1 text-[11px] font-semibold leading-4">Transparent PNG/WebP photos keep their original pixels and skip cleanup. Photos with an opaque background are automatically cleaned. You can switch back to the untouched original when cleanup runs, and the original stays usable if cleanup fails.</p></div></div></div>
+      <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const files = event.currentTarget.files; uploadPhotos(files); event.currentTarget.value = ''; }} />
+      <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= BOOTLEG_MAX_PHOTOS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />} {photos.length ? 'Add another photo' : 'Add first photo'}</button>
+      {uploadMessage && !uploading ? <p className="text-xs font-semibold text-emerald-700">{uploadMessage}</p> : null}
+      {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
+      <button type="button" onClick={() => setLibraryTab('layers')} className="min-h-10 w-full rounded-xl border border-cyan-100 bg-cyan-50 px-3 text-left text-xs font-bold text-cyan-900">Manage all {photos.length} photo layers in the Layers panel</button>
+      {!usesLayerLab ? selectedPhotoControls : <p data-gdp-photo-controls-relocated="true" className="rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs font-semibold text-cyan-900">Tap a photo in the Layers list to open its Copy, Delete, size, position, rotation and effects directly below that photo.</p>}
     </div>
   );
 
@@ -1825,7 +1832,7 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
             <p className="mt-1 text-[10px] text-cyan-800">Drag the grip to rearrange photos. Top = in front, bottom = behind. Eye/Focus only change the preview; hidden photos stay in your print design.</p>
           </div>
           {photos.length ? (
-            <DragDropContext onDragEnd={handlePhotoDragEnd}>
+            <DragDropContext onBeforeCapture={() => setExpandedPhotoId('')} onDragEnd={handlePhotoDragEnd}>
               <Droppable droppableId={`gdp-photo-layers-${path}-${side}`} direction="vertical">
                 {(dropProvided) => (
                   <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} className="space-y-2" data-gdp-photo-sort-direction="top-first">
@@ -1839,8 +1846,9 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
                               ref={dragProvided.innerRef}
                               {...dragProvided.draggableProps}
                               data-gdp-photo-layer-row={layer.id}
-                              className={`flex min-h-12 items-center gap-1 rounded-xl border p-1 ${dragSnapshot.isDragging ? 'z-50 border-cyan-500 bg-cyan-50 shadow-xl' : hidden ? 'border-slate-200 bg-slate-100' : focused ? 'border-cyan-400 bg-cyan-50' : 'border-slate-200 bg-white'}`}
+                              className={`rounded-xl border p-1 ${dragSnapshot.isDragging ? 'z-50 border-cyan-500 bg-cyan-50 shadow-xl' : hidden ? 'border-slate-200 bg-slate-100' : focused ? 'border-cyan-400 bg-cyan-50' : 'border-slate-200 bg-white'}`}
                             >
+                              <div className="flex min-h-12 items-center gap-1">
                               <button
                                 type="button"
                                 {...dragProvided.dragHandleProps}
@@ -1849,12 +1857,18 @@ export default function ProtectedTemplateEditorV2({ path, product, color, size, 
                                 title="Hold and drag to reorder · top is in front"
                                 className="grid h-11 w-8 shrink-0 touch-none cursor-grab place-items-center rounded-lg text-slate-500 active:cursor-grabbing"
                               ><GripVertical size={18} /></button>
-                              <button type="button" aria-label={`Select ${layer.asset?.name || `Photo ${index + 1}`}`} onClick={() => { revealLayerControls('photo'); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); setPreviewFocusPhotoIds((ids) => ids.length && !ids.includes(layer.id) ? nextPreviewFocusPhotoIds(ids, layer.id) : ids); onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}>
+                              <button type="button" aria-label={`Select ${layer.asset?.name || `Photo ${index + 1}`}`} aria-expanded={expandedPhotoId === layer.id && activePhotoId === layer.id} onClick={() => { setActiveBootlegLayer('photo'); setLibraryTab('layers'); setExpandedPhotoId((id) => id === layer.id ? '' : layer.id); setPreviewHiddenPhotoIds((ids) => ids.filter((id) => id !== layer.id)); setPreviewFocusPhotoIds((ids) => ids.length && !ids.includes(layer.id) ? nextPreviewFocusPhotoIds(ids, layer.id) : ids); if (activePhotoId !== layer.id || editor.activeStickerId) onPatch({ activePhotoId: layer.id, activeStickerId: '' }); }} className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left ${layer.id === activePhotoId ? 'bg-slate-900 text-white' : 'text-slate-700'}`}>
                                 <span className={`grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 ${hidden ? 'opacity-35' : ''}`}><img src={layer.asset?.url} alt="" className="h-full w-full object-cover" /></span>
                                 <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{layer.asset?.name || `Photo ${index + 1}`}</span>{hidden ? <span className="text-[10px]">Hidden · tap to reveal</span> : focused ? <span className="text-[10px]">Focused</span> : null}</span>
                               </button>
                               <button type="button" onClick={() => togglePreviewPhoto(layer.id)} aria-pressed={!hidden} aria-label={`${hidden ? 'Show' : 'Hide'} photo ${index + 1} temporarily`} title={hidden ? 'Show photo' : 'Hide photo'} className="grid h-11 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700">{hidden ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                               <button type="button" onClick={() => toggleFocusPhoto(layer.id)} aria-pressed={focused} aria-label={`Focus photo ${index + 1}`} title="Focus this photo (max 2)" className={`grid h-11 w-10 shrink-0 place-items-center rounded-lg border ${focused ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><Focus size={16} /></button>
+                              </div>
+                              {expandedPhotoId === layer.id && activePhotoId === layer.id ? (
+                                <div data-gdp-inline-selected-photo-controls={layer.id} role="region" aria-label={`Controls for ${layer.asset?.name || 'selected photo'}`} className="mt-2 max-h-[65vh] overflow-y-auto overscroll-contain rounded-xl border border-cyan-100 bg-slate-50 p-2" onPointerDown={(event) => event.stopPropagation()}>
+                                  {selectedPhotoControls}
+                                </div>
+                              ) : null}
                             </div>
                           )}
                         </Draggable>

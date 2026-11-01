@@ -120,6 +120,7 @@ jobs:
           node --test tests/studio-text-edge-crop.test.mjs
           node --test tests/studio-layer-tools-wide.test.mjs
           node --test tests/studio-photo-layer-reorder.test.mjs
+          node --test tests/studio-photo-inline-controls.test.mjs
           node --test tests/studio-print-area-bounds.test.mjs
           node --test tests/studio-visual-smoke-bounds.test.mjs
           node --test tests/studio-free-reshape.test.mjs
