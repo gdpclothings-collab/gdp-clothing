@@ -41,7 +41,14 @@ export async function authorizeGuestMockupBinding(service, { path, designId, gue
   const { data: binding, error: bindingError } = await service.from('guest_custom_mockup_bindings')
     .select('path').eq('design_id', designId).eq('side', side).maybeSingle();
   if (bindingError) throw bindingError;
-  return binding?.path === path;
+  if (binding?.path !== path) return false;
+  // Design tokens do not override revocation or expiration of the underlying upload grant.
+  // The grant is service-only and must still authorize this exact mockup path.
+  const { data: grant, error: grantError } = await service.from('guest_custom_upload_grants')
+    .select('purpose,expires_at,revoked_at').eq('path', path).maybeSingle();
+  if (grantError) throw grantError;
+  return Boolean(grant && grant.purpose === 'mockup' && !grant.revoked_at
+    && Date.parse(grant.expires_at) > now);
 }
 
 // Validation runs before saving any design snapshot or production-file metadata.

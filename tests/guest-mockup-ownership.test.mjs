@@ -111,6 +111,24 @@ test('approved design token binds the exact side and path, not an arbitrary gues
   assert.equal(await authorizeGuestMockupBinding(service, { ...valid, path: front, side: 'front', guestDesignToken: b }), false);
 });
 
+test('design token cannot bypass revoked, expired, or wrong-purpose upload grant', async () => {
+  const { service, data } = await serviceFixture();
+  const request = { designId: design, guestDesignToken: token, path: front, side: 'front' };
+  assert.equal(await authorizeGuestMockupBinding(service, request), true);
+  data.guest_custom_upload_grants[front].revoked_at = new Date().toISOString();
+  assert.equal(await authorizeGuestMockupBinding(service, request), false);
+  delete data.guest_custom_upload_grants[front].revoked_at;
+  data.guest_custom_upload_grants[front].expires_at = '2000-01-01T00:00:00.000Z';
+  assert.equal(await authorizeGuestMockupBinding(service, request), false);
+  data.guest_custom_upload_grants[front].expires_at = expiresAt;
+  data.guest_custom_upload_grants[front].purpose = 'production';
+  assert.equal(await authorizeGuestMockupBinding(service, request), false);
+  data.guest_custom_upload_grants[front].purpose = 'mockup';
+  delete data.guest_custom_upload_grants[front];
+  assert.equal(await authorizeGuestMockupBinding(service, request), false);
+  await assert.rejects(authorizeGuestMockupBinding((await serviceFixture({ denied: ['guest_custom_upload_grants'] })).service, request), /permission failure/);
+});
+
 test('expired or converted design sessions cannot reauthorize old mockups', async () => {
   const { service, data } = await serviceFixture();
   data.guest_design_sessions[0].expires_at = '2000-01-01T00:00:00.000Z';
@@ -225,6 +243,19 @@ test('actual Edge signing action rejects unowned paths before hitting service-ro
   assert.equal((await run({ path: front, purpose: 'mockup', uploadProof: proofA })).status, 200);
   assert.equal((await run({ path: back, purpose: 'mockup', guestDesignToken: token, designId: design, side: 'back' })).status, 200);
   assert.equal(signedCount, 2);
+  // Regression: an otherwise valid design token never resurrects a revoked grant.
+  data.guest_custom_upload_grants[back].revoked_at = new Date().toISOString();
+  assert.equal((await run({ path: back, purpose: 'mockup', guestDesignToken: token, designId: design, side: 'back' })).status, 403);
+  assert.equal(signedCount, 2);
+  delete data.guest_custom_upload_grants[back].revoked_at;
+  data.guest_custom_upload_grants[back].expires_at = '2000-01-01T00:00:00.000Z';
+  assert.equal((await run({ path: back, purpose: 'mockup', guestDesignToken: token, designId: design, side: 'back' })).status, 403);
+  assert.equal(signedCount, 2);
+  data.guest_custom_upload_grants[back].expires_at = expiresAt;
+  data.guest_custom_upload_grants[back].purpose = 'source';
+  assert.equal((await run({ path: back, purpose: 'mockup', guestDesignToken: token, designId: design, side: 'back' })).status, 403);
+  assert.equal(signedCount, 2);
+  data.guest_custom_upload_grants[back].purpose = 'mockup';
   data.guest_design_sessions[0].expires_at = '2000-01-01T00:00:00.000Z';
   assert.equal((await run({ path: back, purpose: 'mockup', guestDesignToken: token, designId: design, side: 'back' })).status, 403);
   assert.equal(signedCount, 2);
