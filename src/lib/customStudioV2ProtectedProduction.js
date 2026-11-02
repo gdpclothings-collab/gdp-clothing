@@ -324,11 +324,12 @@ async function drawStickers(context, stickers, widthPx, heightPx) {
   }
 }
 
-export async function renderProtectedStudioV2PngAdvanced({ product, size, side, editor, template, profile, dpi = 300, returnDesignCanvas = false }) {
+export async function renderProtectedStudioV2PngAdvanced({ product, size, side, editor, template, profile, designPath = 'memorial', dpi = 300, returnDesignCanvas = false }) {
   if (!template?.assetUrl) throw new Error('The GDP template artwork is unavailable.');
   const photos = photoLayers(editor).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-  // Preserve the established photo-required checkout rule; removing the visual guide does not change validation.
-  if (!photos.length) throw new Error('The customer photo is unavailable.');
+  // GDP Photo Bootleg templates are complete print artwork even with zero uploaded photos.
+  // Memorial and unknown paths stay photo-required; never permit an empty template.
+  if (designPath !== 'bootleg' && !photos.length) throw new Error('The customer photo is unavailable.');
   const resolvedProfile = profile(product, size, side);
   const output = createCanvas(resolvedProfile, dpi);
   // Low-DPI live previews return the exterior border pixels as a separate
