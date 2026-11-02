@@ -80,7 +80,7 @@ function RangeControl({ label, value, min, max, suffix = '', onChange, onReset }
   return <label className="block"><div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold text-slate-600"><span>{label}</span><span className="flex items-center gap-2">{Math.round(Number(value || 0) * 10) / 10}{suffix}{onReset ? <button type="button" onClick={(event) => { event.preventDefault(); onReset(); }} className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700" aria-label={`Reset ${label}`}>Reset</button> : null}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
 }
 
-function UploadedLayersPreview({ layers, gesture, onSelect, onLoad, interactive = false }) {
+function UploadedLayersPreview({ layers, gesture, onSelect, onLoad, outside = false, interactive = false }) {
   return <>{layers.map((layer) => (
     <div
       key={layer.id}
@@ -88,7 +88,7 @@ function UploadedLayersPreview({ layers, gesture, onSelect, onLoad, interactive 
       onClick={interactive && !layer.isActive ? () => onSelect(layer.id) : undefined}
       data-gdp-upload-artwork-layer={layer.id}
       data-gdp-upload-artwork-selected={layer.isActive ? 'true' : 'false'}
-      className={`absolute grid place-items-center rounded-sm ${interactive && layer.isActive ? 'cursor-grab ring-2 ring-cyan-400/75' : interactive ? 'cursor-pointer' : ''}`}
+      className={`absolute grid place-items-center rounded-sm ${interactive && layer.isActive ? outside ? 'cursor-grab ring-2 ring-amber-500/90' : 'cursor-grab ring-2 ring-cyan-400/75' : interactive ? 'cursor-pointer' : ''}`}
       style={{
         ...(interactive && layer.isActive ? gesture?.style : {}),
         left: `${layer.placement.centerXPercent}%`,
@@ -323,7 +323,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             <div data-gdp-print-guide="true" data-gdp-upload-overflow-preview={outsideRecommendedArea ? 'outside' : 'inside'} aria-label={`Recommended ${side} print area ${printGuide.label}`} className={`absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed ${outsideRecommendedArea ? 'border-amber-500 bg-amber-50/10' : 'border-slate-500/50 bg-white/5'}`} style={{ ...printGuide.style, overflow: 'hidden' }}>
               <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
               <div ref={referenceBoxRef} className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2" />
-              {previewLayers.length ? <UploadedLayersPreview layers={previewLayers} gesture={gesture} onSelect={selectLayer} onLoad={hydrateLegacyArtworkDimensions} interactive /> : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
+              {previewLayers.length ? <UploadedLayersPreview layers={previewLayers} gesture={gesture} onSelect={selectLayer} onLoad={hydrateLegacyArtworkDimensions} outside={outsideRecommendedArea} interactive /> : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
             </div>
           </div>
           </StudioDesktopViewZoom>
