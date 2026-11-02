@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState, useCall
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 import { mergeRefreshedCartPreviews } from "@/lib/cartPreviewSides";
+import { safeCartLocalMockup, writeCartPreviewsWithFallback } from '@/lib/cartLocalMockupPreview';
 import {
   readStoredJson,
   removeStoredKey,
@@ -60,6 +61,7 @@ function persistableCartItem(item) {
       {
         ...mockup,
         path: mockup?.path || customerUploadPathFromUrl(mockup?.url),
+        localPreview: safeCartLocalMockup(mockup?.localPreview),
       },
     ])
   );
@@ -99,11 +101,18 @@ async function refreshCustomPreview(item, user) {
 
   const refreshedEntries = await Promise.all(mockupEntries.map(async ([side, mockup]) => [
     side,
-    { ...mockup, url: await signCustomPreviewPath(mockup.path, user) || mockup.url },
+    // Locally cached approved mockups need no extra Edge signing request on reload.
+    { ...mockup, url: safeCartLocalMockup(mockup.localPreview)
+      ? mockup.url
+      : await signCustomPreviewPath(mockup.path, user) || mockup.url },
   ]));
   const customerMockups = Object.fromEntries(refreshedEntries);
   const primarySide = storedItem.placement === "back" ? "back" : "front";
-  const primaryUrl = customerMockups[primarySide]?.url || await signCustomPreviewPath(imagePath, user);
+  const primaryUrl = customerMockups[primarySide]?.url || (
+    safeCartLocalMockup(customerMockups[primarySide]?.localPreview)
+      ? storedItem.image
+      : await signCustomPreviewPath(imagePath, user)
+  );
 
   return {
     ...storedItem,
@@ -164,7 +173,7 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     if (loadedStorageSignature !== storageSignature) return;
-    writeStoredJson(storageKeys.cart, items.map(persistableCartItem));
+    writeCartPreviewsWithFallback(storageKeys.cart, items.map(persistableCartItem));
   }, [items, loadedStorageSignature, storageSignature, storageKeys.cart]);
 
   useEffect(() => {
@@ -174,7 +183,7 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     if (loadedStorageSignature !== storageSignature) return;
-    writeStoredJson(storageKeys.saved, saved.map(persistableCartItem));
+    writeCartPreviewsWithFallback(storageKeys.saved, saved.map(persistableCartItem));
   }, [saved, loadedStorageSignature, storageSignature, storageKeys.saved]);
 
   const addItem = useCallback((item) => {

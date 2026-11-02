@@ -77,7 +77,7 @@ assert.equal(ordinary.tax, original.tax);
 assert.equal(ordinary.gstHstTax, 2.45);
 assert.equal(ordinary.pstTax, 2.16);
 
-const edge = fs.readFileSync("supabase/functions/checkout/index.ts", "utf8");
+const edge = fs.readFileSync("supabase/functions/checkout/index.ts", "utf8").replace(/\r\n/g, "\n");
 const ui = fs.readFileSync("src/pages/CheckoutTwoStep.jsx", "utf8");
 assert.ok(edge.includes('mode: Deno.env.get("GDP_CHECKOUT_TAX_POLICY")'), "policy is server-controlled");
 assert.ok(edge.includes('reviewedOn: Deno.env.get("GDP_GST_SMALL_SUPPLIER_REVIEWED_ON")'), "review expiry requires backend configuration");

@@ -56,7 +56,7 @@ test('all new Studio paths upload side-specific mockups separately from producti
   const legacy = read('../src/pages/CustomStudio.jsx');
   for (const source of [studioV2, legacy]) {
     assert.match(source, /for \(const side of (sides|printedSides)\)/);
-    assert.match(source, /customerMockups\[side\] = \{ path:/);
+    assert.match(source, /customerMockups\[side\]\s*=\s*\{[\s\S]{0,250}?\bpath\s*:/);
     assert.match(source, /customerMockupPaths:/);
     assert.match(source, /customerMockupPath: primaryMockup\.path/);
     assert.match(source, /customerMockups,/);

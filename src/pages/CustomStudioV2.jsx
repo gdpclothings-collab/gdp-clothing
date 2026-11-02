@@ -31,6 +31,7 @@ import { getStudioBrowseSnapshot, refreshStudioBrowseSnapshot } from '@/lib/stud
 import { studioV2ScrollTop, studioV2StickyHeaderHeight } from '@/lib/studioV2ScrollRestoration';
 import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { renderStudioV2CustomerMockup } from '@/lib/customStudioV2Mockup';
+import { createCartLocalMockup } from '@/lib/cartLocalMockupPreview';
 import {
   createInitialStudioV2State,
   createStudioV2ReuseState,
@@ -769,6 +770,8 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
           side,
           color: state.color,
         });
+        // Browser-local JPEG is only a cart display copy, never the 300-DPI print master.
+        const localPreview = await createCartLocalMockup(customerMockup.blob);
         const mockupFile = new File(
           [customerMockup.blob],
           `gdp-customer-mockup-${side}-${lockedHash.slice(0, 12)}.png`,
@@ -776,7 +779,11 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
         );
         updateStage(`Uploading ${side} customer mockup…`);
         const upload = await customerApi.uploadArtwork(mockupFile);
-        customerMockups[side] = { path: upload.storage_path, url: upload.file_url };
+        customerMockups[side] = {
+          path: upload.storage_path,
+          url: upload.file_url,
+          ...(localPreview ? { localPreview } : {}),
+        };
       }
       const primaryMockup = customerMockups[firstSide];
 
