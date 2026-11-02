@@ -2,19 +2,15 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.115.0";
 import {
   CLEANUP_BUCKETS, MAX_BATCH, allowAccount, allowFile, allowOrder,
-  isReferencedByText, selectedTargets, validStoragePath,
+  selectedTargets, validStoragePath,
 } from "./policy.mjs";
+import { scanStorageReferences } from "./reference-scan.mjs";
 
 const origins = new Set([
   "https://gdpclothing.ca", "https://www.gdpclothing.ca",
   "https://gdp-clothing.pages.dev",
 ]);
 const localOrigin = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
-const referenceTables = [
-  "orders", "order_items", "custom_designs", "design_proofs", "products",
-  "product_variants", "artwork_library", "content_pages", "store_settings",
-  "gdp_invoices",
-];
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function cors(req: Request) {
@@ -72,18 +68,6 @@ async function listBucket(service: any, bucket: string) {
     }));
 }
 
-async function referencedData(service: any) {
-  const pieces: string[] = [];
-  for (const table of referenceTables) {
-    for (let from = 0; from < 5000; from += 1000) {
-      const rows = required<any[]>(await service.from(table).select("*").range(from, from + 999));
-      pieces.push(JSON.stringify(rows || []));
-      if (!rows || rows.length < 1000) break;
-      if (from >= 4000) throw new Error("Reference scan exceeded safety limit.");
-    }
-  }
-  return pieces.join("\n");
-}
 
 async function listAccounts(service: any, actorId: string) {
   const users: any[] = [];
@@ -180,14 +164,16 @@ Deno.serve(async (req: Request) => {
     if (action === "preview_files") {
       const bucket = String(body.bucket || "");
       if (!CLEANUP_BUCKETS.includes(bucket)) return reply(req, { error: "Bucket is protected" }, 400);
-      const [all, linked] = await Promise.all([listBucket(service, bucket), referencedData(service)]);
+      const all = await listBucket(service, bucket);
+      const candidates = all.filter((f) => allowFile(bucket, f.path, f.created_at)).map((f) => f.path);
+      const references = await scanStorageReferences(service, candidates);
       return reply(req, { data: {
         bucket, total: all.length,
         files: all.map((f) => ({
           ...f,
-          eligible: allowFile(bucket, f.path, f.created_at) && !isReferencedByText(f.path, linked),
+          eligible: allowFile(bucket, f.path, f.created_at) && !references.isReferenced(f.path),
           reason: !allowFile(bucket, f.path, f.created_at) ? "Recent or invalid path" :
-            isReferencedByText(f.path, linked) ? "Referenced by store data" : "",
+            references.isReferenced(f.path) ? "Referenced by store data" : "",
         })),
       } });
     }
@@ -219,12 +205,18 @@ Deno.serve(async (req: Request) => {
       const paths = selectedTargets(body.paths);
       if (!paths || !CLEANUP_BUCKETS.includes(bucket) || body.confirm !== "DELETE FILES" ||
           !paths.every(validStoragePath)) return reply(req, { error: "Invalid file deletion request" }, 400);
-      const [all, linked] = await Promise.all([listBucket(service, bucket), referencedData(service)]);
+      const all = await listBucket(service, bucket);
       for (const path of paths) {
         const file = all.find((f) => f.path === path);
-        if (!file || !allowFile(bucket, path, file.created_at) || isReferencedByText(path, linked)) {
+        if (!file || !allowFile(bucket, path, file.created_at)) {
           return reply(req, { error: "One or more files are protected or no longer eligible. Refresh preview." }, 409);
         }
+      }
+      // Recheck references immediately before any Storage API removal. A failed
+      // or truncated scan throws: no file can be deleted on incomplete evidence.
+      const references = await scanStorageReferences(service, paths);
+      if (paths.some((path) => references.isReferenced(path))) {
+        return reply(req, { error: "One or more files are protected or no longer eligible. Refresh preview." }, 409);
       }
       const deleted: string[] = [];
       for (const path of paths) {
