@@ -5,7 +5,7 @@ const fail = (message) => { throw new Error(`Custom Studio two-sided cart contra
 const expect = (condition, message) => { if (!condition) fail(message); };
 
 const start = page.indexOf('const finalizeToCart = async () => {');
-const end = page.indexOf('\n\n  if (loading)', start);
+const end = page.indexOf('if (!draftRecoveryReady)', start);
 expect(start >= 0 && end > start, 'finalizeToCart boundary could not be isolated.');
 const finalize = page.slice(start, end);
 

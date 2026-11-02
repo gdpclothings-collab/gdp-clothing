@@ -30,6 +30,7 @@ const studioSource = readFileSync(new URL('../src/components/storefront/Seasonal
 const customStudioSource = readFileSync(new URL('../src/pages/CustomStudio.jsx', import.meta.url), 'utf8');
 const timingApprovalSource = readFileSync(new URL('../src/components/storefront/custom-studio/TimingApprovalStep.jsx', import.meta.url), 'utf8');
 const cartSource = readFileSync(new URL('../src/pages/Cart.jsx', import.meta.url), 'utf8');
+const cartPreviewSource = readFileSync(new URL('../src/components/storefront/CartGarmentPreview.jsx', import.meta.url), 'utf8');
 const validationMigrationSource = readFileSync(new URL('../supabase/migrations/20260913182934_layered_seasonal_design_validation.sql', import.meta.url), 'utf8');
 const sourceCheck = (source, fragment, message) => check(source.includes(fragment), message);
 
@@ -50,9 +51,10 @@ sourceCheck(studioSource, "seasonalSummary", 'Seasonal cart items must retain st
 sourceCheck(studioSource, "seasonalSelection(entry.artwork, entry.layout, {}, area", 'Every visible seasonal layer must create artwork-only production configuration.');
 sourceCheck(studioSource, "const artworks = allArtworks.filter((artwork) => !artwork.requires_name)", 'Templates that require customer names must not be offered in the artwork-only Seasonal flow.');
 sourceCheck(cartSource, "state={{ seasonalDraft: item.seasonalDraft, editCartKey: item.key }}", 'Cart Edit design must pass the exact saved seasonal draft and cart key.');
-sourceCheck(cartSource, 'approved custom preview', 'Custom cart previews must keep the approved mockup asset.');
+sourceCheck(cartSource, '<CartGarmentPreview item={item} />', 'Cart must render its shared approved garment mockup preview.');
+sourceCheck(cartPreviewSource, 'approved ${active?.side', 'Custom cart previews must show the approved mockup asset for the selected side.');
 check(
-  cartSource.includes('fittingType="contain"') || cartSource.includes('object-contain transition-transform'),
+  cartPreviewSource.includes('fittingType="contain"') || cartPreviewSource.includes('object-contain transition-transform'),
   'Custom cart previews must remain uncropped.'
 );
 

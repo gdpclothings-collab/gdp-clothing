@@ -31,6 +31,7 @@ import { getStudioBrowseSnapshot, refreshStudioBrowseSnapshot } from '@/lib/stud
 import { studioV2ScrollTop, studioV2StickyHeaderHeight } from '@/lib/studioV2ScrollRestoration';
 import { studioV2DisplayPreviewUrl, studioV2GarmentPreview } from '@/lib/customStudioV2Preview';
 import { renderStudioV2CustomerMockup } from '@/lib/customStudioV2Mockup';
+import { createCartLocalMockup } from '@/lib/cartLocalMockupPreview';
 import {
   createInitialStudioV2State,
   createStudioV2ReuseState,
@@ -746,8 +747,6 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
       const lockedHash = await digestStudioV2Snapshot(renderSnapshot);
       const approvedAt = new Date().toISOString();
       const firstSide = sides[0];
-      const firstUpload = uploads[firstSide];
-      const firstRendered = renderedSides[firstSide];
       const variant = variantFor(product, state.color, state.size);
       const bothSides = sides.length > 1;
       const basePrice = Number(variant?.price ?? product.price ?? 0);
@@ -758,22 +757,35 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
       }).filter(Boolean);
       const designPathLabel = STUDIO_V2_DESIGN_PATHS.find((item) => item.id === state.designPath)?.label || 'Custom Design';
 
-      updateStage("Generating customer mockup…");
-      const customerMockup = await renderStudioV2CustomerMockup({
-        garmentUrl: studioV2GarmentPreview(product, state.color, firstSide),
-        productionBlob: firstRendered?.blob,
-        product,
-        size: state.size,
-        side: firstSide,
-        color: state.color,
-      });
-      const mockupFile = new File(
-        [customerMockup.blob],
-        `gdp-customer-mockup-${firstSide}-${lockedHash.slice(0, 12)}.png`,
-        { type: customerMockup.mimeType || 'image/png', lastModified: Date.now() }
-      );
-      updateStage("Uploading customer mockup…");
-      const customerMockupUpload = await customerApi.uploadArtwork(mockupFile);
+      // Keep a separate customer-facing garment image for every printed side.
+      // The independently rendered 300-DPI print files above remain unchanged.
+      const customerMockups = {};
+      for (const side of sides) {
+        updateStage(`Generating ${side} customer mockup…`);
+        const customerMockup = await renderStudioV2CustomerMockup({
+          garmentUrl: studioV2GarmentPreview(product, state.color, side),
+          productionBlob: renderedSides[side]?.blob,
+          product,
+          size: state.size,
+          side,
+          color: state.color,
+        });
+        // Browser-local JPEG is only a cart display copy, never the 300-DPI print master.
+        const localPreview = await createCartLocalMockup(customerMockup.blob);
+        const mockupFile = new File(
+          [customerMockup.blob],
+          `gdp-customer-mockup-${side}-${lockedHash.slice(0, 12)}.png`,
+          { type: customerMockup.mimeType || 'image/png', lastModified: Date.now() }
+        );
+        updateStage(`Uploading ${side} customer mockup…`);
+        const upload = await customerApi.uploadArtwork(mockupFile);
+        customerMockups[side] = {
+          path: upload.storage_path,
+          url: upload.file_url,
+          ...(localPreview ? { localPreview } : {}),
+        };
+      }
+      const primaryMockup = customerMockups[firstSide];
 
       updateStage("Saving and verifying approved design…");
       const design = await customerApi.createCustomDesign({
@@ -797,11 +809,11 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
         designIntensity: 3,
         renderSnapshot,
         productionFiles,
-        customerMockupPath: customerMockupUpload.storage_path,
+        customerMockupPath: primaryMockup.path,
         renderStatus: 'locked',
         lockedHash,
         customerApprovedAt: approvedAt,
-        preflight: { version: 4, status: 'passed', productionStatus: 'ready', expectedSides: sides, checkedAt: approvedAt },
+        preflight: { version: 4, status: 'passed', productionStatus: 'ready', expectedSides: sides, checkedAt: approvedAt, customerMockupPaths: Object.fromEntries(sides.map((side) => [side, customerMockups[side].path])) },
         status: 'in_cart',
       });
 
@@ -820,7 +832,8 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
         name: product.name,
         productType: product.type || '',
         placement: bothSides ? 'front_back' : firstSide,
-        image: customerMockupUpload.file_url,
+        image: primaryMockup.url,
+        customerMockups,
         price,
         quantity,
         color: state.color,

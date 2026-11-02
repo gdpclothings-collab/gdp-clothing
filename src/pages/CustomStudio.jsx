@@ -2314,12 +2314,16 @@ export default function CustomStudio() {
           mimeType: "image/png",
         };
       }
-      const mockupSide = placement === "back" ? "back" : "front";
-      const customerMockup = await captureElementAsPng(
-        `gdp-mockup-${mockupSide}`,
-        900,
-        `gdp-${lockedHash.slice(0, 12)}-approved-mockup.png`
-      );
+      const customerMockups = {};
+      for (const side of printedSides) {
+        const mockup = await captureElementAsPng(
+          `gdp-mockup-${side}`,
+          900,
+          `gdp-${lockedHash.slice(0, 12)}-${side}-approved-mockup.png`
+        );
+        customerMockups[side] = { path: mockup.upload.storage_path, url: mockup.upload.file_url };
+      }
+      const primaryMockup = customerMockups[printedSides[0]];
       const preflight = {
         version: 1,
         status: "passed",
@@ -2333,6 +2337,7 @@ export default function CustomStudio() {
           heightIn: file.heightIn,
           dpi: file.dpi,
         }])),
+        customerMockupPaths: Object.fromEntries(printedSides.map((side) => [side, customerMockups[side].path])),
       };
 
       const design = await customerApi.createCustomDesign({
@@ -2381,7 +2386,7 @@ export default function CustomStudio() {
         placement,
         color,
         size,
-        previewUrl: customerMockup.upload.file_url,
+        previewUrl: primaryMockup.url,
         occasion: designPath,
         recipientType: "",
         designMood,
@@ -2398,7 +2403,7 @@ export default function CustomStudio() {
         additionalGarments: normalizedGroups,
         renderSnapshot,
         productionFiles,
-        customerMockupPath: customerMockup.upload.storage_path,
+        customerMockupPath: primaryMockup.path,
         renderStatus: "locked",
         lockedHash,
         customerApprovedAt: approvedAt,
@@ -2409,7 +2414,8 @@ export default function CustomStudio() {
       const common = {
         productId,
         name: product?.name || garment.label,
-        image: customerMockup.upload.file_url,
+        image: primaryMockup.url,
+        customerMockups,
         isCustom: true,
         customDesignId: design.id,
         ...(design.guestDesignToken ? { guestDesignToken: design.guestDesignToken } : {}),
