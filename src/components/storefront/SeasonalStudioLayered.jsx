@@ -678,7 +678,7 @@ export default function SeasonalStudio({
       [await canvasPng(mockupCanvas)],
       `gdp-${lockedHash.slice(0, 12)}-approval-preview.png`,
       { type: 'image/png' }
-    ));
+    ), 'mockup');
     setCapturing(false);
 
     const artworkTitles = configurations.map((item) => item.artworkTitle);

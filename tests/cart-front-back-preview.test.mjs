@@ -70,9 +70,9 @@ test('all new Studio paths upload side-specific mockups separately from producti
 test('cart reload re-signs side-specific customer paths using existing authorized signing routes', () => {
   const cart = read('../src/lib/CartContext.jsx');
   assert.match(cart, /Object\.entries\(storedItem\.customerMockups \|\| \{\}\)/);
-  assert.match(cart, /signCustomPreviewPath\(mockup\.path, user\)/);
+  assert.match(cart, /signCustomPreviewPath\(mockup\.path, user, storedItem, side\)/);
   assert.match(cart, /createSignedUrl\(path, 3600\)/);
-  assert.match(cart, /action: "signGuestCustomUpload", path/);
+  assert.match(cart, /action: "signGuestCustomUpload", path, purpose: "mockup"/);
   assert.match(cart, /\.map\(persistableCartItem\)/);
 });
 

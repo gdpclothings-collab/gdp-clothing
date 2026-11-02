@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct } from "@/lib/supabaseMappers";
 import { createInitialStudioV2State } from "@/lib/customStudioV2State";
+import { guestUploadProofsForDesign, rememberGuestUploadProof } from "@/lib/guestUploadProofs";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const backgroundRemovalFailures = new WeakMap();
@@ -257,7 +258,7 @@ export const customerApi = {
     return data?.custom_studio_settings || {};
   },
 
-  async uploadArtwork(file) {
+  async uploadArtwork(file, purpose = "source") {
     const pendingBackgroundFailure = file && typeof file === "object"
       ? backgroundRemovalFailures.get(file)
       : null;
@@ -272,7 +273,7 @@ export const customerApi = {
       .replace(/^-+|-+$/g, "");
     if (!user) {
       const { data, error } = await supabase.functions.invoke("checkout", {
-        body: { action: "createGuestCustomUpload", files: [{ name: safeName, type: file.type, size: file.size }] },
+        body: { action: "createGuestCustomUpload", purpose, files: [{ name: safeName, type: file.type, size: file.size }] },
       });
       if (error) {
         throw new Error(await functionErrorMessage(error, "Could not prepare this photo for upload."));
@@ -282,13 +283,18 @@ export const customerApi = {
       }
 
       const upload = data.uploads[0];
+      if (!upload.uploadProof || upload.purpose !== purpose) {
+        throw new Error("The upload authorization proof was not issued. Please retry.");
+      }
       const { error: uploadError } = await supabase.storage
         .from("customer-uploads")
         .uploadToSignedUrl(upload.path, upload.token, file, { contentType: file.type || undefined });
       if (uploadError) throw uploadError;
 
+      rememberGuestUploadProof(upload.path, upload.uploadProof, purpose);
+
       const { data: preview, error: previewError } = await supabase.functions.invoke("checkout", {
-        body: { action: "signGuestCustomUpload", path: upload.path },
+        body: { action: "signGuestCustomUpload", path: upload.path, uploadProof: upload.uploadProof, purpose },
       });
       if (previewError) {
         throw new Error(await functionErrorMessage(previewError, "The photo uploaded, but its preview could not be opened."));
@@ -339,7 +345,8 @@ export const customerApi = {
   async createCustomDesign(data) {
     // The Edge Function is the single authority for account-versus-guest
     // ownership. The Supabase client forwards any active session token.
-    const payload = customDesignPayload(data);
+    const basePayload = customDesignPayload(data);
+    const payload = { ...basePayload, upload_proofs: guestUploadProofsForDesign(basePayload) };
     const { data: response, error } = await supabase.functions.invoke("checkout", {
       body: { action: "createGuestCustomDesign", design: payload },
     });
