@@ -171,15 +171,18 @@ async function inspectScenario(browser, viewport, scenario) {
 
     const guard = page.locator('[data-gdp-studio-v2-guard="true"]');
     const printGuide = page.locator('[data-gdp-print-guide="true"]').first();
-    const artworkLayer = page.locator('[data-gdp-upload-artwork-layer="true"]').first();
+    // Layer markers now identify the actual upload; match existence, not the old "true" sentinel.
+    const artworkLayer = page.locator('[data-gdp-upload-artwork-layer]').first();
     const metricsPanel = page.locator('[data-gdp-artwork-metrics="true"]').first();
     const warning = page.locator('[role="status"]').filter({ hasText: /extends outside the front print area/i }).first();
 
     await guard.waitFor({ state: "visible", timeout: 20000 });
     await printGuide.waitFor({ state: "visible", timeout: 15000 });
     await artworkLayer.waitFor({ state: "visible", timeout: 15000 });
+    await waitForImage(artworkLayer.locator('img'), `${viewport.name}/${scenario.name} visual artwork`);
+    // Layered upload editing places artwork metadata under the More tab.
+    await page.getByRole("tab", { name: "More", exact: true }).click();
     await metricsPanel.waitFor({ state: "visible", timeout: 15000 });
-    await waitForImage(artworkLayer.locator('img[alt="Uploaded artwork preview"]'), `${viewport.name}/${scenario.name} visual artwork`);
 
     const geometry = await page.evaluate(() => {
       const rect = (selector) => {
@@ -199,7 +202,7 @@ async function inspectScenario(browser, viewport, scenario) {
       return {
         guard: rect('[data-gdp-studio-v2-guard="true"]'),
         guide: rect('[data-gdp-print-guide="true"]'),
-        artwork: rect('[data-gdp-upload-artwork-layer="true"]'),
+        artwork: rect('[data-gdp-upload-artwork-layer]'),
         guideOverflow: guide ? getComputedStyle(guide).overflow : "missing",
         overflowState: guide?.getAttribute("data-gdp-upload-overflow-preview") || "missing",
       };
