@@ -129,7 +129,7 @@ export default function CustomStudioV2PresentationGuard() {
           const badge = node.querySelector(':scope > span');
           if (badge) badge.remove();
         });
-        clone.querySelectorAll('[data-gdp-upload-artwork-layer="true"]').forEach((node) => {
+        clone.querySelectorAll('[data-gdp-upload-artwork-layer]').forEach((node) => {
           node.className = String(node.className || '')
             .replace(/\bring[^\s]*/g, '')
             .replace(/\bcursor-grab\b/g, '')
