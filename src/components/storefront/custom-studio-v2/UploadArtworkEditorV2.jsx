@@ -80,7 +80,7 @@ function RangeControl({ label, value, min, max, suffix = '', onChange, onReset }
   return <label className="block"><div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold text-slate-600"><span>{label}</span><span className="flex items-center gap-2">{Math.round(Number(value || 0) * 10) / 10}{suffix}{onReset ? <button type="button" onClick={(event) => { event.preventDefault(); onReset(); }} className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700" aria-label={`Reset ${label}`}>Reset</button> : null}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
 }
 
-function UploadedLayersPreview({ layers, gesture, onSelect, onLoad, outside = false, interactive = false }) {
+function UploadedLayersPreview({ layers, gesture = {}, onSelect = () => {}, onLoad = undefined, outside = false, interactive = false }) {
   return <>{layers.map((layer) => (
     <div
       key={layer.id}
