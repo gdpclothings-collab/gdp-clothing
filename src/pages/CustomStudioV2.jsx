@@ -707,7 +707,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
             ...(state.designPath === 'bootleg' ? { overlay: editor.overlay || { id: 'none' } } : {}),
             printArea: resolveStudioV2PrintProfile(product, state.size, side),
           };
-          rendered = await renderProtectedStudioV2PngAdvanced({ product, size: state.size, side, editor, template, profile: resolveStudioV2PrintProfile, dpi: 300 });
+          rendered = await renderProtectedStudioV2PngAdvanced({ product, size: state.size, side, editor, template, designPath: state.designPath, profile: resolveStudioV2PrintProfile, dpi: 300 });
           protectedPhotos.forEach((layer) => {
             const asset = layer.asset || {};
             if (asset.path && !sourceAssets.some((item) => item.path === asset.path)) sourceAssets.push({ path: asset.path, name: asset.name || `${side}-photo`, width: asset.width || null, height: asset.height || null, isPrimary: sourceAssets.length === 0 });

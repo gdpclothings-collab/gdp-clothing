@@ -126,7 +126,7 @@ assert(!protectedV2.includes("'Dates' : 'Subline'"), 'Photo Bootleg no longer ex
 assert(protectedV2.includes("data-gdp-bootleg-confirm-action={isBootleg ? 'persistent' : undefined}"), 'Photo Bootleg completion action stays persistent in the live garment preview column');
 assert(protectedV2.includes("data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined}"), 'Memorial completion action is centered in the live garment preview column');
 assert(protectedV2.indexOf("data-gdp-memorial-confirm-action={isMemorial ? 'persistent' : undefined}") < protectedV2.indexOf('data-gdp-bootleg-inspector-scroll'), 'Memorial completion action is outside the right Layer Controls inspector');
-assert(protectedV2.includes('{!usesLayerLab ? <button type="button" disabled={!template || !photos.length}'), 'protected layer-lab paths do not duplicate confirmation inside Customer Controls');
+assert(protectedV2.includes('{!usesLayerLab ? <button type="button" disabled={!template || (isMemorial && !photos.length)}'), 'protected layer-lab paths do not duplicate confirmation inside Customer Controls');
 
 // Memorial Tribute now reuses the proven protected-layer interaction engine while
 // preserving protected artwork contents and Memorial-specific production stacking.

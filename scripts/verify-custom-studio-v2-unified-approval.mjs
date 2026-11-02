@@ -76,6 +76,7 @@ for (const path of paths) {
   const empty = makeState(path, false);
   if (path === 'seasonal') empty.seasonal.sides.front.layers = [];
   else if (path === 'upload') empty.upload.sides.front.artwork = null;
+  else if (path === 'bootleg') empty.bootleg.sides.front.templateId = '';
   else empty[path].sides.front.photo = null;
   const after = studioV2Reducer(empty, { type: 'CONFIRM_FINAL_LAYOUT', value: true });
   assert.equal(after.approval.finalDesignApproved, false, path + ': an empty design must not be approved');

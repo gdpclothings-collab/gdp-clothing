@@ -315,7 +315,10 @@ export function studioV2SideHasContent(state, side) {
   const editor = state?.[state.designPath]?.sides?.[validSide(side)];
   if (!editor) return false;
   if (state.designPath === 'seasonal') return Boolean(editor.layers?.some((layer) => layer.visible !== false));
-  if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+  // GDP's protected Photo Bootleg template is itself printable artwork on either side.
+  // Empty sides still cannot print; Memorial portraits remain photo-required.
+  if (state.designPath === 'bootleg') return Boolean(editor.templateId);
+  if (state.designPath === 'memorial') {
     // Match the production renderer: an explicit photo stack is authoritative.
     // A hidden/invalid photo must not unlock approval via the legacy photo alias.
     const hasPhoto = Array.isArray(editor.photos) && editor.photos.length
@@ -337,7 +340,8 @@ export function studioV2MissingArtworkMessage(state) {
   const sides = ['front', 'back'].map((side) => state?.[state.designPath]?.sides?.[side]).filter(Boolean);
   if (state.designPath === 'seasonal') return 'Choose at least one visible Seasonal artwork for the Front or Back print area.';
   if (state.designPath === 'upload') return 'Upload a printable artwork file to the Front or Back print area.';
-  if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+  if (state.designPath === 'bootleg') return 'Choose a GDP Photo Bootleg template on the Front or Back, then approve each designed side. A photo is optional.';
+  if (state.designPath === 'memorial') {
     if (!sides.some((editor) => editor?.templateId)) return 'Choose a protected template and add at least one customer photo on the same print side.';
     return 'A protected template is selected, but printing also needs a customer photo on that same print side. The template is not counted as a photo.';
   }

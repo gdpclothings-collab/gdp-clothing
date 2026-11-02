@@ -4,6 +4,7 @@ import { calculateTaxBreakdown } from "./tax-rules.mjs";
 import { TaxConfigurationReviewError, applyCheckoutTaxPolicy, checkoutTaxProvince, taxableMerchandiseAfterCoupon } from "./checkout-tax-safeguard.mjs";
 import { couponAmountForBase, couponIsUsable, publicPromotion } from "./discount-rules.mjs";
 import { authorizeGuestMockupBinding, authorizeGuestUploadProof, guestUploadPurposes, hashGuestUploadProof, newGuestUploadProof, validGuestUploadPath, verifyGuestDesignArtifactProofs } from "./guest-upload-authorization.mjs";
+import { allowsTemplateOnlyBootleg } from "./template-only-bootleg-rules.mjs";
 
 const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -794,9 +795,6 @@ Deno.serve(async (req: Request) => {
       const seasonalArtworkId = uuidRe.test(String(raw.seasonal_artwork_id || ""))
         ? String(raw.seasonal_artwork_id)
         : null;
-      if (!photoPaths.length && !seasonalArtworkId) {
-        return respond(req, { error: true, message: "Add artwork before saving this custom design." }, 400);
-      }
 
       const designPath = ["seasonal", "bootleg", "occasion", "upload"].includes(String(raw.design_path))
         ? String(raw.design_path)
@@ -872,6 +870,14 @@ Deno.serve(async (req: Request) => {
         && Boolean(lockedHash)
         && Boolean(customerApprovedAt)
         && expectedSides.every((side) => Boolean(productionFiles[side]));
+      // Photo Bootleg may print a GDP template alone on Front, Back or both.
+      // Keep photo-less drafts, Memorial and Upload Artwork fail-closed.
+      if (!photoPaths.length && !seasonalArtworkId && !allowsTemplateOnlyBootleg({
+        designPath, renderSnapshot, expectedSides, productionFiles, isLockedRender,
+      })) {
+        return respond(req, { error: true, message: "Add artwork before saving this custom design." }, 400);
+      }
+
 
       const placement = ["front", "front_back", "back", "left_chest", "large_front", "large_back", "sleeve"].includes(String(raw.placement))
         ? String(raw.placement)
