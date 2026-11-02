@@ -72,7 +72,7 @@ test('upload editor gives every resizing and positioning slider a reset', () => 
   }
 });
 
-test('bootleg and memorial approval never accept a hidden customer photo via a legacy alias', () => {
+test('Bootleg template-only print ignores hidden photos; Memorial still requires a visible portrait', () => {
   for (const path of ['bootleg', 'memorial']) {
     const state = createInitialStudioV2State();
     state.designPath = path;
@@ -80,12 +80,18 @@ test('bootleg and memorial approval never accept a hidden customer photo via a l
     front.templateId = 'sample-template';
     front.photo = { path: 'old/photo.png', url: '/old-photo.png' };
     front.photos = [{ id: 'hidden', visible: false, asset: { path: 'photo.png', url: '/photo.png' } }];
-    assert.equal(studioV2SideHasContent(state, 'front'), false);
-    assert.match(studioV2MissingArtworkMessage(state), /customer photo/);
+    assert.equal(studioV2SideHasContent(state, 'front'), path === 'bootleg');
+    if (path === 'memorial') assert.match(studioV2MissingArtworkMessage(state), /customer photo/);
     front.photos[0].visible = true;
     assert.equal(studioV2SideHasContent(state, 'front'), true);
     front.photos = [];
     assert.equal(studioV2SideHasContent(state, 'front'), true, 'legacy single-photo drafts remain valid');
+    if (path === 'bootleg') {
+      front.photo = null;
+      assert.equal(studioV2SideHasContent(state, 'front'), true, 'GDP template is printable without photos');
+      front.templateId = '';
+      assert.equal(studioV2SideHasContent(state, 'front'), false, 'blank Bootleg side remains blocked');
+    }
   }
 });
 
@@ -96,7 +102,7 @@ test('all four paths explain missing artwork without bypassing approval', () => 
   state.designPath = 'upload';
   assert.match(studioV2MissingArtworkMessage(state), /Upload a printable artwork/);
   state.designPath = 'bootleg';
-  assert.match(studioV2MissingArtworkMessage(state), /protected template/);
+  assert.match(studioV2MissingArtworkMessage(state), /Photo Bootleg template/);
 });
 
 test('floating preview visibility is screen-aware on both Seasonal and Upload editors', () => {
