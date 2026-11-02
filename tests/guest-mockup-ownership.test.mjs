@@ -279,3 +279,24 @@ test('authenticated RLS denial never triggers an unproven guest signing fallback
   assert.equal(await create(supabase, async () => ({ id: a }), () => proofA), 'unintended-url');
   assert.equal(guestCalls, 1); // Independently proven guest capability permits the fallback.
 });
+
+
+test('eight uploads per side keep all sixteen authorized source assets without weakening the guest rate limit', () => {
+  const checkout = readFileSync(new URL('../supabase/functions/checkout/index.ts', import.meta.url), 'utf8');
+  const designRoute = checkout.split('if (action === "createGuestCustomDesign") {')[1].split('if (action === "createDtfUpload") {')[0];
+  assert.match(designRoute, /submittedPhotoAssets\.length > 16/);
+  assert.match(designRoute, /const photoAssets = submittedPhotoAssets\s*\.map\(/);
+  assert.doesNotMatch(designRoute, /const photoAssets = .*\n\s*\.slice\(0, 8\)/);
+  assert.match(designRoute, /verifyGuestDesignArtifactProofs\(service,/);
+  assert.match(checkout, /if \(action === "createGuestCustomUpload"\) \{\s*const limited = await enforceActionRateLimit\(service, req, action, 20\)/);
+});
+
+test('proof collection retains sixteen distinct Front and Back artwork paths', () => {
+  const artworkPaths = Array.from({ length: 16 }, (_, index) => {
+    const prefix = (index + 1).toString(16).padStart(8, '0');
+    return `guest/${prefix}-0000-4000-8000-000000000000/source-${index}.png`;
+  });
+  for (const path of artworkPaths) assert.equal(rememberGuestUploadProof(path, 'f'.repeat(64), 'source'), true);
+  const proofs = guestUploadProofsForDesign({ photo_assets: artworkPaths.map((path) => ({ path })) });
+  assert.deepEqual(Object.keys(proofs).sort(), artworkPaths.slice().sort());
+});

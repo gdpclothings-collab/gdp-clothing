@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { guestUploadProofForPath } from '@/lib/guestUploadProofs';
+import { selectUploadArtworkLayer, uploadArtworkLayers } from '@/lib/customStudioV2UploadLayers';
 
 async function optionalAccountUser() {
   const { data } = await supabase.auth.getSession();
@@ -60,13 +61,15 @@ async function refreshProtectedSide(sideState) {
 }
 
 async function refreshUploadSide(sideState) {
-  const artwork = sideState?.artwork ? await refreshAsset(sideState.artwork) : null;
-  // A free-enhanced upload retains its original as a separate customer-owned
-  // asset; refresh both signed URLs so Restore works after reopening a draft.
-  const hydratedArtwork = artwork?.originalArtwork
-    ? { ...artwork, originalArtwork: await refreshAsset(artwork.originalArtwork) }
-    : artwork;
-  return { ...sideState, artwork: hydratedArtwork };
+  const layers = await Promise.all(uploadArtworkLayers(sideState).map(async (layer) => {
+    const artwork = await refreshAsset(layer.asset);
+    // Enhanced uploads retain their original as a separately authorized file.
+    const asset = artwork?.originalArtwork
+      ? { ...artwork, originalArtwork: await refreshAsset(artwork.originalArtwork) }
+      : artwork;
+    return { ...layer, asset };
+  }));
+  return { ...sideState, ...selectUploadArtworkLayer(sideState, layers, sideState?.activeLayerId) };
 }
 
 export async function refreshStudioV2DraftAssets(state) {

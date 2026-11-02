@@ -1,5 +1,6 @@
 import { sortApparelSizes } from './productVariants.js';
 import { appendStudioV2PhotoLayers } from './customStudioV2PhotoLayers.js';
+import { appendUploadArtworkLayers, patchUploadArtworkEditor, uploadArtworkLayers } from './customStudioV2UploadLayers.js';
 
 export const STUDIO_V2_STEPS = [
   { id: 'garment', label: 'Garment' },
@@ -42,6 +43,8 @@ const protectedSideState = () => ({
 const uploadSideState = () => ({
   artwork: null,
   transform: { scale: 100, rotation: 0, x: 0, y: 0 },
+  layers: null,
+  activeLayerId: '',
   confirmed: false,
 });
 const pathSides = (factory) => ({ front: factory(), back: factory() });
@@ -257,6 +260,15 @@ export function studioV2Reducer(state, action) {
         },
       });
     }
+    case 'APPEND_UPLOAD_ARTWORKS': {
+      const side = validSide(action.side ?? state.side);
+      const current = state.upload.sides[side];
+      const selected = appendUploadArtworkLayers(current, action.layers || [], action.activeLayerId);
+      return invalidateApproval({
+        ...state,
+        upload: { ...state.upload, sides: { ...state.upload.sides, [side]: { ...current, ...selected, confirmed: false } } },
+      });
+    }
     case 'PATCH_EDITOR': {
       const path = action.path;
       const side = validSide(action.side ?? state.side);
@@ -270,7 +282,7 @@ export function studioV2Reducer(state, action) {
             ...state[path].sides,
             [side]: {
               ...current,
-              ...(action.patch || {}),
+              ...(path === 'upload' ? patchUploadArtworkEditor(current, action.patch || {}) : (action.patch || {})),
               confirmed: action.keepConfirmed ? current.confirmed : false,
             },
           },
@@ -326,7 +338,7 @@ export function studioV2SideHasContent(state, side) {
       : Boolean(editor.photo?.path && editor.photo?.url);
     return Boolean(editor.templateId && hasPhoto);
   }
-  if (state.designPath === 'upload') return Boolean(editor.artwork?.path);
+  if (state.designPath === 'upload') return uploadArtworkLayers(editor).some((layer) => layer.visible !== false && layer.asset?.path && layer.asset?.url);
   return false;
 }
 

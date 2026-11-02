@@ -114,7 +114,7 @@ assert(editor.includes('rotation,'), 'Fit to print area must preserve the custom
 assert(editor.includes('Number(fitted?.printableBounds?.minY)'), 'Fit to print area must top-align actual printable pixels, not transparent padding');
 
 assert(production.includes("resolveUploadArtworkPlacement, constrainUploadArtworkTransform"), 'production renderer must share the exact placement and safe print bounds math');
-assert(production.includes('const safeTransform = constrainUploadArtworkTransform(artwork, profile, editor.transform || {})'), 'production rendering must bound customer artwork before printing');
+assert(production.includes('const safeTransform = constrainUploadArtworkTransform(artwork, profile, layer.transform || {})'), 'production rendering must bound customer artwork before printing');
 assert(production.includes('const placement = resolveUploadArtworkPlacement(artwork, profile, safeTransform);'), 'upload production rendering must use the bounded physical placement');
 assert(production.includes('const drawWidth = placement.widthIn * output.safeDpi;'), 'production width must be derived from physical inches');
 assert(production.includes('const drawHeight = placement.heightIn * output.safeDpi;'), 'production height must be derived from physical inches');

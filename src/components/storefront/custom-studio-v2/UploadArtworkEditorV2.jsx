@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import StudioMobilePreviewMirror, { StudioMobileGarmentMirror } from '@/components/storefront/custom-studio-v2/StudioMobilePreviewMirror';
 import StudioDesktopViewZoom from '@/components/storefront/custom-studio-v2/StudioDesktopViewZoom';
 import StudioArtworkComparison from '@/components/storefront/custom-studio-v2/StudioArtworkComparison';
 import useStudioMobileFloatingPreview from '@/components/storefront/custom-studio-v2/useStudioMobileFloatingPreview';
-import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Check, Eye, EyeOff, GripVertical, ImagePlus, Loader2, Maximize2, RotateCcw, Trash2 } from 'lucide-react';
 import { customerApi } from '@/lib/customerApi';
 import useTouchTransformV2 from '@/components/storefront/custom-studio-v2/useTouchTransformV2';
 import '@/components/storefront/custom-studio-v2/selectionBorderFix';
@@ -17,6 +18,7 @@ import {
   resolveUploadArtworkPlacement,
 } from '@/lib/customStudioV2ArtworkMetrics';
 import { assessStudioImagePrintQuality, createBasicStudioEnhancement } from '@/lib/studioSmartImageQuality';
+import { MAX_UPLOAD_ARTWORKS, reorderUploadArtworkLayers, uploadArtworkLayers } from '@/lib/customStudioV2UploadLayers';
 
 const MOVE_BOX_RATIO = 0.72;
 
@@ -78,7 +80,30 @@ function RangeControl({ label, value, min, max, suffix = '', onChange, onReset }
   return <label className="block"><div className="mb-2 flex items-center justify-between gap-2 text-xs font-bold text-slate-600"><span>{label}</span><span className="flex items-center gap-2">{Math.round(Number(value || 0) * 10) / 10}{suffix}{onReset ? <button type="button" onClick={(event) => { event.preventDefault(); onReset(); }} className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700" aria-label={`Reset ${label}`}>Reset</button> : null}</span></div><input type="range" min={min} max={max} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-11 w-full cursor-pointer" /></label>;
 }
 
-export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onConfirmedChange }) {
+function UploadedLayersPreview({ layers, gesture = { style: {} }, onSelect = (_id) => {}, onLoad = undefined, outside = false, interactive = false }) {
+  return <>{layers.map((layer) => (
+    <div
+      key={layer.id}
+      {...(interactive && layer.isActive ? gesture : {})}
+      onClick={interactive && !layer.isActive ? () => onSelect(layer.id) : undefined}
+      data-gdp-upload-artwork-layer={layer.id}
+      data-gdp-upload-artwork-selected={layer.isActive ? 'true' : 'false'}
+      className={`absolute grid place-items-center rounded-sm ${interactive && layer.isActive ? outside ? 'cursor-grab ring-2 ring-amber-500/90' : 'cursor-grab ring-2 ring-cyan-400/75' : interactive ? 'cursor-pointer' : ''}`}
+      style={{
+        ...(interactive && layer.isActive ? gesture?.style : {}),
+        left: `${layer.placement.centerXPercent}%`,
+        top: `${layer.placement.centerYPercent}%`,
+        width: `${layer.placement.widthPercent}%`,
+        height: `${layer.placement.heightPercent}%`,
+        transform: `translate(-50%, -50%) rotate(${clamp(layer.transform.rotation, -180, 180)}deg) scale(${layer.transform.scale * layer.transform.widthScale / 10000}, ${layer.transform.scale * layer.transform.heightScale / 10000})`,
+      }}
+    >
+      <img src={layer.asset.url} alt={interactive ? layer.asset.name || 'Uploaded artwork preview' : ''} draggable="false" onLoad={interactive && layer.isActive ? onLoad : undefined} className={`h-full w-full select-none ${layer.artwork?.pixelWidth && layer.artwork?.pixelHeight ? 'object-fill' : 'object-contain'}`} />
+    </div>
+  ))}</>;
+}
+
+export default function UploadArtworkEditorV2({ product, color, size, side, editor, onPatch, onAppendArtworks, onConfirmedChange }) {
   const fileRef = useRef(null);
   const referenceBoxRef = useRef(null);
   const enhancementPanelRef = useRef(null);
@@ -89,10 +114,13 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const [enhancementPreview, setEnhancementPreview] = useState(null);
   const [enhanceError, setEnhanceError] = useState('');
   const [enhancementPanelVisible, setEnhancementPanelVisible] = useState(false);
+  const [uploadToolTab, setUploadToolTab] = useState('size');
   const [previewRestoredInsideEnhancement, setPreviewRestoredInsideEnhancement] = useState(false);
-  const sourceFileRef = useRef(null);
+  const sourceFileRef = useRef(new Map());
   useEffect(() => () => { if (enhancementPreview?.url) URL.revokeObjectURL(enhancementPreview.url); }, [enhancementPreview]);
   const [legacyArtworkDimensions, setLegacyArtworkDimensions] = useState(null);
+  const layers = uploadArtworkLayers(editor);
+  const activeLayerId = editor.activeLayerId || layers[layers.length - 1]?.id || '';
   const hasArtwork = Boolean(editor.artwork);
   // Collapse only the Upload editor's mobile floating mirror while its
   // enhancement tools are onscreen. An explicit Restore still works.
@@ -108,7 +136,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
     }, { rootMargin: '-96px 0px -15% 0px', threshold: 0 });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [hasArtwork]);
+  }, [hasArtwork, uploadToolTab]);
   const rawTransform = editor.transform || { scale: 100, rotation: 0, x: 0, y: 0 };
   const garmentPreview = studioV2GarmentPreview(product, color, side);
   const printGuide = resolveStudioV2PrintGuide(product, size, side, color);
@@ -119,6 +147,12 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
       : editor.artwork;
   const transform = constrainUploadArtworkTransform(artworkForPlacement, printGuide, rawTransform);
   const placement = resolveUploadArtworkPlacement(artworkForPlacement, printGuide, transform);
+  const previewLayers = layers.filter((layer) => layer.visible !== false && layer.asset?.url).map((layer) => {
+    const isActive = layer.id === activeLayerId;
+    const artwork = isActive ? artworkForPlacement : layer.asset;
+    const safe = isActive ? transform : constrainUploadArtworkTransform(artwork, printGuide, layer.transform || {});
+    return { ...layer, isActive, artwork, transform: safe, placement: resolveUploadArtworkPlacement(artwork, printGuide, safe) };
+  });
   const lowConfidenceDpi = placement.sizeSource === 'low-confidence-dpi-fit';
   const outsideRecommendedArea = Boolean(editor.artwork) && placement.outsideRecommendedArea;
   const quality = assessStudioImagePrintQuality({
@@ -134,36 +168,75 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
   const patchTransform = (patch) => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, { ...transform, ...patch }) });
   const gesture = useTouchTransformV2({ transform, onChange: (next) => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, next) }), containerRef: referenceBoxRef, enabled: Boolean(editor.artwork), minScale: 1, maxScale: 1000, minX: bleedCrop ? -150 : -42, maxX: bleedCrop ? 150 : 42, minY: bleedCrop ? -150 : -42, maxY: bleedCrop ? 150 : 42 });
 
-  const uploadArtwork = async (file) => {
-    if (!file) return;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setError('Please choose a JPG, PNG or WebP artwork file.'); return; }
+  const uploadArtworks = async (fileList) => {
+    const incoming = Array.from(fileList || []);
+    if (!incoming.length || uploading) return;
+    const slots = MAX_UPLOAD_ARTWORKS - layers.length;
+    if (slots <= 0) { setError(`Maximum ${MAX_UPLOAD_ARTWORKS} artworks per side. Remove one to add another.`); return; }
+    const files = incoming.slice(0, slots);
+    if (files.some((file) => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) {
+      setError('Please choose only JPG, PNG or WebP artwork files.');
+      return;
+    }
     setEnhancementPreview(null); setEnhanceError('');
+    setUploadToolTab('size');
     setUploading(true); setError('');
+    const additions = [];
+    const errors = [];
     try {
-      const [uploaded, metrics] = await Promise.all([
-        customerApi.uploadArtwork(file),
-        analyzeStudioV2ArtworkFile(file),
-      ]);
-      const artwork = {
-        url: uploaded.file_url,
-        path: uploaded.storage_path,
-        name: file.name || 'customer-artwork',
-        type: file.type || 'image/png',
-        ...metrics,
-      };
-      sourceFileRef.current = { file, path: artwork.path };
-      onPatch({
-        artwork,
-        // Preserve safe initial fit, then unlock cropping for subsequent edits.
-        transform: { ...constrainUploadArtworkTransform(artwork, printGuide, topAlignedArtworkTransform(artwork, printGuide)), bleedCrop: true },
-      });
-    } catch (uploadError) {
-      setError(uploadError?.message || 'Artwork upload failed. Please retry.');
-    } finally { setUploading(false); }
+      for (const file of files) {
+        try {
+          const [uploaded, metrics] = await Promise.all([customerApi.uploadArtwork(file), analyzeStudioV2ArtworkFile(file)]);
+          const artwork = { url: uploaded.file_url, path: uploaded.storage_path, name: file.name || 'customer-artwork', type: file.type || 'image/png', ...metrics };
+          sourceFileRef.current.set(artwork.path, { file, path: artwork.path });
+          additions.push({
+            id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID() : `artwork-${Date.now()}-${additions.length}-${Math.random().toString(36).slice(2)}`,
+            asset: artwork,
+            transform: { ...constrainUploadArtworkTransform(artwork, printGuide, topAlignedArtworkTransform(artwork, printGuide)), bleedCrop: true },
+            visible: true,
+          });
+        } catch (error) {
+          errors.push(`${file.name}: ${error?.message || 'Upload failed'}`);
+        }
+      }
+      if (additions.length) onAppendArtworks(additions, additions[additions.length - 1].id);
+      if (errors.length) setError(`${additions.length} added. ${errors.join(' · ')}`);
+      else if (incoming.length > slots) setError(`Added ${additions.length}. Limit is ${MAX_UPLOAD_ARTWORKS} artworks per side.`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeArtworkFromSide = (targetId = activeLayerId) => {
+    if (typeof window === 'undefined' || !layers.some((layer) => layer.id === targetId)) return;
+    if (!window.confirm('Remove this artwork layer from the current print side? Its uploaded file will not be deleted.')) return;
+    const remaining = layers.filter((layer) => layer.id !== targetId);
+    setEnhancementPreview(null); setEnhanceError('');
+    setLegacyArtworkDimensions(null);
+    setUploadToolTab('size');
+    onPatch({ layers: remaining, activeLayerId: remaining[remaining.length - 1]?.id || '' });
+    onConfirmedChange(false);
+  };
+
+  const selectLayer = (id) => {
+    onPatch({ activeLayerId: id });
+    setUploadToolTab('size');
+    setMobilePreviewMinimized(true);
+    setEnhancementPreview(null);
+    setEnhanceError('');
+  };
+
+  const handleLayerDragEnd = ({ source, destination }) => {
+    if (!destination || source.index === destination.index) return;
+    const next = reorderUploadArtworkLayers(layers, source.index, destination.index);
+    const moved = layers.slice().reverse()[source.index];
+    onPatch({ layers: next, activeLayerId: moved.id });
+    setMobilePreviewMinimized(true);
   };
 
   const tryFreeEnhancement = async () => {
-    const source = sourceFileRef.current;
+    const source = sourceFileRef.current.get(editor.artwork?.path);
     if (!source || source.path !== editor.artwork?.path || editor.artwork?.basicEnhanced) {
       setEnhanceError('Upload the original artwork again to try free enhancement.');
       return;
@@ -250,23 +323,7 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             <div data-gdp-print-guide="true" data-gdp-upload-overflow-preview={outsideRecommendedArea ? 'outside' : 'inside'} aria-label={`Recommended ${side} print area ${printGuide.label}`} className={`absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg border-2 border-dashed ${outsideRecommendedArea ? 'border-amber-500 bg-amber-50/10' : 'border-slate-500/50 bg-white/5'}`} style={{ ...printGuide.style, overflow: 'hidden' }}>
               <span className="pointer-events-none absolute right-1 top-1 z-50 rounded-md bg-slate-950/75 px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">{printGuide.label}</span>
               <div ref={referenceBoxRef} className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2" />
-              {editor.artwork?.url ? (
-                <div
-                  {...gesture}
-                  data-gdp-upload-artwork-layer="true"
-                  className={`absolute grid cursor-grab place-items-center rounded-sm ring-2 ring-offset-1 ring-offset-transparent ${outsideRecommendedArea ? 'ring-amber-500/90' : 'ring-cyan-400/75'}`}
-                  style={{
-                    ...gesture.style,
-                    left: `${placement.centerXPercent}%`,
-                    top: `${placement.centerYPercent}%`,
-                    width: `${placement.widthPercent}%`,
-                    height: `${placement.heightPercent}%`,
-                    transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.scale * transform.widthScale / 10000}, ${transform.scale * transform.heightScale / 10000})`,
-                  }}
-                >
-                  <img src={editor.artwork.url} alt="Uploaded artwork preview" draggable="false" onLoad={hydrateLegacyArtworkDimensions} className={`h-full w-full select-none ${artworkForPlacement?.pixelWidth && artworkForPlacement?.pixelHeight ? 'object-fill' : 'object-contain'}`} />
-                </div>
-              ) : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
+              {previewLayers.length ? <UploadedLayersPreview layers={previewLayers} gesture={gesture} onSelect={selectLayer} onLoad={hydrateLegacyArtworkDimensions} outside={outsideRecommendedArea} interactive /> : <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs font-bold text-slate-500">Upload artwork to place it on the {side} print area.</div>}
             </div>
           </div>
           </StudioDesktopViewZoom>
@@ -278,31 +335,79 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
       <section ref={inspectorRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         {floatingPreviewVisible ? <StudioMobilePreviewMirror side={side} minimized={mobilePreviewMinimized || (enhancementPanelVisible && !previewRestoredInsideEnhancement)} onMinimize={() => { setMobilePreviewMinimized(true); setPreviewRestoredInsideEnhancement(false); }} onRestore={() => { setMobilePreviewMinimized(false); setPreviewRestoredInsideEnhancement(true); }}>
           <StudioMobileGarmentMirror garmentPreview={garmentPreview} productName={product.name} side={side} printGuide={printGuide}>
-            {editor.artwork?.url ? (
-              <div data-gdp-upload-mirror-artwork="true" className="absolute grid place-items-center" style={{
-                left: `${placement.centerXPercent}%`,
-                top: `${placement.centerYPercent}%`,
-                width: `${placement.widthPercent}%`,
-                height: `${placement.heightPercent}%`,
-                transform: `translate(-50%, -50%) rotate(${clamp(transform.rotation, -180, 180)}deg) scale(${transform.scale * transform.widthScale / 10000}, ${transform.scale * transform.heightScale / 10000})`,
-              }}>
-                <img src={editor.artwork.url} alt="" draggable="false" className={`h-full w-full ${artworkForPlacement?.pixelWidth && artworkForPlacement?.pixelHeight ? 'object-fill' : 'object-contain'}`} />
-              </div>
-            ) : null}
+            <div data-gdp-upload-mirror-artwork="true"><UploadedLayersPreview layers={previewLayers} /></div>
           </StudioMobileGarmentMirror>
         </StudioMobilePreviewMirror> : null}
         <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Artwork controls</p><h2 className="mt-1 text-xl font-black text-slate-900">Position artwork</h2></div>
-        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; uploadArtwork(file); }} />
-        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-50">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />}{editor.artwork ? 'Replace artwork' : 'Upload artwork'}</button>
+        <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; uploadArtworks(selected); }} />
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || layers.length >= MAX_UPLOAD_ARTWORKS} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-50">{uploading ? <Loader2 size={17} className="animate-spin" /> : <ImagePlus size={17} />}{uploading ? 'Uploading artworks…' : `Add artwork (${layers.length}/${MAX_UPLOAD_ARTWORKS})`}</button>
+        <p className="text-xs font-semibold text-slate-500">Select several images at once or add one by one. Hold the grip to reorder; the top row prints in front. Front and Back are independent.</p>
+        {layers.length > 0 && <div role="region" aria-label="Uploaded artwork layers" data-gdp-upload-layer-list="true" className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-black text-slate-900">Artwork Layers · {layers.length}/{MAX_UPLOAD_ARTWORKS}</p>
+          <DragDropContext onDragEnd={handleLayerDragEnd}>
+            <Droppable droppableId="upload-artwork-stack">{(dropProvided) => (
+              <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} className="space-y-2">
+                {layers.slice().reverse().map((layer, index) => {
+                  const selected = layer.id === activeLayerId;
+                  return <Draggable key={layer.id} draggableId={String(layer.id)} index={index} isDragDisabled={uploading}>{(dragProvided, snapshot) => (
+                    <div ref={dragProvided.innerRef} {...dragProvided.draggableProps} className={`flex items-center gap-1 rounded-xl border p-2 ${selected ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white'} ${snapshot.isDragging ? 'shadow-xl' : ''}`}>
+                      <button type="button" {...dragProvided.dragHandleProps} className="grid h-11 w-8 shrink-0 place-items-center text-slate-500" aria-label={`Hold and drag Artwork ${index + 1} to change order`} title="Hold and drag to reorder"><GripVertical size={18} /></button>
+                      <button type="button" onClick={() => selectLayer(layer.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-pressed={selected}>
+                        <img src={layer.asset.url} alt="" className="h-11 w-11 shrink-0 rounded-lg bg-slate-100 object-contain" />
+                        <span className="min-w-0"><span className="block text-[10px] font-bold uppercase text-slate-500">Artwork {index + 1} · {index === 0 ? 'Top' : 'Below'}{selected ? ' · Selected' : ''}</span><span className="block truncate text-xs font-black text-slate-800">{layer.asset.name || 'Uploaded artwork'}</span></span>
+                      </button>
+                      <button type="button" onClick={() => onPatch({ layers: layers.map((item) => item.id === layer.id ? { ...item, visible: item.visible === false } : item), activeLayerId: layer.id })} aria-label={`${layer.visible === false ? 'Show' : 'Hide'} Artwork ${index + 1}`} className="grid h-11 w-9 shrink-0 place-items-center rounded-lg border border-slate-200">{layer.visible === false ? <Eye size={15} /> : <EyeOff size={15} />}</button>
+                      <button type="button" onClick={() => removeArtworkFromSide(layer.id)} aria-label={`Delete Artwork ${index + 1}`} className="grid h-11 w-9 shrink-0 place-items-center rounded-lg border border-red-200 text-red-600"><Trash2 size={15} /></button>
+                    </div>
+                  )}</Draggable>;
+                })}
+                {dropProvided.placeholder}
+              </div>
+            )}</Droppable>
+          </DragDropContext>
+        </div>}
         {error ? <div className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</div> : null}
         {outsideRecommendedArea ? <div role="status" className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>{bleedCrop ? 'Bleed & Crop is on. Artwork outside the print area will be cut off in preview and in the 300-DPI print.' : `Printable artwork at ${formatArtworkInches(placement.widthIn)} × ${formatArtworkInches(placement.heightIn)} in extends outside the ${side} print area (${printGuide.dimensionsLabel})${overflowDescription ? `: ${overflowDescription}` : ''}. Move or resize it before approval. Transparent padding is ignored.`}</span></div> : null}
         {editor.artwork ? <>
+          <div data-gdp-upload-selected-artwork="layer" className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <img src={editor.artwork.url} alt="" className="h-14 w-14 shrink-0 rounded-xl bg-white object-contain p-1" />
+            <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Selected artwork</p><p className="truncate text-sm font-black text-slate-900">{editor.artwork.name || 'Your artwork'}</p><p className="text-[11px] font-semibold text-slate-500">Layer editing · front and back stay independent</p></div>
+            <button type="button" onClick={() => removeArtworkFromSide(activeLayerId)} aria-label="Remove selected artwork from this side" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50"><Trash2 size={17} /></button>
+          </div>
           <div data-gdp-smart-quality="upload-artwork" role="status" className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 p-3">
             <div className="flex items-center justify-between gap-2"><p className="text-sm font-black text-slate-900">Smart print quality check · Free</p><span className={['rounded-full px-2 py-1 text-[10px] font-black', qualityClass].join(' ')}>{quality.label}</span></div>
             <p className="text-xs font-semibold leading-5 text-slate-700">{quality.message}</p>
             {editor.artwork.basicEnhanced ? <p className="text-[11px] font-bold text-amber-800">Basic enhancement can smooth and sharpen pixels, but cannot create the missing details in the original photo. The quality recommendation still uses your original image.</p> : null}
           </div>
-          <div data-gdp-artwork-metrics="true" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          
+          <div data-gdp-upload-modern-controls="three-tabs" className="space-y-3 rounded-2xl bg-white p-2">
+            <div role="tablist" aria-label="Uploaded artwork adjustment tools" className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+              {[{ id: 'size', label: 'Size' }, { id: 'position', label: 'Position' }, { id: 'more', label: 'More' }].map((tab) =>
+                <button key={tab.id} type="button" role="tab" aria-selected={uploadToolTab === tab.id} onClick={() => { setUploadToolTab(tab.id); setMobilePreviewMinimized(true); }} className={['min-h-11 rounded-lg px-2 text-xs font-black transition', uploadToolTab === tab.id ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-white'].join(' ')}>{tab.label}</button>
+              )}
+            </div>
+            {uploadToolTab === 'size' ? <div role="tabpanel" aria-label="Uploaded artwork size" className="space-y-3 rounded-xl bg-slate-50 p-3">
+             <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ scale: value })} onReset={() => patchTransform({ scale: 100 })} />
+            <div data-gdp-upload-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-xs font-black text-slate-800">Free reshape</p>
+              <RangeControl label="Artwork width" value={transform.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ widthScale: value })} onReset={() => patchTransform({ widthScale: 100 })} />
+              <RangeControl label="Artwork height" value={transform.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ heightScale: value })} onReset={() => patchTransform({ heightScale: 100 })} />
+              <button type="button" onClick={() => patchTransform({ widthScale: 100, heightScale: 100 })} className="min-h-10 w-full rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Reset original proportions</button>
+              <p className="text-[10px] font-medium text-slate-500">Width and height can stretch independently. Print size and effective DPI update automatically; the print canvas clips anything outside its boundary.</p>
+            </div>
+            {lowConfidenceDpi ? <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">At 100%, this file prints at {formatArtworkInches(placement.baseWidthIn)} × {formatArtworkInches(placement.baseHeightIn)} in before any manual scaling.</p> : null}
+            <button data-gdp-fit-artwork="true" type="button" onClick={() => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, fitArtworkToPrintAreaTransform(artworkForPlacement, printGuide, transform)) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800"><Maximize2 size={14} /> Fit to print area</button>
+            <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">Fit only shrinks oversized printable artwork when needed, keeps the aspect ratio and rotation, ignores transparent padding, and returns it to a safe top-aligned position.</p>
+            <button type="button" onClick={() => onPatch({ transform: { ...constrainUploadArtworkTransform(artworkForPlacement, printGuide, topAlignedArtworkTransform(artworkForPlacement, printGuide)), bleedCrop } })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button>
+            </div> : null}
+            {uploadToolTab === 'position' ? <div role="tabpanel" aria-label="Uploaded artwork position" className="space-y-3 rounded-xl bg-slate-50 p-3">
+            <label data-gdp-upload-bleed-crop="true" className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs font-bold text-cyan-950"><input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={bleedCrop} onChange={(event) => patchTransform({ bleedCrop: event.target.checked })} /><span>Bleed &amp; Crop <span className="mt-1 block font-medium">Drag or enlarge beyond the dotted boundary. Only artwork inside the box prints; switch off to restore safe-fit positioning.</span></span></label>
+            <RangeControl label="Move left / right" value={transform.x} min={bleedCrop ? -150 : -42} max={bleedCrop ? 150 : 42} suffix="%" onChange={(value) => patchTransform({ x: value })} onReset={() => patchTransform({ x: 0 })} />
+            <RangeControl label="Move up / down" value={transform.y} min={bleedCrop ? -150 : -42} max={bleedCrop ? 150 : 42} suffix="%" onChange={(value) => patchTransform({ y: value })} onReset={() => patchTransform({ y: 0 })} />
+            <RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} onReset={() => patchTransform({ rotation: 0 })} />
+            </div> : null}
+            {uploadToolTab === 'more' ? <div role="tabpanel" aria-label="Uploaded artwork quality and enhancement" className="space-y-3 rounded-xl bg-slate-50 p-3">
+<div data-gdp-artwork-metrics="true" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-black uppercase tracking-[.12em] text-slate-500">Artwork information</p><span className={`rounded-full px-2 py-1 text-[10px] font-black ${qualityClass}`}>{quality.label}</span></div>
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
               <span className="font-semibold text-slate-500">File resolution</span><span className="text-right font-black text-slate-800">{artworkForPlacement?.pixelWidth || '—'} × {artworkForPlacement?.pixelHeight || '—'} px</span>
@@ -321,8 +426,8 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
             {editor.artwork.basicEnhanced ? (
               <button type="button" disabled={uploading || enhancing} onClick={restoreOriginalArtwork} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800">Restore original artwork</button>
             ) : <>
-              <button type="button" onClick={tryFreeEnhancement} disabled={uploading || enhancing || !sourceFileRef.current || sourceFileRef.current.path !== editor.artwork.path} className="min-h-11 w-full rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-40">{enhancing ? 'Processing image…' : 'Try free improvement'}</button>
-              {(!sourceFileRef.current || sourceFileRef.current.path !== editor.artwork.path) ? <p className="text-[11px] font-semibold text-slate-500">For an older saved upload, replace it with the original file to enable a fresh enhancement preview.</p> : null}
+              <button type="button" onClick={tryFreeEnhancement} disabled={uploading || enhancing || !sourceFileRef.current.has(editor.artwork.path)} className="min-h-11 w-full rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-40">{enhancing ? 'Processing image…' : 'Try free improvement'}</button>
+              {(!sourceFileRef.current.has(editor.artwork.path)) ? <p className="text-[11px] font-semibold text-slate-500">For an older saved upload, replace it with the original file to enable a fresh enhancement preview.</p> : null}
             </>}
             {enhanceError ? <p role="alert" className="text-xs font-semibold text-red-700">{enhanceError}</p> : null}
             {enhancementPreview && enhancementPreview.sourcePath === editor.artwork.path ? <>
@@ -331,23 +436,8 @@ export default function UploadArtworkEditorV2({ product, color, size, side, edit
               <button type="button" onClick={() => setEnhancementPreview(null)} disabled={enhancing} className="min-h-10 w-full rounded-xl border border-slate-200 text-xs font-bold text-slate-700">Keep original · Cancel</button>
             </> : null}
           </div>
-          <div className="space-y-3 rounded-2xl bg-slate-50 p-3">
-            <label data-gdp-upload-bleed-crop="true" className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-xs font-bold text-cyan-950"><input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={bleedCrop} onChange={(event) => patchTransform({ bleedCrop: event.target.checked })} /><span>Bleed &amp; Crop <span className="mt-1 block font-medium">Drag or enlarge beyond the dotted boundary. Only artwork inside the box prints; switch off to restore safe-fit positioning.</span></span></label>
-             <RangeControl label={lowConfidenceDpi ? "Artwork scale · fitted size" : "Artwork scale"} value={transform.scale} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ scale: value })} onReset={() => patchTransform({ scale: 100 })} />
-            <div data-gdp-upload-free-reshape="width-height" className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
-              <p className="text-xs font-black text-slate-800">Free reshape</p>
-              <RangeControl label="Artwork width" value={transform.widthScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ widthScale: value })} onReset={() => patchTransform({ widthScale: 100 })} />
-              <RangeControl label="Artwork height" value={transform.heightScale ?? 100} min={1} max={1000} suffix="%" onChange={(value) => patchTransform({ heightScale: value })} onReset={() => patchTransform({ heightScale: 100 })} />
-              <button type="button" onClick={() => patchTransform({ widthScale: 100, heightScale: 100 })} className="min-h-10 w-full rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Reset original proportions</button>
-              <p className="text-[10px] font-medium text-slate-500">Width and height can stretch independently. Print size and effective DPI update automatically; the print canvas clips anything outside its boundary.</p>
-            </div>
-            {lowConfidenceDpi ? <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">At 100%, this file prints at {formatArtworkInches(placement.baseWidthIn)} × {formatArtworkInches(placement.baseHeightIn)} in before any manual scaling.</p> : null}
-            <RangeControl label="Move left / right" value={transform.x} min={bleedCrop ? -150 : -42} max={bleedCrop ? 150 : 42} suffix="%" onChange={(value) => patchTransform({ x: value })} onReset={() => patchTransform({ x: 0 })} />
-            <RangeControl label="Move up / down" value={transform.y} min={bleedCrop ? -150 : -42} max={bleedCrop ? 150 : 42} suffix="%" onChange={(value) => patchTransform({ y: value })} onReset={() => patchTransform({ y: 0 })} />
-            <RangeControl label="Rotation" value={transform.rotation} min={-180} max={180} suffix="°" onChange={(value) => patchTransform({ rotation: value })} onReset={() => patchTransform({ rotation: 0 })} />
-            <button data-gdp-fit-artwork="true" type="button" onClick={() => onPatch({ transform: constrainUploadArtworkTransform(artworkForPlacement, printGuide, fitArtworkToPrintAreaTransform(artworkForPlacement, printGuide, transform)) })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-black text-slate-800"><Maximize2 size={14} /> Fit to print area</button>
-            <p className="px-1 text-[10px] font-semibold leading-4 text-slate-500">Fit only shrinks oversized printable artwork when needed, keeps the aspect ratio and rotation, ignores transparent padding, and returns it to a safe top-aligned position.</p>
-            <button type="button" onClick={() => onPatch({ transform: { ...constrainUploadArtworkTransform(artworkForPlacement, printGuide, topAlignedArtworkTransform(artworkForPlacement, printGuide)), bleedCrop } })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700"><RotateCcw size={14} /> Reset to original size & top position</button>
+          
+            </div> : null}
           </div>
           <button type="button" onClick={() => onConfirmedChange(!editor.confirmed)} aria-pressed={editor.confirmed} className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border-2 px-4 text-left transition ${editor.confirmed ? 'border-emerald-500 bg-emerald-50 text-emerald-950' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-500'}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${editor.confirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400 text-transparent'}`}><Check size={18} strokeWidth={3} /></span><span><span className="block text-sm font-black">I’m done positioning my {side} artwork</span><span className="mt-0.5 block text-xs font-medium opacity-70">Confirm the current size, rotation and placement before review.</span></span></button></> : null}
       </section>

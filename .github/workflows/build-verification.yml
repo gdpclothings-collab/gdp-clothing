@@ -79,6 +79,8 @@ jobs:
           node scripts/verify-seasonal-v2-loading-stability.mjs
           node scripts/verify-seasonal-v2-explicit-add-artwork.mjs
           node --test tests/seasonal-rotation.test.mjs
+          node --test tests/studio-modern-other-paths.test.mjs
+          node --test tests/studio-upload-artwork-layers.test.mjs
           node --test tests/seasonal-resize-printarea.test.mjs
           node --test tests/seasonal-print-master.test.mjs
           node scripts/verify-admin-payment-health.mjs

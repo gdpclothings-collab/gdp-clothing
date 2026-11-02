@@ -34,7 +34,7 @@ test('comparison provides large touch-scrollable masked slider and 2x zoom with 
 test('final review covers front and back original-pixel quality without extra checkbox', () => {
   assert.match(review, /state\.designPath === 'upload' \? sides\.flatMap/);
   assert.match(review, /resolveStudioV2PrintGuide\(product, state\.size, side, state\.color\)/);
-  assert.match(review, /constrainUploadArtworkTransform\(artwork, profile, editor\.transform \|\| \{\}\)/);
+  assert.match(review, /constrainUploadArtworkTransform\(artwork, profile, layer\.transform \|\| \{\}\)/);
   assert.match(review, /originalPixelWidth: artwork\.originalPixelWidth/);
   assert.match(review, /data-gdp-review-quality-warning="upload-original-pixels"/);
   assert.match(review, /A 300-DPI production export does not restore missing details/);

@@ -780,8 +780,13 @@ Deno.serve(async (req: Request) => {
         return respond(req, { error: true, message: "Confirm artwork rights and the proof policy before saving." }, 400);
       }
 
-      const photoAssets = (Array.isArray(raw.photo_assets) ? raw.photo_assets : [])
-        .slice(0, 8)
+      // Eight source artworks per printable side; keep Front and Back together.
+      // Never silently discard source paths: every retained path still requires ownership proof.
+      const submittedPhotoAssets = Array.isArray(raw.photo_assets) ? raw.photo_assets : [];
+      if (submittedPhotoAssets.length > 16) {
+        return respond(req, { error: true, message: "This design supports up to 8 source artworks per side." }, 400);
+      }
+      const photoAssets = submittedPhotoAssets
         .map((asset: any) => ({
           path: customerUploadPath(asset?.path || asset?.storage_path, accountUser?.id),
           name: cleanText(asset?.name, 160) || "artwork",

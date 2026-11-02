@@ -57,7 +57,7 @@ test('every design path has a movable, minimizable floating preview with protect
   assert.match(upload, /floatingPreviewVisible \? <StudioMobilePreviewMirror side=\{side\}/);
   assert.match(upload, /<StudioMobileGarmentMirror garmentPreview=\{garmentPreview\}/);
   assert.match(upload, /data-gdp-upload-mirror-artwork="true"/);
-  assert.match(upload, /transform\.widthScale \/ 10000/);
+  assert.match(upload, /layer\.transform\.widthScale \/ 10000/);
 });
 
 test('mobile seasonal selection opens controls on tap, not mid-drag', () => {

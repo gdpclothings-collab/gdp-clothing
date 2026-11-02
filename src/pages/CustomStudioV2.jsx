@@ -26,6 +26,7 @@ import { renderProtectedStudioV2PngAdvanced } from '@/lib/customStudioV2Protecte
 import { refreshStudioV2DraftAssets } from '@/lib/customStudioV2Assets';
 import { resolveStudioV2PrintGuide } from '@/lib/customStudioV2PrintGuide';
 import { constrainUploadArtworkTransform, resolveUploadArtworkPlacement } from '@/lib/customStudioV2ArtworkMetrics';
+import { uploadArtworkLayers } from '@/lib/customStudioV2UploadLayers';
 import { assessStudioImagePrintQuality } from '@/lib/studioSmartImageQuality';
 import { getStudioBrowseSnapshot, refreshStudioBrowseSnapshot } from '@/lib/studioV2BrowseCache';
 import { studioV2ScrollTop, studioV2StickyHeaderHeight } from '@/lib/studioV2ScrollRestoration';
@@ -322,20 +323,21 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, fin
   // interpolated output pixels with photographic source detail.
   const uploadQualityWarnings = state.designPath === 'upload' ? sides.flatMap((side) => {
     const editor = state.upload?.sides?.[side];
-    const artwork = editor?.artwork;
-    if (!artwork?.path) return [];
     const profile = resolveStudioV2PrintGuide(product, state.size, side, state.color);
-    const transform = constrainUploadArtworkTransform(artwork, profile, editor.transform || {});
-    const placement = resolveUploadArtworkPlacement(artwork, profile, transform);
-    const quality = assessStudioImagePrintQuality({
-      pixelWidth: artwork.pixelWidth,
-      pixelHeight: artwork.pixelHeight,
-      originalPixelWidth: artwork.originalPixelWidth,
-      originalPixelHeight: artwork.originalPixelHeight,
-      printWidthIn: placement.widthIn,
-      printHeightIn: placement.heightIn,
+    return uploadArtworkLayers(editor).filter((layer) => layer.visible !== false && layer.asset?.path).flatMap((layer, index) => {
+      const artwork = layer.asset;
+      const transform = constrainUploadArtworkTransform(artwork, profile, layer.transform || {});
+      const placement = resolveUploadArtworkPlacement(artwork, profile, transform);
+      const quality = assessStudioImagePrintQuality({
+        pixelWidth: artwork.pixelWidth,
+        pixelHeight: artwork.pixelHeight,
+        originalPixelWidth: artwork.originalPixelWidth,
+        originalPixelHeight: artwork.originalPixelHeight,
+        printWidthIn: placement.widthIn,
+        printHeightIn: placement.heightIn,
+      });
+      return quality.tone === 'emerald' ? [] : [{ side, layerId: layer.id, name: artwork.name || `Artwork ${index + 1}`, ...quality }];
     });
-    return quality.tone === 'emerald' ? [] : [{ side, ...quality }];
   }) : [];
   return <div data-gdp-review-design-path={state.designPath} data-gdp-review-print-sides={sides.join(',')} data-gdp-review-front-garment={frontGarment} data-gdp-review-back-garment={backGarment}>
     <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Step 4</p><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Final review</h1><p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">Review your choices before the approved 300-DPI production files and customer mockup are generated.</p>
@@ -356,8 +358,8 @@ function ReviewStepV2({ product, state, settings, finalizing, finalizeError, fin
         {uploadQualityWarnings.length > 0 && <div data-gdp-review-quality-warning="upload-original-pixels" role="status" className="mt-4 space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-3">
           <p className="text-sm font-black text-amber-950">Check uploaded image clarity before printing</p>
           {uploadQualityWarnings.map((warning) => (
-            <div key={warning.side} className="text-xs font-semibold leading-5 text-amber-950">
-              <p className="font-black capitalize">{warning.side} · {warning.label}{warning.dpi ? ` · ${Math.round(warning.dpi)} DPI from original pixels` : ''}</p>
+            <div key={`${warning.side}-${warning.layerId}`} className="text-xs font-semibold leading-5 text-amber-950">
+              <p className="font-black capitalize">{warning.side} · {warning.name} · {warning.label}{warning.dpi ? ` · ${Math.round(warning.dpi)} DPI from original pixels` : ''}</p>
               <p>{warning.message}</p>
             </div>
           ))}
@@ -713,9 +715,19 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
             if (asset.path && !sourceAssets.some((item) => item.path === asset.path)) sourceAssets.push({ path: asset.path, name: asset.name || `${side}-photo`, width: asset.width || null, height: asset.height || null, isPrimary: sourceAssets.length === 0 });
           });
         } else {
-          snapshot = { version: 2, designPath: 'upload', side, artworkPath: editor.artwork?.path || '', transform: editor.transform, printArea: resolveStudioV2PrintProfile(product, state.size, side) };
+          const uploadLayers = uploadArtworkLayers(editor).filter((layer) => layer.visible !== false);
+          snapshot = {
+            version: 3,
+            designPath: 'upload',
+            side,
+            layers: uploadLayers.map((layer, order) => ({ id: layer.id, artworkPath: layer.asset?.path || '', transform: layer.transform || {}, order })),
+            printArea: resolveStudioV2PrintProfile(product, state.size, side),
+          };
           rendered = await renderUploadStudioV2Png({ product, size: state.size, side, editor, dpi: 300 });
-          if (editor.artwork?.path && !sourceAssets.some((asset) => asset.path === editor.artwork.path)) sourceAssets.push({ path: editor.artwork.path, name: editor.artwork.name || `${side}-artwork`, width: editor.artwork.width || null, height: editor.artwork.height || null, isPrimary: sourceAssets.length === 0 });
+          uploadArtworkLayers(editor).forEach((layer) => {
+            const asset = layer.asset || {};
+            if (asset.path && !sourceAssets.some((item) => item.path === asset.path)) sourceAssets.push({ path: asset.path, name: asset.name || `${side}-artwork`, width: asset.width || asset.pixelWidth || null, height: asset.height || asset.pixelHeight || null, isPrimary: sourceAssets.length === 0 });
+          });
         }
 
         sideSnapshots[side] = snapshot;
@@ -924,7 +936,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
       {state.step === 'customize' && product && <PrintSideControl state={state} onChange={(side) => dispatch({ type: 'SET_SIDE', side })} />}
       {state.step === 'customize' && state.designPath === 'seasonal' && product && <div><EditorHeading title="Seasonal Design Lab" description="Build each print side independently. Your Front and Back artwork, placement and sizing stay exactly as you set them." /><SeasonalEditorV2 product={product} color={state.color} side={state.side} size={state.size} layers={currentEditor?.layers || []} activeLayerId={currentEditor?.activeLayerId || ''} confirmed={Boolean(currentEditor?.confirmed)} onLayersChange={(layers, activeLayerId) => dispatch({ type: 'SET_SEASONAL_LAYERS', side: state.side, layers, activeLayerId })} onActiveLayerChange={(id) => dispatch({ type: 'SET_SEASONAL_ACTIVE', side: state.side, id })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_SEASONAL', side: state.side, value })} /></div>}
       {state.step === 'customize' && (state.designPath === 'bootleg' || state.designPath === 'memorial') && product && <div><EditorHeading title={state.designPath === 'memorial' ? 'Memorial Tribute Studio' : 'Photo Bootleg Studio'} description="Your photo, text and editable details stay separate from the protected template artwork." /><ProtectedTemplateEditorV2 path={state.designPath} product={product} color={state.color} size={state.size} settings={settings} editor={currentEditor} side={state.side} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: state.designPath, side: state.side, patch })} onAppendPhotos={(photos, activePhotoId) => dispatch({ type: 'APPEND_EDITOR_PHOTOS', path: state.designPath, side: state.side, photos, activePhotoId })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: state.designPath, side: state.side, value })} onPreviewVisibilityChange={handlePreviewVisibilityChange} /></div>}
-      {state.step === 'customize' && state.designPath === 'upload' && product && <div><EditorHeading title="Upload My Own Artwork" description="Each print side keeps its own uploaded artwork, position, size and rotation." /><UploadArtworkEditorV2 product={product} color={state.color} size={state.size} side={state.side} editor={currentEditor} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: 'upload', side: state.side, patch })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })} /></div>}
+      {state.step === 'customize' && state.designPath === 'upload' && product && <div><EditorHeading title="Upload My Own Artwork" description="Layer up to eight uploaded artworks on each print side. Front and Back remain independent." /><UploadArtworkEditorV2 product={product} color={state.color} size={state.size} side={state.side} editor={currentEditor} onPatch={(patch) => dispatch({ type: 'PATCH_EDITOR', path: 'upload', side: state.side, patch })} onAppendArtworks={(layers, activeLayerId) => dispatch({ type: 'APPEND_UPLOAD_ARTWORKS', side: state.side, layers, activeLayerId })} onConfirmedChange={(value) => dispatch({ type: 'CONFIRM_EDITOR', path: 'upload', side: state.side, value })} /></div>}
       {state.step === 'customize' && product && state.designPath && <CustomizeApprovalPanel state={state} dispatch={dispatch} previewVisibilityActive={previewVisibilityActive} />}
       {state.step === 'review' && <ReviewStepV2 product={product} state={state} settings={settings} finalizing={finalizing} finalizeError={finalizeError} finalizeStage={finalizeStage} reviewPreviewReady={reviewPreviewReady} onEdit={() => dispatch({ type: 'SET_STEP', step: 'customize' })} onFinalize={finalizeToCart} />}
     </section></div>
