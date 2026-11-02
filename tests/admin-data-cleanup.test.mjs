@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   CLEANUP_BUCKETS, MIN_FILE_AGE_MS, MAX_BATCH,
-  allowAccount, allowFile, allowOrder, isReferencedByText,
+  allowAccount, allowFile, allowOrder, isReferencedByText, createStorageReferenceMatcher,
   selectedTargets, validStoragePath,
 } from "../supabase/functions/admin-data-cleanup/policy.mjs";
+import { REQUIRED_REFERENCE_TABLES, scanStorageReferences } from "../supabase/functions/admin-data-cleanup/reference-scan.mjs";
 
 const edge = readFileSync("supabase/functions/admin-data-cleanup/index.ts", "utf8");
 const migration = readFileSync("supabase/migrations/20261018024500_admin_data_cleanup.sql", "utf8");
@@ -106,4 +107,101 @@ test("server-only helpers honor legacy and current JWT role claim formats", () =
   assert.match(compat, /admin_cleanup_delete_test_order/);
   assert.match(compat, /revoke all on function public\.admin_cleanup_list_storage_files\(text\) from public, anon, authenticated/);
   assert.match(compat, /revoke all on function public\.admin_cleanup_delete_test_order\(uuid\) from public, anon, authenticated/);
+});
+
+
+function referenceService(rowsByTable = {}, { brokenTable = "", shortPage = false, missingCount = false } = {}) {
+  const calls = [];
+  return {
+    calls,
+    from(table) {
+      return {
+        select(_columns, options = {}) {
+          return {
+            order(column, { ascending }) {
+              assert.equal(column, "id");
+              assert.equal(ascending, true);
+              return {
+                async range(start, end) {
+                  calls.push({ table, start, end });
+                  if (table === brokenTable) return { data: null, count: null, error: { message: "Read denied" } };
+                  const rows = rowsByTable[table] || [];
+                  const requested = rows.slice(start, end + 1);
+                  return {
+                    data: shortPage && table === "orders" ? requested.slice(0, 1) : requested,
+                    count: options.count === "exact" ? (missingCount ? null : rows.length) : null,
+                    error: null,
+                  };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+test("one-pass matching preserves every legacy plain, URL-encoded and overlapping path reference", () => {
+  const paths = ["some/folder/art.png", "with space/photo #1.webp", "art.png", "encoded/über.png", "unreferenced/test.png"];
+  const encoded = paths[1].split("/").map(encodeURIComponent).join("/");
+  const content = JSON.stringify({ first: "https://cdn.example/" + encoded, second: "encoded/%C3%BCber.png", nested: "some/folder/art.png" });
+  const matcher = createStorageReferenceMatcher(paths);
+  matcher.scan(content.slice(0, 27));
+  matcher.scan(content.slice(27));
+  for (const path of paths) {
+    assert.equal(matcher.isReferenced(path), isReferencedByText(path, content), path);
+  }
+  assert.throws(() => createStorageReferenceMatcher(["../traversal.png"]), /Invalid storage reference scan/);
+  assert.throws(() => matcher.scan(null), /Incomplete storage reference data/);
+});
+
+test("reference scan verifies every required table and prevents false eligibility", async () => {
+  assert.deepEqual(REQUIRED_REFERENCE_TABLES, [
+    "orders", "order_items", "custom_designs", "design_proofs", "products",
+    "product_variants", "artwork_library", "content_pages", "store_settings", "gdp_invoices",
+  ]);
+  const service = referenceService({
+    orders: [{ id: "o1", memo: "customer-uploads/old/art.png" }],
+    custom_designs: [{ id: "c1", settings: { url: "https://cdn.example/with%20space/photo%20%231.webp" } }],
+  });
+  const paths = ["customer-uploads/old/art.png", "with space/photo #1.webp", "unlinked/test.png"];
+  const matcher = await scanStorageReferences(service, paths);
+  assert.equal(matcher.isReferenced(paths[0]), true);
+  assert.equal(matcher.isReferenced(paths[1]), true);
+  assert.equal(matcher.isReferenced(paths[2]), false);
+  assert.deepEqual(service.calls.map((x) => x.table), [...REQUIRED_REFERENCE_TABLES]);
+});
+
+test("reference scan catches references on later pages and rejects truncated results", async () => {
+  const rows = Array.from({ length: 1001 }, (_, i) => ({ id: String(i).padStart(6, "0"), url: i === 1000 ? "late/file.png" : "other" }));
+  const service = referenceService({ orders: rows });
+  const matcher = await scanStorageReferences(service, ["late/file.png"]);
+  assert.equal(matcher.isReferenced("late/file.png"), true);
+  assert.ok(service.calls.some((call) => call.table === "orders" && call.start === 1000));
+  await assert.rejects(scanStorageReferences(referenceService({ orders: rows }, { shortPage: true }), ["late/file.png"]), /page incomplete/);
+  await assert.rejects(scanStorageReferences(referenceService({}, { missingCount: true }), ["safe.png"]), /count unavailable/);
+  await assert.rejects(scanStorageReferences(referenceService({}, { brokenTable: "custom_designs" }), ["safe.png"]), /scan incomplete/);
+  await assert.rejects(scanStorageReferences(referenceService({ orders: Array.from({ length: 5000 }, (_, i) => ({ id: i })) }), ["safe.png"]), /exceeded safety limit/);
+});
+
+test("empty or invalid reference sets cannot accidentally authorize file deletion", async () => {
+  const service = referenceService();
+  const empty = await scanStorageReferences(service, []);
+  assert.equal(empty.isReferenced("anything.png"), false);
+  assert.equal(service.calls.length, 0);
+  await assert.rejects(scanStorageReferences(service, ["../bad.png"]), /Invalid storage reference scan/);
+  assert.match(edge, /scanStorageReferences\(service, candidates\)/);
+  assert.match(edge, /scanStorageReferences\(service, paths\)/);
+  assert.match(edge, /paths\.some\(\(path\) => references\.isReferenced\(path\)\)/);
+  assert.doesNotMatch(edge, /referencedData\(/);
+});
+
+test("837-file regression stays bounded without rescanning entire reference JSON for each file", () => {
+  const paths = Array.from({ length: 837 }, (_, i) => `guest/uploads/${String(i).padStart(4, "0")}/customer-artwork.png`);
+  const matcher = createStorageReferenceMatcher(paths);
+  const text = JSON.stringify({ data: "unrelated-data-".repeat(320000), referenced: paths[836] });
+  matcher.scan(text);
+  assert.equal(matcher.isReferenced(paths[836]), true);
+  assert.equal(matcher.isReferenced(paths[0]), false);
 });

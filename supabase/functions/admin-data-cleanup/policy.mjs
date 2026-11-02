@@ -46,3 +46,69 @@ export function selectedTargets(targets, max = MAX_BATCH) {
   if (new Set(targets).size !== targets.length) return null;
   return targets;
 }
+
+// The admin cleanup preview checks hundreds of Storage paths against structured
+// commerce records. Match all encoded/plain path variants in ONE pass through
+// each reference page, instead of rescanning the full payload for every file.
+// Incomplete/oversized scans throw so no file can become deletion-eligible.
+export function createStorageReferenceMatcher(paths) {
+  if (!Array.isArray(paths) || paths.length > 2000 || paths.some((path) => !validStoragePath(path))) {
+    throw new Error("Invalid storage reference scan.");
+  }
+  // Reject excessive input before allocating the trie or consuming CPU.
+  let needleUnits = 0;
+  const variantsByPath = paths.map((path) => {
+    const variants = [...new Set([path, encodeURIComponent(path), path.split("/").map(encodeURIComponent).join("/")])];
+    needleUnits += variants.reduce((sum, needle) => sum + needle.length, 0);
+    return { path, variants };
+  });
+  if (needleUnits > 600000) throw new Error("Storage reference scan exceeds safe limits.");
+  const nodes = [{ next: new Map(), fail: 0, paths: [] }];
+  for (const { path, variants } of variantsByPath) {
+    for (const needle of variants) {
+      let state = 0;
+      for (let i = 0; i < needle.length; i++) {
+        const ch = needle[i];
+        let child = nodes[state].next.get(ch);
+        if (child === undefined) {
+          child = nodes.length;
+          nodes[state].next.set(ch, child);
+          nodes.push({ next: new Map(), fail: 0, paths: [] });
+        }
+        state = child;
+      }
+      nodes[state].paths.push(path);
+    }
+  }
+
+  // Aho-Corasick failure links keep matching linear in input size, including
+  // overlapping filenames and paths embedded inside complete URLs or JSON.
+  const queue = [...nodes[0].next.values()];
+  for (let i = 0; i < queue.length; i++) {
+    const current = queue[i];
+    for (const [ch, child] of nodes[current].next) {
+      let fallback = nodes[current].fail;
+      while (fallback && !nodes[fallback].next.has(ch)) fallback = nodes[fallback].fail;
+      nodes[child].fail = nodes[fallback].next.get(ch) ?? 0;
+      nodes[child].paths.push(...nodes[nodes[child].fail].paths);
+      queue.push(child);
+    }
+  }
+
+  const referenced = new Set();
+  let state = 0;
+  return {
+    scan(chunk) {
+      if (typeof chunk !== "string") throw new Error("Incomplete storage reference data.");
+      for (let i = 0; i < chunk.length; i++) {
+        const ch = chunk[i];
+        while (state && !nodes[state].next.has(ch)) state = nodes[state].fail;
+        state = nodes[state].next.get(ch) ?? 0;
+        for (const path of nodes[state].paths) referenced.add(path);
+      }
+    },
+    isReferenced(path) {
+      return referenced.has(path);
+    },
+  };
+}
