@@ -3,6 +3,7 @@ import { fitSeasonalArtwork, constrainSeasonalArtworkLayer, resolveSeasonalResha
 import { renderSeasonalProductionPng } from '@/lib/seasonalProductionRender';
 import { approvedSeasonalPrintSources } from '@/lib/seasonalPrintMaster';
 import { resolveUploadArtworkPlacement, constrainUploadArtworkTransform } from '@/lib/customStudioV2ArtworkMetrics';
+import { uploadArtworkLayers } from '@/lib/customStudioV2UploadLayers';
 
 function normalizeToken(value) {
   return String(value || '').toLowerCase().replace(/grey/g, 'gray').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -226,29 +227,38 @@ export async function renderProtectedStudioV2Png({ product, size, side, editor, 
 }
 
 export async function renderUploadStudioV2Png({ product, size, side, editor, dpi = 300 }) {
-  if (!editor?.artwork?.url || !editor?.artwork?.path) throw new Error('The uploaded artwork is unavailable.');
+  const layers = uploadArtworkLayers(editor).filter((layer) => layer.visible !== false);
+  if (!layers.length || layers.some((layer) => !layer.asset?.url || !layer.asset?.path)) {
+    throw new Error('The uploaded artwork stack is unavailable.');
+  }
   const profile = resolveStudioV2PrintProfile(product, size, side);
   const output = createProductionCanvas(profile, dpi);
-  const loaded = await loadImage(editor.artwork.url, 'The uploaded artwork could not be reopened.');
-  try {
-    const artwork = {
-      ...editor.artwork,
-      pixelWidth: Number(editor.artwork.pixelWidth || loaded.width),
-      pixelHeight: Number(editor.artwork.pixelHeight || loaded.height),
-    };
-    const safeTransform = constrainUploadArtworkTransform(artwork, profile, editor.transform || {});
-    const placement = resolveUploadArtworkPlacement(artwork, profile, safeTransform);
-    const drawWidth = placement.widthIn * output.safeDpi;
-    const drawHeight = placement.heightIn * output.safeDpi;
-    const centerX = placement.centerXIn * output.safeDpi;
-    const centerY = placement.centerYIn * output.safeDpi;
-    output.context.save();
-    output.context.translate(centerX, centerY);
-    output.context.rotate(clamp(safeTransform.rotation || 0, -180, 180) * Math.PI / 180);
-    output.context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
-    output.context.restore();
-  } finally {
-    loaded.close();
+  // Bottom to top, same order as the interactive preview and saved snapshot.
+  for (const layer of layers) {
+    const loaded = await loadImage(layer.asset.url, 'An uploaded artwork layer could not be reopened.');
+    try {
+      const artwork = {
+        ...layer.asset,
+        pixelWidth: Number(layer.asset.pixelWidth || loaded.width),
+        pixelHeight: Number(layer.asset.pixelHeight || loaded.height),
+      };
+      const safeTransform = constrainUploadArtworkTransform(artwork, profile, layer.transform || {});
+      const placement = resolveUploadArtworkPlacement(artwork, profile, safeTransform);
+      const drawWidth = placement.widthIn * output.safeDpi;
+      const drawHeight = placement.heightIn * output.safeDpi;
+      const centerX = placement.centerXIn * output.safeDpi;
+      const centerY = placement.centerYIn * output.safeDpi;
+      output.context.save();
+      try {
+        output.context.translate(centerX, centerY);
+        output.context.rotate(clamp(safeTransform.rotation || 0, -180, 180) * Math.PI / 180);
+        output.context.drawImage(loaded.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+      } finally {
+        output.context.restore();
+      }
+    } finally {
+      loaded.close();
+    }
   }
   return {
     blob: await canvasPng(output.canvas),
