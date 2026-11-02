@@ -106,7 +106,7 @@ assert(guard.includes('node.className = String(node.className ||'), 'protected a
 assert(guard.includes('one finger moves|choose a layer first|tap a layer in the list'), 'protected preview must hide drag/pinch instructions');
 assert(guard.indexOf('const clone = section.cloneNode(true);') < guard.indexOf("clone.querySelectorAll('[data-gdp-bootleg-text-bounds"), 'protected preview cleanup must run on a clone instead of mutating the editable canvas');
 
-assert(guard.includes("clone.querySelectorAll('[data-gdp-upload-artwork-layer=\"true\"]')"), 'uploaded artwork selection chrome must be sanitized in Final Review');
+assert(guard.includes("clone.querySelectorAll('[data-gdp-upload-artwork-layer]')"), 'uploaded artwork selection chrome must be sanitized in Final Review');
 assert(guard.includes(".replace(/\\bring[^\\s]*/g, '')"), 'uploaded artwork selection ring must be removed from Final Review');
 assert(guard.includes("clonedHeading.textContent = `Final garment preview · ${side}`;"), 'Final Review snapshot side label must remain explicit');
 

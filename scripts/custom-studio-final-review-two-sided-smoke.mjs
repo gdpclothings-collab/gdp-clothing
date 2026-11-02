@@ -154,7 +154,7 @@ async function inspectViewport(browser, viewport) {
     const guard = page.locator('[data-gdp-studio-v2-guard="true"]');
     await guard.waitFor({ state: "visible", timeout: 20000 });
 
-    const uploadPreview = page.locator('[data-gdp-upload-artwork-layer="true"] img[alt="Uploaded artwork preview"]').first();
+    const uploadPreview = page.locator('[data-gdp-upload-artwork-layer] img').first();
     const frontLive = await waitForImage(uploadPreview, `${viewport.name} live front artwork`, "gdp-logo.webp");
 
     const frontSide = page.getByRole("button", { name: /^front/i }).first();
@@ -221,12 +221,12 @@ async function inspectViewport(browser, viewport) {
     assert(await backCard.getByText(/Final garment preview · back/i).first().isVisible(), `${viewport.name} back Final Review snapshot label is missing.`);
 
     const frontFinal = await waitForImage(
-      frontCard.locator('[data-gdp-upload-artwork-layer="true"] img[alt="Uploaded artwork preview"]').first(),
+      frontCard.locator('[data-gdp-upload-artwork-layer] img').first(),
       `${viewport.name} Final Review front artwork`,
       "gdp-logo.webp"
     );
     const backFinal = await waitForImage(
-      backCard.locator('[data-gdp-upload-artwork-layer="true"] img[alt="Uploaded artwork preview"]').first(),
+      backCard.locator('[data-gdp-upload-artwork-layer] img').first(),
       `${viewport.name} Final Review back artwork`,
       "gdp-hero-approved.webp"
     );
