@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
+import { mergeRefreshedCartPreviews } from "@/lib/cartPreviewSides";
+import { guestUploadProofForPath } from "@/lib/guestUploadProofs";
+import { safeCartLocalMockup, writeCartPreviewsWithFallback } from '@/lib/cartLocalMockupPreview';
 import {
   readStoredJson,
   removeStoredKey,
@@ -53,31 +56,80 @@ function customerUploadPathFromUrl(value) {
 function persistableCartItem(item) {
   if (!item?.isCustom || item?.isDtf) return item;
   const imagePath = item.imagePath || customerUploadPathFromUrl(item.image);
-  return imagePath ? { ...item, imagePath } : item;
+  const customerMockups = Object.fromEntries(
+    Object.entries(item.customerMockups || {}).filter(([side]) => side === "front" || side === "back").map(([side, mockup]) => [
+      side,
+      {
+        ...mockup,
+        path: mockup?.path || customerUploadPathFromUrl(mockup?.url),
+        localPreview: safeCartLocalMockup(mockup?.localPreview),
+      },
+    ])
+  );
+  return {
+    ...item,
+    ...(imagePath ? { imagePath } : {}),
+    ...(Object.keys(customerMockups).length ? { customerMockups } : {}),
+  };
 }
 
-async function refreshCustomPreview(item, user) {
-  if (!item?.isCustom || item?.isDtf) return persistableCartItem(item);
-  const imagePath = item.imagePath || customerUploadPathFromUrl(item.image);
-  if (!imagePath) return item;
-
+async function signCustomPreviewPath(path, user, item, side) {
+  if (!path) return "";
   try {
     if (user && user.is_anonymous !== true) {
       const { data, error } = await supabase.storage
         .from("customer-uploads")
-        .createSignedUrl(imagePath, 3600);
-      if (!error && data?.signedUrl) return { ...item, imagePath, image: data.signedUrl };
-    } else {
+        .createSignedUrl(path, 3600);
+      if (!error && data?.signedUrl) return data.signedUrl;
+      // A direct authenticated RLS denial never licenses a guest bypass.
+    }
+    if (path.startsWith("guest/")) {
+      const uploadProof = guestUploadProofForPath(path, "mockup");
+      if (!uploadProof && !(item?.guestDesignToken && item?.customDesignId && side)) return "";
       const { data, error } = await supabase.functions.invoke("checkout", {
-        body: { action: "signGuestCustomUpload", path: imagePath },
+        body: {
+          action: "signGuestCustomUpload", path, purpose: "mockup",
+          ...(uploadProof ? { uploadProof } : {}),
+          ...(item?.guestDesignToken && item?.customDesignId && side ? {
+            guestDesignToken: item.guestDesignToken, designId: item.customDesignId, side,
+          } : {}),
+        },
       });
-      if (!error && !data?.error && data?.signedUrl) return { ...item, imagePath, image: data.signedUrl };
+      if (!error && !data?.error && data?.signedUrl) return data.signedUrl;
     }
   } catch {
-    // Keep the stored item intact. A later cart load can retry signing it.
+    // Keep the existing URL. A later cart load can retry signing it.
   }
+  return "";
+}
 
-  return { ...item, imagePath };
+async function refreshCustomPreview(item, user) {
+  if (!item?.isCustom || item?.isDtf) return persistableCartItem(item);
+  const storedItem = persistableCartItem(item);
+  const imagePath = storedItem.imagePath;
+  const mockupEntries = Object.entries(storedItem.customerMockups || {});
+  if (!imagePath && !mockupEntries.length) return storedItem;
+
+  const refreshedEntries = await Promise.all(mockupEntries.map(async ([side, mockup]) => [
+    side,
+    // Locally cached approved mockups need no extra Edge signing request on reload.
+    { ...mockup, url: safeCartLocalMockup(mockup.localPreview)
+      ? mockup.url
+      : await signCustomPreviewPath(mockup.path, user, storedItem, side) || mockup.url },
+  ]));
+  const customerMockups = Object.fromEntries(refreshedEntries);
+  const primarySide = storedItem.placement === "back" ? "back" : "front";
+  const primaryUrl = customerMockups[primarySide]?.url || (
+    safeCartLocalMockup(customerMockups[primarySide]?.localPreview)
+      ? storedItem.image
+      : await signCustomPreviewPath(imagePath, user, storedItem, primarySide)
+  );
+
+  return {
+    ...storedItem,
+    ...(mockupEntries.length ? { customerMockups } : {}),
+    image: primaryUrl || storedItem.image,
+  };
 }
 
 export function CartProvider({ children }) {
@@ -109,9 +161,13 @@ export function CartProvider({ children }) {
     setLoadedStorageSignature(storageSignature);
 
     Promise.all(storedItems.map((item) => refreshCustomPreview(item, user)))
-      .then((refreshed) => { if (active) setItems(refreshed); });
+      .then((refreshed) => {
+        if (active) setItems((current) => mergeRefreshedCartPreviews(current, storedItems, refreshed));
+      });
     Promise.all(storedSaved.map((item) => refreshCustomPreview(item, user)))
-      .then((refreshed) => { if (active) setSaved(refreshed); });
+      .then((refreshed) => {
+        if (active) setSaved((current) => mergeRefreshedCartPreviews(current, storedSaved, refreshed));
+      });
 
     // The old v1 keys were shared by every account in the browser. Remove
     // them after auth resolution so they can never leak into another user.
@@ -128,7 +184,7 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     if (loadedStorageSignature !== storageSignature) return;
-    writeStoredJson(storageKeys.cart, items.map(persistableCartItem));
+    writeCartPreviewsWithFallback(storageKeys.cart, items.map(persistableCartItem));
   }, [items, loadedStorageSignature, storageSignature, storageKeys.cart]);
 
   useEffect(() => {
@@ -138,7 +194,7 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     if (loadedStorageSignature !== storageSignature) return;
-    writeStoredJson(storageKeys.saved, saved.map(persistableCartItem));
+    writeCartPreviewsWithFallback(storageKeys.saved, saved.map(persistableCartItem));
   }, [saved, loadedStorageSignature, storageSignature, storageKeys.saved]);
 
   const addItem = useCallback((item) => {

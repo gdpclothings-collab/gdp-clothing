@@ -3,6 +3,7 @@ import { calculateProfileShipping } from "./shipping-profile-rules.mjs";
 import { calculateTaxBreakdown } from "./tax-rules.mjs";
 import { TaxConfigurationReviewError, applyCheckoutTaxPolicy, checkoutTaxProvince, taxableMerchandiseAfterCoupon } from "./checkout-tax-safeguard.mjs";
 import { couponAmountForBase, couponIsUsable, publicPromotion } from "./discount-rules.mjs";
+import { authorizeGuestMockupBinding, authorizeGuestUploadProof, guestUploadPurposes, hashGuestUploadProof, newGuestUploadProof, validGuestUploadPath, verifyGuestDesignArtifactProofs } from "./guest-upload-authorization.mjs";
 
 const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -202,7 +203,7 @@ async function sha256Hex(value: string) {
 
 function guestUploadPath(value: unknown) {
   const path = String(value || "");
-  return /^guest\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(path) ? path : null;
+  return validGuestUploadPath(path) ? path : null;
 }
 
 function customerUploadPath(value: unknown, accountUserId?: string | null) {
@@ -672,13 +673,18 @@ Deno.serve(async (req: Request) => {
       const limited = await enforceActionRateLimit(service, req, action, 20);
       if (limited) return limited;
 
+      const purpose = String(body?.purpose || "source");
+      if (!guestUploadPurposes.includes(purpose)) {
+        return respond(req, { error: true, message: "That guest upload purpose is invalid." }, 400);
+      }
+
       const files = Array.isArray(body?.files) ? body.files.slice(0, 8) : [];
       if (!files.length) {
         return respond(req, { error: true, message: "Choose at least one artwork file." }, 400);
       }
 
       const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-      const uploads: Array<{ path: string; token: string }> = [];
+      const uploads: Array<{ path: string; token: string; uploadProof: string; purpose: string }> = [];
       for (const descriptor of files) {
         const mimeType = String(descriptor?.type || "");
         const size = Number(descriptor?.size || 0);
@@ -690,11 +696,21 @@ Deno.serve(async (req: Request) => {
         }
 
         const path = `guest/${crypto.randomUUID()}/${safeUploadFileName(descriptor?.name)}`;
+        const uploadProof = newGuestUploadProof();
+        const { error: grantError } = await service.from("guest_custom_upload_grants").insert({
+          path,
+          proof_hash: await hashGuestUploadProof(uploadProof),
+          purpose,
+        });
+        if (grantError) throw grantError;
         const { data: signed, error: signedError } = await service.storage
           .from("customer-uploads")
           .createSignedUploadUrl(path);
-        if (signedError || !signed?.token) throw signedError || new Error("Could not create an artwork upload token.");
-        uploads.push({ path, token: signed.token });
+        if (signedError || !signed?.token) {
+          await service.from("guest_custom_upload_grants").delete().eq("path", path);
+          throw signedError || new Error("Could not create an artwork upload token.");
+        }
+        uploads.push({ path, token: signed.token, uploadProof, purpose });
       }
 
       return respond(req, { uploads });
@@ -707,6 +723,22 @@ Deno.serve(async (req: Request) => {
       const path = guestUploadPath(body?.path);
       if (!path) {
         return respond(req, { error: true, message: "That guest artwork path is invalid." }, 400);
+      }
+
+      const proofAuthorized = await authorizeGuestUploadProof(service, {
+        path,
+        proof: body?.uploadProof,
+        purpose: body?.purpose,
+      });
+      const bindingAuthorized = !proofAuthorized && body?.purpose === "mockup"
+        && await authorizeGuestMockupBinding(service, {
+          path,
+          designId: body?.designId,
+          guestDesignToken: body?.guestDesignToken,
+          side: body?.side,
+        });
+      if (!proofAuthorized && !bindingAuthorized) {
+        return respond(req, { error: true, message: "This guest preview needs a valid upload proof or approved design authorization." }, 403);
       }
 
       const { data: preview, error: previewError } = await service.storage
@@ -803,6 +835,34 @@ Deno.serve(async (req: Request) => {
         ? ["front", "back"]
         : [String(raw.placement) === "back" ? "back" : "front"];
       const customerMockupPath = customerUploadPath(raw.customer_mockup_path, accountUser?.id);
+      const requestedMockupPaths = raw.preflight?.customerMockupPaths;
+      if (requestedMockupPaths != null && (typeof requestedMockupPaths !== "object" || Array.isArray(requestedMockupPaths)
+        || Object.keys(requestedMockupPaths).some((side) => !["front", "back"].includes(side)))) {
+        return respond(req, { error: true, message: "Invalid customer mockup side manifest." }, 400);
+      }
+      const approvedMockupPaths: Record<string, string> = {};
+      for (const side of expectedSides) {
+        const candidate = requestedMockupPaths?.[side] || (side === expectedSides[0] ? customerMockupPath : null);
+        const path = customerUploadPath(candidate, accountUser?.id);
+        if (path) approvedMockupPaths[side] = path;
+        else if (raw.render_status === "locked") {
+          return respond(req, { error: true, message: `The ${side} approved garment mockup is missing.` }, 400);
+        }
+      }
+      if (customerMockupPath && approvedMockupPaths[expectedSides[0]] !== customerMockupPath) {
+        return respond(req, { error: true, message: "The primary garment mockup does not match the approved side." }, 400);
+      }
+      if (new Set(Object.values(approvedMockupPaths)).size !== Object.keys(approvedMockupPaths).length) {
+        return respond(req, { error: true, message: "Front and back require independent garment mockups." }, 400);
+      }
+      const artifactAuthorization = await verifyGuestDesignArtifactProofs(service, {
+        photoPaths, productionFiles, approvedMockupPaths,
+        proofs: raw.upload_proofs,
+        designPath, accountUserId: accountUser?.id,
+      });
+      if (!artifactAuthorization.ok) {
+        return respond(req, { error: true, message: `The ${artifactAuthorization.reason} artwork proof is missing or unauthorized.` }, 403);
+      }
       const lockedHash = /^[0-9a-f]{64}$/.test(String(raw.locked_hash || "")) ? String(raw.locked_hash) : null;
       const customerApprovedAt = raw.customer_approved_at && !Number.isNaN(Date.parse(String(raw.customer_approved_at)))
         ? new Date(String(raw.customer_approved_at)).toISOString()
@@ -898,7 +958,10 @@ Deno.serve(async (req: Request) => {
           render_status: isLockedRender ? "locked" : "draft",
           locked_hash: isLockedRender ? lockedHash : null,
           customer_approved_at: isLockedRender ? customerApprovedAt : null,
-          preflight: raw.preflight && typeof raw.preflight === "object" ? raw.preflight : {},
+          preflight: {
+            ...(raw.preflight && typeof raw.preflight === "object" ? raw.preflight : {}),
+            customerMockupPaths: approvedMockupPaths,
+          },
           status: "in_cart",
           ...(seasonalArtworkId ? {
             seasonal_artwork_id: seasonalArtworkId,
@@ -912,6 +975,14 @@ Deno.serve(async (req: Request) => {
       if (designError) throw designError;
 
       if (!accountUser) {
+        const bindings = Object.entries(approvedMockupPaths).map(([side, path]) => ({ design_id: design.id, side, path }));
+        if (bindings.length) {
+          const { error: bindingError } = await service.from("guest_custom_mockup_bindings").insert(bindings);
+          if (bindingError) {
+            await service.from("custom_designs").delete().eq("id", design.id);
+            throw bindingError;
+          }
+        }
         const { error: sessionError } = await service.from("guest_design_sessions").insert({
           design_id: design.id,
           token_hash: guestTokenHash,

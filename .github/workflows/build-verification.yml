@@ -106,6 +106,9 @@ jobs:
           node --test tests/dtf-keyboard-delete.test.mjs
           node --test tests/dtf-undo-delete.test.mjs
           node scripts/verify-custom-studio-two-sided-cart-contract.mjs
+          node --test tests/cart-front-back-preview.test.mjs
+          node --test tests/cart-local-mockup.test.mjs
+          node --test tests/guest-mockup-ownership.test.mjs
           node scripts/verify-production-hardening.mjs
           node scripts/verify-messenger-agent.mjs
           node scripts/verify-cart-pricing.mjs
@@ -191,6 +194,10 @@ jobs:
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           node scripts/storefront-render-guard.mjs || {
+            cat /tmp/gdp-preview.log
+            exit 1
+          }
+          node scripts/verify-cart-front-back-browser.mjs || {
             cat /tmp/gdp-preview.log
             exit 1
           }

@@ -80,7 +80,8 @@ expect(reviewStep.includes('object-contain'), 'final review garment preview is n
 
 expect(finalizeFlow.includes('renderSeasonalStudioV2Png(snapshot, 300)'), 'seasonal production rendering remains 300 DPI');
 expect(finalizeFlow.includes('renderUploadStudioV2Png({ product, size: state.size, side, editor, dpi: 300 })'), 'upload production rendering remains 300 DPI');
-expect(finalizeFlow.includes('garmentUrl: studioV2GarmentPreview(product, state.color, firstSide)'), 'customer mockup still receives the canonical garment source');
+expect(finalizeFlow.includes('garmentUrl: studioV2GarmentPreview(product, state.color, side)'), 'each customer mockup receives the canonical side-aware garment source');
+expect(/customerMockups\[side\]\s*=\s*\{\s*path:\s*upload\.storage_path,\s*url:\s*upload\.file_url[,;\s]/.test(finalizeFlow), 'each side retains its own customer mockup path and URL');
 expect(!finalizeFlow.includes('studioV2DisplayPreviewUrl'), 'display optimization never enters the production/finalization flow');
 
 expect(!garmentStep.includes('document.'), 'GarmentStepV2 does not query or mutate the DOM');

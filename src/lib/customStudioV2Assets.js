@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { guestUploadProofForPath } from '@/lib/guestUploadProofs';
 
 async function optionalAccountUser() {
   const { data } = await supabase.auth.getSession();
@@ -15,11 +16,15 @@ export async function refreshStudioV2AssetUrl(path, fallbackUrl = '') {
   if (user) {
     const { data, error } = await supabase.storage.from('customer-uploads').createSignedUrl(storagePath, 3600);
     if (!error && data?.signedUrl) return data.signedUrl;
+    // An authenticated RLS denial never grants permission to guest-sign.
   }
 
+  const purpose = ['source', 'production'].find((kind) => guestUploadProofForPath(storagePath, kind));
+  const uploadProof = purpose && guestUploadProofForPath(storagePath, purpose);
+  if (!uploadProof) return String(fallbackUrl || '');
   try {
     const { data, error } = await supabase.functions.invoke('checkout', {
-      body: { action: 'signGuestCustomUpload', path: storagePath },
+      body: { action: 'signGuestCustomUpload', path: storagePath, uploadProof, purpose },
     });
     if (!error && !data?.error && data?.signedUrl) return data.signedUrl;
   } catch {

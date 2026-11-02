@@ -68,7 +68,7 @@ const zeroRated = calculateTaxBreakdown(rule, "SK", 40, 0, 0);
 assert.equal(zeroRated.tax, 0);
 assert.equal(assertTaxRegistration([], zeroRated.components, now), true, "genuinely non-taxable merchandise should not require collecting GST/PST");
 
-const edge = fs.readFileSync("supabase/functions/checkout/index.ts", "utf8");
+const edge = fs.readFileSync("supabase/functions/checkout/index.ts", "utf8").replace(/\r\n/g, "\n");
 const ui = fs.readFileSync("src/pages/CheckoutTwoStep.jsx", "utf8");
 const gateway = fs.readFileSync("supabase/functions/checkout-gateway/index.ts", "utf8");
 const webhook = fs.readFileSync("supabase/functions/stripe-webhook/index.ts", "utf8");
