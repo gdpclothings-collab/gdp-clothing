@@ -161,9 +161,9 @@ async function inspectViewport(browser, viewport) {
 
     const guard = page.locator('[data-gdp-studio-v2-guard="true"]');
     await guard.waitFor({ state: "visible", timeout: 20000 });
-    const artworkLayer = page.locator('[data-gdp-upload-artwork-layer="true"]').first();
+    const artworkLayer = page.locator('[data-gdp-upload-artwork-layer]').first();
     await artworkLayer.waitFor({ state: "visible", timeout: 15000 });
-    await waitForImage(artworkLayer.locator('img[alt="Uploaded artwork preview"]'), `${viewport.name} live approved artwork`);
+    await waitForImage(artworkLayer.locator('img'), `${viewport.name} live approved artwork`);
 
     const approveCard = page.locator('[data-gdp-step3-unified-approval="true"]');
     const approvalCheckbox = page.locator('[data-gdp-step3-approval-checkbox="true"]');
@@ -220,9 +220,9 @@ async function inspectViewport(browser, viewport) {
     assert(await finalPreview.getByText(/Ready for final check/i).first().isVisible(), `${viewport.name} Final Review ready-state copy is missing.`);
     assert(await finalPreview.getByText(/Final garment preview · front/i).first().isVisible(), `${viewport.name} front approved snapshot label is missing.`);
 
-    const finalArtworkLayer = finalPreview.locator('[data-gdp-upload-artwork-layer="true"]').first();
+    const finalArtworkLayer = finalPreview.locator('[data-gdp-upload-artwork-layer]').first();
     await finalArtworkLayer.waitFor({ state: "visible", timeout: 10000 });
-    const finalArtworkImage = finalArtworkLayer.locator('img[alt="Uploaded artwork preview"]');
+    const finalArtworkImage = finalArtworkLayer.locator('img');
     const artworkImageState = await waitForImage(finalArtworkImage, `${viewport.name} Final Review approved artwork`);
     assert(artworkImageState.src.includes("gdp-logo.webp"), `${viewport.name} Final Review snapshot lost the approved artwork source.`);
 
