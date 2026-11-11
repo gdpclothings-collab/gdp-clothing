@@ -93,7 +93,7 @@ const results = {};
 function saveReport(reason = "") {
   const folder = resolve(process.cwd(), "RESULTS");
   mkdirSync(folder, { recursive: true });
-  const passed = results["checkout.session.completed"]?.startsWith("PASS") &&
+  const passed = eventTypes.every(type => results[type]?.startsWith("PASS")) &&
     results.badSignature === "PASS" && results.liveModeRejected === "PASS" &&
     results.replay?.startsWith("PASS");
   const report = {
