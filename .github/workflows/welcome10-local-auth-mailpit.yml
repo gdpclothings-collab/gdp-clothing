@@ -1,0 +1,109 @@
+name: WELCOME10 Local Supabase Auth and Mailpit QA
+
+on:
+  pull_request:
+    paths:
+      - 'tests/integration/welcome10-local-auth-mailpit.mjs'
+      - '.github/workflows/welcome10-local-auth-mailpit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: welcome10-local-auth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-auth:
+    name: Disposable local Auth + Mailpit (no hosted project)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    env:
+      SUPABASE_EXPERIMENTAL_STACK: "0"
+    steps:
+      - name: Checkout QA only
+        uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install existing pinned app dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Install v2 Supabase CLI (v3 has breaking config changes)
+        uses: supabase/setup-cli@v3
+        with:
+          version: v2.stable
+
+      - name: Prepare isolated local config and numeric OTP templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(printenv SUPABASE_ACCESS_TOKEN || true)" ]]; then echo "Hosted Supabase token forbidden"; exit 1; fi
+          root="$RUNNER_TEMP/welcome10-local-only"
+          mkdir -p "$root/supabase/templates"
+          cat > "$root/supabase/config.toml" <<'TOML'
+          project_id = "welcome10-local-qa-only"
+          [api]
+          enabled = true
+          port = 54321
+          [db]
+          port = 54322
+          [auth]
+          enabled = true
+          site_url = "http://127.0.0.1:4179"
+          [auth.email]
+          enable_signup = true
+          enable_confirmations = true
+          max_frequency = "1s"
+          otp_length = 6
+          otp_expiry = 60
+          [auth.email.template.confirmation]
+          subject = "GDP WELCOME10 local QA code"
+          content_path = "./supabase/templates/otp.html"
+          [auth.email.template.magic_link]
+          subject = "GDP WELCOME10 local QA code"
+          content_path = "./supabase/templates/otp.html"
+          [local_smtp]
+          enabled = true
+          port = 54324
+          TOML
+          cat > "$root/supabase/templates/otp.html" <<'HTML'
+          <html><body><p>Disposable local GDP Clothing authentication QA only.</p>
+          <p>WELCOME10-QA-CODE: {{ .Token }}</p>
+          </body></html>
+          HTML
+          echo "Ephemeral test configuration prepared; no production settings changed."
+
+      - name: Start disposable local Auth and Mailpit, then run real OTP flow
+        shell: bash
+        timeout-minutes: 24
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/welcome10-local-only"
+          supabase --version
+          supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta,postgrest
+          supabase status -o json > "$RUNNER_TEMP/welcome10-local-status.json"
+          export LOCAL_SUPABASE_URL="$(jq -r '.API_URL // .api_url // .env.API_URL // empty' "$RUNNER_TEMP/welcome10-local-status.json")"
+          export LOCAL_SUPABASE_ANON_KEY="$(jq -r '.ANON_KEY // .anon_key // .env.ANON_KEY // empty' "$RUNNER_TEMP/welcome10-local-status.json")"
+          export LOCAL_MAILPIT_URL="http://127.0.0.1:54324"
+          case "$LOCAL_SUPABASE_URL" in
+            http://127.0.0.1:*|http://localhost:*) ;;
+            *) echo "::error::Refusing nonlocal Auth endpoint"; exit 1 ;;
+          esac
+          test -n "$LOCAL_SUPABASE_ANON_KEY"
+          echo "::add-mask::$LOCAL_SUPABASE_ANON_KEY"
+          cd "$GITHUB_WORKSPACE"
+          node tests/integration/welcome10-local-auth-mailpit.mjs
+
+      - name: Stop only this disposable local stack
+        if: always()
+        shell: bash
+        run: |
+          if [[ -d "$RUNNER_TEMP/welcome10-local-only/supabase" ]]; then
+            cd "$RUNNER_TEMP/welcome10-local-only"
+            supabase stop --no-backup || true
+          fi
