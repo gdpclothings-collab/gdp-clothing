@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const cli = process.platform === "win32" ? "stripe.exe" : "stripe";
 const receiverPath = fileURLToPath(new URL("./welcome10-stripe-cli-receiver.mjs", import.meta.url));
@@ -88,6 +90,26 @@ async function readySecret(listener) {
 }
 let listener, receiver;
 const results = {};
+function saveReport(reason = "") {
+  const folder = resolve(process.cwd(), "RESULTS");
+  mkdirSync(folder, { recursive: true });
+  const passed = results["checkout.session.completed"]?.startsWith("PASS") &&
+    results.badSignature === "PASS" && results.liveModeRejected === "PASS" &&
+    results.replay?.startsWith("PASS");
+  const report = {
+    title: "GDP Clothing WELCOME10 — local Stripe CLI sandbox QA",
+    checkedAt: new Date().toISOString(),
+    genuineTransport: passed ? "PASS (transport only)" : "BLOCKED",
+    results,
+    blocker: reason || null,
+    genuinePaymentIntegration: "BLOCKED — no isolated Edge/database transaction",
+    guestOtpActivation: "OFF",
+    productionChanges: 0,
+  };
+  const path = resolve(folder, "WELCOME10-STRIPE-SANDBOX-QA-REPORT.txt");
+  writeFileSync(path, JSON.stringify(report, null, 2) + "\n", { encoding: "utf8" });
+  console.log("Sanitized QA report written: " + path);
+}
 try {
   const version = await runQuiet(cli, ["--version"], 10000);
   if (!version.ok) throw Error("BLOCKED: Stripe CLI unavailable. Install it from Stripe's official site.");
@@ -163,8 +185,12 @@ try {
   results.productionChanges = 0;
   console.log("WELCOME10 SANDBOX QA REPORT: " + JSON.stringify(results, null, 2));
   if (delivered !== eventTypes.length) process.exitCode = 2;
+  saveReport();
 } catch (e) {
-  console.error(e instanceof Error ? e.message : "BLOCKED: Stripe sandbox test aborted");
+  const message = e instanceof Error ? e.message : "BLOCKED: Stripe sandbox test aborted";
+  console.error(message);
+  results.execution = "BLOCKED";
+  saveReport(message);
   process.exitCode = 2;
 } finally {
   if (receiver && receiver.exitCode === null) receiver.kill();
