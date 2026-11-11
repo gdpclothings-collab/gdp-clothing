@@ -70,7 +70,7 @@ export default function StoreNav() {
   };
   const announcementEnabled = landing.announcement?.enabled && landing.announcement?.text; const branding = landing.branding || DEFAULT_LANDING_PAGE.branding;
 
-  return <header ref={headerRef} className="sticky top-0 z-50 border-b border-white/10 bg-[#080909] text-white">
+  return <header ref={headerRef} className="gdp-aurora-nav sticky top-0 z-50 border-b border-white/10 bg-[#080909] text-white">
     {announcementEnabled && <div className="flex min-h-[34px] items-center justify-center bg-white px-4 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-black sm:text-xs"><AnnouncementLink announcement={landing.announcement} /></div>}
     <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-10"><div className="flex h-[70px] items-center justify-between">
       <button type="button" className="flex h-10 w-10 items-center justify-start lg:hidden" onClick={() => setMenuOpen((value) => !value)} aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen}>{menuOpen ? <X size={22} /> : <Menu size={22} />}</button>

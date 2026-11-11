@@ -19,6 +19,7 @@ import "./seasonalStudioDesktopRefinement.css";
 import "./customStudioShell.css";
 import "./seasonalStudioWorkspaceFix.css";
 import "./customStudioMobileRegressionFix.css";
+import "./auroraTheme.css";
 
 export default function Layout() {
   const location = useLocation();
@@ -35,7 +36,7 @@ export default function Layout() {
   }, [studioActive]);
 
   return (
-    <div className={`gdp-storefront min-h-screen flex flex-col bg-background${studioActive ? " gdp-studio-active" : ""}`}>
+    <div className={`gdp-storefront gdp-aurora-theme min-h-screen flex flex-col bg-background${studioActive ? " gdp-studio-active" : ""}`}>
       <StoreNav />
       <main className="flex-1">
         <Outlet />

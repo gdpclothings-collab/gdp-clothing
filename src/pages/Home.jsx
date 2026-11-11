@@ -18,6 +18,13 @@ import { storefrontDiscoveryApi } from "@/lib/storefrontDiscoveryApi";
 import { DEFAULT_LANDING_PAGE } from "@/lib/landingPageDefaults";
 import { useProducts } from "@/lib/useProducts";
 import { isProductOutOfStock } from "@/lib/productVariants";
+import {
+  AURORA_IMAGES,
+  auroraCategoryAsset,
+  auroraOccasionAsset,
+  auroraPromoAsset,
+  replaceDefaultCampaignImage,
+} from "@/lib/auroraTheme";
 
 const TRUST_ICONS = { truck: Truck, shield: ShieldCheck, shirt: Shirt, heart: Heart };
 const COLOR_MAP = {
@@ -53,9 +60,14 @@ function TrustItem({ item }) {
 }
 
 function CategoryCard({ item }) {
+  const original = DEFAULT_LANDING_PAGE.categories.find((candidate) => candidate.url === item.url);
+  const themed = auroraCategoryAsset(item.url);
+  const image = themed && original
+    ? replaceDefaultCampaignImage(item.imageUrl, original.imageUrl, themed)
+    : item.imageUrl;
   return (
-    <SmartLink to={item.url} className="group relative min-h-[150px] overflow-hidden bg-black text-white sm:min-h-[175px] lg:min-h-[190px]">
-      <ManagedImage src={item.imageUrl} fallbackSrc="/images/gdp-sold-categories.webp" alt={item.title || ""} className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.035]" />
+    <SmartLink to={item.url} className="gdp-aurora-category-card group relative min-h-[150px] overflow-hidden bg-black text-white sm:min-h-[175px] lg:min-h-[190px]">
+      <ManagedImage src={image} fallbackSrc="/images/gdp-sold-categories.webp" alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.035]" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10" />
       <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
         <div className="font-display text-4xl uppercase leading-none tracking-wide sm:text-5xl">{item.title}</div>
@@ -98,9 +110,14 @@ function HomeProductCard({ product }) {
 }
 
 function PromoCard({ item }) {
+  const original = DEFAULT_LANDING_PAGE.promos.find((candidate) => candidate.url === item.url);
+  const themed = auroraPromoAsset(item.url);
+  const image = themed && original
+    ? replaceDefaultCampaignImage(item.imageUrl, original.imageUrl, themed)
+    : item.imageUrl;
   return (
-    <section className="relative min-h-[255px] overflow-hidden bg-black text-white lg:min-h-[300px]">
-      <ManagedImage src={item.imageUrl} fallbackSrc="/images/gdp-sold-family.webp" alt={item.title || ""} className="absolute inset-0 h-full w-full object-cover" />
+    <section className="gdp-aurora-promo relative min-h-[255px] overflow-hidden bg-black text-white lg:min-h-[300px]">
+      <ManagedImage src={image} fallbackSrc="/images/gdp-sold-family.webp" alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-black/20" />
       <div className="relative flex min-h-[255px] max-w-sm flex-col justify-end p-6 lg:min-h-[300px] lg:p-7">
         <h3 className="font-display text-5xl uppercase leading-[0.9] tracking-wide lg:text-6xl">{item.title}</h3>
@@ -113,10 +130,10 @@ function PromoCard({ item }) {
 
 function CustomStudioFeature({ config }) {
   return (
-    <section className="border-y border-black/10 bg-[#f1eee6]">
+    <section className="gdp-aurora-home-studio border-y border-black/10 bg-[#f1eee6]">
       <div className="mx-auto grid max-w-[1500px] gap-7 px-5 py-10 sm:px-7 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-10 lg:py-14">
         <div className="relative min-h-[320px] overflow-hidden bg-black sm:min-h-[380px]">
-          <ManagedImage src={config.imageUrl} fallbackSrc="/images/gdp-sold-family.webp" alt="GDP Custom Studio apparel example" className="absolute inset-0 h-full w-full object-cover" />
+          <ManagedImage src={replaceDefaultCampaignImage(config.imageUrl, DEFAULT_LANDING_PAGE.customStudio.imageUrl, AURORA_IMAGES.studioHero)} fallbackSrc="/images/gdp-sold-family.webp" alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
           <div className="absolute bottom-5 left-5 font-mono text-[9px] font-black uppercase tracking-[0.16em] text-white/75">Photo → proof → finished garment</div>
         </div>
@@ -125,7 +142,7 @@ function CustomStudioFeature({ config }) {
           <h2 className="mt-3 font-display text-5xl uppercase leading-[0.88] tracking-wide sm:text-6xl lg:text-7xl">{config.title}</h2>
           <p className="mt-5 max-w-xl text-sm leading-6 text-black/60 sm:text-base">{config.subtitle}</p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <SmartLink to={config.ctaUrl} className="inline-flex min-h-11 items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.12em] text-white hover:bg-[#e11d2e]">{config.ctaLabel} <ArrowRight size={14} /></SmartLink>
+            <SmartLink to={config.ctaUrl} className="gdp-aurora-section-cta inline-flex min-h-11 items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.12em] text-white hover:bg-[#e11d2e]">{config.ctaLabel} <ArrowRight size={14} /></SmartLink>
             <SmartLink to={config.secondaryUrl} className="inline-flex min-h-11 items-center justify-center gap-3 border border-black/20 bg-white px-5 text-[10px] font-black uppercase tracking-[0.12em] text-black hover:border-black">{config.secondaryLabel}</SmartLink>
           </div>
         </div>
@@ -136,14 +153,14 @@ function CustomStudioFeature({ config }) {
 
 function DTFSpotlight({ config }) {
   return (
-    <section className="border-b border-black/10 bg-[#eae7de]">
+    <section className="gdp-aurora-home-dtf border-b border-black/10 bg-[#eae7de]">
       <div className="mx-auto grid max-w-[1500px] gap-7 px-5 py-9 sm:px-7 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:px-10 lg:py-11">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 font-mono text-[9px] font-black uppercase tracking-[0.16em] text-black/45"><Sparkles size={13} /> {config.eyebrow}</div>
           <h2 className="mt-3 font-display text-5xl uppercase leading-[0.9] tracking-wide sm:text-6xl">{config.title}</h2>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-black/55">{config.subtitle}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <SmartLink to={config.primaryUrl} className="inline-flex min-h-11 items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#e11d2e]">{config.primaryLabel} <ArrowRight size={14} /></SmartLink>
+            <SmartLink to={config.primaryUrl} className="gdp-aurora-section-cta inline-flex min-h-11 items-center justify-center gap-3 bg-black px-5 text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#e11d2e]">{config.primaryLabel} <ArrowRight size={14} /></SmartLink>
             <SmartLink to={config.secondaryUrl} className="inline-flex min-h-11 items-center justify-center gap-3 border border-black/20 bg-white px-5 text-[10px] font-black uppercase tracking-[0.12em] text-black transition hover:border-black">{config.secondaryLabel} <Layers3 size={14} /></SmartLink>
           </div>
         </div>
@@ -159,17 +176,21 @@ function DTFSpotlight({ config }) {
 
 function OccasionsSection({ config }) {
   return (
-    <section className="mx-auto max-w-[1500px] px-5 py-11 sm:px-7 lg:px-10 lg:py-14">
+    <section className="gdp-aurora-home-occasions mx-auto max-w-[1500px] px-5 py-11 sm:px-7 lg:px-10 lg:py-14">
       <div className="mb-7 grid gap-4 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
         <div><div className="font-mono text-[9px] font-black uppercase tracking-[0.16em] text-black/40">{config.eyebrow}</div><h2 className="mt-2 font-display text-5xl uppercase leading-[0.9] tracking-wide sm:text-6xl">{config.title}</h2></div>
         <p className="max-w-2xl text-sm leading-6 text-black/55 lg:justify-self-end">{config.subtitle}</p>
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
         {(config.items || []).map((item) => (
-          <SmartLink key={item.title} to={item.url} className="group min-h-[138px] border border-black/10 bg-[#f4f2ec] p-4 transition hover:border-black hover:bg-black hover:text-white">
-            <div className="font-display text-3xl uppercase leading-[0.92] tracking-wide">{item.title}</div>
-            <div className="mt-3 text-[10px] leading-4 opacity-55">{item.subtitle}</div>
-            <ArrowRight size={14} className="mt-5 transition group-hover:translate-x-1" />
+          <SmartLink key={item.title} to={item.url} className="gdp-aurora-occasion-card group relative isolate min-h-[180px] overflow-hidden border border-white/10 bg-[#11171d] p-4 text-white transition sm:min-h-[210px]">
+            {auroraOccasionAsset(item.url) && <img src={auroraOccasionAsset(item.url)} alt="" loading="lazy" decoding="async" className="absolute inset-0 -z-20 h-full w-full object-cover transition duration-700 group-hover:scale-105" />}
+            <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/95 via-black/45 to-black/10" />
+            <div className="absolute inset-0 flex flex-col justify-end p-4">
+              <div className="font-display text-3xl uppercase leading-[0.92] tracking-wide">{item.title}</div>
+              <div className="mt-2 text-[10px] leading-4 text-white/80">{item.subtitle}</div>
+              <ArrowRight size={14} className="mt-3 text-[#ceff27] transition group-hover:translate-x-1" />
+            </div>
           </SmartLink>
         ))}
       </div>
@@ -244,7 +265,7 @@ function FaqSection({ config }) {
 
 function FinalCtaSection({ config }) {
   return (
-    <section className="bg-[#e11d2e] text-white">
+    <section className="gdp-aurora-home-final bg-[#e11d2e] text-white">
       <div className="mx-auto max-w-[1500px] px-5 py-14 text-center sm:px-7 lg:px-10 lg:py-20">
         <div className="font-mono text-[9px] font-black uppercase tracking-[0.16em] text-white/60">{config.eyebrow}</div>
         <h2 className="mx-auto mt-4 max-w-5xl font-display text-6xl uppercase leading-[0.86] tracking-wide sm:text-7xl lg:text-8xl">{config.title}</h2>
@@ -315,7 +336,7 @@ export default function Home() {
 
   const sections = {
     trustBar: <section className="bg-[#090909] text-white"><div className="mx-auto grid max-w-[1500px] grid-cols-2 lg:grid-cols-4">{landing.trustBar.map((item, index) => <TrustItem key={(item.title || "trust") + index} item={item} />)}</div></section>,
-    categories: <section className="mx-auto max-w-[1500px] px-3 py-3 sm:px-5"><div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{landing.categories.map((item, index) => <CategoryCard key={(item.title || "category") + index} item={item} />)}</div></section>,
+    categories: <section className="gdp-aurora-home-categories mx-auto max-w-[1500px] px-3 py-3 sm:px-5"><div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{landing.categories.map((item, index) => <CategoryCard key={(item.title || "category") + index} item={item} />)}</div></section>,
     customStudio: <CustomStudioFeature config={landing.customStudio} />,
     bestSellers: (
       <section className="mx-auto max-w-[1500px] px-4 pb-10 pt-4 sm:px-6 lg:pb-12">
@@ -339,10 +360,10 @@ export default function Home() {
   };
 
   return (
-    <div className="overflow-x-hidden bg-white text-black">
+    <div className="gdp-aurora-home overflow-x-hidden bg-white text-black">
       {landing.hero?.enabled !== false && (
-        <section className="relative min-h-[540px] overflow-hidden bg-black text-white sm:min-h-[610px] lg:min-h-[650px]">
-          <ManagedImage src={landing.hero.imageUrl} fallbackSrc="/images/gdp-hero-approved.webp" alt="GDP Clothing" className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center" />
+        <section className="gdp-aurora-home-hero relative min-h-[540px] overflow-hidden bg-black text-white sm:min-h-[610px] lg:min-h-[650px]">
+          <ManagedImage src={replaceDefaultCampaignImage(landing.hero.imageUrl, DEFAULT_LANDING_PAGE.hero.imageUrl, AURORA_IMAGES.homeHero)} fallbackSrc="/images/gdp-hero-approved.webp" alt="" fetchPriority="high" decoding="async" className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-black/20" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/15" />
           <div className="relative mx-auto flex min-h-[540px] max-w-[1500px] items-center px-5 py-10 sm:min-h-[610px] sm:px-7 lg:min-h-[650px] lg:px-10">
@@ -352,7 +373,7 @@ export default function Home() {
               <div className="mt-7 text-sm font-bold uppercase tracking-[0.18em] text-white/90 sm:text-lg">{landing.hero.headline}</div>
               <div className="mt-1 text-sm font-bold uppercase tracking-[0.18em] text-white/90 sm:text-lg">{landing.hero.subheadline}</div>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <SmartLink to={landing.hero.ctaUrl} className="inline-flex min-h-11 items-center justify-center gap-5 bg-white px-7 text-[10px] font-black uppercase tracking-[0.12em] text-black transition hover:bg-[#e11d2e] hover:text-white sm:min-h-12">{landing.hero.ctaLabel} <ArrowRight size={15} /></SmartLink>
+                <SmartLink to={landing.hero.ctaUrl} className="gdp-aurora-primary-cta inline-flex min-h-11 items-center justify-center gap-5 bg-white px-7 text-[10px] font-black uppercase tracking-[0.12em] text-black transition hover:bg-[#e11d2e] hover:text-white sm:min-h-12">{landing.hero.ctaLabel} <ArrowRight size={15} /></SmartLink>
                 {landing.hero.secondaryCtaLabel && <SmartLink to={landing.hero.secondaryCtaUrl} className="inline-flex min-h-11 items-center justify-center border border-white/30 px-7 text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-white hover:text-black sm:min-h-12">{landing.hero.secondaryCtaLabel}</SmartLink>}
               </div>
               {landing.hero.tertiaryCtaLabel && <SmartLink to={landing.hero.tertiaryCtaUrl} className="mt-4 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-white/65 hover:text-white">{landing.hero.tertiaryCtaLabel} <ArrowRight size={13} /></SmartLink>}

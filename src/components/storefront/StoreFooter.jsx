@@ -104,7 +104,7 @@ export default function StoreFooter() {
   };
 
   return (
-    <footer className="border-t border-white/10 bg-[#080909] text-white">
+    <footer className="gdp-aurora-footer border-t border-white/10 bg-[#080909] text-white">
       <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8 lg:px-10">
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-[1.25fr_.8fr_.9fr_.8fr_1.35fr]">
           <div>

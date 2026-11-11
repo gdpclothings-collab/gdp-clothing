@@ -117,7 +117,7 @@ export default function Shop() {
 
   return (
     <div className="bg-[#f7f6f1] text-black">
-      <section className="border-b border-black/10 bg-black text-white">
+      <section className="gdp-aurora-shop-hero border-b border-black/10 bg-black text-white">
         <div className="gdp-editorial-grid mx-auto max-w-[1500px] px-4 py-11 sm:px-5 sm:py-14 lg:px-8 lg:py-16">
           <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
             <div>

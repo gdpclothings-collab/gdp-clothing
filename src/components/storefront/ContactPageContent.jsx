@@ -151,7 +151,7 @@ export default function ContactPageContent({ page }) {
 
   return (
     <div className="bg-background">
-      <section className="border-b border-border">
+      <section className="gdp-aurora-contact-hero border-b border-border">
         <div className="max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-12 md:py-16">
           <div className="max-w-4xl">
             <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-accent">

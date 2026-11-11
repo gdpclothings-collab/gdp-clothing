@@ -65,8 +65,10 @@ export default function FAQ() {
 
   return (
     <div className="max-w-[900px] mx-auto px-4 py-12">
-      <span className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">Help Center</span>
-      <h1 className="font-display text-5xl md:text-6xl leading-none mt-1 mb-8">FAQ & SUPPORT</h1>
+      <section className="gdp-aurora-faq-hero -mx-4 mb-8 px-5 py-10 sm:px-8 sm:py-14">
+        <span className="font-mono text-xs uppercase tracking-[0.3em] text-white/75">Help Center</span>
+        <h1 className="font-display text-5xl md:text-6xl leading-none mt-3">FAQ & SUPPORT</h1>
+      </section>
 
       <div className="space-y-2 mb-12">
         {FAQS.map((f, i) => (

@@ -917,7 +917,7 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
   );
 
   return <main data-gdp-premium-studio="true" data-gdp-preview-context={[state.productId, state.color, state.size, state.designPath].join('::')} className="gdp-neu-scope min-h-[70vh] bg-slate-50 text-slate-950"><div className="mx-auto max-w-[1800px] px-3 py-4 sm:px-5 lg:px-6">
-    <div data-gdp-premium-hero="true" data-gdp-v2-design-hero={state.step === 'design' ? 'true' : undefined} className="gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3">
+    <div data-gdp-premium-hero="true" data-gdp-v2-design-hero={state.step === 'design' ? 'true' : undefined} className="gdp-aurora-studio-header gdp-neu-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3">
       <div data-gdp-hero-copy="true">
         <div className="flex items-center gap-2"><span className="gdp-premium-eyebrow"><Sparkles size={13} aria-hidden="true" /> GDP Custom Studio</span><span className="gdp-premium-hero-divider" aria-hidden="true" /><span className="gdp-premium-hero-steps">Create · Preview · Approve</span></div>
         <h1>{state.step === 'design' ? <>Made by you. <span className="bg-gradient-to-r from-[#D7A2FF] via-[#B681FF] to-[#7CB4FF] bg-clip-text text-transparent">Worn your way.</span></> : 'Made by you. Worn your way.'}</h1>

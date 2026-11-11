@@ -2,6 +2,8 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { mergeAboutPageBody } from "@/lib/aboutPageDefaults";
+import { AURORA_IMAGES, replaceDefaultCampaignImage } from "@/lib/auroraTheme";
+import { DEFAULT_ABOUT_PAGE_BODY } from "@/lib/aboutPageDefaults";
 
 function StorySection({ eyebrow, title, body, dark = false }) {
   return (
@@ -27,11 +29,11 @@ export default function AboutPageContent({ page }) {
   const content = mergeAboutPageBody(page?.body);
 
   return (
-    <article className="overflow-hidden bg-background">
+    <article className="gdp-aurora-about overflow-hidden bg-background">
       <section className="relative min-h-[42vh] md:min-h-[50vh] flex items-end bg-[#101010] text-white">
         {content.heroImageUrl && (
           <img
-            src={content.heroImageUrl}
+            src={replaceDefaultCampaignImage(content.heroImageUrl, DEFAULT_ABOUT_PAGE_BODY.heroImageUrl, AURORA_IMAGES.aboutHero)}
             alt=""
             className="absolute inset-0 w-full h-full object-cover opacity-50"
           />
