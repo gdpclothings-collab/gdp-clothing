@@ -71,7 +71,7 @@ export default function DiscountsModule() {
 
   const toggleActive = async (discount) => {
     try {
-      await adminDiscountsApi.setActive(discount.id, !discount.active);
+      await adminDiscountsApi.setActive(discount.id, !discount.active, discount.code);
       showNotice(`${discount.code} ${discount.active ? "disabled" : "enabled"}.`);
       await load();
     } catch (err) {
@@ -188,7 +188,9 @@ export default function DiscountsModule() {
                         </button>
                         <button
                           onClick={() => toggleActive(discount)}
-                          className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] text-xs"
+                          disabled={!discount.active && String(discount.code || "").toUpperCase() === "WELCOME10"}
+                          title={!discount.active && String(discount.code || "").toUpperCase() === "WELCOME10" ? "Requires separate final activation approval" : undefined}
+                          className="h-8 px-2.5 rounded-lg border border-[#d5d5d5] text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           {discount.active ? "Disable" : "Enable"}
                         </button>

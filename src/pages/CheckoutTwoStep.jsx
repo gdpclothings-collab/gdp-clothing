@@ -9,6 +9,7 @@ import { paymentApi } from "@/lib/paymentApi";
 import { calculateCartQuantityDiscount } from "@/lib/cartPricing";
 import { scopedStorageKey } from "@/lib/customerStorageScope";
 import { isIframe } from "@/lib/utils";
+import { clearWelcomeGuestProof, sendWelcomeGuestOtp, verifyWelcomeGuestOtp, welcomeGuestTokenFor } from "@/lib/welcomeGuestEmail";
 
 const PROVINCES = ["Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland and Labrador","Northwest Territories","Nova Scotia","Nunavut","Ontario","Prince Edward Island","Quebec","Saskatchewan","Yukon"];
 const POSTAL = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i;
@@ -42,6 +43,10 @@ export default function CheckoutTwoStepMichaels() {
 
   const [form, setForm] = useState(initialForm);
   const [appliedDiscount, setAppliedDiscount] = useState(null);
+  const [welcomeVerification, setWelcomeVerification] = useState("idle");
+  const [welcomeCode, setWelcomeCode] = useState("");
+  const [welcomeBusy, setWelcomeBusy] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState("");
   const [config, setConfig] = useState(null);
   const [taxQuoteError, setTaxQuoteError] = useState("");
   const [error, setError] = useState("");
@@ -80,6 +85,7 @@ export default function CheckoutTwoStepMichaels() {
   const quantityDiscount = pricing.discount;
   const discounted = pricing.afterDiscount;
   const coupon = appliedDiscount ? Math.max(0, Number(appliedDiscount.amount || 0)) : 0;
+  const welcomeRequested = String(form.discountCode || "").trim().toUpperCase() === "WELCOME10";
   const afterCoupon = Math.max(0, discounted - coupon);
   const checkoutPostalCode = normalizePostal(form.postalCode);
   const checkoutShippingItems = items.map((item) => ({ productId:item.productId, amount:Math.max(0, Number(item.price || 0)) * Math.max(1, Number(item.quantity || 1)), quantity:Math.max(1, Number(item.quantity || 1)) }));
@@ -125,6 +131,16 @@ export default function CheckoutTwoStepMichaels() {
 
   const set = (key, value) => {
     setError("");
+    if (key === "email" && String(value).trim().toLowerCase() !== String(form.email).trim().toLowerCase()) {
+      clearWelcomeGuestProof();
+      setWelcomeVerification("idle");
+      setWelcomeCode("");
+      setAppliedDiscount(null);
+    }
+    if (key === "discountCode" && String(value).trim().toUpperCase() !== String(form.discountCode).trim().toUpperCase()) {
+      setAppliedDiscount(null);
+      setWelcomeVerification("idle");
+    }
     setForm((v) => ({ ...v, [key]:value }));
   };
   const detailsComplete = Boolean(form.email && form.firstName && form.lastName && form.address && form.city && normalizePostal(form.postalCode));
@@ -141,13 +157,29 @@ export default function CheckoutTwoStepMichaels() {
     if (!form.discountCode) return;
     setError("");
     try {
-      const d = await customerApi.validateCoupon(form.discountCode, discounted, checkoutDiscountItems, form.email);
+      if (welcomeRequested && quantityDiscount > 0) {
+        return setError("WELCOME10 cannot be combined with quantity or bundle discounts.");
+      }
+      if (welcomeRequested && !user && !welcomeGuestTokenFor(form.email)) {
+        const status = await customerApi.getWelcome10Status();
+        if (!status.enabled) return setError("WELCOME10 is not active yet.");
+        if (!status.guestOtpEnabled) return setError("For now, sign in with your verified GDP Clothing account to use WELCOME10.");
+        setWelcomeVerification("required");
+        return setError("Verify your email below to use this first-order offer.");
+      }
+      const d = await customerApi.validateCoupon(
+        form.discountCode, discounted, checkoutDiscountItems, form.email,
+        welcomeRequested && !user ? welcomeGuestTokenFor(form.email) : null,
+      );
       if (d?.active) {
         setAppliedDiscount(d);
+        setWelcomeMessage("");
         return;
       }
+      setAppliedDiscount(null);
       if (d?.reason === "promotion_not_enabled") return setError("WELCOME10 is not active yet.");
       if (d?.reason === "verified_account_required") return setError("Sign in with a verified GDP Clothing account matching your checkout email to use WELCOME10.");
+      if (d?.reason === "verified_email_required") return setError("Verify the same email used at checkout, or sign in with your verified account.");
       if (d?.reason === "not_first_order") return setError("WELCOME10 is for first-time customers only.");
       if (d?.reason === "eligibility_unavailable") return setError("We could not verify first-order eligibility. Please try again shortly.");
       if (d?.reason === "not_applicable") return setError("This discount code does not apply to the items in your cart.");
@@ -155,6 +187,43 @@ export default function CheckoutTwoStepMichaels() {
       setError("Invalid or expired code.");
     } catch {
       setError("Could not validate code.");
+    }
+  };
+
+  const sendWelcomeCode = async () => {
+    if (welcomeBusy) return;
+    setWelcomeBusy(true);
+    setWelcomeMessage("");
+    setError("");
+    try {
+      // Never send a verification email for an inactive promotion.
+      const status = await customerApi.getWelcome10Status();
+      if (!status.enabled) throw new Error("WELCOME10 is not active yet.");
+      if (!status.guestOtpEnabled) throw new Error("Guest email verification is not available yet.");
+      await sendWelcomeGuestOtp(form.email);
+      setWelcomeVerification("sent");
+      setWelcomeMessage("Check your email for your one-time verification code.");
+    } catch (e) {
+      setError(e?.message || "Could not send a verification email.");
+    } finally {
+      setWelcomeBusy(false);
+    }
+  };
+
+  const verifyWelcomeCode = async () => {
+    if (welcomeBusy) return;
+    setWelcomeBusy(true);
+    setError("");
+    try {
+      const status = await customerApi.getWelcome10Status();
+      if (!status.enabled || !status.guestOtpEnabled) throw new Error("Guest email verification is not available yet.");
+      await verifyWelcomeGuestOtp(form.email, welcomeCode);
+      setWelcomeVerification("verified");
+      setWelcomeMessage("Email verified. Apply WELCOME10 to check eligibility.");
+    } catch (e) {
+      setError(e?.message || "Email verification failed. Request a new code if needed.");
+    } finally {
+      setWelcomeBusy(false);
     }
   };
 
@@ -182,6 +251,8 @@ export default function CheckoutTwoStepMichaels() {
 
   const continueToPayment = () => {
     setError("");
+    if (welcomeRequested && !appliedDiscount) return setError("Apply WELCOME10 and verify first-order eligibility before continuing.");
+    if (welcomeRequested && !user && !welcomeGuestTokenFor(form.email)) return setError("Your email verification expired. Please verify again.");
     if (!detailsComplete) return setError("Please complete the required contact and delivery fields.");
     if (!activeConfig || taxQuoteError) return setError("Wait for the verified tax quote before continuing to payment.");
     const postalCode = normalizePostal(form.postalCode);
@@ -315,6 +386,9 @@ export default function CheckoutTwoStepMichaels() {
     // A synchronous guard prevents rapid repeat clicks before React disables Pay.
     if (payInFlightRef.current) return;
     setError("");
+    if (welcomeRequested && (!appliedDiscount || (!user && !welcomeGuestTokenFor(form.email)))) {
+      return setError("WELCOME10 verification expired or is incomplete. Return to the previous step to reapply it.");
+    }
     if (!activeConfig || taxQuoteError) return setError("Secure checkout is paused while taxes are verified. No charge was attempted.");
     if (!form.termsAccepted) return setError("Accept the Terms & Conditions and acknowledge the Privacy Policy to place your order.");
     if (!paymentClient?.stripe || !paymentClient?.elements || !canConfirm) return setError("Please complete your payment information before placing the order.");
@@ -332,8 +406,12 @@ export default function CheckoutTwoStepMichaels() {
       if (tracking.current && trackedToken.current === token) await tracking.current;
       else await customerApi.trackCheckout(items, checkoutForm, { subtotal, discount:quantityDiscount + coupon, shipping, tax, total }, token);
 
-      const orderData = await customerApi.createOrder(items, checkoutForm, checkoutForm.discountCode, window.location.origin, token);
+      const orderData = await customerApi.createOrder(
+        items, checkoutForm, checkoutForm.discountCode, window.location.origin, token,
+        welcomeRequested && !user ? welcomeGuestTokenFor(form.email) : null,
+      );
       if (orderData?.paid && orderData?.orderNumber) {
+        clearWelcomeGuestProof();
         clearCart();
         const t = orderData.confirmationToken ? `?token=${encodeURIComponent(orderData.confirmationToken)}` : "";
         navigate(`/order/${orderData.orderNumber}${t}`, { replace:true });
@@ -363,6 +441,7 @@ export default function CheckoutTwoStepMichaels() {
       }
 
       if (bridge?.paid) {
+        clearWelcomeGuestProof();
         const t = bridge.confirmationToken ? `?token=${encodeURIComponent(bridge.confirmationToken)}` : "";
         navigate(`/order/${bridge.orderNumber}${t}`, { replace:true });
         return;
@@ -388,6 +467,7 @@ export default function CheckoutTwoStepMichaels() {
       });
       if (result?.error) throw new Error(result.error.message || "Payment could not be completed.");
 
+      clearWelcomeGuestProof();
       navigate(`/order/${orderData.orderNumber}?status=success&token=${encodeURIComponent(orderData.confirmationToken)}`, { replace:true });
     } catch (e) {
       setError(e?.message || "Payment could not be completed. Please try again.");
@@ -453,6 +533,15 @@ export default function CheckoutTwoStepMichaels() {
             </Section>
             <Section n="04" title="Discount Code">
               <div className="flex gap-2"><input value={form.discountCode} onChange={(e)=>set("discountCode",e.target.value)} placeholder="Enter code" className="flex-1 bg-background border border-border px-3 py-2" /><button type="button" onClick={applyCoupon} className="bg-primary text-primary-foreground px-4 font-bold uppercase text-sm">Apply</button></div>
+              {welcomeRequested && !user && ["required", "sent", "verified"].includes(welcomeVerification) && (
+                <div className="mt-3 rounded-xl border border-border bg-card p-4 space-y-3 text-sm">
+                  <p className="font-semibold">Verify {form.email} for WELCOME10</p>
+                  <p className="text-xs text-muted-foreground">A one-time email code proves that you own this address. For new emails, verification creates a passwordless Supabase identity, but you can continue GDP guest checkout without creating a password or signing in to the storefront.</p>
+                  {welcomeVerification !== "verified" && <button type="button" disabled={welcomeBusy} onClick={sendWelcomeCode} className="rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50">{welcomeVerification === "sent" ? "Resend code" : "Send verification code"}</button>}
+                  {welcomeVerification === "sent" && <div className="flex flex-wrap gap-2"><input aria-label="Email verification code" inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={welcomeCode} onChange={(e)=>setWelcomeCode(e.target.value.replace(/\D/g, ""))} placeholder="Email code" className="min-w-0 flex-1 rounded border border-border bg-background px-3 py-2" /><button type="button" disabled={welcomeBusy || welcomeCode.length < 6} onClick={verifyWelcomeCode} className="rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50">Verify email</button></div>}
+                  {welcomeMessage && <p role="status" className="text-xs text-emerald-700">{welcomeMessage}</p>}
+                </div>
+              )}
               {appliedDiscount && <p className="mt-2 text-sm text-accent flex gap-1"><Check size={14} /> Code applied</p>}
             </Section>
             <Section n="05" title="Order Notes"><textarea value={form.notes} onChange={(e)=>set("notes",e.target.value)} rows={3} placeholder="Anything we should know?" className="w-full bg-background border border-border px-3 py-2" /></Section>

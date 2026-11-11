@@ -543,13 +543,14 @@ export const customerApi = {
     const { data, error } = await supabase.functions.invoke("checkout", {
       body: { action: "welcomePromotionStatus" },
     });
-    if (error) return { enabled: false };
-    return { enabled: data?.enabled === true };
+    if (error) return { enabled: false, guestOtpEnabled: false };
+    return { enabled: data?.enabled === true, guestOtpEnabled: data?.guestOtpEnabled === true };
   },
 
-  async validateCoupon(code, purchase = 0, items = [], email = "") {
+  async validateCoupon(code, purchase = 0, items = [], email = "", welcomeGuestToken = null) {
     const { data, error } = await supabase.functions.invoke("checkout", {
       body: { action: "validateCoupon", code, purchase, items, email },
+      ...(welcomeGuestToken ? { headers: { "x-gdp-welcome-guest-authorization": welcomeGuestToken } } : {}),
     });
     if (error) throw error;
     return data;
@@ -598,7 +599,7 @@ export const customerApi = {
     return data;
   },
 
-  async createOrder(cart, customer, discountCode, origin, checkoutSessionToken) {
+  async createOrder(cart, customer, discountCode, origin, checkoutSessionToken, welcomeGuestToken = null) {
     const { data, error } = await supabase.functions.invoke("checkout-gateway", {
       body: {
         action: "createOrder",
@@ -608,6 +609,7 @@ export const customerApi = {
         origin,
         checkoutSessionToken,
       },
+      ...(welcomeGuestToken ? { headers: { "x-gdp-welcome-guest-authorization": welcomeGuestToken } } : {}),
     });
 
     if (error) {

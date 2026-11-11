@@ -31,6 +31,9 @@ test("gateway claims still bind tracked email and account identity", () => {
   assert.match(claimMigration, /CHECKOUT_GATEWAY_REQUIRED/);
 });
 
-test("verified-account coupon restriction remains intact", () => {
-  assert.match(checkout, /welcomeRequested && !verifiedWelcomeAccount\(user, customer\.email\)/);
+test("WELCOME10 requires verified account or server-verified guest identity", () => {
+  assert.match(checkout, /welcomeVerifiedIdentity\(req, supabaseUrl, anonKey, customer\.email, user\)/);
+  assert.match(checkout, /welcomeRequested && !welcomeIdentity/);
+  assert.match(checkout, /p_verified_email:\s*welcomeIdentity\.email/);
+  assert.match(gateway, /forwardHeaders\["x-gdp-welcome-guest-authorization"\] = guestProof/);
 });
