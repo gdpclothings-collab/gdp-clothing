@@ -44,3 +44,17 @@ Status: **75/75 synthetic WELCOME10 unit tests PASS; real LOCAL Auth + Mailpit P
 - PASS: actual 60-second OTP expiry after 65 seconds; code rejected.
 - PASS: local Docker stack stopped with --no-backup; all GitHub checks on commit 5e9da05 PASS.
 - Test was confined to loopback, Mailpit and disposable email addresses under example.test. No secrets or codes retained in report.
+
+
+## Stripe CLI sandbox signed-webhook QA — 2026-11-11
+
+**Genuine Stripe-origin transport: BLOCKED. Do not count as a pass.**
+
+- Confirmed the connected GDP Clothing Stripe account is in TEST mode (read-only); querying test-mode classic webhook endpoints returned **zero** configured endpoints. A Stripe CLI local listener does not require a Dashboard endpoint, but it must be separately authenticated to that account.
+- This execution environment has Node.js but **does not have an authenticated Stripe CLI session**. The connected Stripe API tool cannot transfer a CLI OAuth credential or per-listener signing secret. Therefore **no** genuine Stripe-origin event was forwarded to the test receiver, and no Stripe API writes/triggered test payments occurred during this phase.
+- Added the actual localhost CLI receiver scripts/qa/welcome10-stripe-cli-receiver.mjs, with raw-body HMAC validation from checked-out production webhook source, strict sandbox-mode rejection, exact event-ID replay counting, and test-only event-type counters. It has **no database access or fulfillment side effects**.
+- Added scripts/qa/welcome10-stripe-cli-run.mjs: dry run by default, explicit --run to initiate authenticated Stripe CLI test-mode fixtures, read-only account identity preflight, signing secret held only in child-process memory, sanitized RESULTS report, safe cleanup.
+- Added a Windows double-click launcher DOUBLE-CLICK-WELCOME10-STRIPE-QA.cmd and the instructions in docs/welcome10-stripe-cli-sandbox-runbook.md.
+- Offline tests exercise the exact receiver with synthetic HMAC headers and fake refund/failure events, and validate the CLI runner's dry-run/live-key rejection. **These tests are not Stripe-origin signed delivery.**
+- Once an operator logs in using Stripe CLI on an approved local computer and runs the launcher, test-mode fixture events may be received and counted. Report separately: signed valid/invalid delivery, checkout, payment-failure, refund event transport, and identical signed replay. Real Edge/database refund/reconciliation **remain BLOCKED** even when transport succeeds.
+- No production Stripe keys, Auth codes, webhook secrets, customer data, payment modes, live discount flags, Edge Function deployment or merging were changed.
