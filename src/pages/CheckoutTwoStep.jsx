@@ -141,11 +141,15 @@ export default function CheckoutTwoStepMichaels() {
     if (!form.discountCode) return;
     setError("");
     try {
-      const d = await customerApi.validateCoupon(form.discountCode, discounted, checkoutDiscountItems);
+      const d = await customerApi.validateCoupon(form.discountCode, discounted, checkoutDiscountItems, form.email);
       if (d?.active) {
         setAppliedDiscount(d);
         return;
       }
+      if (d?.reason === "promotion_not_enabled") return setError("WELCOME10 is not active yet.");
+      if (d?.reason === "verified_account_required") return setError("Sign in with a verified GDP Clothing account matching your checkout email to use WELCOME10.");
+      if (d?.reason === "not_first_order") return setError("WELCOME10 is for first-time customers only.");
+      if (d?.reason === "eligibility_unavailable") return setError("We could not verify first-order eligibility. Please try again shortly.");
       if (d?.reason === "not_applicable") return setError("This discount code does not apply to the items in your cart.");
       if (d?.reason === "minimum_purchase") return setError(`This code requires at least $${Number(d.minPurchase || 0).toFixed(2)} in eligible products.`);
       setError("Invalid or expired code.");
