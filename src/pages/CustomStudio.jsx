@@ -19,6 +19,7 @@ import {
 } from "@/components/storefront/CustomStudioAdvancedEditor";
 import CustomStudioProtectedArtworkControls from "@/components/storefront/CustomStudioProtectedArtworkControls";
 import { customerApi } from "@/lib/customerApi";
+import { EXTERNAL_BACKGROUND_REMOVAL_ENABLED, BACKGROUND_REMOVAL_PAUSED_MESSAGE } from "@/lib/backgroundRemovalCostPolicy";
 import { renderSeasonalProductionPng } from "@/lib/seasonalProductionRender";
 import { useCart } from "@/lib/CartContext";
 import { useNotifications } from "@/lib/NotificationContext";
@@ -1748,7 +1749,7 @@ export default function CustomStudio() {
           let cleanedPrepared = null;
           let removalMessage = "";
 
-          if ((designPath === "bootleg" || designPath === "memorial") && editorTools.autoBackgroundRemoval !== false) {
+          if (EXTERNAL_BACKGROUND_REMOVAL_ENABLED && (designPath === "bootleg" || designPath === "memorial") && editorTools.autoBackgroundRemoval !== false) {
             try {
               updateUploadTask(index, { stage: "removing_background", progress: 48, message: "Removing background…" });
               const processed = await customerApi.removePhotoBackground(prepared.file);
@@ -1792,7 +1793,7 @@ export default function CustomStudio() {
             cleanedWidth: cleanedPrepared?.width || 0,
             cleanedHeight: cleanedPrepared?.height || 0,
             backgroundRemoved: Boolean(cleanedUpload),
-            autoBackgroundRemoval: (designPath === "bootleg" || designPath === "memorial") && editorTools.autoBackgroundRemoval !== false,
+            autoBackgroundRemoval: EXTERNAL_BACKGROUND_REMOVAL_ENABLED && (designPath === "bootleg" || designPath === "memorial") && editorTools.autoBackgroundRemoval !== false,
             processingStatus: cleanedUpload ? "removed" : (removalMessage ? "failed" : "original"),
             processingMessage: removalMessage,
             sourceFile: prepared.file,
@@ -2713,7 +2714,7 @@ export default function CustomStudio() {
           }} />}
 
           {step === 3 && <div data-editor-legacy="photo-upload" className="hidden">
-            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : designPath === "memorial" ? "UPLOAD THE MEMORIAL PORTRAIT" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : "Upload " + minPhotos + "–" + maxPhotos + " photos. Protected photo templates automatically remove supported photo backgrounds while preserving the original so it can be restored."} />
+            <StepTitle eyebrow={designPath === "upload" ? "Your artwork" : designPath === "memorial" ? "Portrait photos" : "Your memories"} title={designPath === "upload" ? "UPLOAD YOUR PRINT-READY ARTWORK" : designPath === "memorial" ? "UPLOAD THE MEMORIAL PORTRAIT" : "UPLOAD YOUR BEST PHOTOS"} text={designPath === "upload" ? "Upload your finished PNG, JPG or WEBP file and use the live preview controls to position it." : EXTERNAL_BACKGROUND_REMOVAL_ENABLED ? "Upload " + minPhotos + "–" + maxPhotos + " photos. Protected photo templates automatically remove supported photo backgrounds while preserving the original so it can be restored." : "Upload " + minPhotos + "–" + maxPhotos + " photos. " + BACKGROUND_REMOVAL_PAUSED_MESSAGE} />
             <label className={"border-2 border-dashed border-border min-h-44 flex flex-col items-center justify-center hover:border-accent " + (uploading ? "cursor-wait opacity-80" : "cursor-pointer")}>
               <Upload size={28}/>
               <div className="font-bold mt-2">{uploading ? "Optimizing & uploading…" : designPath === "upload" ? "Upload artwork" : "Upload photos"}</div>
@@ -3672,7 +3673,7 @@ function PhotoCard({ photo, onPrimary, onRemove, onToggleBackground, onRetry }) 
       {photo.cleanedUrl && <button type="button" onClick={onToggleBackground} className="mt-2 text-[9px] font-bold uppercase text-[#17324D] hover:text-accent">{photo.backgroundRemoved ? "Restore original background" : "Use removed background"}</button>}
       {photo.processingStatus === "processing" && <div className="mt-2 text-[9px] font-bold uppercase text-[#17324D]">Removing background…</div>}
       {photo.processingStatus === "removed" && <div className="mt-2 text-[9px] font-bold uppercase text-green-700">Background removed ✓</div>}
-      {photo.processingStatus === "failed" && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[9px] leading-relaxed text-amber-900"><div>{photo.processingMessage || "Background removal failed. The rectangular original was not placed on the garment."}</div><button type="button" onClick={onRetry} className="mt-1 font-bold uppercase underline">Retry removal</button><span className="mx-1">·</span><span>Use Refine manually to erase/restore.</span></div>}
+      {photo.processingStatus === "failed" && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[9px] leading-relaxed text-amber-900"><div>{photo.processingMessage || "Background removal failed. The rectangular original was not placed on the garment."}</div>{EXTERNAL_BACKGROUND_REMOVAL_ENABLED && <button type="button" onClick={onRetry} className="mt-1 font-bold uppercase underline">Retry removal</button>}<span className="mx-1">Use Refine manually to erase/restore.</span></div>}
       <div className={"mt-1.5 text-[9px] uppercase font-mono " + qClass}>{qLabel}</div>
       <div className="text-[9px] text-[#8a847c]">{photo.width}×{photo.height}</div>
     </div>
