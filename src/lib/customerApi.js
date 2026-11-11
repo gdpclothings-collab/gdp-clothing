@@ -543,8 +543,8 @@ export const customerApi = {
     const { data, error } = await supabase.functions.invoke("checkout", {
       body: { action: "welcomePromotionStatus" },
     });
-    if (error) return { enabled: false };
-    return { enabled: data?.enabled === true };
+    if (error) return { enabled: false, guestOtpEnabled: false };
+    return { enabled: data?.enabled === true, guestOtpEnabled: data?.guestOtpEnabled === true };
   },
 
   async validateCoupon(code, purchase = 0, items = [], email = "", welcomeGuestToken = null) {

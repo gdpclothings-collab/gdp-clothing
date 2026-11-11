@@ -22,3 +22,12 @@
 ## Known policy limit
 
 Verification proves ownership of one mailbox, not a unique natural person. A buyer using a separate email alias could evade email-based first-order limits. Rate limiting and fraud review remain necessary; do not advertise a guarantee of one redemption per human.
+
+
+## 2026-11-11 safe merge clarification — existing live discount vs guest OTP
+- Read-only production observation: \`public.discounts\` has WELCOME10 \`active=true\`, percentage 10. **Do not modify** this existing promotion under guest feature work.
+- The proposed guest OTP path is now **independently default-OFF**, behind an exact server-side \`GDP_WELCOME10_GUEST_OTP_ENABLED=true\` switch plus a reported API status field. Without the server flag, new guests are directed to sign in rather than generating an Auth email; existing verified account buyers remain eligible under their original conditions.
+- This makes a code-only merge *potentially safe* while keeping the guest release off. It is **not** proof of live Stripe-signed webhook delivery or real end-to-end OTP, and it does **not** authorize toggling the server switch, modifying discounts, or updating production payment configuration.
+- Complete isolated OTP and signed Stripe test-mode integration plus separate activation authorization before enabling the guest flag.
+
+- Welcome popup copy now depends on the server-provided guest flag so account-only customers are not misled. Admin editing preserves an already-active WELCOME10 record while refusing a new activation of an inactive promotion.
