@@ -6,13 +6,15 @@ const KEY = "gdp-welcome10-dismissed-at";
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 export default function Welcome10Popup() {
   const [open, setOpen] = useState(false);
+  const [guestOtpEnabled, setGuestOtpEnabled] = useState(false);
   useEffect(() => {
     if (window.location.pathname !== "/") return;
     let cancelled = false;
     let timer;
     // Runtime API check ensures a dormant campaign never displays an unusable code.
-    customerApi.getWelcome10Status().then(({ enabled }) => {
+    customerApi.getWelcome10Status().then(({ enabled, guestOtpEnabled: guestAvailable }) => {
       if (cancelled || !enabled) return;
+      setGuestOtpEnabled(guestAvailable === true);
       try {
         const last = Number(window.localStorage.getItem(KEY) || 0);
         if (last && Date.now() - last < WEEK) return;
@@ -41,7 +43,7 @@ export default function Welcome10Popup() {
         <p className="text-xs font-bold uppercase tracking-[.25em]">Good People. Dope Clothes.</p>
         <h2 id="welcome10-title" className="mt-5 text-3xl font-black uppercase">Welcome to GDP Clothing</h2>
         <p className="mt-3 text-4xl font-black">10% OFF</p>
-        <p className="mt-2">Your first eligible order. Maximum discount C$15. Cannot be combined with other offers. Sign in or verify your email as a guest at checkout.</p>
+        <p className="mt-2">Your first eligible order. Maximum discount C$15. Cannot be combined with other offers. {guestOtpEnabled ? "Sign in or verify your email as a guest at checkout." : "Sign in with your verified GDP Clothing account to use this offer."}</p>
         <div className="mt-5 rounded-lg border-2 border-dashed border-neutral-400 p-3 font-bold tracking-widest">WELCOME10</div>
         <button type="button" className="mt-3 text-sm underline" onClick={() => navigator.clipboard?.writeText("WELCOME10")}>Copy code</button>
         <Link to="/shop" onClick={dismiss} className="mt-5 block rounded-lg bg-black px-5 py-3 font-bold text-white">Shop now</Link>

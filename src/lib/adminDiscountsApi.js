@@ -58,7 +58,15 @@ export const adminDiscountsApi = {
 
   async save(id, data) {
     if (String(data?.code || "").trim().toUpperCase() === "WELCOME10" && data.active === true) {
-      throw new Error("WELCOME10 requires final release approval before activation.");
+      // Existing live WELCOME10 is currently active. Editing it without changing
+      // the active flag must not be mistaken for a new activation.
+      if (!id) throw new Error("WELCOME10 requires final release approval before activation.");
+      const { data: existing, error } = await supabase
+        .from("discounts").select("code, active").eq("id", id).maybeSingle();
+      if (error) throw error;
+      if (String(existing?.code || "").trim().toUpperCase() !== "WELCOME10" || existing.active !== true) {
+        throw new Error("WELCOME10 requires final release approval before activation.");
+      }
     }
     await adminApi.saveDiscount(id || null, data);
   },

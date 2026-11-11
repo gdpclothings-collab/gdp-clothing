@@ -29,3 +29,5 @@ Verification proves ownership of one mailbox, not a unique natural person. A buy
 - The proposed guest OTP path is now **independently default-OFF**, behind an exact server-side \`GDP_WELCOME10_GUEST_OTP_ENABLED=true\` switch plus a reported API status field. Without the server flag, new guests are directed to sign in rather than generating an Auth email; existing verified account buyers remain eligible under their original conditions.
 - This makes a code-only merge *potentially safe* while keeping the guest release off. It is **not** proof of live Stripe-signed webhook delivery or real end-to-end OTP, and it does **not** authorize toggling the server switch, modifying discounts, or updating production payment configuration.
 - Complete isolated OTP and signed Stripe test-mode integration plus separate activation authorization before enabling the guest flag.
+
+- Welcome popup copy now depends on the server-provided guest flag so account-only customers are not misled. Admin editing preserves an already-active WELCOME10 record while refusing a new activation of an inactive promotion.
