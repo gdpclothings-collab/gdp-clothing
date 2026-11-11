@@ -183,6 +183,9 @@ jobs:
         run: npx playwright install chromium
         timeout-minutes: 5
 
+      - name: WELCOME10 guest-OTP default-off desktop/mobile checkout QA (synthetic localhost)
+        run: node scripts/verify-welcome10-guest-browser-qa.mjs
+
       - name: Compare premium text preview with 300-DPI render
         run: node scripts/verify-premium-text-browser.mjs
 
