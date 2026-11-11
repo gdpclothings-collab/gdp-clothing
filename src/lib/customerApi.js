@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct } from "@/lib/supabaseMappers";
 import { createInitialStudioV2State } from "@/lib/customStudioV2State";
-import { guestUploadProofsForDesign, rememberGuestUploadProof } from "@/lib/guestUploadProofs";
+import { guestUploadProofsForDesign, registerProcessedGuestArtworkProof, rememberGuestUploadProof } from "@/lib/guestUploadProofs";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const backgroundRemovalFailures = new WeakMap();
@@ -336,6 +336,11 @@ export const customerApi = {
         response.message || "Automatic background removal failed. Please retry.",
         response.retryable !== false
       );
+    }
+
+    if (!registerProcessedGuestArtworkProof(response)) {
+      throw createBackgroundRemovalFailure(file,
+        "The transparent photo could not be verified. Your original upload is still available.", true);
     }
 
     backgroundRemovalFailures.delete(file);

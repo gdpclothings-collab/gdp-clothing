@@ -38,6 +38,18 @@ export function guestUploadProofForPath(path, purpose) {
   return entry.proof;
 }
 
+export function registerProcessedGuestArtworkProof(response) {
+  const path = String(response?.cleanedPath || '');
+  if (!path) return false;
+  if (!path.startsWith('guest/')) return true; // Account uploads use user-owned paths.
+  return rememberGuestUploadProof(path, response?.cleanedUploadProof, 'source');
+}
+
+export function missingGuestSourceProofPath(paths) {
+  return (paths || []).find((path) => String(path || '').startsWith('guest/')
+    && !guestUploadProofForPath(path, 'source')) || '';
+}
+
 export function guestUploadProofsForDesign(payload) {
   const paths = [
     ...(payload.photo_assets || []).map((asset) => asset.path),
