@@ -1,0 +1,257 @@
+/*
+ * GDP Aurora Streetwear — visual layer only.
+ * Keep page-specific selectors narrowly scoped so the editor, cart, checkout,
+ * admin pages, and actual product photographs are unaffected.
+ */
+.gdp-aurora-theme {
+  --gdp-aurora-night: #0a0d12;
+  --gdp-aurora-surface: #141a21;
+  --gdp-aurora-lime: #ceff27;
+  --gdp-aurora-pink: #f53d94;
+  --gdp-aurora-emerald: #3af2a8;
+  --gdp-aurora-violet: #8549c8;
+}
+
+.gdp-aurora-theme .gdp-aurora-nav {
+  background: #090d12;
+  box-shadow: inset 0 -1px 0 rgb(58 242 168 / 0.26);
+}
+
+.gdp-storefront.gdp-aurora-theme header.gdp-aurora-nav nav[aria-label="Primary navigation"] > a[data-active="true"] {
+  color: var(--gdp-aurora-lime);
+  border-color: rgb(206 255 39 / 0.78);
+  box-shadow: 0 0 12px rgb(206 255 39 / 0.28), inset 0 0 8px rgb(206 255 39 / 0.09);
+}
+
+.gdp-aurora-theme .gdp-aurora-nav a:focus-visible,
+.gdp-aurora-theme .gdp-aurora-nav button:focus-visible,
+.gdp-aurora-theme .gdp-aurora-footer a:focus-visible,
+.gdp-aurora-theme .gdp-aurora-footer button:focus-visible {
+  outline: 2px solid var(--gdp-aurora-lime);
+  outline-offset: 3px;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-hero {
+  border-bottom: 2px solid rgb(206 255 39 / 0.68);
+}
+
+.gdp-aurora-theme .gdp-aurora-home-hero::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: auto 0 0;
+  height: 110px;
+  background: linear-gradient(0deg, rgb(10 13 18 / 0.6), transparent);
+}
+
+.gdp-aurora-theme .gdp-aurora-primary-cta,
+.gdp-aurora-theme .gdp-aurora-home-studio a.gdp-aurora-section-cta,
+.gdp-aurora-theme .gdp-aurora-home-dtf a.gdp-aurora-section-cta {
+  background: var(--gdp-aurora-lime);
+  color: #080b0e;
+  border-color: var(--gdp-aurora-lime);
+  box-shadow: 0 8px 32px rgb(206 255 39 / 0.15);
+}
+
+.gdp-aurora-theme .gdp-aurora-primary-cta:hover,
+.gdp-aurora-theme .gdp-aurora-home-studio a.gdp-aurora-section-cta:hover,
+.gdp-aurora-theme .gdp-aurora-home-dtf a.gdp-aurora-section-cta:hover {
+  background: #e0ff78;
+  color: #080b0e;
+}
+
+.gdp-aurora-theme .gdp-aurora-category-card,
+.gdp-aurora-theme .gdp-aurora-promo,
+.gdp-aurora-theme .gdp-aurora-occasion-card {
+  isolation: isolate;
+  border: 1px solid rgb(58 242 168 / 0.14);
+}
+
+.gdp-aurora-theme .gdp-aurora-category-card:hover,
+.gdp-aurora-theme .gdp-aurora-occasion-card:hover {
+  border-color: var(--gdp-aurora-lime);
+  box-shadow: 0 0 0 1px var(--gdp-aurora-lime), 0 10px 34px rgb(10 13 18 / 0.18);
+}
+
+.gdp-aurora-theme .gdp-aurora-category-card:nth-child(2):hover {
+  border-color: var(--gdp-aurora-pink);
+  box-shadow: 0 0 0 1px var(--gdp-aurora-pink), 0 10px 34px rgb(245 61 148 / 0.18);
+}
+
+.gdp-aurora-theme .gdp-aurora-home-categories {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-studio {
+  background: #131921;
+  color: #f7f9fc;
+  border-color: #29323c;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-studio :is(p, [class*="text-black/"]) {
+  color: rgb(245 249 251 / 0.78);
+}
+
+.gdp-aurora-theme .gdp-aurora-home-studio a:not(.gdp-aurora-section-cta) {
+  border-color: rgb(255 255 255 / 0.34);
+}
+
+.gdp-aurora-theme .gdp-aurora-home-dtf {
+  background-image:
+    linear-gradient(90deg, rgb(13 20 25 / 0.95) 0%, rgb(13 20 25 / 0.89) 55%, rgb(13 20 25 / 0.78) 100%),
+    url("/images/aurora/dtf_hero.webp");
+  background-size: cover;
+  background-position: center, center right;
+  color: #f7f9fc;
+  border-color: rgb(58 242 168 / 0.24);
+}
+
+.gdp-aurora-theme .gdp-aurora-home-dtf [class*="text-black/"] {
+  color: rgb(247 249 252 / 0.78);
+}
+
+.gdp-aurora-theme .gdp-aurora-home-occasions {
+  max-width: none;
+  background: #0d1219;
+  color: #f7f9fc;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-occasions > div {
+  max-width: 1500px;
+  margin-inline: auto;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-occasions [class*="text-black/"] {
+  color: rgb(247 249 252 / 0.72);
+}
+
+.gdp-aurora-theme .gdp-aurora-shop-hero {
+  position: relative;
+  background-image: linear-gradient(90deg, #090d12 0%, rgb(9 13 18 / 0.91) 40%, rgb(9 13 18 / 0.22) 100%), url("/images/aurora/shop_hero.webp");
+  background-size: cover;
+  background-position: center, center right;
+}
+
+.gdp-aurora-theme .gdp-aurora-shop-hero [class*="border-[#e11d2e]"] {
+  border-color: var(--gdp-aurora-lime);
+}
+
+.gdp-aurora-theme .gdp-aurora-dtf-hero {
+  position: relative;
+  background-image: linear-gradient(90deg, rgb(9 13 18 / 0.95) 0%, rgb(9 13 18 / 0.85) 65%, rgb(9 13 18 / 0.52)), url("/images/aurora/dtf_hero.webp");
+  background-size: cover;
+  background-position: center right;
+}
+
+.gdp-aurora-theme .gdp-aurora-dtf-hero a.gdp-aurora-section-cta {
+  background: var(--gdp-aurora-lime);
+  color: #090d12;
+}
+
+.gdp-aurora-theme .gdp-aurora-dtf-hero a.gdp-aurora-section-cta:hover {
+  background: #e0ff78;
+  color: #090d12;
+}
+
+.gdp-aurora-theme .gdp-aurora-about section.bg-accent {
+  background: var(--gdp-aurora-lime);
+  color: #090d12;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-final {
+  background-color: #0a0d12;
+  background-image: linear-gradient(115deg, rgb(10 13 18 / 0.95), rgb(10 13 18 / 0.72)), url("/images/aurora/footer_ambient.webp");
+  background-size: cover;
+  background-position: center;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-final a:first-child {
+  background: var(--gdp-aurora-lime);
+  color: #090d12;
+}
+
+.gdp-aurora-theme .gdp-aurora-home-final .font-mono {
+  color: var(--gdp-aurora-pink);
+}
+
+.gdp-aurora-theme .gdp-aurora-contact-hero {
+  background-image: linear-gradient(90deg, rgb(9 13 18 / 0.97), rgb(9 13 18 / 0.86) 61%, rgb(9 13 18 / 0.3)), url("/images/aurora/contact_hero.webp");
+  background-size: cover;
+  background-position: center right;
+  color: #f7f9fc;
+}
+
+.gdp-aurora-theme .gdp-aurora-contact-hero .text-muted-foreground {
+  color: rgb(247 249 252 / 0.8);
+}
+
+.gdp-aurora-theme .gdp-aurora-contact-hero .rounded-xl.border {
+  background: rgb(16 24 31 / 0.9);
+  border-color: rgb(58 242 168 / 0.22);
+  color: #f7f9fc;
+}
+
+.gdp-aurora-theme .gdp-aurora-contact-hero .rounded-xl.border .bg-muted {
+  background: rgb(58 242 168 / 0.13);
+}
+
+.gdp-aurora-theme .gdp-aurora-faq-hero {
+  position: relative;
+  isolation: isolate;
+  background-image: linear-gradient(90deg, rgb(9 13 18 / 0.86), rgb(9 13 18 / 0.32)), url("/images/aurora/faq_hero.webp");
+  background-size: cover;
+  background-position: center;
+  color: #f7f9fc;
+  border-bottom: 2px solid var(--gdp-aurora-violet);
+}
+
+.gdp-aurora-theme .gdp-aurora-shipping-image {
+  border-bottom: 2px solid var(--gdp-aurora-lime);
+}
+
+.gdp-aurora-theme [data-gdp-premium-hero="true"].gdp-aurora-studio-header {
+  background-color: #0a0d12;
+  background-image: linear-gradient(90deg, rgb(9 13 18 / 0.96) 0%, rgb(9 13 18 / 0.84) 53%, rgb(9 13 18 / 0.47)), url("/images/aurora/studio_hero.webp");
+  background-size: cover;
+  background-position: center right;
+  color: #f7f9fc;
+  border-color: rgb(58 242 168 / 0.3);
+}
+
+.gdp-aurora-theme .gdp-aurora-footer {
+  background-color: #080c12;
+  background-image: linear-gradient(90deg, rgb(8 12 18 / 0.98), rgb(8 12 18 / 0.87)), url("/images/aurora/footer_ambient.webp");
+  background-position: center bottom;
+  background-size: cover;
+  border-top: 1px solid rgb(58 242 168 / 0.2);
+}
+
+.gdp-aurora-theme .gdp-aurora-footer button[type="submit"] {
+  background: var(--gdp-aurora-lime);
+  color: #090d12;
+}
+
+@media (max-width: 767px) {
+  .gdp-aurora-theme .gdp-aurora-home-hero img:first-child {
+    object-position: 70% center;
+  }
+  .gdp-aurora-theme .gdp-aurora-shop-hero {
+    background-image: linear-gradient(90deg, rgb(9 13 18 / 0.94), rgb(9 13 18 / 0.67)), url("/images/aurora/shop_hero.webp");
+    background-position: 68% center;
+  }
+  .gdp-aurora-theme .gdp-aurora-dtf-hero {
+    background-image: linear-gradient(90deg, rgb(9 13 18 / 0.94), rgb(9 13 18 / 0.78)), url("/images/aurora/dtf_hero.webp");
+  }
+  .gdp-aurora-theme [data-gdp-premium-hero="true"].gdp-aurora-studio-header {
+    background-image: linear-gradient(90deg, rgb(9 13 18 / 0.97), rgb(9 13 18 / 0.78)), url("/images/aurora/studio_hero.webp");
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gdp-aurora-theme .gdp-aurora-category-card img,
+  .gdp-aurora-theme .gdp-aurora-occasion-card img {
+    transition: none;
+    transform: none;
+  }
+}

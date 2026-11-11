@@ -5,6 +5,7 @@ import { storefrontContentApi } from "@/lib/storefrontContentApi";
 import AboutPageContent from "@/components/storefront/AboutPageContent";
 import ContactPageContent from "@/components/storefront/ContactPageContent";
 import PolicyPageContent from "@/components/storefront/PolicyPageContent";
+import { AURORA_IMAGES } from "@/lib/auroraTheme";
 
 export default function ContentPage() {
   const { slug } = useParams();
@@ -108,7 +109,16 @@ export default function ContentPage() {
   }
 
   if (page.body?.template === "policy") {
-    return <PolicyPageContent page={page} />;
+    return (
+      <>
+        {slug === "shipping-delivery" && (
+          <div className="gdp-aurora-shipping-image h-44 overflow-hidden bg-[#090d12] sm:h-64" aria-hidden="true">
+            <img src={AURORA_IMAGES.shippingSupport} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-center" />
+          </div>
+        )}
+        <PolicyPageContent page={page} />
+      </>
+    );
   }
 
   const content = String(page.body?.content || "");

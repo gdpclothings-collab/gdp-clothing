@@ -16,6 +16,21 @@ const CASES = [
   { name: "home-mobile", route: "/", viewport: { width: 390, height: 844 }, required: /GDP|GOOD PEOPLE|DOPE CLOTHES/i },
   { name: "shop-desktop", route: "/shop", viewport: { width: 1440, height: 900 }, required: /SHOP|PRODUCTS|COLLECTION/i },
   { name: "dtf-builder-desktop", route: "/dtf-gang-sheet?mode=build", viewport: { width: 1440, height: 900 }, required: /CUSTOM DTF GANG SHEET/i },
+  // Theme-focused mobile/tablet checks stay inside the existing read-only
+  // localhost render guard. They never submit checkout or mutate live data.
+  { name: "aurora-home-tablet", route: "/", viewport: { width: 768, height: 1024 }, required: /MORE THAN CLOTHING/i, auroraSelector: ".gdp-aurora-home-hero", capture: true },
+  { name: "aurora-shop-mobile", route: "/shop", viewport: { width: 390, height: 844 }, required: /SHOP ALL/i, auroraSelector: ".gdp-aurora-shop-hero", capture: true },
+  { name: "aurora-shop-tablet", route: "/shop", viewport: { width: 768, height: 1024 }, required: /SHOP ALL/i, auroraSelector: ".gdp-aurora-shop-hero" },
+  { name: "aurora-collections-mobile", route: "/shop?view=collections", viewport: { width: 390, height: 844 }, required: /COLLECTIONS/i, auroraSelector: ".gdp-aurora-shop-hero" },
+  { name: "aurora-studio-mobile", route: "/custom-studio", viewport: { width: 390, height: 844 }, required: /CHOOSE YOUR GARMENT/i, auroraSelector: ".gdp-aurora-studio-header", capture: true },
+  { name: "aurora-studio-tablet", route: "/custom-studio", viewport: { width: 768, height: 1024 }, required: /CHOOSE YOUR GARMENT/i, auroraSelector: ".gdp-aurora-studio-header", capture: true },
+  { name: "aurora-dtf-mobile", route: "/dtf", viewport: { width: 390, height: 844 }, required: /BUILD YOUR DTF GANG SHEET/i, auroraSelector: ".gdp-aurora-dtf-hero", capture: true },
+  { name: "aurora-dtf-tablet", route: "/dtf", viewport: { width: 768, height: 1024 }, required: /BUILD YOUR DTF GANG SHEET/i, auroraSelector: ".gdp-aurora-dtf-hero" },
+  { name: "aurora-faq-mobile", route: "/faq", viewport: { width: 390, height: 844 }, required: /FAQ & SUPPORT/i, auroraSelector: ".gdp-aurora-faq-hero", capture: true },
+  { name: "aurora-about-mobile", route: "/pages/about", viewport: { width: 390, height: 844 }, required: /MORE THAN CLOTHING/i, auroraSelector: ".gdp-aurora-about" },
+  { name: "aurora-contact-mobile", route: "/pages/contact", viewport: { width: 390, height: 844 }, required: /CONTACT GDP CLOTHING/i, auroraSelector: ".gdp-aurora-contact-hero", capture: true },
+  { name: "aurora-shipping-mobile", route: "/pages/shipping-delivery", viewport: { width: 390, height: 844 }, required: /SHIPPING/i, auroraSelector: ".gdp-aurora-shipping-image" },
+  { name: "aurora-cart-mobile", route: "/cart", viewport: { width: 390, height: 844 }, required: /YOUR CART IS EMPTY/i },
 ];
 const RUN_CASES = process.env.RENDER_GUARD_CANARY_ONLY === "1" ? CASES.slice(0, 2) : CASES;
 const results = [];
@@ -77,9 +92,30 @@ async function probe(browser, item) {
       return new RegExp(source, flags).test(text);
     }, { source: item.required.source, flags: item.required.flags }, { timeout: 20000 });
     assert(item.required.test(await page.locator("#root").innerText()), "Expected route content missing: " + item.route);
+    if (item.auroraSelector) {
+      await page.locator(item.auroraSelector).first().waitFor({ state: "visible", timeout: 20000 });
+      const hasThemeImage = await page.evaluate((selector) => {
+        return [...document.querySelectorAll(selector)].some((element) => {
+          const source = element.getAttribute("src") || "";
+          const background = getComputedStyle(element).backgroundImage;
+          const childSources = [...element.querySelectorAll("img")].map((img) => img.getAttribute("src") || "");
+          return [source, background, ...childSources].some((value) => value.includes("/images/aurora/"));
+        });
+      }, item.auroraSelector);
+      assert(hasThemeImage, `Missing Aurora campaign asset on ${item.route}`);
+      const size = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+      assert(size.document <= size.viewport + 3, `Horizontal overflow at ${item.viewport.width}px: ${size.document}px document`);
+      if (item.route === "/") {
+        assert(await page.locator("main h1").count() === 1, "Home must expose one semantic H1 for SEO and accessibility");
+        assert(Boolean(await page.locator('meta[name="description"]').getAttribute("content")), "Home meta description missing");
+      }
+    }
     await page.waitForTimeout(400);
     assert(pageErrors.length === 0, "Uncaught JS error: " + pageErrors.join(" | "));
     assert(assetFailures.length === 0, "First-party JS/CSS asset failed: " + assetFailures.join(" | "));
+    if (item.capture) {
+      await page.screenshot({ path: path.join(OUT, item.name + ".png"), fullPage: false });
+    }
     results.push({ name: item.name, result: "passed", durationMs: Date.now() - startedAt });
     console.log("PASS " + item.name);
   } catch (error) {

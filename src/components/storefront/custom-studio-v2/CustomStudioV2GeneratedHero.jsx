@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import CustomStudioV2HeroArt from './CustomStudioV2HeroArt';
+import { AURORA_IMAGES } from '@/lib/auroraTheme';
 
 // The generated promo art is purely decorative. Missing assets cannot hide the banner.
 export default function CustomStudioV2GeneratedHero() {
@@ -7,7 +8,7 @@ export default function CustomStudioV2GeneratedHero() {
   return failed
     ? <CustomStudioV2HeroArt />
     : <img
-        src="/images/custom-studio/gallery/hero-merch.webp"
+        src={AURORA_IMAGES.studioHero}
         alt=""
         width="1132"
         height="696"

@@ -111,7 +111,7 @@ export default function DTF() {
 
   return (
     <div className="bg-[#f4f2ec] text-[#111]">
-      <section className="overflow-hidden bg-[#090909] text-white">
+      <section className="gdp-aurora-dtf-hero overflow-hidden bg-[#090909] text-white">
         <div className="mx-auto grid max-w-[1500px] gap-10 px-5 py-12 sm:px-7 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-10 lg:py-16">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 border border-white/20 px-3 py-2 font-mono text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
@@ -128,7 +128,7 @@ export default function DTF() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/dtf-gang-sheet?mode=build"
-                className="inline-flex min-h-12 items-center justify-center gap-3 bg-white px-6 text-[10px] font-black uppercase tracking-[0.13em] text-black transition hover:bg-[#e11d2e] hover:text-white"
+                className="gdp-aurora-section-cta inline-flex min-h-12 items-center justify-center gap-3 bg-white px-6 text-[10px] font-black uppercase tracking-[0.13em] text-black transition hover:bg-[#e11d2e] hover:text-white"
               >
                 Build my gang sheet <ArrowRight size={15} />
               </Link>
