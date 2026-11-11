@@ -97,6 +97,13 @@ function mockPaymentAttempt() {
   const firstSubmit = new Promise((resolve) => { releaseFirstSubmit = resolve; });
   const env = {
     payInFlightRef,
+    // Default this mock to an ordinary checkout. WELCOME10 verification and
+    // eligibility are exercised separately by the focused welcome tests.
+    welcomeRequested: false,
+    appliedDiscount: null,
+    user: null,
+    welcomeGuestTokenFor: () => null,
+    clearWelcomeGuestProof: () => {},
     activeConfig: { tax: 0, configured: true },
     taxQuoteError: "",
     setError: (message) => trace.push(["error", message]),

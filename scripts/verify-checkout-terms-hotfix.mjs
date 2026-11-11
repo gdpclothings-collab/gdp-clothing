@@ -7,7 +7,7 @@ const accept=src.indexOf('await customerApi.acceptCheckoutPolicies');
 const confirm=src.indexOf('paymentClient.stripe.confirmPayment');
 const checks=[
 ['payment initializes immediately',src.includes('mode:"payment"')&&src.includes('elements.create("payment"')],
-['session preparation does not claim acceptance',src.includes('termsAccepted:false')&&src.includes('customerApi.createOrder(items, checkoutForm')&&!src.includes('termsAccepted:true')],
+['session preparation does not claim acceptance',src.includes('termsAccepted:false')&&/customerApi\.createOrder\(\s*items,\s*checkoutForm/.test(src)&&!src.includes('termsAccepted:true')],
 ['consent is below Pay',pay>=0&&consent>pay],
 ['Pay still requires consent',src.includes('disabled={placing || !paymentClient || !canConfirm || !form.termsAccepted || !activeConfig || Boolean(taxQuoteError)}')],
 ['consent recorded before Stripe confirm',accept>=0&&confirm>=0&&accept<confirm],
