@@ -52,18 +52,23 @@ const server = createServer(async (request, response) => {
     return send(replay.status, { replayStatus: replay.status, duplicateExpected: true });
   }
   if (request.method !== "POST" || request.url !== "/webhook") return send(404, { error: "not found" });
-  let body = "";
+  const chunks = [];
+  let byteCount = 0;
   for await (const chunk of request) {
-    body += String(chunk);
-    if (body.length > 1000000) return send(413, { error: "too large" });
+    byteCount += chunk.length;
+    if (byteCount > 1000000) return send(413, { error: "too large" });
+    chunks.push(chunk);
   }
+  // Signature validation uses the exact UTF-8 byte sequence received.
+  const body = Buffer.concat(chunks).toString("utf8");
   let event;
   try { event = JSON.parse(body); } catch { return send(400, { error: "invalid JSON" }); }
   if (event.livemode !== false) {
     counts.rejectedLive++;
     return send(409, { error: "only Stripe sandbox events accepted" });
   }
-  const signature = request.headers["stripe-signature"] || "";
+  const signature = typeof request.headers["stripe-signature"] === "string"
+    ? request.headers["stripe-signature"] : "";
   if (!await verify(body, signature, secret)) {
     counts.invalid++;
     return send(400, { error: "invalid Stripe signature" });
