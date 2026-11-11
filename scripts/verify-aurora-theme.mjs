@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AURORA_IMAGES, auroraCategoryAsset, auroraOccasionAsset, replaceDefaultCampaignImage } from "../src/lib/auroraTheme.js";
+import { AURORA_IMAGES, auroraCategoryAsset, auroraOccasionAsset, auroraPromoAsset } from "../src/lib/auroraTheme.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const assets = Object.values(AURORA_IMAGES);
@@ -28,7 +28,9 @@ assert.equal(auroraCategoryAsset("/custom-studio"), AURORA_IMAGES.custom);
 for (const kind of ["love", "family", "memorial", "sports", "events", "pets"]) {
   assert.equal(auroraOccasionAsset(`/custom-studio?occasion=${kind}`), AURORA_IMAGES[kind]);
 }
-assert.equal(replaceDefaultCampaignImage("/original.webp", "/original.webp", AURORA_IMAGES.homeHero), AURORA_IMAGES.homeHero);
-assert.equal(replaceDefaultCampaignImage("/custom-owner-upload.webp", "/original.webp", AURORA_IMAGES.homeHero), "/custom-owner-upload.webp", "Custom CMS uploads must not be replaced");
+assert.equal(auroraPromoAsset("/custom-studio"), AURORA_IMAGES.custom);
+assert.equal(auroraPromoAsset("/pages/about"), AURORA_IMAGES.aboutHero);
+assert.equal(auroraPromoAsset("/shop"), AURORA_IMAGES.shopHero);
+assert.equal(auroraCategoryAsset("/shop?category=Unmapped"), null, "Unmapped categories retain their CMS imagery");
 
 console.log(`PASS: 19 valid optimized WebP assets (${(totalBytes / 1_000_000).toFixed(2)} MB) and non-destructive route mappings`);

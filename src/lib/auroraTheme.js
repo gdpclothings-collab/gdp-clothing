@@ -24,12 +24,9 @@ export const AURORA_IMAGES = Object.freeze({
   pets: `${ROOT}/occasion_pets.webp`,
 });
 
-// Keep explicitly customized CMS images intact. The approved Aurora imagery
-// replaces only known default campaign media, so admins can still publish
-// their own replacement images without a data migration.
-export function replaceDefaultCampaignImage(current, original, themed) {
-  return !current || current === original ? themed : current;
-}
+// These are presentation-only campaign replacements, not mutations to the CMS.
+// Product detail photos, actual garment proofs, and admin-stored media remain
+// authoritative; only mapped storefront campaign placements use this imagery.
 
 /** @type {Array<[RegExp, keyof typeof AURORA_IMAGES]>} */
 const CATEGORY_ASSETS = [

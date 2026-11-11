@@ -23,7 +23,6 @@ import {
   auroraCategoryAsset,
   auroraOccasionAsset,
   auroraPromoAsset,
-  replaceDefaultCampaignImage,
 } from "@/lib/auroraTheme";
 
 const TRUST_ICONS = { truck: Truck, shield: ShieldCheck, shirt: Shirt, heart: Heart };
@@ -60,11 +59,7 @@ function TrustItem({ item }) {
 }
 
 function CategoryCard({ item }) {
-  const original = DEFAULT_LANDING_PAGE.categories.find((candidate) => candidate.url === item.url);
-  const themed = auroraCategoryAsset(item.url);
-  const image = themed && original
-    ? replaceDefaultCampaignImage(item.imageUrl, original.imageUrl, themed)
-    : item.imageUrl;
+  const image = auroraCategoryAsset(item.url) || item.imageUrl;
   return (
     <SmartLink to={item.url} className="gdp-aurora-category-card group relative min-h-[150px] overflow-hidden bg-black text-white sm:min-h-[175px] lg:min-h-[190px]">
       <ManagedImage src={image} fallbackSrc="/images/gdp-sold-categories.webp" alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.035]" />
@@ -110,11 +105,7 @@ function HomeProductCard({ product }) {
 }
 
 function PromoCard({ item }) {
-  const original = DEFAULT_LANDING_PAGE.promos.find((candidate) => candidate.url === item.url);
-  const themed = auroraPromoAsset(item.url);
-  const image = themed && original
-    ? replaceDefaultCampaignImage(item.imageUrl, original.imageUrl, themed)
-    : item.imageUrl;
+  const image = auroraPromoAsset(item.url) || item.imageUrl;
   return (
     <section className="gdp-aurora-promo relative min-h-[255px] overflow-hidden bg-black text-white lg:min-h-[300px]">
       <ManagedImage src={image} fallbackSrc="/images/gdp-sold-family.webp" alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
@@ -133,7 +124,7 @@ function CustomStudioFeature({ config }) {
     <section className="gdp-aurora-home-studio border-y border-black/10 bg-[#f1eee6]">
       <div className="mx-auto grid max-w-[1500px] gap-7 px-5 py-10 sm:px-7 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-10 lg:py-14">
         <div className="relative min-h-[320px] overflow-hidden bg-black sm:min-h-[380px]">
-          <ManagedImage src={replaceDefaultCampaignImage(config.imageUrl, DEFAULT_LANDING_PAGE.customStudio.imageUrl, AURORA_IMAGES.studioHero)} fallbackSrc="/images/gdp-sold-family.webp" alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+          <ManagedImage src={AURORA_IMAGES.studioHero} fallbackSrc="/images/gdp-sold-family.webp" alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
           <div className="absolute bottom-5 left-5 font-mono text-[9px] font-black uppercase tracking-[0.16em] text-white/75">Photo → proof → finished garment</div>
         </div>
@@ -363,7 +354,7 @@ export default function Home() {
     <div className="gdp-aurora-home overflow-x-hidden bg-white text-black">
       {landing.hero?.enabled !== false && (
         <section className="gdp-aurora-home-hero relative min-h-[540px] overflow-hidden bg-black text-white sm:min-h-[610px] lg:min-h-[650px]">
-          <ManagedImage src={replaceDefaultCampaignImage(landing.hero.imageUrl, DEFAULT_LANDING_PAGE.hero.imageUrl, AURORA_IMAGES.homeHero)} fallbackSrc="/images/gdp-hero-approved.webp" alt="" fetchPriority="high" decoding="async" className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center" />
+          <ManagedImage src={AURORA_IMAGES.homeHero} fallbackSrc="/images/gdp-hero-approved.webp" alt="" fetchPriority="high" decoding="async" className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-black/20" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/15" />
           <div className="relative mx-auto flex min-h-[540px] max-w-[1500px] items-center px-5 py-10 sm:min-h-[610px] sm:px-7 lg:min-h-[650px] lg:px-10">

@@ -17,7 +17,7 @@ All assets are locally hosted, optimized WebP files in `public/images/aurora/`, 
 | Occasions | `occasion_love.webp`, `occasion_family.webp`, `occasion_memorial.webp`, `occasion_sports.webp`, `occasion_events.webp`, `occasion_pets.webp` |
 | Shared footer / final CTA | `footer_ambient.webp` |
 
-The homepage presentation only substitutes known default hero, category and campaign images. Customized CMS image URLs are intentionally preserved. Category imagery remains decorative; all real catalogue photos in product listings and product pages are untouched. DTF printer/editor images and garment/design proof surfaces are untouched.
+The homepage presentation uses the approved themed hero, mapped categories, Custom Studio spotlight, and known promotional routes even when the CMS supplies older campaign imagery. The **stored CMS values and uploads are not edited**, and unmapped promotional categories retain their original CMS images. This means campaign-asset changes made through the CMS do not replace the themed placement until the Aurora visual layer is switched off or updated. Category imagery remains decorative; all real catalogue photos in product listings and product pages are untouched. DTF printer/editor images and garment/design proof surfaces are untouched.
 
 ## Scope and design
 
