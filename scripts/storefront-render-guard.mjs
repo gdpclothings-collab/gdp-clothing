@@ -105,6 +105,10 @@ async function probe(browser, item) {
       assert(hasThemeImage, `Missing Aurora campaign asset on ${item.route}`);
       const size = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
       assert(size.document <= size.viewport + 3, `Horizontal overflow at ${item.viewport.width}px: ${size.document}px document`);
+      if (item.route === "/") {
+        assert(await page.locator("main h1").count() === 1, "Home must expose one semantic H1 for SEO and accessibility");
+        assert(Boolean(await page.locator('meta[name="description"]').getAttribute("content")), "Home meta description missing");
+      }
     }
     await page.waitForTimeout(400);
     assert(pageErrors.length === 0, "Uncaught JS error: " + pageErrors.join(" | "));

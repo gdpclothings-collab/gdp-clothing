@@ -361,7 +361,7 @@ export default function Home() {
             <div className="w-full max-w-[640px]">
               <ManagedImage src={landing.branding?.logoUrl} fallbackSrc="/images/gdp-logo.webp" alt={landing.branding?.logoAlt || "GDP Clothing"} className="h-24 w-48 object-contain object-left sm:h-28 sm:w-56 lg:h-32 lg:w-64" />
               <div className="mt-2 text-[12px] font-black uppercase tracking-[0.38em] text-white/90 sm:text-sm">{landing.hero.brandLine}</div>
-              <div className="mt-7 text-sm font-bold uppercase tracking-[0.18em] text-white/90 sm:text-lg">{landing.hero.headline}</div>
+              <h1 className="mt-7 text-sm font-bold uppercase tracking-[0.18em] text-white/90 sm:text-lg">{landing.hero.headline}</h1>
               <div className="mt-1 text-sm font-bold uppercase tracking-[0.18em] text-white/90 sm:text-lg">{landing.hero.subheadline}</div>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <SmartLink to={landing.hero.ctaUrl} className="gdp-aurora-primary-cta inline-flex min-h-11 items-center justify-center gap-5 bg-white px-7 text-[10px] font-black uppercase tracking-[0.12em] text-black transition hover:bg-[#e11d2e] hover:text-white sm:min-h-12">{landing.hero.ctaLabel} <ArrowRight size={15} /></SmartLink>
