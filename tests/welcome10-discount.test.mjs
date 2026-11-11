@@ -29,3 +29,12 @@ test("WELCOME10 checkout and popup are server-gated with excluded DTF items", ()
   assert.match(checkout,/reserve_welcome10_coupon/);
   assert.match(popup,/getWelcome10Status/);
 });
+
+test("checkout forwards contact email and preserves signed-in and guest eligibility messages", () => {
+  const page = readFileSync(new URL("../src/pages/CheckoutTwoStep.jsx", import.meta.url), "utf8");
+  assert.match(page, /customerApi\.validateCoupon\(\s*form\.discountCode, discounted, checkoutDiscountItems, form\.email,/);
+  assert.match(page, /d\?\.reason === "verified_account_required"/);
+  assert.match(page, /d\?\.reason === "verified_email_required"/);
+  assert.match(page, /d\?\.reason === "not_first_order"/);
+  assert.match(page, /d\?\.reason === "eligibility_unavailable"/);
+});
