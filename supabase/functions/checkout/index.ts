@@ -5,9 +5,10 @@ import { TaxConfigurationReviewError, applyCheckoutTaxPolicy, checkoutTaxProvinc
 import { couponAmountForBase, couponIsUsable, publicPromotion } from "./discount-rules.mjs";
 import { authorizeGuestMockupBinding, authorizeGuestUploadProof, guestUploadPurposes, hashGuestUploadProof, newGuestUploadProof, validGuestUploadPath, verifyGuestDesignArtifactProofs } from "./guest-upload-authorization.mjs";
 import { allowsTemplateOnlyBootleg } from "./template-only-bootleg-rules.mjs";
+import { WELCOME_GUEST_HEADER, verifyGuestWelcomeIdentity } from "./welcome-guest-verification.mjs";
 
 const baseCors = {
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-gdp-welcome-guest-authorization",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
@@ -340,8 +341,22 @@ async function getWelcomeCampaign(service: any) {
 }
 
 function verifiedWelcomeAccount(user: any, customerEmail: string) {
-  return Boolean(user?.id && user.email_confirmed_at &&
+  return Boolean(user?.id && user.is_anonymous !== true && user.email_confirmed_at &&
     String(user.email || "").trim().toLowerCase() === String(customerEmail || "").trim().toLowerCase());
+}
+
+async function welcomeVerifiedIdentity(req: Request, url: string, anonKey: string, customerEmail: string, account: any) {
+  if (account) {
+    return verifiedWelcomeAccount(account, customerEmail)
+      ? { email: String(account.email).trim().toLowerCase(), userId: account.id }
+      : null;
+  }
+  const token = req.headers.get(WELCOME_GUEST_HEADER);
+  if (!token) return null;
+  const authClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return verifyGuestWelcomeIdentity(token, customerEmail, (proof: string) => authClient.auth.getUser(proof));
 }
 
 async function couponTargetProductIds(service: any, coupon: any, candidateProductIds: string[]) {
@@ -1121,16 +1136,17 @@ Deno.serve(async (req: Request) => {
       }
       if (isWelcome) {
         const account = await optionalUser(req, supabaseUrl, anonKey);
-        if (!verifiedWelcomeAccount(account, String(body?.email || ""))) {
-          return respond(req, { active: false, reason: "verified_account_required" });
+        const identity = await welcomeVerifiedIdentity(req, supabaseUrl, anonKey, String(body?.email || ""), account);
+        if (!identity) {
+          return respond(req, { active: false, reason: "verified_email_required" });
         }
         const [emailHistory, userHistory] = await Promise.all([
           service.from("orders").select("id", { count: "exact", head: true })
             .in("payment_status", ["paid", "refunded", "partially_refunded"])
-            .eq("customer_email", String(account.email).trim().toLowerCase()),
+            .eq("customer_email", identity.email),
           service.from("orders").select("id", { count: "exact", head: true })
             .in("payment_status", ["paid", "refunded", "partially_refunded"])
-            .eq("user_id", account.id),
+            .eq("user_id", identity.userId),
         ]);
         if (emailHistory.error || userHistory.error ||
             (emailHistory.count ?? 1) > 0 || (userHistory.count ?? 1) > 0) {
@@ -1941,11 +1957,14 @@ Deno.serve(async (req: Request) => {
     if (welcomeRequested && !(await getWelcomeCampaign(service))) {
       return respond(req, { error: true, message: "WELCOME10 is not available yet." }, 400);
     }
-    // A verified Supabase account is necessary to prove email ownership. Guest
-    // shoppers may continue to checkout without a coupon; WELCOME10 cannot
-    // be used until the guest completes passwordless email verification.
-    if (welcomeRequested && !verifiedWelcomeAccount(user, customer.email)) {
-      return respond(req, { error: true, message: "Please sign in with your verified email before using WELCOME10." }, 403);
+    // A verified Auth user or a separately verified, transient guest OTP
+    // session must prove ownership of exactly this checkout contact email.
+    // This is never inferred from customer-submitted fields alone.
+    const welcomeIdentity = welcomeRequested
+      ? await welcomeVerifiedIdentity(req, supabaseUrl, anonKey, customer.email, user)
+      : null;
+    if (welcomeRequested && !welcomeIdentity) {
+      return respond(req, { error: true, message: "Verify your checkout email before using WELCOME10." }, 403);
     }
     if (welcomeRequested && quantityDiscount > 0) {
       return respond(req, { error: true, message: "WELCOME10 cannot be combined with quantity discounts." }, 409);
@@ -2126,7 +2145,7 @@ Deno.serve(async (req: Request) => {
               p_order_id: order.id,
               p_discount_id: coupon.id,
               p_expires_at: reservationExpiresAt,
-              p_verified_email: String(user.email).trim().toLowerCase(),
+              p_verified_email: welcomeIdentity.email,
             }
           : {
               p_order_id: order.id,

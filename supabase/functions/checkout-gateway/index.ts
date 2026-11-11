@@ -22,7 +22,7 @@ function corsHeaders(req: Request) {
   const origin = requestOrigin(req);
   return {
     ...(origin && isAllowedOrigin(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-gdp-welcome-guest-authorization",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Content-Type": "application/json",
     "Vary": "Origin",
@@ -411,6 +411,14 @@ async function forwardCreateOrder(
   };
   const authorization = req.headers.get("Authorization");
   if (authorization) forwardHeaders.Authorization = authorization;
+  // Forward a short-lived guest email proof ONLY for the designated welcome
+  // coupon. The checkout Edge Function verifies it with Supabase Auth.
+  if (String(body?.discountCode || "").trim().toUpperCase() === "WELCOME10") {
+    const guestProof = req.headers.get("x-gdp-welcome-guest-authorization");
+    if (guestProof && guestProof.length <= 8192) {
+      forwardHeaders["x-gdp-welcome-guest-authorization"] = guestProof;
+    }
+  }
 
   let upstream: Response;
   try {

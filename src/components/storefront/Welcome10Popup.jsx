@@ -41,7 +41,7 @@ export default function Welcome10Popup() {
         <p className="text-xs font-bold uppercase tracking-[.25em]">Good People. Dope Clothes.</p>
         <h2 id="welcome10-title" className="mt-5 text-3xl font-black uppercase">Welcome to GDP Clothing</h2>
         <p className="mt-3 text-4xl font-black">10% OFF</p>
-        <p className="mt-2">Your first eligible order. Maximum discount C$15. Cannot be combined with other offers. Verified email sign-in required.</p>
+        <p className="mt-2">Your first eligible order. Maximum discount C$15. Cannot be combined with other offers. Sign in or verify your email as a guest at checkout.</p>
         <div className="mt-5 rounded-lg border-2 border-dashed border-neutral-400 p-3 font-bold tracking-widest">WELCOME10</div>
         <button type="button" className="mt-3 text-sm underline" onClick={() => navigator.clipboard?.writeText("WELCOME10")}>Copy code</button>
         <Link to="/shop" onClick={dismiss} className="mt-5 block rounded-lg bg-black px-5 py-3 font-bold text-white">Shop now</Link>
