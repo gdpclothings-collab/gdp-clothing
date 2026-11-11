@@ -9,6 +9,7 @@ import ProtectedTemplateEditorV2 from '@/components/storefront/custom-studio-v2/
 import UploadArtworkEditorV2 from '@/components/storefront/custom-studio-v2/UploadArtworkEditorV2';
 import GarmentInfoPanel, { garmentColorSwatch } from '@/components/storefront/custom-studio-v2/GarmentInfoPanel';
 import { customerApi } from '@/lib/customerApi';
+import { missingGuestSourceProofPath } from '@/lib/guestUploadProofs';
 import { useCart } from '@/lib/CartContext';
 import { useAuth } from '@/lib/AuthContext';
 import { customerStorageScope } from '@/lib/customerStorageScope';
@@ -676,6 +677,21 @@ export default function CustomStudioV2({ reviewPreviewReady = false }) {
     try {
       const sides = studioV2PrintableSides(state);
       if (!sides.length) throw new Error('There is no confirmed printable side.');
+      // Detect legacy background-removed guest photos without a source proof
+      // before spending time/storage on production PNGs and customer mockups.
+      const sourcePaths = sides.flatMap((side) => {
+        const editor = state[state.designPath]?.sides?.[side];
+        if (!editor || state.designPath === 'seasonal') return [];
+        if (state.designPath === 'bootleg' || state.designPath === 'memorial') {
+          const photos = editor.photos?.length ? editor.photos
+            : (editor.photo?.path ? [{ asset: editor.photo }] : []);
+          return photos.map((layer) => layer.asset?.path).filter(Boolean);
+        }
+        return uploadArtworkLayers(editor).map((layer) => layer.asset?.path).filter(Boolean);
+      });
+      if (missingGuestSourceProofPath(sourcePaths)) {
+        throw new Error('A previously uploaded photo no longer has valid artwork authorization. Choose Edit design and re-upload that photo before adding it to your cart.');
+      }
       const templates = normalizeStyleTemplates(settings?.styleTemplates || {});
       const productionFiles = {};
       const sideSnapshots = {};

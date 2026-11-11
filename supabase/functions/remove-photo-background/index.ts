@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { issueGuestCleanedSourceProof } from "./guest-cleaned-source-proof.mjs";
 
 const allowedOrigins = new Set([
   "https://gdp-clothing.pages.dev",
@@ -240,6 +241,11 @@ Deno.serve(async (req: Request) => {
       .upload(cleanedPath, cleanedBytes, { contentType: "image/png", upsert: false });
     if (cleanedError) throw cleanedError;
 
+    // Unlike the original guest upload, the background-removal output is
+    // written by this service. Give that exact new source its own expiring
+    // server-recorded capability before exposing it to the guest editor.
+    const cleanedUploadProof = userId ? null : await issueGuestCleanedSourceProof(service, cleanedPath);
+
     const { data: signed } = await service.storage
       .from("customer-uploads")
       .createSignedUrls([originalPath, cleanedPath], 3600);
@@ -251,6 +257,7 @@ Deno.serve(async (req: Request) => {
       originalUrl: urlByPath.get(originalPath) || "",
       cleanedPath,
       cleanedUrl: urlByPath.get(cleanedPath) || "",
+      ...(cleanedUploadProof ? { cleanedUploadProof } : {}),
       ...(foregroundBounds ? { foregroundBounds } : {}),
     });
   } catch (error) {
