@@ -163,6 +163,7 @@ export default function CheckoutTwoStepMichaels() {
       if (welcomeRequested && !user && !welcomeGuestTokenFor(form.email)) {
         const status = await customerApi.getWelcome10Status();
         if (!status.enabled) return setError("WELCOME10 is not active yet.");
+        if (!status.guestOtpEnabled) return setError("For now, sign in with your verified GDP Clothing account to use WELCOME10.");
         setWelcomeVerification("required");
         return setError("Verify your email below to use this first-order offer.");
       }
@@ -198,6 +199,7 @@ export default function CheckoutTwoStepMichaels() {
       // Never send a verification email for an inactive promotion.
       const status = await customerApi.getWelcome10Status();
       if (!status.enabled) throw new Error("WELCOME10 is not active yet.");
+      if (!status.guestOtpEnabled) throw new Error("Guest email verification is not available yet.");
       await sendWelcomeGuestOtp(form.email);
       setWelcomeVerification("sent");
       setWelcomeMessage("Check your email for your one-time verification code.");
@@ -213,6 +215,8 @@ export default function CheckoutTwoStepMichaels() {
     setWelcomeBusy(true);
     setError("");
     try {
+      const status = await customerApi.getWelcome10Status();
+      if (!status.enabled || !status.guestOtpEnabled) throw new Error("Guest email verification is not available yet.");
       await verifyWelcomeGuestOtp(form.email, welcomeCode);
       setWelcomeVerification("verified");
       setWelcomeMessage("Email verified. Apply WELCOME10 to check eligibility.");

@@ -6,6 +6,7 @@ import { couponAmountForBase, couponIsUsable, publicPromotion } from "./discount
 import { authorizeGuestMockupBinding, authorizeGuestUploadProof, guestUploadPurposes, hashGuestUploadProof, newGuestUploadProof, validGuestUploadPath, verifyGuestDesignArtifactProofs } from "./guest-upload-authorization.mjs";
 import { allowsTemplateOnlyBootleg } from "./template-only-bootleg-rules.mjs";
 import { WELCOME_GUEST_HEADER, verifyGuestWelcomeIdentity } from "./welcome-guest-verification.mjs";
+import { welcomeGuestOtpReleaseEnabled } from "./welcome-guest-release.mjs";
 
 const baseCors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-gdp-welcome-guest-authorization",
@@ -345,12 +346,19 @@ function verifiedWelcomeAccount(user: any, customerEmail: string) {
     String(user.email || "").trim().toLowerCase() === String(customerEmail || "").trim().toLowerCase());
 }
 
+function welcomeGuestOtpReleased() {
+  return welcomeGuestOtpReleaseEnabled(Deno.env.get("GDP_WELCOME10_GUEST_OTP_ENABLED"));
+}
+
 async function welcomeVerifiedIdentity(req: Request, url: string, anonKey: string, customerEmail: string, account: any) {
   if (account) {
     return verifiedWelcomeAccount(account, customerEmail)
       ? { email: String(account.email).trim().toLowerCase(), userId: account.id }
       : null;
   }
+  // A live discount does not automatically authorize the untested guest-OTP path.
+  // Existing verified accounts above remain eligible when this flag is OFF.
+  if (!welcomeGuestOtpReleased()) return null;
   const token = req.headers.get(WELCOME_GUEST_HEADER);
   if (!token) return null;
   const authClient = createClient(url, anonKey, {
@@ -1125,7 +1133,10 @@ Deno.serve(async (req: Request) => {
       // The active discount row is the server-controlled switch. An inactive
       // or missing campaign cannot be promoted, even if old frontend is cached.
       const campaign = await getWelcomeCampaign(service);
-      return respond(req, { enabled: Boolean(campaign) });
+      return respond(req, {
+        enabled: Boolean(campaign),
+        guestOtpEnabled: Boolean(campaign) && welcomeGuestOtpReleased(),
+      });
     }
 
     if (action === "validateCoupon") {
