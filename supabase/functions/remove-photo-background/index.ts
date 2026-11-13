@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { issueGuestCleanedSourceProof } from "./guest-cleaned-source-proof.mjs";
+import { backgroundRemovalCostGate } from "./zero-provider-cost-policy.mjs";
 
 const allowedOrigins = new Set([
   "https://gdp-clothing.pages.dev",
@@ -128,6 +129,18 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method === "OPTIONS") return new Response("ok", { headers: headers(req) });
   if (req.method !== "POST") return respond(req, { ok: false, message: "Method not allowed." }, 405);
+
+  // Fail closed before reading credentials, consuming quotas, uploading files,
+  // or contacting remove.bg. The API key alone never authorizes a paid call.
+  const costGate = backgroundRemovalCostGate();
+  if (!costGate.allowed) {
+    return respond(req, {
+      ok: false,
+      retryable: false,
+      originalUnaffected: true,
+      message: costGate.message,
+    }, 503);
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";

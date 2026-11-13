@@ -45,6 +45,7 @@ import {
   restoreDtfDeletedArtwork,
 } from "@/lib/dtfUndoDelete";
 import { customerApi } from "@/lib/customerApi";
+import { EXTERNAL_BACKGROUND_REMOVAL_ENABLED, BACKGROUND_REMOVAL_PAUSED_MESSAGE } from "@/lib/backgroundRemovalCostPolicy";
 
 const round = (value, decimals = 2) => {
   const power = 10 ** decimals;
@@ -2151,22 +2152,22 @@ export default function DTFGangSheet() {
                     </div>
                   ) : selectedArtwork.isVector ? (
                     <div className="mt-2 text-xs leading-4 text-black/45">
-                      AI background removal is available for raster PNG, JPG and WEBP artwork. Vector/PDF files should be edited before upload.
+                      Vector/PDF artwork should be edited before upload. Automatic background removal is currently paused to prevent third-party charges.
                     </div>
                   ) : (
                     <>
                       <div className="mt-3 border border-violet-200 bg-violet-50 p-3 text-xs leading-4 text-violet-950">
-                        <span className="font-black uppercase tracking-[0.08em]">AI background removal</span>
-                        <span className="mt-1 block text-violet-900/70">Works with people, pets, products and detailed photo backgrounds. Your original file is always preserved.</span>
+                        <span className="font-black uppercase tracking-[0.08em]">{EXTERNAL_BACKGROUND_REMOVAL_ENABLED ? "AI background removal" : "Automatic background removal paused"}</span>
+                        <span className="mt-1 block text-violet-900/70">{EXTERNAL_BACKGROUND_REMOVAL_ENABLED ? "Works with people, pets, products and detailed photo backgrounds. Your original file is always preserved." : BACKGROUND_REMOVAL_PAUSED_MESSAGE}</span>
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={removeSelectedBackground}
-                          disabled={editingArtwork}
+                          disabled={editingArtwork || !EXTERNAL_BACKGROUND_REMOVAL_ENABLED}
                           className="min-h-10 border border-black bg-black px-3 text-[9px] font-black uppercase text-white disabled:opacity-40"
                         >
-                          {editingArtwork ? "Removing…" : selectedArtwork.backgroundRemoved ? "Retry removal" : "Remove background"}
+                          {!EXTERNAL_BACKGROUND_REMOVAL_ENABLED ? "Unavailable · no paid processing" : editingArtwork ? "Removing…" : selectedArtwork.backgroundRemoved ? "Retry removal" : "Remove background"}
                         </button>
                         <button
                           type="button"

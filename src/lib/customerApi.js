@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { normalizeProduct } from "@/lib/supabaseMappers";
 import { createInitialStudioV2State } from "@/lib/customStudioV2State";
 import { guestUploadProofsForDesign, registerProcessedGuestArtworkProof, rememberGuestUploadProof } from "@/lib/guestUploadProofs";
+import { EXTERNAL_BACKGROUND_REMOVAL_ENABLED, BACKGROUND_REMOVAL_PAUSED_MESSAGE } from "@/lib/backgroundRemovalCostPolicy";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const backgroundRemovalFailures = new WeakMap();
@@ -321,6 +322,9 @@ export const customerApi = {
   },
 
   async removePhotoBackground(file) {
+    if (!EXTERNAL_BACKGROUND_REMOVAL_ENABLED) {
+      throw createBackgroundRemovalFailure(file, BACKGROUND_REMOVAL_PAUSED_MESSAGE, false);
+    }
     const form = new FormData();
     form.append("photo", file, file.name || "photo");
     const { data, error } = await supabase.functions.invoke("remove-photo-background", { body: form });
