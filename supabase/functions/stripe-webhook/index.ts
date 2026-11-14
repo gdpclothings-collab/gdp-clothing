@@ -308,7 +308,7 @@ Deno.serve(async (req: Request) => {
           ? String(paymentObject.id || "") || null
           : String(paymentObject.payment_intent || "") || null;
         const { data: existing, error: lookupError } = await service.from("orders")
-          .select("id,discount_code,payment_mode,payment_status,stripe_checkout_session_id,stripe_payment_intent_id,test_inventory_workflow")
+          .select("id,discount_code,payment_mode,payment_status,total,stripe_checkout_session_id,stripe_payment_intent_id,test_inventory_workflow")
           .eq("id", String(orderId)).maybeSingle();
         if (lookupError) throw lookupError;
         const welcome = String(existing?.discount_code || "").trim().toUpperCase() === "WELCOME10";
