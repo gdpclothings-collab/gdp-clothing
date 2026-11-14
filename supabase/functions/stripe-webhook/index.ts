@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { handleStripeDispute } from "./disputes.ts";
 import { verifyWelcomePaymentBinding } from "./welcome-payment-binding.mjs";
+import { verifyStandardPaymentBinding } from "./standard-payment-binding.mjs";
 import { checkWelcomePaidOrderReservation } from "./welcome-redemption-preflight.mjs";
 import { redeemWelcomeOrder } from "./welcome-redemption-adapter.mjs";
 import { recordWelcomeReconciliation } from "./welcome-reconciliation.mjs";
@@ -365,7 +366,20 @@ Deno.serve(async (req: Request) => {
             console.error("WELCOME10 reconciliation resolution requires attention", resolveError);
           }
         } else {
-          await finalizePaidOrder(service, String(orderId), matchedMode, paymentIntentId);
+          // Stripe delivery is at-least-once. Never turn a refunded or already
+          // fulfilled order back into a paid order on a delayed or replayed event.
+          if (["paid", "refunded", "partially_refunded"].includes(existing?.payment_status)) {
+            return respond({ received: true, already_finalized: true });
+          }
+          const verified = verifyStandardPaymentBinding({ event, order: existing, signatureVerified: true });
+          if (!verified.verified && verified.reason === "checkout_session_confirmation_required") {
+            return respond({ received: true, awaiting_checkout_session: true });
+          }
+          if (!verified.verified || !paymentIntentId ||
+              verified.paymentIntentId !== paymentIntentId) {
+            throw new Error("Standard order verified payment binding failed.");
+          }
+          await finalizePaidOrder(service, String(orderId), matchedMode, verified.paymentIntentId);
         }
       }
     }
