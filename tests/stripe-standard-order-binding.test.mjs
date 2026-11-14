@@ -49,6 +49,7 @@ test("linked paid Checkout Session is accepted; wrong session or unpaid session 
 test("webhook requires binding on ordinary orders and ignores already-finalized orders", () => {
   const source = readFileSync(new URL("../supabase/functions/stripe-webhook/index.ts", import.meta.url), "utf8");
   assert.match(source, /verifyStandardPaymentBinding\(\{ event, order: existing, signatureVerified: true \}\)/);
+  assert.match(source, /select\("id,discount_code,payment_mode,payment_status,total,stripe_checkout_session_id,stripe_payment_intent_id,test_inventory_workflow"\)/);
   assert.match(source, /\["paid", "refunded", "partially_refunded"\]\.includes\(existing\?\.payment_status\)/);
   assert.match(source, /await finalizePaidOrder\(service, String\(orderId\), matchedMode, verified\.paymentIntentId\)/);
 });
