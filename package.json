@@ -17,7 +17,8 @@
     "test:tax-safeguard": "node scripts/verify-gdp-tax-registration-safeguard-v1.mjs",
     "test:pst-only-safeguard": "node scripts/verify-gdp-pst-only-checkout-safeguard-v1.mjs",
     "test:custom-studio-smoke": "node scripts/custom-studio-garment-smoke.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:security-headers": "node scripts/verify-security-headers.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",

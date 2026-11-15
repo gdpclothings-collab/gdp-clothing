@@ -49,3 +49,12 @@ jobs:
             exit 1
           fi
           echo "No obvious privileged credential pattern found in browser-delivered source."
+
+      - name: Verify security headers and Stripe/Supabase compatibility
+        run: node scripts/verify-security-headers.mjs
+
+      - name: Verify payment and tax security invariants without charges
+        run: |
+          node --test tests/stripe-standard-order-binding.test.mjs tests/welcome10-payment-binding.test.mjs tests/welcome10-policy.test.mjs tests/welcome10-guest-release.test.mjs
+          node scripts/verify-payment-confirmation-authority.mjs
+          node scripts/verify-gdp-pst-only-checkout-safeguard-v1.mjs
