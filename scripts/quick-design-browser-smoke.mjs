@@ -67,28 +67,44 @@ try {
     // Every one of the three garment types and both sides is rendered, not
     // just a relabelled version of the same black T-shirt.
     const garmentImage = page.locator('[data-gdp-garment-image="true"]');
+    const waitForNewGarment = async (previousSrc) => {
+      await page.waitForFunction(
+        (prior) => {
+          const image = document.querySelector('[data-gdp-garment-image="true"]');
+          return Boolean(image && image.getAttribute('src')?.startsWith('data:image/jpeg;base64,') && image.getAttribute('src') !== prior);
+        },
+        previousSrc,
+        { timeout: 15000 }
+      );
+    };
     await page.getByAltText('Sample B on illustrative black T-shirt front view').waitFor({ timeout: 10000 });
     const tshirtFront = await garmentImage.getAttribute('src');
     await page.getByRole('button', { name: 'Show Back view' }).click();
+    await waitForNewGarment(tshirtFront);
     await page.getByAltText('Sample B on illustrative black T-shirt back view').waitFor({ timeout: 10000 });
     const tshirtBack = await garmentImage.getAttribute('src');
     assert.notEqual(tshirtFront, tshirtBack, 'T-shirt sides must differ');
     await page.getByRole('button', { name: 'Preview Sweatshirt' }).click();
+    await waitForNewGarment(tshirtBack);
     await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
     const crewneckBack = await garmentImage.getAttribute('src');
     await page.getByRole('button', { name: 'Show Front view' }).click();
+    await waitForNewGarment(crewneckBack);
     await page.getByAltText('Sample B on illustrative black Sweatshirt front view').waitFor({ timeout: 10000 });
     const crewneckFront = await garmentImage.getAttribute('src');
     assert.notEqual(crewneckFront, crewneckBack, 'Sweatshirt sides must differ');
     await page.getByRole('button', { name: 'Show Back view' }).click();
     await page.getByRole('button', { name: 'Show Back view' }).click();
+    await waitForNewGarment(crewneckFront);
     await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
     assert.ok(crewneckBack?.startsWith('data:image/jpeg;base64,'), 'Sweatshirt back preview renders locally');
     await page.getByRole('button', { name: 'Preview Hoodie' }).click();
+    await waitForNewGarment(crewneckBack);
     await page.getByAltText('Sample B on illustrative black Hoodie back view').waitFor({ timeout: 10000 });
     const hoodieBack = await garmentImage.getAttribute('src');
     assert.notEqual(crewneckBack, hoodieBack, 'Sweatshirt and hoodie must show different garment silhouettes');
     await page.getByRole('button', { name: 'Show Front view' }).click();
+    await waitForNewGarment(hoodieBack);
     await page.getByAltText('Sample B on illustrative black Hoodie front view').waitFor({ timeout: 10000 });
     const hoodieFront = await garmentImage.getAttribute('src');
     assert.notEqual(hoodieFront, hoodieBack, 'Front and back hoodie views must be different');
