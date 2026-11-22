@@ -119,13 +119,18 @@ assert.doesNotMatch(client, /X-API-Key|GDP_REMOVEBG_API_KEY|https:\/\/api\.remov
 const edge = readFileSync('supabase/functions/gdp-quick-design-remove-bg/index.ts', 'utf8');
 assert.match(edge, /form\.set\('size', 'preview'\)/);
 assert.match(edge, /MAX_MONTHLY_PREVIEW_CALLS = 50/);
-assert.match(edge, /GDP_REMOVEBG_ENABLED/);
+assert.doesNotMatch(edge, /Deno\.env\.get\('GDP_REMOVEBG_ENABLED'\)/, 'Activation is controlled by deploy, not an unconfigured second switch');
+assert.ok(edge.includes("const FREE_CALLS_SAFETY_BUFFER = 5"), 'Must keep a safety margin for shared free API allowance');
+assert.ok(edge.includes("const REMOVE_BG_ACCOUNT = 'https://api.remove.bg/v1.0/account'"), 'Read-only shared free balance check is required');
+assert.ok(edge.indexOf('const balanceResponse = await fetch(REMOVE_BG_ACCOUNT') < edge.indexOf('const upstream = await fetch(REMOVE_BG_API'), 'Free-balance check MUST happen before processing');
+assert.ok(edge.includes('freeCalls <= FREE_CALLS_SAFETY_BUFFER'), 'Fail closed when free calls too low');
 assert.ok(edge.includes("Deno.env.get('REMOVE_BG_API_KEY')"), 'Quick Design must reuse the existing Custom Studio remove.bg secret');
 assert.ok(!edge.includes("Deno.env.get('GDP_REMOVEBG_API_KEY')"), 'Do not require a second remove.bg secret');
 const customRemoveBg = readFileSync('supabase/functions/remove-photo-background/index.ts', 'utf8');
 assert.ok(customRemoveBg.includes('Deno.env.get("REMOVE_BG_API_KEY")'), 'Custom Studio uses the same server-side secret');
 assert.ok(customRemoveBg.includes('providerForm.append("size", "auto")'), 'The existing Custom Studio output mode still needs a shared billing-cap review');
-assert.match(edge, /GDP_REMOVEBG_ALLOW_PREVIEW/);
+assert.ok(edge.includes("const branch = /^https:"), 'Cloudflare preview origin allowlist must stay scoped');
+assert.ok(edge.includes("const salt = Deno.env.get('GDP_REMOVEBG_HASH_SALT') || getServerKey()"), 'Reuse existing server secret instead of requiring another key');
 assert.match(edge, /reserve_quick_design_removebg_preview/);
 assert.match(edge, /ALLOWED_MIMES/);
 assert.match(edge, /function validSignature/);
@@ -143,5 +148,5 @@ const headers = readFileSync('public/_headers', 'utf8');
 assert.match(headers, /Content-Security-Policy:/);
 assert.doesNotMatch(headers, /https:\/\/cdn\.jsdelivr\.net|huggingface\.co|wasm-unsafe-eval/, 'No device-model CDN or WASM CSP exceptions should remain');
 assert.doesNotMatch(headers, /\/quick-design\n  Content-Security-Policy:/, 'Quick Design must inherit the standard strict CSP');
-console.log('PASS – Phase B layout, opt-in remove.bg safety gates, 1–5 photos, zero extra charge, and no live data mutation');
+console.log('PASS – Phase B layouts, shared free-only remove.bg account balance check, opt-in and quota gating, 1–5 photos');
 
