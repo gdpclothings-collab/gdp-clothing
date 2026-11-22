@@ -110,11 +110,11 @@ const edge = readFileSync('supabase/functions/gdp-quick-design-remove-bg/index.t
 assert.match(edge, /form\.set\('size', 'preview'\)/);
 assert.match(edge, /MAX_MONTHLY_PREVIEW_CALLS = 50/);
 assert.match(edge, /GDP_REMOVEBG_ENABLED/);
-assert.match(edge, /Deno\\.env\\.get\\('REMOVE_BG_API_KEY'\\)/, 'Quick Design must reuse the already configured Custom Studio remove.bg key');
-assert.doesNotMatch(edge, /Deno\\.env\\.get\\('GDP_REMOVEBG_API_KEY'\\)/, 'Do not require a second remove.bg key');
+assert.ok(edge.includes("Deno.env.get('REMOVE_BG_API_KEY')"), 'Quick Design must reuse the existing Custom Studio remove.bg secret');
+assert.ok(!edge.includes("Deno.env.get('GDP_REMOVEBG_API_KEY')"), 'Do not require a second remove.bg secret');
 const customRemoveBg = readFileSync('supabase/functions/remove-photo-background/index.ts', 'utf8');
-assert.match(customRemoveBg, /Deno\\.env\\.get\\(\"REMOVE_BG_API_KEY\"\\)/, 'Custom Studio uses this same server-side secret');
-assert.match(customRemoveBg, /providerForm\\.append\\(\"size\", \"auto\"\\)/, 'Current Custom Studio output setting is not the same as preview-only and must be audited for billing');
+assert.ok(customRemoveBg.includes('Deno.env.get("REMOVE_BG_API_KEY")'), 'Custom Studio uses the same server-side secret');
+assert.ok(customRemoveBg.includes('providerForm.append("size", "auto")'), 'The existing Custom Studio output mode still needs a shared billing-cap review');
 assert.match(edge, /GDP_REMOVEBG_ALLOW_PREVIEW/);
 assert.match(edge, /reserve_quick_design_removebg_preview/);
 assert.match(edge, /ALLOWED_MIMES/);
