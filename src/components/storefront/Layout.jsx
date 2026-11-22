@@ -27,6 +27,7 @@ export default function Layout() {
     (route) => location.pathname === route || location.pathname.startsWith(`${route}/`)
   );
   const cartActive = location.pathname === "/cart" || location.pathname.startsWith("/cart/");
+  const quickDesignActive = location.pathname === "/quick-design" || location.pathname.startsWith("/quick-design/");
   const dynamicProductRoute = /^\/products\/[^/]+\/?$/.test(location.pathname) || /^\/product\/[^/]+\/?$/.test(location.pathname);
   const productActive = dynamicProductRoute && location.pathname.replace(/\/+$/, "") !== "/products/dtf-gang-sheet";
 
@@ -54,7 +55,7 @@ export default function Layout() {
       ) : (
         <StoreFooter />
       )}
-      {!cartActive && <AIAssistant />}
+      {!cartActive && !quickDesignActive && <AIAssistant />}
       <CookiePreferences />
       <Welcome10Popup />
     </div>
