@@ -16,6 +16,7 @@ try {
     const response = await page.goto(BASE + '/quick-design', { waitUntil: 'domcontentloaded', timeout: 30000 });
     assert.ok(response && response.status() < 400, 'Quick Design route must load');
     await page.locator('[data-gdp-quick-design="true"]').waitFor({ timeout: 30000 });
+    assert.equal(await page.getByText("Ask GDP", { exact: true }).count(), 0, "Assistant overlay must not cover Quick Design controls");
     assert.match(await page.locator('h1').innerText(), /2 free bootleg samples/i);
     await page.locator('input[aria-label="Upload customer photos"]').setInputFiles({
       name: 'test-photo.png', mimeType: 'image/png', buffer: pixel,
