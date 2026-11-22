@@ -13,7 +13,8 @@ const expect = (condition, message) => {
 expect(layout.includes('data-gdp-studio-footer="true"'), 'Custom Studio has an explicit footer boundary');
 expect(!layout.includes('{!studioActive && <StoreFooter />}'), 'StoreFooter is no longer suppressed in Custom Studio');
 expect(layout.indexOf('<main className="flex-1">') < layout.indexOf('data-gdp-studio-footer="true"'), 'footer renders after the main Studio content');
-expect(layout.indexOf('data-gdp-studio-footer="true"') < layout.indexOf('{!cartActive && <AIAssistant />}'), 'Ask GDP remains outside and after the footer boundary');
+expect(layout.indexOf('data-gdp-studio-footer="true"') < layout.indexOf('{!cartActive && !quickDesignActive && <AIAssistant />}'), 'Ask GDP remains after the footer and is hidden from Quick Design and cart');
+expect(layout.includes('const quickDesignActive = location.pathname === "/quick-design"'), 'Quick Design route-specific assistant suppression remains scoped');
 expect(layout.includes('mt-8 sm:mt-10'), 'Studio-to-footer spacing is preserved');
 
 const requiredLinks = [
