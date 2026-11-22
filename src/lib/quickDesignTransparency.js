@@ -32,8 +32,14 @@ export async function detectQuickDesignBackground(file) {
   let image = null;
   try {
     if (typeof createImageBitmap === 'function') {
-      bitmap = await createImageBitmap(file);
-    } else {
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        // Safari/Android image decoders may disagree on some PNG/WebP
+        // variants. Try a regular HTMLImageElement before failing closed.
+      }
+    }
+    if (!bitmap) {
       previewUrl = URL.createObjectURL(file);
       image = new Image();
       image.src = previewUrl;
