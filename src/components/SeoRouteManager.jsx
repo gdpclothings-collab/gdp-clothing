@@ -25,6 +25,10 @@ const ROUTE_META = {
     title: "Design Your Own Custom Shirt & Hoodie | GDP Clothing",
     description: "Design your own custom T-shirt, hoodie or personalized apparel online with GDP Clothing's Custom Studio in Saskatoon, Saskatchewan.",
   },
+  "/quick-design": {
+    title: "Free Instant Bootleg T-Shirt Samples | GDP Quick Design",
+    description: "Upload your photos, choose a GDP Clothing bootleg background and instantly compare two free watermarked black T-shirt design samples in your browser.",
+  },
   "/custom-orders": {
     title: "Custom Clothing & Bulk Apparel Orders | GDP Clothing",
     description: "Order custom clothing and bulk apparel for teams, businesses, events and groups with GDP Clothing in Saskatoon, Saskatchewan.",
@@ -66,7 +70,7 @@ const PRIVATE_OR_UTILITY_PREFIXES = [
 
 const PUBLIC_EXACT_PATHS = new Set([
   "/", "/shop", "/dtf", "/products/dtf-gang-sheet", "/dtf-gang-sheet",
-  "/custom-orders", "/bulk-orders", "/custom-studio", "/design", "/custom-studio-v2",
+  "/custom-orders", "/bulk-orders", "/custom-studio", "/quick-design", "/design", "/custom-studio-v2",
   "/custom-studio-legacy", "/faq",
 ]);
 
