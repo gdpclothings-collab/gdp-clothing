@@ -9,9 +9,10 @@ import {
   validateQuickDesignFile,
   renderQuickDesignArtwork,
 } from '@/lib/quickDesignCanvas';
-import { removeQuickDesignBackground } from '@/lib/quickDesignBackgroundRemoval';
+import { requestQuickDesignRemoveBgCutout } from '@/lib/quickDesignRemoveBgClient';
 import { PREMIUM_TEXT_STYLES } from '@/lib/customStudioV2PremiumTextStyles';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES, renderQuickDesignGarmentMockup } from '@/lib/quickDesignGarmentMockup';
+import { QUICK_DESIGN_PHASE_B_NAMES } from '@/lib/quickDesignPhaseBLayout';
 import QuickDesignHelp from '@/components/storefront/QuickDesignHelp';
 import './quickDesignFonts.css';
 
@@ -56,6 +57,7 @@ export default function QuickDesign() {
   const [autoCutout, setAutoCutout] = useState(false);
   const [cutoutBusy, setCutoutBusy] = useState(false);
   const [cutoutError, setCutoutError] = useState('');
+  const [cutoutUnavailable, setCutoutUnavailable] = useState(false);
   const [accent, setAccent] = useState(ACCENTS[0]);
   const [results, setResults] = useState([]);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -85,30 +87,44 @@ export default function QuickDesign() {
     urlsRef.current.clear();
   }, []);
 
-  // Sequential client-only inference avoids multiple large model copies on phones.
+  // Sequential, explicit customer-opt-in processing. A third-party request
+  // happens only after checking the external remove.bg consent control.
+  // The server, not the customer browser, owns the API key and quota checks.
   useEffect(() => {
-    if (!autoCutout || cutoutBusy) return;
+    if (!autoCutout || cutoutBusy || cutoutUnavailable) return;
     const target = photos.find((item) => item.bgStatus === 'pending');
     if (!target) return;
     setCutoutBusy(true);
     setCutoutError('');
-    setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, bgStatus: 'working' } : item));
-    removeQuickDesignBackground(target.url).then((cutoutUrl) => {
-      if (!urlsRef.current.has(target.url)) {
-        URL.revokeObjectURL(cutoutUrl);
+    setPhotos((items) => items.map((item) => item.id === target.id
+      ? { ...item, bgStatus: 'working' } : item));
+
+    requestQuickDesignRemoveBgCutout(target.file).then((result) => {
+      if (result.ok && result.cutoutUrl) {
+        if (!urlsRef.current.has(target.url)) {
+          URL.revokeObjectURL(result.cutoutUrl);
+          return;
+        }
+        urlsRef.current.add(result.cutoutUrl);
+        setPhotos((items) => items.map((item) => item.id === target.id
+          ? { ...item, cutoutUrl: result.cutoutUrl, bgStatus: 'done' } : item));
         return;
       }
-      urlsRef.current.add(cutoutUrl);
-      setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, cutoutUrl, bgStatus: 'done' } : item));
-    }).catch((error) => {
-      // Fail safely without repeatedly downloading large models on mobile.
-      // Never render untrusted long CDN error URLs that force horizontal scroll.
-      console.warn('Quick Design local cutout failed:', error?.name || 'ModelLoadError');
-      setCutoutError('Automatic cutout is unavailable on this device. Your original photos are safe. For an optional external fallback, use remove.bg, download the transparent PNG, and upload it here.');
+      // A quota/rate/config failure stops all remaining uploads. This avoids
+      // accidental chargeable retries and preserves already processed cutouts.
+      setCutoutError(result.message || 'Automatic background removal is unavailable.');
+      setCutoutUnavailable(true);
       setAutoCutout(false);
-      setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, bgStatus: 'failed' } : item));
+      setPhotos((items) => items.map((item) => item.id === target.id
+        ? { ...item, bgStatus: 'failed' } : item));
+    }).catch(() => {
+      setCutoutError('Automatic cutouts are unavailable. Your original photos are safe. Use the remove.bg link below.');
+      setCutoutUnavailable(true);
+      setAutoCutout(false);
+      setPhotos((items) => items.map((item) => item.id === target.id
+        ? { ...item, bgStatus: 'failed' } : item));
     }).finally(() => setCutoutBusy(false));
-  }, [photos, autoCutout, cutoutBusy]);
+  }, [photos, autoCutout, cutoutBusy, cutoutUnavailable]);
 
   useEffect(() => {
     if (!photos.length || !selectedBackground) {
@@ -121,7 +137,7 @@ export default function QuickDesign() {
     setPreviewBusy(true);
     setPreviewError('');
     const options = {
-      photos: photos.map((item) => ({ ...item, url: autoCutout ? (item.cutoutUrl || item.url) : item.url })),
+      photos: photos.map((item) => ({ ...item, url: (autoCutout || cutoutUnavailable) ? (item.cutoutUrl || item.url) : item.url })),
       backgroundUrl: selectedBackground.fullAsset || selectedBackground.assetUrl,
       headline: headline || 'YOUR NAME',
       subline: subline.trim(),
@@ -143,7 +159,7 @@ export default function QuickDesign() {
       }
     }).finally(() => { if (!cancelled) setPreviewBusy(false); });
     return () => { cancelled = true; };
-  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle, autoCutout]);
+  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle, autoCutout, cutoutUnavailable]);
 
   // Switching shirt / crewneck / hoodie or front / back only redraws the
   // selected mockup, rather than recomputing the two original photo samples.
@@ -214,6 +230,8 @@ export default function QuickDesign() {
     setGarmentSide('front');
     setGarmentMockup('');
     setCutoutError('');
+    setCutoutUnavailable(false);
+    setAutoCutout(false);
     setBackgroundId(QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
     setAccent(ACCENTS[0]);
     setSelected('A');
@@ -268,7 +286,7 @@ export default function QuickDesign() {
         'Name size: ' + fontSizePercent + '%',
         'Text style: ' + (selectedPremium?.label || 'Solid color'),
         'Artwork format: 12 x 16 inches (3600 x 4800 pixels at 300 DPI target)',
-        'Local cutout: ' + (autoCutout ? 'enabled' : 'disabled'),
+        'remove.bg cutout (external opt-in): ' + (autoCutout || cutoutUnavailable ? 'enabled or attempted' : 'disabled'),
         'Uploaded photos on customer device: ' + photos.length,
         'Black ' + selectedGarment.label + ', size: ' + customer.size,
         'Requested print side: ' + garmentSide + ' only',
@@ -306,7 +324,11 @@ export default function QuickDesign() {
   const updateCustomer = (key, value) => setCustomer((current) => ({ ...current, [key]: value }));
   const switchCutouts = (enabled) => {
     setAutoCutout(enabled);
-    if (enabled) setPhotos((items) => items.map((item) => !item.cutoutUrl ? { ...item, bgStatus: 'pending' } : item));
+    if (enabled) {
+      setCutoutUnavailable(false);
+      setCutoutError('');
+      setPhotos((items) => items.map((item) => !item.cutoutUrl ? { ...item, bgStatus: 'pending' } : item));
+    }
   };
 
   return <div className="min-h-screen w-full min-w-0 max-w-full overflow-x-clip bg-[#090b0e] text-white" data-gdp-quick-design="true">
@@ -320,8 +342,8 @@ export default function QuickDesign() {
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">Upload your photos, pick an original GDP background, edit the text and compare two layouts right here. No account, Photoshop or paid AI generation required.</p>
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-white/70">
           <span className="rounded-full border border-white/20 px-3 py-2">Free watermarked previews</span>
-          <span className="rounded-full border border-white/20 px-3 py-2">Private browser rendering</span>
-          <span className="rounded-full border border-white/20 px-3 py-2">Black T-shirt mockups</span>
+          <span className="rounded-full border border-white/20 px-3 py-2">On-device sample rendering</span>
+          <span className="rounded-full border border-white/20 px-3 py-2">T-shirt, sweatshirt and hoodie previews</span>
         </div>
       </div>
     </section>
@@ -330,7 +352,7 @@ export default function QuickDesign() {
       <div className="min-w-0 space-y-7">
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="1">Add your photos</SmallHeading>
-          <label className="mb-4 flex min-w-0 items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span className="min-w-0 break-words"><strong>Automatic background removal (experimental)</strong><span className="mt-1 block text-xs text-white/60">Optional experimental model runs on your phone and may require a large download. Off by default so previews load quickly; originals remain untouched.</span></span></label>
+          <label className="mb-4 flex min-w-0 items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span className="min-w-0 break-words"><strong>Automatic background removal with remove.bg (optional)</strong><span className="mt-1 block text-xs text-white/65">If you check this, each uploaded photo will be sent to remove.bg, an external provider, for a low-resolution transparent preview. Your photos are never sent without your consent. Free quota is shared across customers; no full-resolution upgrades or paid requests.</span></span></label>
           <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-5 text-center hover:border-lime-300">
             <ImagePlus size={28} className="text-lime-300" />
             <span className="font-bold">Tap to upload 1–5 photos</span>
@@ -339,16 +361,16 @@ export default function QuickDesign() {
           </label>
           {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-4 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
             <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
-              <img src={autoCutout ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full object-contain bg-neutral-700" />
+              <img src={(autoCutout || cutoutUnavailable) ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full object-contain bg-neutral-700" />
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
             </div>
           )}</div>}
-          {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Removing photo backgrounds on your device…</p>}
+          {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Removing background through remove.bg free preview…</p>}
           {cutoutError && <p role="alert" className="mt-3 max-w-full min-w-0 break-words rounded-lg bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">{cutoutError}</p>}
-          <p className="mt-3 max-w-full break-words text-xs leading-5 text-white/55">Original photos stay on your device when using this tool. Review pet fur and hair edges carefully. No photos are uploaded to an AI service automatically.</p>
+          <p className="mt-3 max-w-full break-words text-xs leading-5 text-white/55">Original photos are kept for reference. The two artwork samples render locally; photos are sent to remove.bg only when you turn on its checkbox. Free cutouts are low-resolution previews, not 300-DPI production files.</p>
           <div className="mt-3 min-w-0 rounded-xl border border-white/15 bg-black/20 p-3" data-gdp-cutout-fallback="true">
             <p className="text-xs font-bold text-white/85">Need an alternative background remover?</p>
-            <p className="mt-1 text-xs leading-5 text-white/65">You can open remove.bg separately, choose which photos to upload there, download a transparent PNG and add it here. Their free previews are limited in resolution and are not suitable as guaranteed production files. GDP never sends your photos there automatically.</p>
+            <p className="mt-1 text-xs leading-5 text-white/65">When the automatic free-use allowance is exhausted or not configured, open remove.bg directly, save a transparent PNG and upload it here with automatic removal turned OFF. External remove.bg has its own privacy terms and may offer paid upgrades; GDP does not purchase those for you.</p>
             <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 max-w-full items-center rounded-lg border border-white/25 px-3 text-sm font-bold text-lime-200 underline underline-offset-2 hover:bg-white/10">Open remove.bg (external)</a>
           </div>
           {message && <p role="status" className="mt-3 min-w-0 max-w-full break-words rounded-lg bg-amber-300/10 p-3 text-sm text-amber-200">{message}</p>}
@@ -413,7 +435,7 @@ export default function QuickDesign() {
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="4">Compare your two samples</SmallHeading>
           <p className="mb-2 text-xs text-white/55">12″ × 16″ portrait layout; the print target would be 3600 × 4800 px at 300 DPI after source-quality checks.</p>
-          <p className="mb-4 text-sm text-white/65">Sample A uses a centered hero montage. Sample B uses a bold, off-center editorial layout. Both use soft photo edges without changing your original background.</p>
+          <p className="mb-4 text-sm text-white/65">Phase B: Sample A builds a balanced, overlapping hero portrait; Sample B creates a dramatic multi-layer stack. Transparent PNG cutouts get glowing pink-and-white subject outlines. The selected GDP background remains the original image.</p>
           {!photos.length ? <div className="rounded-xl border border-dashed border-white/20 bg-black/20 p-12 text-center text-white/60">Upload at least one photo to create Samples A and B instantly.</div> :
           previewBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Creating both previews on your device…</div> :
           previewError ? <p role="alert" className="rounded-xl bg-red-950/50 p-4 text-sm text-red-200">{previewError}</p> :
@@ -421,7 +443,7 @@ export default function QuickDesign() {
             <button key={item.variant} data-gdp-sample-option={item.variant} aria-label={"Choose Sample " + item.variant} type="button" onClick={() => { setSelected(item.variant); setSubmitted(null); }} aria-pressed={selected === item.variant}
               className={'overflow-hidden rounded-xl border-2 text-left transition ' + (selected === item.variant ? 'border-lime-300 bg-lime-300/10' : 'border-white/15 hover:border-white/50')}>
               <img src={item.artwork} alt={'Watermarked sample ' + item.variant + ' artwork'} className="aspect-[297/420] w-full object-contain" />
-              <span className="flex items-center justify-between p-3 text-sm font-black"><span>Sample {item.variant}<small className="mt-0.5 block text-[10px] font-medium text-white/60">{item.variant === "A" ? "Hero Montage" : "Editorial Collage"}</small></span> {selected === item.variant ? <CheckCircle2 size={18} className="text-lime-300" /> : null}</span>
+              <span className="flex items-center justify-between p-3 text-sm font-black"><span>Sample {item.variant}<small className="mt-0.5 block text-[10px] font-medium text-white/60">{QUICK_DESIGN_PHASE_B_NAMES[item.variant]}</small></span> {selected === item.variant ? <CheckCircle2 size={18} className="text-lime-300" /> : null}</span>
             </button>)}</div>}
           <p className="mt-4 text-xs leading-5 text-white/60">{MAX_PREVIEW_NOTICE}</p>
           {selectedResult && !previewBusy && <div className="mt-4 flex flex-wrap gap-2">
