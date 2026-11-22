@@ -94,7 +94,6 @@ try {
     const crewneckFront = await garmentImage.getAttribute('src');
     assert.notEqual(crewneckFront, crewneckBack, 'Sweatshirt sides must differ');
     await page.getByRole('button', { name: 'Show Back view' }).click();
-    await page.getByRole('button', { name: 'Show Back view' }).click();
     await waitForNewGarment(crewneckFront);
     await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
     assert.ok(crewneckBack?.startsWith('data:image/jpeg;base64,'), 'Sweatshirt back preview renders locally');
