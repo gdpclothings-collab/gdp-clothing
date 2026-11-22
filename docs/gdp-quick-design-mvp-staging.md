@@ -71,3 +71,16 @@ Additional QA:
 - [ ] Browser tests: typography and all garment/side combinations, no horizontal overflow, no network uploads.
 - [ ] Real Android model cutout and garment layout quality checks.
 - [ ] Real garment photographs and print guide before production brand/size claims.
+
+
+## Android 3965 follow-up: cutout failure and white right-edge panel
+
+- User recording shows five added photos, then an experimental browser module failure that rendered a long jsDelivr CDN URL; after upload, a pale right-edge panel appeared as the layout overflowed horizontally.
+- Quick Design now uses a min-width-zero responsive grid, constrained photo tiles, breakable error feedback, and a clip boundary on the Quick Design root to prevent the mobile right-edge panel. The full untrusted model-loader URL is no longer printed into the customer UI.
+- Free on-device cutout now defaults OFF. It remains opt-in; a failed attempt automatically disables processing and preserves every original photo rather than looping over all five.
+- The optional on-device import now uses jsDelivr's explicit browser ESM endpoint (+esm). This does **not** guarantee model compatibility on Android, and no success claim is made before real-device QA.
+- An explicit external link to https://www.remove.bg/ is offered for customer-selected manual removal and PNG reupload. No remove.bg API key is embedded or requested, no customer photo is forwarded, and no paid API calls, automatic uploads or charges are enabled.
+- remove.bg's free API supports only a limited number of low-resolution (0.25 MP) previews per month. Their high-resolution outputs/greater usage may require payment and are not assumed available or sufficient for 12 x 16-inch production.
+- Dedicated browser regression reproduces five uploads plus failed CDN import on 360px, 390px and desktop viewports, and asserts no horizontal overflow, no unintended uploads, and correct fallback to originals.
+
+**Production gate stays CLOSED.** Secure photo handoff, 300-DPI print export and local model quality are unverified.
