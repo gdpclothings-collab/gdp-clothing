@@ -13,6 +13,34 @@ const REMOVE_BG_ACCOUNT = 'https://api.remove.bg/v1.0/account';
 const REMOVE_BG_API = 'https://api.remove.bg/v1.0/removebg';
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
+// This read-only account check never sends a photo and never spends a credit.
+// Reuse the same check for the on-demand status button and actual uploads.
+type FreeBalance = { ready: boolean; code: 'READY' | 'LIMIT_REACHED' | 'SERVICE_UNAVAILABLE' };
+async function checkFreeBalance(key: string): Promise<FreeBalance> {
+  try {
+    const response = await fetch(REMOVE_BG_ACCOUNT, {
+      method: 'GET',
+      headers: { 'X-API-Key': key, 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return { ready: false, code: 'SERVICE_UNAVAILABLE' };
+    const balance = await response.json();
+    const freeCalls = balance?.data?.attributes?.api?.free_calls;
+    if (!Number.isInteger(freeCalls)) return { ready: false, code: 'SERVICE_UNAVAILABLE' };
+    if (freeCalls <= FREE_CALLS_SAFETY_BUFFER) return { ready: false, code: 'LIMIT_REACHED' };
+    return { ready: true, code: 'READY' };
+  } catch {
+    return { ready: false, code: 'SERVICE_UNAVAILABLE' };
+  }
+}
+
+function balanceMessage(code: FreeBalance['code']): string {
+  if (code === 'READY') return 'Free preview removal is available. Upload a photo to create a cutout.';
+  if (code === 'LIMIT_REACHED') return 'This remove.bg account has too few free calls remaining. Your original photos will stay unchanged. Use the external option.';
+  return 'The remove.bg account or its free allowance could not be verified. No photo has been sent and no paid processing will be attempted.';
+}
+
+
 function allowedOrigin(origin: string) {
   const official = origin === 'https://gdpclothing.ca' || origin === 'https://www.gdpclothing.ca';
   const branch = /^https:\/\/[a-z0-9-]+\.gdp-clothing\.pages\.dev$/i.test(origin);
@@ -74,15 +102,17 @@ async function identityHash(request: Request) {
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || '';
-  if (!allowedOrigin(origin)) {
+  const isReadOnlyStatus = request.method === 'GET';
+  if (!allowedOrigin(origin) && !(isReadOnlyStatus && !origin)) {
+    // Allow originless read-only status probes, never originless photo uploads.
     // An Origin allow-list is a browser privacy boundary, NOT caller authentication.
     return new Response('Origin not allowed', { status: 403 });
   }
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors(origin) });
   }
-  if (request.method !== 'POST') {
-    return json(origin, 405, 'METHOD_NOT_ALLOWED', 'Only photo uploads are supported.');
+  if (request.method !== 'POST' && !isReadOnlyStatus) {
+    return json(origin, 405, 'METHOD_NOT_ALLOWED', 'Only upload or status requests are supported.');
   }
 
   // Reuse the SAME project-level remove.bg secret that Custom Studio's active
@@ -95,6 +125,18 @@ Deno.serve(async (request) => {
   // are still available. No new secrets, payment methods or paid upgrades.
   if (!key || !adminKey || !projectUrl) {
     return json(origin, 503, 'SERVICE_UNAVAILABLE', 'The shared remove.bg configuration is not available. Use the external option.');
+  }
+
+  if (isReadOnlyStatus) {
+    const result = await checkFreeBalance(key);
+    return new Response(JSON.stringify({
+      ready: result.ready,
+      code: result.code,
+      message: balanceMessage(result.code),
+    }), {
+      status: 200,
+      headers: { ...cors(origin), 'Content-Type': 'application/json; charset=utf-8' },
+    });
   }
 
   const limit = Math.max(0, Math.min(MAX_MONTHLY_PREVIEW_CALLS,
@@ -153,30 +195,12 @@ Deno.serve(async (request) => {
   }
   if (!allowed) return json(origin, 503, 'SERVICE_UNAVAILABLE', 'Automatic cutouts are unavailable.');
 
-  // Critical: Custom Studio uses this SAME remove.bg account, so Quick Design's
-  // local 50-call counter is not an accurate account balance. Check remove.bg's
-  // actual FREE preview calls before EVERY removal. Do not rely on purchased
-  // PAYG/subscription credits (or the application's own monthly count).
-  // Provider warns this balance may lag by a few seconds; retain a buffer.
-  try {
-    const balanceResponse = await fetch(REMOVE_BG_ACCOUNT, {
-      method: 'GET',
-      headers: { 'X-API-Key': key, 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!balanceResponse.ok) {
-      return json(origin, 503, 'SERVICE_UNAVAILABLE',
-        'Could not verify free remove.bg credits. Your original photo is safe.');
-    }
-    const balance = await balanceResponse.json();
-    const freeCalls = balance?.data?.attributes?.api?.free_calls;
-    if (!Number.isInteger(freeCalls) || freeCalls <= FREE_CALLS_SAFETY_BUFFER) {
-      return json(origin, 429, 'LIMIT_REACHED',
-        'The shared remove.bg free allowance is too low. Use the external option.');
-    }
-  } catch {
-    return json(origin, 503, 'SERVICE_UNAVAILABLE',
-      'Could not verify free remove.bg credits. Your original photo is safe.');
+  // Same free-only read check as GET diagnostics. This is a shared account,
+  // so never infer eligibility from Quick Design's private monthly counters.
+  const balanceCheck = await checkFreeBalance(key);
+  if (!balanceCheck.ready) {
+    return json(origin, balanceCheck.code === 'LIMIT_REACHED' ? 429 : 503,
+      balanceCheck.code, balanceMessage(balanceCheck.code));
   }
 
   // size=preview caps output to 0.25MP; paid resolutions never requested.
