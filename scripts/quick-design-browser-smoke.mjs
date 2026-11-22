@@ -59,11 +59,25 @@ try {
     assert.equal(await subtitle.inputValue(), '', 'No hidden CUSTOM BOOTLEG subtitle should appear');
 
     await page.getByRole('button', { name: 'Choose Sample B', exact: true }).click();
+    // Every one of the three garment types and both sides is rendered, not
+    // just a relabelled version of the same black T-shirt.
+    const garmentImage = page.locator('[data-gdp-garment-image="true"]');
+    await page.getByAltText('Sample B on illustrative black T-shirt front view').waitFor({ timeout: 10000 });
+    const tshirtFront = await garmentImage.getAttribute('src');
+    await page.getByRole('button', { name: 'Show Back view' }).click();
+    await page.getByAltText('Sample B on illustrative black T-shirt back view').waitFor({ timeout: 10000 });
+    const tshirtBack = await garmentImage.getAttribute('src');
+    assert.notEqual(tshirtFront, tshirtBack, 'T-shirt sides must differ');
     await page.getByRole('button', { name: 'Preview Sweatshirt' }).click();
+    await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
+    const crewneckBack = await garmentImage.getAttribute('src');
+    await page.getByRole('button', { name: 'Show Front view' }).click();
+    await page.getByAltText('Sample B on illustrative black Sweatshirt front view').waitFor({ timeout: 10000 });
+    const crewneckFront = await garmentImage.getAttribute('src');
+    assert.notEqual(crewneckFront, crewneckBack, 'Sweatshirt sides must differ');
+    await page.getByRole('button', { name: 'Show Back view' }).click();
     await page.getByRole('button', { name: 'Show Back view' }).click();
     await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
-    const garmentImage = page.locator('[data-gdp-garment-image="true"]');
-    const crewneckBack = await garmentImage.getAttribute('src');
     assert.ok(crewneckBack?.startsWith('data:image/jpeg;base64,'), 'Sweatshirt back preview renders locally');
     await page.getByRole('button', { name: 'Preview Hoodie' }).click();
     await page.getByAltText('Sample B on illustrative black Hoodie back view').waitFor({ timeout: 10000 });
