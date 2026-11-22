@@ -29,9 +29,9 @@ try {
     assert.ok(srcA?.startsWith('data:image/jpeg;base64,'), 'Sample A must be locally rendered');
     assert.ok(srcB?.startsWith('data:image/jpeg;base64,'), 'Sample B must be locally rendered');
     assert.notEqual(srcA, srcB, 'Sample A and B must use genuinely different compositions');
-    await page.getByRole('button', { name: /Sample B$/ }).click();
+    await page.getByRole('button', { name: 'Sample B', exact: true }).click();
     await page.getByAltText('Sample B on an illustrative black T-shirt').waitFor({ timeout: 10000 });
-    assert.equal(await page.getByRole('button', { name: /Sample B$/ }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Sample B', exact: true }).getAttribute('aria-pressed'), 'true');
     assert.deepEqual(uploads, [], 'Previewing must not upload customer photos to storage');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
