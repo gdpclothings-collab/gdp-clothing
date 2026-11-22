@@ -1,5 +1,8 @@
 import { GDP_STYLE_TEMPLATES } from './customStudioStyleTemplates.js';
 import { paintPremiumTextGlyph, premiumTextPreset } from './customStudioV2PremiumTextStyles.js';
+import { getQuickDesignPhaseBLayout, getQuickDesignPhaseBRenderOrder, QUICK_DESIGN_PHASE_B_NAMES } from './quickDesignPhaseBLayout.js';
+
+export { QUICK_DESIGN_PHASE_B_NAMES };
 
 export const QUICK_DESIGN_MAX_PHOTOS = 5;
 export const QUICK_DESIGN_MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -54,59 +57,151 @@ function drawContain(ctx, img, x, y, w, h) {
   ctx.drawImage(img, x + (w - sw * ratio) / 2, y + (h - sh * ratio) / 2, sw * ratio, sh * ratio);
 }
 
-// Soft-edge studio montage: preserve the source pixels and original GDP template.
-// This is a feathered photo composite, not AI subject extraction/background removal.
-function drawPhoto(ctx, image, box, color, variant = 'A', index = 0) {
-  const x = box[0] * PREVIEW_W;
-  const y = box[1] * PREVIEW_H;
-  const w = box[2] * PREVIEW_W;
-  const h = box[3] * PREVIEW_H;
-  const angle = box[4] || 0;
+// Subject-first Phase B painter. An actual transparent cutout keeps its exact
+// alpha silhouette (hair, ears, fur). An opaque photo gets only a soft feather:
+// it is never falsely described as a removed background.
+function trimmedAlphaBounds(image) {
+  const sw = image.naturalWidth || image.width || 1;
+  const sh = image.naturalHeight || image.height || 1;
+  const preview = document.createElement('canvas');
+  preview.width = 160;
+  preview.height = 160;
+  const sample = preview.getContext('2d', { willReadFrequently: true });
+  if (!sample) return null;
+  sample.drawImage(image, 0, 0, preview.width, preview.height);
+  const pixels = sample.getImageData(0, 0, preview.width, preview.height).data;
+  let minX = preview.width, minY = preview.height, maxX = -1, maxY = -1;
+  let transparent = 0, visible = 0;
+  for (let y = 0; y < preview.height; y += 2) {
+    for (let x = 0; x < preview.width; x += 2) {
+      const alpha = pixels[(y * preview.width + x) * 4 + 3];
+      if (alpha < 24) { transparent += 1; continue; }
+      visible += 1;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  // Opaque JPEGs and mostly-solid PNGs must not receive a rectangular
+  // silhouette outline. A cutout needs a meaningful visible shape.
+  if (transparent < 180 || visible < 16 || maxX < minX || maxY < minY) return null;
+  const gutter = 3;
+  const x0 = Math.max(0, minX - gutter) / preview.width * sw;
+  const y0 = Math.max(0, minY - gutter) / preview.height * sh;
+  const x1 = Math.min(preview.width, maxX + gutter + 2) / preview.width * sw;
+  const y1 = Math.min(preview.height, maxY + gutter + 2) / preview.height * sh;
+  return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+}
+
+function paintPhaseBSubject(ctx, image, slot, accent, variant) {
+  const x = slot.x * PREVIEW_W;
+  const y = slot.y * PREVIEW_H;
+  const w = slot.w * PREVIEW_W;
+  const h = slot.h * PREVIEW_H;
   const layer = document.createElement('canvas');
-  layer.width = Math.ceil(w);
-  layer.height = Math.ceil(h);
+  layer.width = Math.max(1, Math.ceil(w));
+  layer.height = Math.max(1, Math.ceil(h));
   const layerCtx = layer.getContext('2d', { alpha: true });
   if (!layerCtx) return;
-  const sw = image.naturalWidth || image.width;
-  const sh = image.naturalHeight || image.height;
-  // Keep the person's proportions; never stretch or apply a facial filter.
-  const ratio = Math.max(layer.width / sw, layer.height / sh);
-  layerCtx.drawImage(image, (layer.width - sw * ratio) / 2, (layer.height - sh * ratio) / 2, sw * ratio, sh * ratio);
+  const sw = image.naturalWidth || image.width || 1;
+  const sh = image.naturalHeight || image.height || 1;
+  const cutoutBounds = trimmedAlphaBounds(image);
+  const crop = cutoutBounds || { x: 0, y: 0, w: sw, h: sh };
+  const isCutout = Boolean(cutoutBounds);
 
-  // Feather a soft oval at the photo edge to avoid hard rectangular collage cards.
-  // A source PNG cutout retains its own alpha; this mask only fades outer pixels.
-  const radius = Math.max(layer.width, layer.height) / 2;
-  layerCtx.save();
-  layerCtx.translate(layer.width / 2, layer.height / 2);
-  layerCtx.scale(layer.width / Math.max(layer.width, layer.height), layer.height / Math.max(layer.width, layer.height));
-  const mask = layerCtx.createRadialGradient(0, 0, radius * 0.31, 0, 0, radius);
-  mask.addColorStop(0, 'rgba(255,255,255,1)');
-  mask.addColorStop(0.68, 'rgba(255,255,255,1)');
-  mask.addColorStop(0.90, 'rgba(255,255,255,0.48)');
-  mask.addColorStop(1, 'rgba(255,255,255,0)');
-  layerCtx.globalCompositeOperation = 'destination-in';
-  layerCtx.fillStyle = mask;
-  layerCtx.fillRect(-radius, -radius, radius * 2, radius * 2);
-  layerCtx.restore();
+  // Never stretch animal or human anatomy. Cutouts are fully contained and
+  // trim transparent margins so tiny subjects get a professional hero scale.
+  const scale = isCutout
+    ? Math.min((layer.width * .985) / crop.w, (layer.height * .985) / crop.h)
+    : Math.max(layer.width / crop.w, layer.height / crop.h);
+  const actualW = crop.w * scale;
+  const actualH = crop.h * scale;
+  layerCtx.drawImage(image, crop.x, crop.y, crop.w, crop.h,
+    (layer.width - actualW) / 2, (layer.height - actualH) / 2, actualW, actualH);
+
+  if (!isCutout) {
+    // A soft blend is an honest fallback, not a pretend photo cutout.
+    const radius = Math.max(layer.width, layer.height) * .57;
+    layerCtx.save();
+    layerCtx.translate(layer.width / 2, layer.height / 2);
+    layerCtx.scale(layer.width / Math.max(layer.width, layer.height),
+      layer.height / Math.max(layer.width, layer.height));
+    const mask = layerCtx.createRadialGradient(0, 0, radius * .40, 0, 0, radius);
+    mask.addColorStop(0, 'rgba(255,255,255,1)');
+    mask.addColorStop(.61, 'rgba(255,255,255,1)');
+    mask.addColorStop(.88, 'rgba(255,255,255,.5)');
+    mask.addColorStop(1, 'rgba(255,255,255,0)');
+    layerCtx.globalCompositeOperation = 'destination-in';
+    layerCtx.fillStyle = mask;
+    layerCtx.fillRect(-radius, -radius, radius * 2, radius * 2);
+    layerCtx.restore();
+  } else {
+    // Localized warm highlight contained INSIDE the alpha, not recoloring
+    // the GDP backdrop or changing the customer's dog/human features.
+    layerCtx.save();
+    layerCtx.globalCompositeOperation = 'source-atop';
+    const highlight = layerCtx.createLinearGradient(0, 0, layer.width, layer.height);
+    highlight.addColorStop(0, 'rgba(255,239,192,.11)');
+    highlight.addColorStop(.5, 'rgba(255,255,255,0)');
+    highlight.addColorStop(1, 'rgba(0,0,0,.06)');
+    layerCtx.fillStyle = highlight;
+    layerCtx.fillRect(0, 0, layer.width, layer.height);
+    layerCtx.restore();
+  }
 
   ctx.save();
   ctx.translate(x + w / 2, y + h / 2);
-  ctx.rotate(angle);
-  const glow = ctx.createRadialGradient(0, 0, w * 0.12, 0, 0, w * 0.7);
-  glow.addColorStop(0, variant === 'B' ? color + '45' : color + '28');
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, w * 0.67, h * 0.64, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // A faint colored rim follows the softened silhouette, not a rectangular border.
-  ctx.save();
-  ctx.shadowColor = color;
-  ctx.shadowBlur = variant === 'B' ? 29 : 19;
-  ctx.globalAlpha = index === 0 ? 0.98 : 0.94;
+  ctx.rotate(slot.angle);
+  const radius = Math.max(w, h) * .62;
+  const light = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  light.addColorStop(0, variant === 'B' ? accent + '36' : accent + '25');
+  light.addColorStop(.48, accent + '1a');
+  light.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = light;
+  ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+  if (isCutout) {
+    const silhouette = document.createElement('canvas');
+    silhouette.width = layer.width;
+    silhouette.height = layer.height;
+    const sc = silhouette.getContext('2d', { alpha: true });
+    if (sc) {
+      sc.drawImage(layer, 0, 0);
+      sc.globalCompositeOperation = 'source-in';
+      sc.fillStyle = '#ffffff';
+      sc.fillRect(0, 0, silhouette.width, silhouette.height);
+      ctx.save();
+      ctx.shadowColor = variant === 'B' ? '#ff28c8' : '#fa59c9';
+      ctx.shadowBlur = variant === 'B' ? 28 : 19;
+      ctx.globalAlpha = .83;
+      ctx.drawImage(silhouette, -w / 2, -h / 2, w, h);
+      ctx.restore();
+      ctx.save();
+      ctx.shadowColor = '#fff7ff';
+      ctx.shadowBlur = 6;
+      ctx.globalAlpha = .9;
+      ctx.drawImage(silhouette, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    }
+  } else {
+    ctx.save();
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = variant === 'B' ? 18 : 12;
+    ctx.globalAlpha = .63;
+    ctx.drawImage(layer, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
   ctx.drawImage(layer, -w / 2, -h / 2, w, h);
   ctx.restore();
-  ctx.restore();
+}
+
+function paintPhaseBPortraits(ctx, images, accent, variant) {
+  const slots = getQuickDesignPhaseBRenderOrder(variant, images.length);
+  slots.forEach((slot) => {
+    const image = images[slot.photoIndex];
+    if (image) paintPhaseBSubject(ctx, image, slot, accent, variant);
+  });
 }
 
 function paintTextVeil(ctx, centerY, height) {
@@ -119,27 +214,9 @@ function paintTextVeil(ctx, centerY, height) {
   ctx.fillRect(0, centerY - height / 2, PREVIEW_W, height);
 }
 
-// A: centered hero with supporting portraits. B: asymmetric editorial spread.
-// Both work with just one source photo and remain distinct for 1–5 uploads.
-const LAYOUTS = {
-  A: [
-    [0.15, 0.245, 0.70, 0.465, -0.012],
-    [0.025, 0.56, 0.37, 0.245, -0.115],
-    [0.64, 0.55, 0.34, 0.255, 0.105],
-    [0.31, 0.65, 0.34, 0.19, 0.045],
-    [0.03, 0.675, 0.28, 0.15, -0.12],
-  ],
-  B: [
-    [0.06, 0.24, 0.58, 0.59, -0.115],
-    [0.53, 0.265, 0.44, 0.44, 0.105],
-    [0.39, 0.48, 0.58, 0.35, -0.04],
-    [0.025, 0.54, 0.34, 0.25, 0.08],
-    [0.71, 0.65, 0.28, 0.18, 0.14],
-  ],
-};
-
+// Phase B shares a pure layout spec with regression tests and editorial labels.
 export function quickDesignLayoutCount(variant) {
-  return LAYOUTS[variant === 'B' ? 'B' : 'A'].length;
+  return getQuickDesignPhaseBLayout(variant, QUICK_DESIGN_MAX_PHOTOS).length;
 }
 
 export function quickDesignFont(fontId) {
@@ -263,8 +340,7 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
   // Fill the requested 12 × 16 portrait print ratio, stretching the original GDP artwork down.
   // No crop, recolouring, or independent content edits; resizing may alter aspect ratio.
   ctx.drawImage(background, 0, 0, PREVIEW_W, PREVIEW_H);
-  const layout = LAYOUTS[variant === 'B' ? 'B' : 'A'];
-  images.forEach((image, index) => drawPhoto(ctx, image, layout[index], accent, variant, index));
+  paintPhaseBPortraits(ctx, images, accent, variant);
   // The customer name is at the TOP in both layouts; subtitle is optional.
   if (variant === 'B') {
     paintTextVeil(ctx, PREVIEW_H * 0.14, PREVIEW_H * 0.19);
