@@ -162,26 +162,43 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
   ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
 
   if (isCutout) {
-    const silhouette = document.createElement('canvas');
-    silhouette.width = layer.width;
-    silhouette.height = layer.height;
-    const sc = silhouette.getContext('2d', { alpha: true });
-    if (sc) {
+    // HENRY-style keyline: create solid-colored silhouettes from actual alpha,
+    // then spread them only a few pixels around the dog's/person's shape.
+    // This is not a rectangular photo border and never changes GDP background.
+    const stencil = (color) => {
+      const silhouette = document.createElement('canvas');
+      silhouette.width = layer.width;
+      silhouette.height = layer.height;
+      const sc = silhouette.getContext('2d', { alpha: true });
+      if (!sc) return null;
       sc.drawImage(layer, 0, 0);
       sc.globalCompositeOperation = 'source-in';
-      sc.fillStyle = '#ffffff';
+      sc.fillStyle = color;
       sc.fillRect(0, 0, silhouette.width, silhouette.height);
+      return silhouette;
+    };
+    const pink = stencil(variant === 'B' ? '#ff209e' : '#ed3fae');
+    const white = stencil('#fff9ff');
+    if (pink && white) {
       ctx.save();
-      ctx.shadowColor = variant === 'B' ? '#ff28c8' : '#fa59c9';
-      ctx.shadowBlur = variant === 'B' ? 28 : 19;
-      ctx.globalAlpha = .83;
-      ctx.drawImage(silhouette, -w / 2, -h / 2, w, h);
+      ctx.shadowColor = '#ff2ea8';
+      ctx.shadowBlur = variant === 'B' ? 22 : 15;
+      ctx.globalAlpha = .92;
+      for (let step = 0; step < 8; step += 1) {
+        const theta = Math.PI * step / 4;
+        const radius = variant === 'B' ? 6.4 : 5.1;
+        ctx.drawImage(pink, -w / 2 + Math.cos(theta) * radius,
+          -h / 2 + Math.sin(theta) * radius, w, h);
+      }
       ctx.restore();
       ctx.save();
-      ctx.shadowColor = '#fff7ff';
-      ctx.shadowBlur = 6;
-      ctx.globalAlpha = .9;
-      ctx.drawImage(silhouette, -w / 2, -h / 2, w, h);
+      ctx.globalAlpha = .96;
+      for (let step = 0; step < 8; step += 1) {
+        const theta = Math.PI * step / 4;
+        const radius = 2.5;
+        ctx.drawImage(white, -w / 2 + Math.cos(theta) * radius,
+          -h / 2 + Math.sin(theta) * radius, w, h);
+      }
       ctx.restore();
     }
   } else {
