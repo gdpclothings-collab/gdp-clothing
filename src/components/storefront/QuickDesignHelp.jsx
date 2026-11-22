@@ -16,7 +16,11 @@ const HELP_TOPICS = [
   },
   {
     title: 'How do I change the name style?',
-    answer: 'Choose one of five bootleg font presets, set the name color, then select Straight, Curve upward or Curve downward. The name stays at the top of the 12 × 16-inch layout.',
+    answer: 'Choose one of five bootleg font presets, adjust the 60–160% font-size slider, and choose a premium finish such as chrome, neon glow or retro 3D. Set a name color, then choose Straight, Curve upward or Curve downward. Long names auto-fit within the 12 × 16-inch layout.',
+  },
+  {
+    title: 'Can I see my design on a sweatshirt or hoodie?',
+    answer: 'Yes. Under Preview your garment, select T-shirt, Sweatshirt or Hoodie, then Front or Back. The preview applies your selected design on only the chosen side; changing the view does not add a second print or extra charge.',
   },
   {
     title: 'What if I need help finishing or ordering?',
@@ -72,8 +76,12 @@ export default function QuickDesignHelp({ onClose, details }) {
       'Sample: ' + (details?.selected || 'A'),
       'GDP background: ' + (details?.background || '(not selected)'),
       'Font: ' + (details?.font || 'Street Impact'),
+      'Font size: ' + (details?.fontSizePercent || 100) + '%',
+      'Premium finish: ' + (details?.premiumStyle || 'Solid color'),
       'Name layout: ' + (details?.curve || 'straight'),
       'Photos selected: ' + (details?.photoCount || 0),
+      'Garment: ' + (details?.garment || 'T-shirt'),
+      'Side to print: ' + (details?.garmentSide || 'front'),
       'Artwork preview: 12 x 16 inches',
       'Note: Original photos and previews are NOT included in this text.',
     ].join('\n');
@@ -108,8 +116,8 @@ export default function QuickDesignHelp({ onClose, details }) {
             <ol className="mt-3 space-y-2 text-sm leading-6 text-white/85">
               <li>1. Add one to five photos and review the optional cutouts.</li>
               <li>2. Pick an original GDP bootleg background.</li>
-              <li>3. Add your name, font, color, and straight or curved text.</li>
-              <li>4. Compare both free watermarked samples and choose one.</li>
+              <li>3. Add your name, font size, premium finish, color, and straight or curved text.</li>
+              <li>4. Compare both free samples, then preview T-shirt, sweatshirt or hoodie (front/back).</li>
               <li>5. Save your sample and contact GDP if you need help finishing.</li>
             </ol>
           </div>
