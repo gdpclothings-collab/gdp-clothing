@@ -49,6 +49,21 @@ export default function QuickDesignHelp({ onClose, details }) {
     };
   }, [onClose]);
 
+  const trapFocus = (event) => {
+    if (event.key !== 'Tab') return;
+    const focusable = [...event.currentTarget.querySelectorAll('button:not([disabled]), a[href], summary')].filter((item) => item.getClientRects().length > 0);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   const copyDesignDetails = async () => {
     const summary = [
       'GDP Quick Design – customer help request',
@@ -73,7 +88,7 @@ export default function QuickDesignHelp({ onClose, details }) {
 
   return (
     <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/80 px-2 pt-4 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby={titleId} data-gdp-quick-design-help="true" className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-white/20 bg-[#13151a] text-white shadow-2xl sm:max-h-[87vh] sm:rounded-2xl">
+      <section id="gdp-quick-design-help-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={trapFocus} data-gdp-quick-design-help="true" className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-white/20 bg-[#13151a] text-white shadow-2xl sm:max-h-[87vh] sm:rounded-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-4 sm:p-5">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-lime-300/15 text-lime-300"><HelpCircle size={22} /></div>
