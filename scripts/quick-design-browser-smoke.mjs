@@ -37,9 +37,14 @@ try {
     assert.match(await page.locator('[data-gdp-font-size-value]').innerText(), /110%/);
     await page.getByRole('combobox', { name: 'Premium text style' }).selectOption('silver-chrome');
 
-    await page.locator('input[aria-label="Upload customer photos"]').setInputFiles({
-      name: 'test-photo.png', mimeType: 'image/png', buffer: pixel,
-    });
+    await page.locator('input[aria-label="Upload customer photos"]').setInputFiles(
+      Array.from({ length: 5 }, (_, i) => ({
+        name: 'test-photo-' + (i + 1) + '.png', mimeType: 'image/png', buffer: pixel,
+      }))
+    );
+    assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
+    let overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflowAfterPhotos <= 4, 'Five photos must not expose white right-side panel: ' + overflowAfterPhotos);
     const artworkA = page.getByAltText('Watermarked sample A artwork');
     const artworkB = page.getByAltText('Watermarked sample B artwork');
     await artworkA.waitFor({ timeout: 30000 });
@@ -96,6 +101,16 @@ try {
     assert.equal(await page.getByRole('combobox', { name: 'Premium text style' }).inputValue(), 'silver-chrome', 'Help must preserve premium text style');
     assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true', 'Opening Help must preserve the chosen sample');
 
+    // Reproduce the Android recording's failed CDN import, with a long URL
+    // originating from the browser module loader. The app must remain in
+    // bounds and fall back to original photos without uploading to remove.bg.
+    await page.route('https://cdn.jsdelivr.net/**', (route) => route.abort());
+    await page.getByRole('checkbox', { name: /Automatic background removal/i }).check();
+    await page.getByRole('alert').filter({ hasText: /Automatic cutout is unavailable/ }).waitFor({ timeout: 20000 });
+    assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).isChecked(), false, 'On-device model error must turn off failing automatic cutout');
+    assert.equal(await page.getByRole('link', { name: /Open remove.bg \(external\)/ }).getAttribute('href'), 'https://www.remove.bg/');
+    overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflowAfterPhotos <= 4, 'Cutout error must not expose white right-side panel: ' + overflowAfterPhotos);
     assert.deepEqual(uploads, [], 'Previewing must not upload customer photos to storage');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
