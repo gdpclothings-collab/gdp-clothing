@@ -290,7 +290,7 @@ export default function QuickDesign() {
           previewBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Creating both previews on your device…</div> :
           previewError ? <p role="alert" className="rounded-xl bg-red-950/50 p-4 text-sm text-red-200">{previewError}</p> :
           <div className="grid grid-cols-2 gap-3">{results.map((item) =>
-            <button key={item.variant} type="button" onClick={() => { setSelected(item.variant); setSubmitted(null); }} aria-pressed={selected === item.variant}
+            <button key={item.variant} data-gdp-sample-option={item.variant} aria-label={"Choose Sample " + item.variant} type="button" onClick={() => { setSelected(item.variant); setSubmitted(null); }} aria-pressed={selected === item.variant}
               className={'overflow-hidden rounded-xl border-2 text-left transition ' + (selected === item.variant ? 'border-lime-300 bg-lime-300/10' : 'border-white/15 hover:border-white/50')}>
               <img src={item.artwork} alt={'Watermarked sample ' + item.variant + ' artwork'} className="aspect-[297/420] w-full object-contain" />
               <span className="flex items-center justify-between p-3 text-sm font-black">Sample {item.variant} {selected === item.variant ? <CheckCircle2 size={18} className="text-lime-300" /> : null}</span>
