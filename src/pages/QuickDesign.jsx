@@ -8,9 +8,10 @@ import {
   QUICK_DESIGN_FONTS,
   validateQuickDesignFile,
   renderQuickDesignArtwork,
-  renderQuickDesignMockup,
 } from '@/lib/quickDesignCanvas';
 import { removeQuickDesignBackground } from '@/lib/quickDesignBackgroundRemoval';
+import { PREMIUM_TEXT_STYLES } from '@/lib/customStudioV2PremiumTextStyles';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES, renderQuickDesignGarmentMockup } from '@/lib/quickDesignGarmentMockup';
 import QuickDesignHelp from '@/components/storefront/QuickDesignHelp';
 import './quickDesignFonts.css';
 
@@ -50,6 +51,8 @@ export default function QuickDesign() {
   const [subline, setSubline] = useState('');
   const [fontId, setFontId] = useState('impact');
   const [curve, setCurve] = useState('straight');
+  const [fontSizePercent, setFontSizePercent] = useState(100);
+  const [premiumStyle, setPremiumStyle] = useState('solid');
   const [autoCutout, setAutoCutout] = useState(true);
   const [cutoutBusy, setCutoutBusy] = useState(false);
   const [cutoutError, setCutoutError] = useState('');
@@ -58,6 +61,11 @@ export default function QuickDesign() {
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState('');
   const [selected, setSelected] = useState('A');
+  const [garment, setGarment] = useState('tshirt');
+  const [garmentSide, setGarmentSide] = useState('front');
+  const [garmentMockup, setGarmentMockup] = useState('');
+  const [garmentBusy, setGarmentBusy] = useState(false);
+  const [garmentError, setGarmentError] = useState('');
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '', size: 'M', quantity: 1, notes: '', website: '' });
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [sending, setSending] = useState(false);
@@ -68,6 +76,8 @@ export default function QuickDesign() {
     QUICK_DESIGN_BACKGROUNDS.find((background) => background.id === backgroundId) || QUICK_DESIGN_BACKGROUNDS[0],
   [backgroundId]);
   const selectedResult = results.find((item) => item.variant === selected);
+  const selectedGarment = QUICK_DESIGN_GARMENTS.find((item) => item.id === garment) || QUICK_DESIGN_GARMENTS[0];
+  const selectedPremium = PREMIUM_TEXT_STYLES.find((item) => item.id === premiumStyle);
   const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'working');
 
   useEffect(() => () => {
@@ -114,11 +124,12 @@ export default function QuickDesign() {
       accent,
       fontId,
       curve,
+      fontSizePercent,
+      premiumStyle,
     };
     Promise.all(['A', 'B'].map(async (variant) => {
       const artwork = await renderQuickDesignArtwork({ ...options, variant });
-      const shirt = renderQuickDesignMockup(artwork);
-      return { variant, artwork: artwork.toDataURL('image/jpeg', 0.84), mockup: shirt.toDataURL('image/jpeg', 0.85) };
+      return { variant, artwork: artwork.toDataURL('image/jpeg', 0.84) };
     })).then((previews) => {
       if (!cancelled) setResults(previews);
     }).catch((error) => {
@@ -128,7 +139,26 @@ export default function QuickDesign() {
       }
     }).finally(() => { if (!cancelled) setPreviewBusy(false); });
     return () => { cancelled = true; };
-  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, autoCutout]);
+  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle, autoCutout]);
+
+  // Switching shirt / crewneck / hoodie or front / back only redraws the
+  // selected mockup, rather than recomputing the two original photo samples.
+  useEffect(() => {
+    if (!selectedResult?.artwork || previewBusy) {
+      setGarmentMockup('');
+      setGarmentBusy(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setGarmentBusy(true);
+    setGarmentError('');
+    setGarmentMockup('');
+    renderQuickDesignGarmentMockup({ artworkSource: selectedResult.artwork, garment, side: garmentSide })
+      .then((canvas) => { if (!cancelled) setGarmentMockup(canvas.toDataURL('image/jpeg', 0.9)); })
+      .catch((error) => { if (!cancelled) setGarmentError(error?.message || 'Could not render this garment.'); })
+      .finally(() => { if (!cancelled) setGarmentBusy(false); });
+    return () => { cancelled = true; };
+  }, [selectedResult?.artwork, garment, garmentSide, previewBusy]);
 
   const addPhotos = (event) => {
     const incoming = Array.from(event.target.files || []);
@@ -174,6 +204,11 @@ export default function QuickDesign() {
     setSubline('');
     setFontId('impact');
     setCurve('straight');
+    setFontSizePercent(100);
+    setPremiumStyle('solid');
+    setGarment('tshirt');
+    setGarmentSide('front');
+    setGarmentMockup('');
     setCutoutError('');
     setBackgroundId(QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
     setAccent(ACCENTS[0]);
@@ -195,7 +230,7 @@ export default function QuickDesign() {
         setMessage('Your device cannot share these files together. Download the sample and send your photos separately.');
         return;
       }
-      await navigator.share({ files, title: 'GDP Clothing custom bootleg request', text: 'GDP Quick Design – Sample ' + selected + '. Please share these files with GDP Clothing.' });
+      await navigator.share({ files, title: 'GDP Clothing custom bootleg request', text: 'GDP Quick Design – Sample ' + selected + ', ' + selectedGarment.label + ', ' + garmentSide + '. Please share these files with GDP Clothing.' });
     } catch (error) {
       if (error?.name !== 'AbortError') setMessage('Could not share the files. You can download the sample instead.');
     }
@@ -226,10 +261,13 @@ export default function QuickDesign() {
         'Accent: ' + accent,
         'Font: ' + fontId,
         'Name curve: ' + curve,
+        'Name size: ' + fontSizePercent + '%',
+        'Text style: ' + (selectedPremium?.label || 'Solid color'),
         'Artwork format: 12 x 16 inches (3600 x 4800 pixels at 300 DPI target)',
         'Local cutout: ' + (autoCutout ? 'enabled' : 'disabled'),
         'Uploaded photos on customer device: ' + photos.length,
-        'Black unisex T-shirt, size: ' + customer.size,
+        'Black ' + selectedGarment.label + ', size: ' + customer.size,
+        'Requested print side: ' + garmentSide + ' only',
         'Requested quantity: ' + customer.quantity,
         'Customer notes: ' + customer.notes.trim().slice(0, 1000),
         'Request source: Facebook Marketplace / Quick Design',
@@ -240,7 +278,7 @@ export default function QuickDesign() {
         customerEmail: customer.email.trim(),
         customerPhone: customer.phone.trim(),
         orderType: 'custom_apparel',
-        garmentType: 'Black unisex cotton T-shirt – ' + customer.size,
+        garmentType: 'Black ' + selectedGarment.label + ' – ' + customer.size,
         quantity: Math.max(1, Math.min(100, Number(customer.quantity) || 1)),
         artworkReady: false,
         budgetRange: '',
@@ -330,9 +368,26 @@ export default function QuickDesign() {
             <Field title="Bootleg name font"><select value={fontId} onChange={(e) => { setFontId(e.target.value); setSubmitted(null); }} className={INPUT}>{QUICK_DESIGN_FONTS.map((font) => <option key={font.id} value={font.id}>{font.label}</option>)}</select></Field>
             <div aria-live="polite" className="rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-center">
               <p className="text-[10px] font-bold uppercase tracking-wide text-white/50">Selected font preview</p>
-              <p className="mt-2 break-words text-3xl text-lime-300" style={{ fontFamily: QUICK_DESIGN_FONTS.find((font) => font.id === fontId)?.css || 'Impact, sans-serif', fontWeight: 400 }}>{(headline || 'YOUR NAME').slice(0, 36)}</p>
+              <p className="mt-2 break-words text-3xl" style={{ fontFamily: QUICK_DESIGN_FONTS.find((font) => font.id === fontId)?.css || 'Impact, sans-serif', fontWeight: 400, fontSize: Math.round(30 * fontSizePercent / 100) + 'px', lineHeight: 1.15, color: selectedPremium ? 'transparent' : accent, backgroundImage: selectedPremium ? 'linear-gradient(180deg,' + selectedPremium.stops.join(',') + ')' : undefined, WebkitBackgroundClip: selectedPremium ? 'text' : undefined, backgroundClip: selectedPremium ? 'text' : undefined, filter: selectedPremium?.glow ? 'drop-shadow(0 0 5px ' + selectedPremium.glow + ')' : undefined }}>{(headline || 'YOUR NAME').slice(0, 36)}</p>
             </div>
             <Field title="Name layout"><select value={curve} onChange={(e) => { setCurve(e.target.value); setSubmitted(null); }} className={INPUT}><option value="straight">Straight</option><option value="up">Curve upward</option><option value="down">Curve downward</option></select></Field>
+            <div>
+              <label htmlFor="quick-design-name-size" className="mb-2 flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-wider text-white/70"><span>Name font size</span><span data-gdp-font-size-value className="font-mono text-lime-300">{fontSizePercent}%</span></label>
+              <div className="flex items-center gap-3">
+                <button type="button" aria-label="Decrease name font size" onClick={() => { setFontSizePercent((size) => Math.max(60, size - 5)); setSubmitted(null); }} className={BTN + ' border border-white/20 bg-white/5 px-3'}>−</button>
+                <input id="quick-design-name-size" aria-label="Name font size" type="range" min="60" max="160" step="5" value={fontSizePercent} onChange={(e) => { setFontSizePercent(Number(e.target.value)); setSubmitted(null); }} className="min-w-0 flex-1 accent-lime-300"/>
+                <button type="button" aria-label="Increase name font size" onClick={() => { setFontSizePercent((size) => Math.min(160, size + 5)); setSubmitted(null); }} className={BTN + ' border border-white/20 bg-white/5 px-3'}>+</button>
+              </div>
+              <p className="mt-2 text-xs text-white/50">60–160% • Automatically fits long names within the artwork.</p>
+            </div>
+            <Field title="Premium text style">
+              <select aria-label="Premium text style" className={INPUT} value={premiumStyle} onChange={(e) => { setPremiumStyle(e.target.value); setSubmitted(null); }}>
+                <option value="solid">Solid color • Classic</option>
+                {PREMIUM_TEXT_STYLES.map((style) => <option key={style.id} value={style.id}>{style.label}</option>)}
+              </select>
+            </Field>
+            <p className="text-xs text-white/55">Premium finishes include metallic gradients, chrome, neon glow and 3D lettering. Your name color also tints the featured gradient band. No extra fee.</p>
+
             <div><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-white/70">Name color</span>
               <div className="flex gap-3">{ACCENTS.map((color) =>
                 <button key={color} type="button" onClick={() => { setAccent(color); setSubmitted(null); }} aria-label={'Choose color ' + color}
@@ -366,10 +421,34 @@ export default function QuickDesign() {
           </div>}
         </section>
 
-        {selectedResult && !previewBusy && <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
-          <h2 className="mb-3 text-lg font-black">Black T-shirt preview • Sample {selected}</h2>
-          <img src={selectedResult.mockup} alt={'Sample ' + selected + ' on an illustrative black T-shirt'} className="mx-auto max-h-[490px] w-full rounded-xl bg-[#111] object-contain" />
-          <p className="mt-3 text-xs leading-5 text-white/55">Illustrative unisex black cotton shirt, not a verified Gildan product photo. Final print size and placement are checked by GDP.</p>
+        {selectedResult && !previewBusy && <section className="rounded-2xl border border-white/15 bg-white/5 p-5" data-gdp-garment-preview="true">
+          <h2 className="mb-2 text-lg font-black">Preview your garment • Sample {selected}</h2>
+          <p className="mb-4 text-sm leading-6 text-white/65">Choose a garment and the side where you would like your selected artwork printed.</p>
+          <div role="group" aria-label="Choose garment type" className="grid grid-cols-3 gap-2">
+            {QUICK_DESIGN_GARMENTS.map((item) =>
+              <button key={item.id} type="button" aria-label={'Preview ' + item.label} aria-pressed={garment === item.id} onClick={() => { setGarment(item.id); setSubmitted(null); }}
+                className={'min-h-16 rounded-xl border-2 p-2 text-center transition ' + (garment === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/50')}>
+                <span className="block text-xs font-extrabold sm:text-sm">{item.label}</span>
+                <span className="mt-1 block text-[10px] text-white/55">{item.description}</span>
+              </button>
+            )}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Choose print side">
+            {QUICK_DESIGN_SIDES.map((item) =>
+              <button key={item.id} type="button" aria-label={'Show ' + item.label + ' view'} aria-pressed={garmentSide === item.id}
+                onClick={() => { setGarmentSide(item.id); setSubmitted(null); }}
+                className={'min-h-11 rounded-xl border-2 px-4 py-2 text-sm font-extrabold transition ' + (garmentSide === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 hover:border-white/40')}>
+                {item.label}
+              </button>
+            )}
+          </div>
+          <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#16171b]">
+            {garmentBusy ? <div role="status" className="flex min-h-64 items-center justify-center gap-2 text-sm text-white/65"><Loader2 size={18} className="animate-spin"/> Updating garment preview…</div> :
+            garmentError ? <p role="alert" className="p-5 text-sm text-amber-200">{garmentError}</p> :
+            garmentMockup ? <img data-gdp-garment-image="true" src={garmentMockup} alt={'Sample ' + selected + ' on illustrative black ' + selectedGarment.label + ' ' + garmentSide + ' view'} className="mx-auto max-h-[520px] w-full object-contain" /> :
+            <p className="p-6 text-center text-sm text-white/60">Select a garment to view your design.</p>}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-white/55">Illustrative black {selectedGarment.label.toLowerCase()} • {garmentSide} only. This view does not add two-sided printing. Not a verified Gildan product photo. Actual print size and placement depend on the garment and require GDP's production check.</p>
         </section>}
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
@@ -393,7 +472,7 @@ export default function QuickDesign() {
               <Field title="Your name *"><input className={INPUT} required minLength={2} maxLength={120} value={customer.name} onChange={(e) => updateCustomer('name', e.target.value)} autoComplete="name"/></Field>
               <Field title="Email *"><input className={INPUT} required type="email" maxLength={200} value={customer.email} onChange={(e) => updateCustomer('email', e.target.value)} autoComplete="email"/></Field>
               <Field title="Phone (optional)"><input className={INPUT} maxLength={60} value={customer.phone} onChange={(e) => updateCustomer('phone', e.target.value)} autoComplete="tel"/></Field>
-              <Field title="Shirt size *"><select className={INPUT} value={customer.size} onChange={(e) => updateCustomer('size', e.target.value)}>{SIZES.map((size) => <option key={size}>{size}</option>)}</select></Field>
+              <Field title="Garment size *"><select className={INPUT} value={customer.size} onChange={(e) => updateCustomer('size', e.target.value)}>{SIZES.map((size) => <option key={size}>{size}</option>)}</select></Field>
               <Field title="Quantity *"><input className={INPUT} type="number" min={1} max={100} required value={customer.quantity} onChange={(e) => updateCustomer('quantity', e.target.value)}/></Field>
             </div>
             <Field title="Notes (optional)"><textarea className={INPUT} rows={3} maxLength={1000} value={customer.notes} onChange={(e) => updateCustomer('notes', e.target.value)} placeholder="Any requested changes or details?" /></Field>
@@ -422,6 +501,10 @@ export default function QuickDesign() {
       font: QUICK_DESIGN_FONTS.find((font) => font.id === fontId)?.label || 'Street Impact',
       curve,
       photoCount: photos.length,
+      fontSizePercent,
+      premiumStyle: selectedPremium?.label || 'Solid color',
+      garment: selectedGarment.label,
+      garmentSide,
     }} />}
   </div>;
 }
