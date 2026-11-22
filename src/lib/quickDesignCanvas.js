@@ -9,7 +9,15 @@ export const QUICK_DESIGN_BACKGROUNDS = GDP_STYLE_TEMPLATES.filter((item) =>
 );
 
 const PREVIEW_W = 750;
-const PREVIEW_H = 1061;
+const PREVIEW_H = 1000;
+export const QUICK_DESIGN_PRINT_SIZE = Object.freeze({ widthIn: 12, heightIn: 16, targetWidthPx: 3600, targetHeightPx: 4800 });
+export const QUICK_DESIGN_FONTS = Object.freeze([
+  { id: 'impact', label: 'Street Impact', css: 'Impact, Haettenschweiler, sans-serif', weight: '900' },
+  { id: 'black', label: 'Retro Block', css: 'Arial Black, Arial, sans-serif', weight: '900' },
+  { id: 'serif', label: 'Vintage Varsity', css: 'Georgia, Times New Roman, serif', weight: '900' },
+  { id: 'rounded', label: 'Bold Retro', css: 'Trebuchet MS, Arial, sans-serif', weight: '900' },
+  { id: 'typewriter', label: 'Old School', css: 'Courier New, monospace', weight: '900' },
+]);
 
 export function validateQuickDesignFile(file) {
   if (!file || !QUICK_DESIGN_MIME_TYPES.has(file.type)) return 'Choose a JPG, PNG or WebP image.';
@@ -132,26 +140,63 @@ export function quickDesignLayoutCount(variant) {
   return LAYOUTS[variant === 'B' ? 'B' : 'A'].length;
 }
 
-function paintHeadline(ctx, content, y, maxWidth, initialSize, color) {
-  const text = String(content || '').trim().slice(0, 36).toUpperCase();
-  if (!text) return;
+export function quickDesignFont(fontId) {
+  return QUICK_DESIGN_FONTS.find((item) => item.id === fontId) || QUICK_DESIGN_FONTS[0];
+}
+
+function paintHeadline(ctx, content, y, maxWidth, initialSize, color, { fontId = 'impact', curve = 'straight' } = {}) {
+  const value = String(content || '').trim().slice(0, 36).toUpperCase();
+  if (!value) return;
+  const font = quickDesignFont(fontId);
   let fontSize = initialSize;
+  let width = 0;
+  do {
+    ctx.font = font.weight + ' ' + fontSize + 'px ' + font.css;
+    width = ctx.measureText(value).width;
+    if (width <= maxWidth * (curve === 'straight' ? 1 : 0.85)) break;
+    fontSize -= 2;
+  } while (fontSize > 25);
+
+  ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  do {
-    ctx.font = '900 ' + fontSize + 'px Impact, Arial Black, sans-serif';
-    if (ctx.measureText(text).width <= maxWidth) break;
-    fontSize -= 2;
-  } while (fontSize > 28);
   ctx.lineJoin = 'round';
-  ctx.lineWidth = 10;
+  ctx.lineWidth = Math.max(4, fontSize / 8);
   ctx.strokeStyle = '#07070b';
-  ctx.strokeText(text, PREVIEW_W / 2, y);
   ctx.shadowColor = color;
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 12;
   ctx.fillStyle = color;
-  ctx.fillText(text, PREVIEW_W / 2, y);
-  ctx.shadowBlur = 0;
+
+  const drawLetter = (char, x, cy) => {
+    ctx.strokeText(char, x, cy);
+    ctx.fillText(char, x, cy);
+  };
+  if (curve === 'up' || curve === 'down') {
+    const letters = [...value];
+    const metrics = letters.map((letter) => ctx.measureText(letter).width);
+    const totalWidth = metrics.reduce((sum, val) => sum + val, 0);
+    const tracking = Math.min(6, fontSize * 0.04);
+    const finalWidth = totalWidth + tracking * Math.max(0, letters.length - 1);
+    const sign = curve === 'up' ? -1 : 1;
+    const arch = Math.min(72, finalWidth * 0.13);
+    let x = -finalWidth / 2;
+    letters.forEach((letter, index) => {
+      const charWidth = metrics[index];
+      const centerX = x + charWidth / 2;
+      const u = finalWidth ? 2 * centerX / finalWidth : 0;
+      const curveY = sign * arch * (1 - u * u);
+      const slope = sign * -4 * arch * u / Math.max(1, finalWidth);
+      ctx.save();
+      ctx.translate(PREVIEW_W / 2 + centerX, y + curveY);
+      ctx.rotate(Math.atan(slope));
+      drawLetter(letter, 0, 0);
+      ctx.restore();
+      x += charWidth + tracking;
+    });
+  } else {
+    drawLetter(value, PREVIEW_W / 2, y);
+  }
+  ctx.restore();
 }
 
 function drawWatermark(ctx) {
@@ -171,7 +216,7 @@ function drawWatermark(ctx) {
   ctx.restore();
 }
 
-export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', variant = 'A' }) {
+export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', variant = 'A', fontId = 'impact', curve = 'straight' }) {
   if (!Array.isArray(photos) || photos.length === 0) throw new Error('Please upload a photo first.');
   const [background, ...images] = await Promise.all([
     loadImage(backgroundUrl),
@@ -184,21 +229,26 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
   if (!ctx) throw new Error('Your browser does not support artwork previews.');
   ctx.fillStyle = '#08080c';
   ctx.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
-  // Preserve the full original GDP template: no filters, stretching or cropping.
-  drawContain(ctx, background, 0, 0, PREVIEW_W, PREVIEW_H);
+  // Fill the requested 12 × 16 portrait print ratio, stretching the original GDP artwork down.
+  // No crop, recolouring, or independent content edits; resizing may alter aspect ratio.
+  ctx.drawImage(background, 0, 0, PREVIEW_W, PREVIEW_H);
   const layout = LAYOUTS[variant === 'B' ? 'B' : 'A'];
   images.forEach((image, index) => drawPhoto(ctx, image, layout[index], accent, variant, index));
-  // Two deliberate treatments, leaving the GDP template itself unmodified.
+  // The customer name is at the TOP in both layouts; subtitle is optional.
   if (variant === 'B') {
-    paintTextVeil(ctx, PREVIEW_H * 0.145, PREVIEW_H * 0.115);
-    paintHeadline(ctx, subline, PREVIEW_H * 0.145, PREVIEW_W * 0.82, 43, '#ffffff');
-    paintTextVeil(ctx, PREVIEW_H * 0.83, PREVIEW_H * 0.185);
-    paintHeadline(ctx, headline, PREVIEW_H * 0.83, PREVIEW_W * 0.92, 109, accent);
+    paintTextVeil(ctx, PREVIEW_H * 0.14, PREVIEW_H * 0.19);
+    paintHeadline(ctx, headline, PREVIEW_H * 0.145, PREVIEW_W * 0.89, 100, accent, { fontId, curve });
+    if (subline?.trim()) {
+      paintTextVeil(ctx, PREVIEW_H * 0.86, PREVIEW_H * 0.14);
+      paintHeadline(ctx, subline, PREVIEW_H * 0.86, PREVIEW_W * 0.85, 46, '#ffffff', { fontId: 'black' });
+    }
   } else {
-    paintTextVeil(ctx, PREVIEW_H * 0.165, PREVIEW_H * 0.195);
-    paintHeadline(ctx, headline, PREVIEW_H * 0.165, PREVIEW_W * 0.90, 94, accent);
-    paintTextVeil(ctx, PREVIEW_H * 0.866, PREVIEW_H * 0.13);
-    paintHeadline(ctx, subline, PREVIEW_H * 0.866, PREVIEW_W * 0.84, 47, '#ffffff');
+    paintTextVeil(ctx, PREVIEW_H * 0.155, PREVIEW_H * 0.22);
+    paintHeadline(ctx, headline, PREVIEW_H * 0.165, PREVIEW_W * 0.89, 96, accent, { fontId, curve });
+    if (subline?.trim()) {
+      paintTextVeil(ctx, PREVIEW_H * 0.88, PREVIEW_H * 0.12);
+      paintHeadline(ctx, subline, PREVIEW_H * 0.88, PREVIEW_W * 0.84, 46, '#ffffff', { fontId: 'black' });
+    }
   }
   drawWatermark(ctx);
   return canvas;
@@ -292,7 +342,7 @@ export function renderQuickDesignMockup(artwork) {
   ctx.stroke();
 
   // Approximate chest A3 placement, not a production placement guarantee.
-  drawContain(ctx, artwork, 184, 179, 232, 335);
+  drawContain(ctx, artwork, 184, 179, 232, 310);
   ctx.font = '700 14px Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
