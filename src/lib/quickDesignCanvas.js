@@ -1,4 +1,5 @@
 import { GDP_STYLE_TEMPLATES } from './customStudioStyleTemplates.js';
+import { paintPremiumTextGlyph, premiumTextPreset } from './customStudioV2PremiumTextStyles.js';
 
 export const QUICK_DESIGN_MAX_PHOTOS = 5;
 export const QUICK_DESIGN_MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -145,57 +146,79 @@ export function quickDesignFont(fontId) {
   return QUICK_DESIGN_FONTS.find((item) => item.id === fontId) || QUICK_DESIGN_FONTS[0];
 }
 
-function paintHeadline(ctx, content, y, maxWidth, initialSize, color, { fontId = 'impact', curve = 'straight' } = {}) {
+function paintHeadline(ctx, content, y, maxWidth, initialSize, color, {
+  fontId = 'impact',
+  curve = 'straight',
+  fontSizePercent = 100,
+  premiumStyle = 'solid',
+} = {}) {
   const value = String(content || '').trim().slice(0, 36).toUpperCase();
   if (!value) return;
   const font = quickDesignFont(fontId);
-  let fontSize = initialSize;
-  let width = 0;
-  do {
-    ctx.font = font.weight + ' ' + fontSize + 'px ' + font.css;
-    width = ctx.measureText(value).width;
-    if (width <= maxWidth * (curve === 'straight' ? 1 : 0.85)) break;
-    fontSize -= 2;
-  } while (fontSize > 25);
+  const safeScale = Math.min(160, Math.max(60, Number(fontSizePercent) || 100)) / 100;
+  const fittedWidth = maxWidth * (curve === 'straight' ? 1 : 0.83);
+  let fontSize = initialSize * safeScale;
+  const trackingRatio = 0.04;
 
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(4, fontSize / 8);
-  ctx.strokeStyle = '#07070b';
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 12;
-  ctx.fillStyle = color;
 
-  const drawLetter = (char, x, cy) => {
-    ctx.strokeText(char, x, cy);
-    ctx.fillText(char, x, cy);
+  // Fit-to-width protects the entire curved or straight name from clipping
+  // even if the customer chooses the 160% control on a small canvas.
+  for (let attempts = 0; attempts < 160; attempts += 1) {
+    ctx.font = font.weight + ' ' + fontSize + 'px ' + font.css;
+    const width = ctx.measureText(value).width +
+      (curve === 'straight' ? 0 : Math.max(0, [...value].length - 1) * fontSize * trackingRatio);
+    if (width <= fittedWidth || fontSize <= 27) break;
+    fontSize -= 1.5;
+  }
+
+  const premium = premiumStyle !== 'solid' ? premiumTextPreset(premiumStyle) : null;
+  const drawText = (content, x, centerY) => {
+    if (premium) {
+      paintPremiumTextGlyph(ctx, content, x, centerY, fontSize, {
+        premiumTextPresetId: premium.id,
+        // Name color remains useful as the tint of the featured gradient band.
+        premiumAccentColor: color,
+        premiumDepthScale: 100,
+      });
+    } else {
+      ctx.lineWidth = Math.max(4, fontSize / 8);
+      ctx.strokeStyle = '#07070b';
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = color;
+      ctx.strokeText(content, x, centerY);
+      ctx.fillText(content, x, centerY);
+      ctx.shadowBlur = 0;
+    }
   };
+
   if (curve === 'up' || curve === 'down') {
     const letters = [...value];
     const metrics = letters.map((letter) => ctx.measureText(letter).width);
-    const totalWidth = metrics.reduce((sum, val) => sum + val, 0);
-    const tracking = Math.min(6, fontSize * 0.04);
-    const finalWidth = totalWidth + tracking * Math.max(0, letters.length - 1);
+    const gap = fontSize * trackingRatio;
+    const finalWidth = metrics.reduce((sum, width) => sum + width, 0) +
+      gap * Math.max(0, letters.length - 1);
     const sign = curve === 'up' ? -1 : 1;
-    const arch = Math.min(72, finalWidth * 0.13);
+    const arch = Math.min(70, finalWidth * 0.13);
     let x = -finalWidth / 2;
     letters.forEach((letter, index) => {
-      const charWidth = metrics[index];
-      const centerX = x + charWidth / 2;
+      const centerX = x + metrics[index] / 2;
       const u = finalWidth ? 2 * centerX / finalWidth : 0;
       const curveY = sign * arch * (1 - u * u);
       const slope = sign * -4 * arch * u / Math.max(1, finalWidth);
       ctx.save();
       ctx.translate(PREVIEW_W / 2 + centerX, y + curveY);
       ctx.rotate(Math.atan(slope));
-      drawLetter(letter, 0, 0);
+      drawText(letter, 0, 0);
       ctx.restore();
-      x += charWidth + tracking;
+      x += metrics[index] + gap;
     });
   } else {
-    drawLetter(value, PREVIEW_W / 2, y);
+    drawText(value, PREVIEW_W / 2, y);
   }
   ctx.restore();
 }
@@ -217,7 +240,7 @@ function drawWatermark(ctx) {
   ctx.restore();
 }
 
-export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', variant = 'A', fontId = 'impact', curve = 'straight' }) {
+export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', variant = 'A', fontId = 'impact', curve = 'straight', fontSizePercent = 100, premiumStyle = 'solid' }) {
   if (!Array.isArray(photos) || photos.length === 0) throw new Error('Please upload a photo first.');
   // Font must be ready before canvas measurement/painting, otherwise the preview
   // can show different glyph widths from the customer-facing font selector.
@@ -245,14 +268,14 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
   // The customer name is at the TOP in both layouts; subtitle is optional.
   if (variant === 'B') {
     paintTextVeil(ctx, PREVIEW_H * 0.14, PREVIEW_H * 0.19);
-    paintHeadline(ctx, headline, PREVIEW_H * 0.145, PREVIEW_W * 0.89, 100, accent, { fontId, curve });
+    paintHeadline(ctx, headline, PREVIEW_H * 0.145, PREVIEW_W * 0.89, 100, accent, { fontId, curve, fontSizePercent, premiumStyle });
     if (subline?.trim()) {
       paintTextVeil(ctx, PREVIEW_H * 0.86, PREVIEW_H * 0.14);
       paintHeadline(ctx, subline, PREVIEW_H * 0.86, PREVIEW_W * 0.85, 46, '#ffffff', { fontId: 'black' });
     }
   } else {
     paintTextVeil(ctx, PREVIEW_H * 0.155, PREVIEW_H * 0.22);
-    paintHeadline(ctx, headline, PREVIEW_H * 0.165, PREVIEW_W * 0.89, 96, accent, { fontId, curve });
+    paintHeadline(ctx, headline, PREVIEW_H * 0.165, PREVIEW_W * 0.89, 96, accent, { fontId, curve, fontSizePercent, premiumStyle });
     if (subline?.trim()) {
       paintTextVeil(ctx, PREVIEW_H * 0.88, PREVIEW_H * 0.12);
       paintHeadline(ctx, subline, PREVIEW_H * 0.88, PREVIEW_W * 0.84, 46, '#ffffff', { fontId: 'black' });
