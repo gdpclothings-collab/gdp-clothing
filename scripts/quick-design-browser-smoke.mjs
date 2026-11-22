@@ -5,7 +5,7 @@ const BASE = 'http://127.0.0.1:4173';
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l3sAAAAASUVORK5CYII=', 'base64');
 const browser = await chromium.launch({ headless: true });
 try {
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  for (const viewport of [{ width: 360, height: 780 }, { width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const page = await browser.newPage({ viewport });
     const errors = [];
     const uploads = [];
