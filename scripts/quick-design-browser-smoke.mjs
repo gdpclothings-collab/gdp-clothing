@@ -18,6 +18,15 @@ try {
     await page.locator('[data-gdp-quick-design="true"]').waitFor({ timeout: 30000 });
     assert.equal(await page.getByText("Ask GDP", { exact: true }).count(), 0, "Assistant overlay must not cover Quick Design controls");
     assert.match(await page.locator('h1').innerText(), /2 free bootleg samples/i);
+    // Help is contextual and free; no persistent chat widget or paid API.
+    await page.locator('[data-gdp-help-trigger="header"]').click();
+    const help = page.getByRole('dialog', { name: 'Need help with your design?' });
+    await help.waitFor({ timeout: 10000 });
+    assert.ok(await help.getByText('How do I make my two free samples?').count() > 0);
+    assert.equal(await help.getByRole('link', { name: /Contact GDP/i }).getAttribute('href'), 'https://gdpclothing.ca/pages/contact');
+    await page.keyboard.press('Escape');
+    assert.equal(await help.count(), 0, 'Escape must close help without changing design');
+
     // CI tests the zero-fee canvas pathway, not a large external ONNX download.
     await page.getByRole('checkbox', { name: /Automatic background removal/i }).uncheck();
     await page.getByRole('textbox', { name: 'Main name or heading' }).fill('HENRY');
@@ -48,6 +57,11 @@ try {
     await page.getByRole('button', { name: 'Choose Sample B', exact: true }).click();
     await page.getByAltText('Sample B on an illustrative black T-shirt').waitFor({ timeout: 10000 });
     assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true');
+    await page.locator('[data-gdp-help-trigger="request"]').click();
+    await page.getByRole('dialog', { name: 'Need help with your design?' }).waitFor();
+    await page.getByRole('button', { name: 'Close design help' }).click();
+    assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true', 'Opening Help must preserve the chosen sample');
+
     assert.deepEqual(uploads, [], 'Previewing must not upload customer photos to storage');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
