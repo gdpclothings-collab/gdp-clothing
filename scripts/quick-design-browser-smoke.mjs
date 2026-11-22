@@ -27,8 +27,9 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await help.count(), 0, 'Escape must close help without changing design');
 
-    // CI tests the zero-fee canvas pathway, not a large external ONNX download.
-    await page.getByRole('checkbox', { name: /Automatic background removal/i }).uncheck();
+    // Upload must start with one clear action; instructions are hidden in optional help.
+    assert.equal(await page.locator('[data-gdp-removal-help="true"]').evaluate((el) => el.open), false, 'Background-removal help must be collapsed by default');
+    assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).count(), 0, 'Crowded duplicate checkbox must be removed');
     await page.getByRole('textbox', { name: 'Main name or heading' }).fill('HENRY');
     await page.getByRole('combobox', { name: 'Bootleg name font' }).selectOption('serif');
     await page.getByRole('combobox', { name: 'Name layout' }).selectOption('up');
@@ -164,11 +165,13 @@ try {
     assert.equal(cutoutPosts, 0, 'No external cutout request before customer consent');
     const originalTransparentPhoto = await page.getByAltText('Uploaded photo 1').getAttribute('src');
     const originalOpaquePhoto = await page.getByAltText('Uploaded photo 2').getAttribute('src');
-    const offNotice = page.getByText('Background removal is OFF. Your photos are still original.');
-    assert.ok(await offNotice.isVisible(), 'Uploading photos alone must clearly explain that removal is OFF');
+    assert.equal(await page.locator('[data-gdp-remove-photos="true"]').count(), 1, 'Only one clear removal button should appear after upload');
+    assert.equal(await page.locator('[data-gdp-removal-help="true"]').evaluate((el) => el.open), false, 'Help must stay collapsed after upload');
+    await page.locator('[data-gdp-removal-help="true"] summary').click();
     await page.locator('[data-gdp-check-removal="true"]').click();
     await page.locator('[data-gdp-removal-connection="READY"]').waitFor({ timeout: 10000 });
     assert.equal(cutoutPosts, 0, 'Connection status must not upload or process photos');
+    await page.locator('[data-gdp-removal-help="true"] summary').click();
     await page.locator('[data-gdp-remove-photos="true"]').click();
     await page.locator('[data-gdp-photo-status="transparent"]').waitFor({ timeout: 15000 });
     // Other queued opaque photos may start immediately after alpha detection.
@@ -184,7 +187,8 @@ try {
     }
     assert.equal(cutoutPosts, 2, 'Quota response must stop additional automatic requests');
     assert.ok(await page.locator('[data-gdp-photo-status="failed"]').count() >= 1, 'Original must be kept after quota error');
-    assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).isChecked(), false, 'Quota failure must disable automatic processing');
+    assert.equal(await page.locator('[data-gdp-auto-remove-status="on"]').count(), 0, 'Quota failure must disable automatic processing');
+    assert.equal(await page.locator('[data-gdp-remove-photos="true"]').count(), 0, 'Quota failure must not show a retry button that could consume credits');
     assert.equal(await page.getByAltText('Uploaded photo 1').getAttribute('src'), originalTransparentPhoto, 'Already-transparent photo must remain unchanged');
     assert.notEqual(await page.getByAltText('Uploaded photo 2').getAttribute('src'), originalOpaquePhoto, 'First opaque photo must receive the mock cutout');
     assert.equal(await page.getByRole('link', { name: /Open remove.bg \(external\)/ }).getAttribute('href'), 'https://www.remove.bg/');
