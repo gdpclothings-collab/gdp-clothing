@@ -125,8 +125,8 @@ assert.match(quota, /grant execute on function public\.reserve_quick_design_remo
 assert.match(page, /Request submission disabled in preview/);
 assert.doesNotMatch(page, /subline: subline \|\| 'CUSTOM BOOTLEG'/);
 const headers = readFileSync('public/_headers', 'utf8');
-assert.match(headers, /\/quick-design\n  Content-Security-Policy:/);
-const globalRule = headers.split('/quick-design')[0];
-assert.doesNotMatch(globalRule, /https:\/\/cdn\.jsdelivr\.net|huggingface\.co/, 'Site-wide CSP must remain strict');
+assert.match(headers, /Content-Security-Policy:/);
+assert.doesNotMatch(headers, /https:\/\/cdn\.jsdelivr\.net|huggingface\.co|wasm-unsafe-eval/, 'No device-model CDN or WASM CSP exceptions should remain');
+assert.doesNotMatch(headers, /\/quick-design\n  Content-Security-Policy:/, 'Quick Design must inherit the standard strict CSP');
 console.log('PASS – Phase B layout, opt-in remove.bg safety gates, 1–5 photos, zero extra charge, and no live data mutation');
 
