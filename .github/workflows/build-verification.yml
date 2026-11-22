@@ -201,6 +201,10 @@ jobs:
             cat /tmp/gdp-preview.log
             exit 1
           }
+          node scripts/quick-design-browser-smoke.mjs || {
+            cat /tmp/gdp-preview.log
+            exit 1
+          }
           node scripts/verify-cart-front-back-browser.mjs || {
             cat /tmp/gdp-preview.log
             exit 1
