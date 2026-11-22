@@ -8,7 +8,7 @@ const HELP_TOPICS = [
   },
   {
     title: 'My background removal is slow or looks wrong',
-    answer: 'If you enable the optional remove.bg checkbox, your uploaded photo is sent to remove.bg for a low-resolution transparent preview. GDP keeps your original image in the editor. The free allowance is shared across customers and guarded by a hard monthly cap. When unavailable, use the external remove.bg link, save a transparent PNG and reupload it with automatic removal turned OFF. Never buy credits to use the GDP preview. This is not print-ready artwork.',
+    answer: 'If you enable remove.bg, Quick Design first checks whether a PNG or WebP already has a transparent background. Those images are left exactly as uploaded, with no remove.bg call or credits used. Opaque photos (including JPGs) are sent for an optional low-resolution cutout. A solid-colour background can still need removal, and the local check cannot always identify the subject. When removal is unavailable, your original stays safe and the external remove.bg link remains available. This is not final print-ready artwork.',
   },
   {
     title: 'Can I leave the subtitle blank?',
