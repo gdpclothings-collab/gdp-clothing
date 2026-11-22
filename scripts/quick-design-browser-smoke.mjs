@@ -37,11 +37,23 @@ try {
     assert.match(await page.locator('[data-gdp-font-size-value]').innerText(), /110%/);
     await page.getByRole('combobox', { name: 'Premium text style' }).selectOption('silver-chrome');
 
-    await page.locator('input[aria-label="Upload customer photos"]').setInputFiles(
-      Array.from({ length: 5 }, (_, i) => ({
-        name: 'test-photo-' + (i + 1) + '.png', mimeType: 'image/png', buffer: pixel,
-      }))
-    );
+    // Real cutout PNG with alpha corners; must be kept byte-for-byte without
+    // calling the shared remove.bg service or spending credits.
+    const transparentBase64 = await page.evaluate(() => {
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#bf2898';
+      ctx.fillRect(15, 14, 34, 35); // Transparent corners are untouched.
+      return c.toDataURL('image/png').split(',')[1];
+    });
+    await page.locator('input[aria-label="Upload customer photos"]').setInputFiles([
+      { name: 'already-transparent.png', mimeType: 'image/png', buffer: Buffer.from(transparentBase64, 'base64') },
+      ...Array.from({ length: 4 }, (_, i) => ({
+        name: 'opaque-test-photo-' + (i + 1) + '.png', mimeType: 'image/png', buffer: pixel,
+      })),
+    ]);
     assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
     let overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflowAfterPhotos <= 4, 'Five photos must not expose white right-side panel: ' + overflowAfterPhotos);
@@ -142,8 +154,11 @@ try {
       }
     });
     assert.equal(cutoutPosts, 0, 'No external cutout request before customer consent');
-    const originalFirstPhoto = await page.getByAltText('Uploaded photo 1').getAttribute('src');
+    const originalTransparentPhoto = await page.getByAltText('Uploaded photo 1').getAttribute('src');
+    const originalOpaquePhoto = await page.getByAltText('Uploaded photo 2').getAttribute('src');
     await page.getByRole('checkbox', { name: /Automatic background removal/i }).check();
+    await page.locator('[data-gdp-photo-status="transparent"]').waitFor({ timeout: 15000 });
+    assert.equal(cutoutPosts, 0, 'Existing alpha cutouts must never request remove.bg credits');
     try {
       await page.getByRole('alert').filter({ hasText: /Free automatic background removal has reached its limit/ }).waitFor({ timeout: 20000 });
     } catch (error) {
@@ -154,7 +169,8 @@ try {
     }
     assert.equal(cutoutPosts, 2, 'Quota response must stop additional automatic requests');
     assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).isChecked(), false, 'Quota failure must disable automatic processing');
-    assert.notEqual(await page.getByAltText('Uploaded photo 1').getAttribute('src'), originalFirstPhoto, 'First successful cutout must be preserved');
+    assert.equal(await page.getByAltText('Uploaded photo 1').getAttribute('src'), originalTransparentPhoto, 'Already-transparent photo must remain unchanged');
+    assert.notEqual(await page.getByAltText('Uploaded photo 2').getAttribute('src'), originalOpaquePhoto, 'First opaque photo must receive the mock cutout');
     assert.equal(await page.getByRole('link', { name: /Open remove.bg \(external\)/ }).getAttribute('href'), 'https://www.remove.bg/');
     overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflowAfterPhotos <= 4, 'Quota fallback must not expose white right-side panel: ' + overflowAfterPhotos);
