@@ -39,19 +39,22 @@ try {
 
     // Real cutout PNG with alpha corners; must be kept byte-for-byte without
     // calling the shared remove.bg service or spending credits.
-    const transparentBase64 = await page.evaluate(() => {
+    const { transparentBase64, opaqueBase64 } = await page.evaluate(() => {
       const c = document.createElement('canvas');
       c.width = 64;
       c.height = 64;
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#bf2898';
       ctx.fillRect(15, 14, 34, 35); // Transparent corners are untouched.
-      return c.toDataURL('image/png').split(',')[1];
+      const transparentBase64 = c.toDataURL('image/png').split(',')[1];
+      ctx.fillStyle = '#cba47d';
+      ctx.fillRect(0, 0, 64, 64); // Entire image is opaque, so needs removal.
+      return { transparentBase64, opaqueBase64: c.toDataURL('image/png').split(',')[1] };
     });
     await page.locator('input[aria-label="Upload customer photos"]').setInputFiles([
       { name: 'already-transparent.png', mimeType: 'image/png', buffer: Buffer.from(transparentBase64, 'base64') },
       ...Array.from({ length: 4 }, (_, i) => ({
-        name: 'opaque-test-photo-' + (i + 1) + '.png', mimeType: 'image/png', buffer: pixel,
+        name: 'opaque-test-photo-' + (i + 1) + '.png', mimeType: 'image/png', buffer: Buffer.from(opaqueBase64, 'base64'),
       })),
     ]);
     assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
@@ -145,7 +148,7 @@ try {
       }
       cutoutPosts += 1;
       if (cutoutPosts === 1) {
-        await route.fulfill({ status: 200, contentType: 'application/octet-stream', headers, body: pixel });
+        await route.fulfill({ status: 200, contentType: 'application/octet-stream', headers, body: Buffer.from(transparentBase64, 'base64') });
       } else {
         await route.fulfill({
           status: 429, contentType: 'application/json', headers,
