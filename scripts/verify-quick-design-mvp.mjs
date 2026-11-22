@@ -9,11 +9,31 @@ import {
   quickDesignLayoutCount,
 } from '../src/lib/quickDesignCanvas.js';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_PHASE_B_NAMES, getQuickDesignPhaseBLayout, getQuickDesignPhaseBRenderOrder } from '../src/lib/quickDesignPhaseBLayout.js';
 
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
 assert.equal(quickDesignLayoutCount('A'), 5);
 assert.equal(quickDesignLayoutCount('B'), 5);
+assert.equal(QUICK_DESIGN_PHASE_B_NAMES.A, 'Layered Classic');
+assert.equal(QUICK_DESIGN_PHASE_B_NAMES.B, 'Dramatic Stack');
+for (let count = 1; count <= 5; count += 1) {
+  const a = getQuickDesignPhaseBLayout('A', count);
+  const b = getQuickDesignPhaseBLayout('B', count);
+  assert.equal(a.length, count, 'Sample A must use exactly the uploaded photo count');
+  assert.equal(b.length, count, 'Sample B must use exactly the uploaded photo count');
+  for (const slots of [a, b]) {
+    for (const slot of slots) {
+      assert.ok(slot.x >= 0 && slot.y >= 0 && slot.w > 0 && slot.h > 0,
+        'All collage positions must be on the print canvas');
+      assert.ok(slot.x + slot.w <= 1.001 && slot.y + slot.h <= 1.001,
+        'Subject placement must fit the original GDP background');
+    }
+  }
+}
+assert.notDeepEqual(getQuickDesignPhaseBLayout('A', 5), getQuickDesignPhaseBLayout('B', 5));
+assert.deepEqual(getQuickDesignPhaseBRenderOrder('A', 5).map((item) => item.photoIndex).sort(), [0,1,2,3,4]);
+assert.equal(getQuickDesignPhaseBLayout('A', 1)[0].role, 'hero');
 assert.deepEqual(QUICK_DESIGN_GARMENTS.map((item) => item.id), ['tshirt', 'sweatshirt', 'hoodie']);
 assert.deepEqual(QUICK_DESIGN_SIDES.map((item) => item.id), ['front', 'back']);
 assert.ok(QUICK_DESIGN_BACKGROUNDS.length >= 5, 'Must reuse real GDP bootleg backgrounds');
@@ -58,7 +78,9 @@ assert.match(page, /fontSizePercent,/);
 assert.match(page, /premiumStyle,/);
 assert.doesNotMatch(mockupCode, /fetch\(|remove\.bg|stripe|openai/i, 'Garment preview must run without network or paid generation');
 assert.match(canvas, /curve === 'up' \|\| curve === 'down'/);
-assert.match(page, /Automatic background removal \(experimental\)/);
+assert.match(page, /Automatic background removal with remove\.bg \(optional\)/);
+assert.match(page, /requestQuickDesignRemoveBgCutout\(target\.file\)/);
+assert.doesNotMatch(page, /removeQuickDesignBackground\(/, 'Experimental device model must not process uploads anymore');
 const help = readFileSync('src/components/storefront/QuickDesignHelp.jsx', 'utf8');
 const fontStyles = readFileSync('src/pages/quickDesignFonts.css', 'utf8');
 assert.match(page, /data-gdp-help-trigger="header"/);
@@ -67,18 +89,38 @@ assert.match(page, /<QuickDesignHelp onClose=/);
 assert.match(help, /role="dialog" aria-modal="true"/);
 assert.match(help, /https:\/\/gdpclothing\.ca\/pages\/contact/);
 assert.match(help, /Copy design details/);
-assert.match(help, /GDP never sends images there automatically/);
+assert.match(help, /If you enable the optional remove\.bg checkbox/);
+assert.match(help, /Phase B Samples A/);
 assert.match(fontStyles, /fonts\.googleapis\.com/);
 assert.match(fontStyles, /Anton.*Bangers.*Bebas\+Neue.*Graduate.*Rye/);
-assert.doesNotMatch(page + help + canvas, /api\.openai\.com|createPaymentIntent|stripe\.confirm|api\.remove\.bg/i, 'Quick Design previews must not call paid background-removal or payment APIs');
+assert.doesNotMatch(page + help + canvas, /api\.openai\.com|createPaymentIntent|stripe\.confirm|https:\/\/api\.remove\.bg/i, 'Browser must never embed a remove.bg endpoint/key or payment integration');
 assert.match(page, /href="https:\/\/www\.remove\.bg\/" target="_blank" rel="noopener noreferrer"/);
 assert.match(page, /setAutoCutout\(false\)/);
 assert.match(page, /overflow-x-clip/);
 assert.match(page, /data-gdp-photo-grid="true"/);
-assert.match(page, /setCutoutError\('Automatic cutout is unavailable/);
-const removerCode = readFileSync('src/lib/quickDesignBackgroundRemoval.js', 'utf8');
-assert.match(removerCode, /transformers@3\.8\.1\/\+esm/);
-assert.doesNotMatch(removerCode, /api\.remove\.bg|X-API-Key/, 'No remove.bg API key or server call');
+assert.match(page, /setCutoutUnavailable\(true\)/);
+assert.match(page, /setAutoCutout\(false\)/);
+assert.match(canvas, /trimmedAlphaBounds/);
+assert.match(canvas, /paintPhaseBPortraits/);
+assert.match(canvas, /ctx\.drawImage\(background, 0, 0, PREVIEW_W, PREVIEW_H\)/);
+const client = readFileSync('src/lib/quickDesignRemoveBgClient.js', 'utf8');
+assert.match(client, /supabase\.functions\.invoke\('gdp-quick-design-remove-bg'/);
+assert.doesNotMatch(client, /X-API-Key|GDP_REMOVEBG_API_KEY|https:\/\/api\.remove\.bg/);
+const edge = readFileSync('supabase/functions/gdp-quick-design-remove-bg/index.ts', 'utf8');
+assert.match(edge, /form\.set\('size', 'preview'\)/);
+assert.match(edge, /MAX_MONTHLY_PREVIEW_CALLS = 50/);
+assert.match(edge, /GDP_REMOVEBG_ENABLED/);
+assert.match(edge, /GDP_REMOVEBG_ALLOW_PREVIEW/);
+assert.match(edge, /reserve_quick_design_removebg_preview/);
+assert.match(edge, /ALLOWED_MIMES/);
+assert.match(edge, /function validSignature/);
+assert.doesNotMatch(edge, /form\.set\('size', '(?:full|auto|50MP)'\)/);
+const quota = readFileSync('supabase/migrations/20261122000000_quick_design_removebg_free_preview_quota.sql', 'utf8');
+assert.match(quota, /on conflict\(month_utc\) do update/i);
+assert.match(quota, /where private\.quick_design_removebg_monthly_quota\.attempts < v_monthly_limit/);
+assert.match(quota, /revoke all on function public\.reserve_quick_design_removebg_preview/);
+assert.match(quota, /grant execute on function public\.reserve_quick_design_removebg_preview[\s\S]*to service_role/);
+
 
 assert.match(page, /Request submission disabled in preview/);
 assert.doesNotMatch(page, /subline: subline \|\| 'CUSTOM BOOTLEG'/);
@@ -86,5 +128,5 @@ const headers = readFileSync('public/_headers', 'utf8');
 assert.match(headers, /\/quick-design\n  Content-Security-Policy:/);
 const globalRule = headers.split('/quick-design')[0];
 assert.doesNotMatch(globalRule, /https:\/\/cdn\.jsdelivr\.net|huggingface\.co/, 'Site-wide CSP must remain strict');
-console.log('PASS – Quick Design staging, print aspect, font options, automatic cutout setup and no live data mutation');
+console.log('PASS – Phase B layout, opt-in remove.bg safety gates, 1–5 photos, zero extra charge, and no live data mutation');
 
