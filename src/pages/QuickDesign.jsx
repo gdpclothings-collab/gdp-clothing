@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Download, ImagePlus, Loader2, RotateCcw, Share2, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Download, HelpCircle, ImagePlus, Loader2, RotateCcw, Share2, ShieldCheck, Trash2 } from 'lucide-react';
 import { salesLeadApi } from '@/lib/salesLeadApi';
 import {
   QUICK_DESIGN_BACKGROUNDS,
@@ -11,6 +11,7 @@ import {
   renderQuickDesignMockup,
 } from '@/lib/quickDesignCanvas';
 import { removeQuickDesignBackground } from '@/lib/quickDesignBackgroundRemoval';
+import QuickDesignHelp from '@/components/storefront/QuickDesignHelp';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 const ACCENTS = ['#f9c846', '#ffffff', '#fb61bd', '#80f1f2', '#b3fb6e'];
@@ -41,6 +42,8 @@ export default function QuickDesign() {
   const [photos, setPhotos] = useState([]);
   const urlsRef = useRef(new Set());
   const [message, setMessage] = useState('');
+  const [helpOpen, setHelpOpen] = useState(false);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
   const [backgroundId, setBackgroundId] = useState(QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
   const [headline, setHeadline] = useState('');
   const [subline, setSubline] = useState('');
@@ -266,7 +269,10 @@ export default function QuickDesign() {
   return <div className="min-h-screen bg-[#090b0e] text-white" data-gdp-quick-design="true">
     <section className="border-b border-white/10 bg-gradient-to-br from-[#131c20] via-[#111016] to-[#16121d] px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-6xl">
-        <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-lime-300">GDP Clothing • Marketplace Quick Design</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-lime-300">GDP Clothing • Marketplace Quick Design</p>
+          <button type="button" data-gdp-help-trigger="header" onClick={() => setHelpOpen(true)} aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" className={BTN + ' border border-lime-300/40 bg-lime-300/10 text-lime-100 hover:bg-lime-300/20'}><HelpCircle size={19}/> Help with my design</button>
+        </div>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">2 free bootleg samples. <span className="text-lime-300">Instantly.</span></h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">Upload your photos, pick an original GDP background, edit the text and compare two layouts right here. No account, Photoshop or paid AI generation required.</p>
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-white/70">
@@ -362,7 +368,10 @@ export default function QuickDesign() {
         </section>}
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
-          <SmallHeading number="5">Request this design</SmallHeading>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <SmallHeading number="5">Request this design</SmallHeading>
+            <button type="button" data-gdp-help-trigger="request" aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" onClick={() => setHelpOpen(true)} className={BTN + ' border border-white/25 bg-white/5 text-white hover:bg-white/10'}><HelpCircle size={17}/> Need design help?</button>
+          </div>
           {isCloudflareBranchPreview && <p role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-200/10 p-3 text-sm text-amber-100">Development preview: request submissions are disabled to protect live customer data. You can test the design controls and sample downloads safely.</p>}
           <p className="mb-5 text-sm leading-6 text-white/65">Choose your preferred sample, then send GDP your contact details and design choices. This is a request, not a purchase or payment.</p>
           {submitted ? <div role="status" className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5">
@@ -400,5 +409,14 @@ export default function QuickDesign() {
         </section>
       </div>
     </div>
+    {helpOpen && <QuickDesignHelp onClose={closeHelp} details={{
+      headline,
+      subline,
+      selected,
+      background: selectedBackground?.name || '',
+      font: QUICK_DESIGN_FONTS.find((font) => font.id === fontId)?.label || 'Street Impact',
+      curve,
+      photoCount: photos.length,
+    }} />}
   </div>;
 }
