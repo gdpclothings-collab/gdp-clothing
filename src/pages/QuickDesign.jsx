@@ -10,6 +10,7 @@ import {
   renderQuickDesignArtwork,
 } from '@/lib/quickDesignCanvas';
 import { requestQuickDesignRemoveBgCutout } from '@/lib/quickDesignRemoveBgClient';
+import { detectQuickDesignBackground } from '@/lib/quickDesignTransparency';
 import { PREMIUM_TEXT_STYLES } from '@/lib/customStudioV2PremiumTextStyles';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES, renderQuickDesignGarmentMockup } from '@/lib/quickDesignGarmentMockup';
 import { QUICK_DESIGN_PHASE_B_NAMES } from '@/lib/quickDesignPhaseBLayout';
@@ -45,6 +46,7 @@ export default function QuickDesign() {
   const isCloudflareBranchPreview = typeof window !== 'undefined' && /^.+\.gdp-clothing\.pages\.dev$/i.test(window.location.hostname);
   const [photos, setPhotos] = useState([]);
   const urlsRef = useRef(new Set());
+  const cutoutRunRef = useRef(0);
   const [message, setMessage] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
   const closeHelp = useCallback(() => setHelpOpen(false), []);
@@ -81,45 +83,66 @@ export default function QuickDesign() {
   const selectedResult = results.find((item) => item.variant === selected);
   const selectedGarment = QUICK_DESIGN_GARMENTS.find((item) => item.id === garment) || QUICK_DESIGN_GARMENTS[0];
   const selectedPremium = PREMIUM_TEXT_STYLES.find((item) => item.id === premiumStyle);
-  const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'working');
+  const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'checking' || item.bgStatus === 'working');
 
   useEffect(() => () => {
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     urlsRef.current.clear();
   }, []);
 
-  // Sequential, explicit customer-opt-in processing. A third-party request
-  // happens only after checking the external remove.bg consent control.
-  // The server, not the customer browser, owns the API key and quota checks.
+  // One local transparency preflight per photo. An already-transparent image
+  // is preserved unchanged (same source URL and file bytes, zero API calls).
+  // Opaque photos enter the existing remove.bg proxy only after consent.
   useEffect(() => {
     if (!autoCutout || cutoutBusy || cutoutUnavailable) return;
     const target = photos.find((item) => item.bgStatus === 'pending');
     if (!target) return;
+    const run = cutoutRunRef.current;
+    const validTarget = () => run === cutoutRunRef.current && urlsRef.current.has(target.url);
     setCutoutBusy(true);
     setCutoutError('');
     setPhotos((items) => items.map((item) => item.id === target.id
-      ? { ...item, bgStatus: 'working' } : item));
+      ? { ...item, bgStatus: 'checking' } : item));
 
-    requestQuickDesignRemoveBgCutout(target.file).then((result) => {
+    (async () => {
+      const transparency = await detectQuickDesignBackground(target.file);
+      if (!validTarget()) return;
+      if (transparency === 'already-transparent') {
+        setPhotos((items) => items.map((item) => item.id === target.id
+          ? { ...item, bgStatus: 'skipped' } : item));
+        return;
+      }
+      if (transparency === 'unreadable') {
+        setPhotos((items) => items.map((item) => item.id === target.id
+          ? { ...item, bgStatus: 'failed' } : item));
+        setCutoutError('Could not inspect this photo safely. Its original remains unchanged. Try a JPG, PNG or WebP upload.');
+        return;
+      }
+      // "needs-removal" means no alpha cutout was detected, NOT that an AI
+      // already recognized the background or confirmed the subject.
+      setPhotos((items) => items.map((item) => item.id === target.id
+        ? { ...item, bgStatus: 'working' } : item));
+      const result = await requestQuickDesignRemoveBgCutout(target.file);
+      if (!validTarget()) {
+        if (result.cutoutUrl) URL.revokeObjectURL(result.cutoutUrl);
+        return;
+      }
       if (result.ok && result.cutoutUrl) {
-        if (!urlsRef.current.has(target.url)) {
-          URL.revokeObjectURL(result.cutoutUrl);
-          return;
-        }
         urlsRef.current.add(result.cutoutUrl);
         setPhotos((items) => items.map((item) => item.id === target.id
           ? { ...item, cutoutUrl: result.cutoutUrl, bgStatus: 'done' } : item));
         return;
       }
-      // A quota/rate/config failure stops all remaining uploads. This avoids
-      // accidental chargeable retries and preserves already processed cutouts.
+      // Preserve originals and successful prior cutouts on quota/config/error.
+      // No retries that could accidentally consume remaining free credits.
       setCutoutError(result.message || 'Automatic background removal is unavailable.');
       setCutoutUnavailable(true);
       setAutoCutout(false);
       setPhotos((items) => items.map((item) => item.id === target.id
         ? { ...item, bgStatus: 'failed' } : item));
-    }).catch(() => {
-      setCutoutError('Automatic cutouts are unavailable. Your original photos are safe. Use the remove.bg link below.');
+    })().catch(() => {
+      if (!validTarget()) return;
+      setCutoutError('Background removal is unavailable. Your original photo is safe. You may use remove.bg separately.');
       setCutoutUnavailable(true);
       setAutoCutout(false);
       setPhotos((items) => items.map((item) => item.id === target.id
@@ -221,6 +244,7 @@ export default function QuickDesign() {
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     urlsRef.current.clear();
     setPhotos([]);
+    cutoutRunRef.current += 1;
     setHeadline('');
     setSubline('');
     setFontId('serif');
@@ -324,11 +348,12 @@ export default function QuickDesign() {
 
   const updateCustomer = (key, value) => setCustomer((current) => ({ ...current, [key]: value }));
   const switchCutouts = (enabled) => {
+    cutoutRunRef.current += 1;
     setAutoCutout(enabled);
     if (enabled) {
       setCutoutUnavailable(false);
       setCutoutError('');
-      setPhotos((items) => items.map((item) => !item.cutoutUrl ? { ...item, bgStatus: 'pending' } : item));
+      setPhotos((items) => items.map((item) => !item.cutoutUrl && item.bgStatus !== 'skipped' ? { ...item, bgStatus: 'pending' } : item));
     }
   };
 
@@ -353,7 +378,7 @@ export default function QuickDesign() {
       <div className="min-w-0 space-y-7">
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="1">Add your photos</SmallHeading>
-          <label className="mb-4 flex min-w-0 items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span className="min-w-0 break-words"><strong>Automatic background removal with remove.bg (optional)</strong><span className="mt-1 block text-xs text-white/65">If you check this, each uploaded photo will be sent to remove.bg, an external provider, for a low-resolution transparent preview. Your photos are never sent without your consent. Free quota is shared across customers; no full-resolution upgrades or paid requests.</span></span></label>
+          <label className="mb-4 flex min-w-0 items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span className="min-w-0 break-words"><strong>Automatic background removal with remove.bg (optional)</strong><span className="mt-1 block text-xs text-white/65">If enabled, Quick Design first checks each photo locally. PNG/WebP images that already have a transparent background stay unchanged and use no remove.bg credits. Opaque photos (including JPGs) are sent to remove.bg for a low-resolution transparent preview. Your photos are sent only after you enable this option. The free quota is shared.</span></span></label>
           {isCloudflareBranchPreview && <p role="status" className="mb-3 rounded-lg border border-white/15 bg-black/30 p-3 text-xs leading-5 text-white/70">Phase B development preview: automatic remove.bg API calls are not activated. Upload transparent PNGs to test the new layered compositions; the external remove.bg link remains available.</p>}
           <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-5 text-center hover:border-lime-300">
             <ImagePlus size={28} className="text-lime-300" />
@@ -365,11 +390,13 @@ export default function QuickDesign() {
             <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
               <img src={(autoCutout || cutoutUnavailable) ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full object-contain bg-neutral-700" />
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
+              {item.bgStatus === 'skipped' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="transparent">Transparent • unchanged</span>}
+              {item.bgStatus === 'done' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="removed">Background removed</span>}
             </div>
           )}</div>}
-          {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Removing background through remove.bg free preview…</p>}
+          {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Checking photos; removing opaque backgrounds when needed…</p>}
           {cutoutError && <p role="alert" className="mt-3 max-w-full min-w-0 break-words rounded-lg bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">{cutoutError}</p>}
-          <p className="mt-3 max-w-full break-words text-xs leading-5 text-white/55">Original photos are kept for reference. The two artwork samples render locally; photos are sent to remove.bg only when you turn on its checkbox. Free cutouts are low-resolution previews, not 300-DPI production files.</p>
+          <p className="mt-3 max-w-full break-words text-xs leading-5 text-white/55">Original photos are preserved. Transparent PNG/WebP uploads are not changed or sent to remove.bg. Opaque uploads are processed only with your consent and within the server's free-use safeguards. Free cutouts are previews, not final 300-DPI production files.</p>
           <div className="mt-3 min-w-0 rounded-xl border border-white/15 bg-black/20 p-3" data-gdp-cutout-fallback="true">
             <p className="text-xs font-bold text-white/85">Need an alternative background remover?</p>
             <p className="mt-1 text-xs leading-5 text-white/65">When the automatic free-use allowance is exhausted or not configured, open remove.bg directly, save a transparent PNG and upload it here with automatic removal turned OFF. External remove.bg has its own privacy terms and may offer paid upgrades; GDP does not purchase those for you.</p>
