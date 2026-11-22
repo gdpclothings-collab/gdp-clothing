@@ -7,14 +7,14 @@
 // Library: @huggingface/transformers 3.8.1 (Apache-2.0)
 export const QUICK_DESIGN_CUTOUT_MODEL = 'onnx-community/ormbg-ONNX';
 export const QUICK_DESIGN_CUTOUT_LIBRARY_URL =
-  'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
+  'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm';
 
 let removerPromise = null;
 
 async function getRemover() {
   if (!removerPromise) {
     removerPromise = (async () => {
-      // Vite is intentionally told not to bundle the external ESM entrypoint.
+      // jsDelivr requires /+esm to serve a browser-importable module. Vite is intentionally told not to bundle this external entrypoint.
       // Dynamic import occurs ONLY when a customer enables local cutouts.
       const mod = await import(/* @vite-ignore */ QUICK_DESIGN_CUTOUT_LIBRARY_URL);
       return mod.pipeline('background-removal', QUICK_DESIGN_CUTOUT_MODEL, {
