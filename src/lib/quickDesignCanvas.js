@@ -1,4 +1,4 @@
-import { GDP_STYLE_TEMPLATES } from './customStudioStyleTemplates';
+import { GDP_STYLE_TEMPLATES } from './customStudioStyleTemplates.js';
 
 export const QUICK_DESIGN_MAX_PHOTOS = 5;
 export const QUICK_DESIGN_MAX_FILE_BYTES = 10 * 1024 * 1024;
