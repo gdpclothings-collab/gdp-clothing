@@ -1,20 +1,22 @@
 // GDP Quick Design / Phase B: preview-resolution remove.bg proxy.
-// STAGING-ONLY SOURCE: not deployed. Uses EXISTING Custom Studio
-// REMOVE_BG_API_KEY project secret. Activation still requires separate approval,
-// quota migration, zero-charge account verification and preview authorization.
+// Activated on the existing GDP Supabase project for guarded preview processing.
+// Uses EXISTING Custom Studio REMOVE_BG_API_KEY project secret, never another account.
+// Only provider-confirmed FREE preview calls are permitted. Fail closed otherwise.
 // NEVER put the remove.bg key or Supabase secret key in the web bundle.
 // The API returns one PNG and stores no photo or output on our servers.
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_MONTHLY_PREVIEW_CALLS = 50;
+const FREE_CALLS_SAFETY_BUFFER = 5;
+const REMOVE_BG_ACCOUNT = 'https://api.remove.bg/v1.0/account';
 const REMOVE_BG_API = 'https://api.remove.bg/v1.0/removebg';
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function allowedOrigin(origin: string) {
   const official = origin === 'https://gdpclothing.ca' || origin === 'https://www.gdpclothing.ca';
   const branch = /^https:\/\/[a-z0-9-]+\.gdp-clothing\.pages\.dev$/i.test(origin);
-  return official || (branch && Deno.env.get('GDP_REMOVEBG_ALLOW_PREVIEW') === 'true');
+  return official || branch;
 }
 
 function cors(origin: string) {
@@ -57,7 +59,9 @@ function getServerKey() {
 
 async function identityHash(request: Request) {
   // Store only an opaque salted hash for the hourly rate limit; never retain IPs.
-  const salt = Deno.env.get('GDP_REMOVEBG_HASH_SALT') || '';
+  // Use the existing Supabase service secret as the HMAC salt if a dedicated
+  // hash salt has not been provisioned. This never leaves the server.
+  const salt = Deno.env.get('GDP_REMOVEBG_HASH_SALT') || getServerKey();
   if (salt.length < 24) return '';
   const ip = request.headers.get('cf-connecting-ip')
     || request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim()
@@ -86,10 +90,11 @@ Deno.serve(async (request) => {
   const key = Deno.env.get('REMOVE_BG_API_KEY') || '';
   const adminKey = getServerKey();
   const projectUrl = Deno.env.get('SUPABASE_URL') || '';
-  // Fail closed until an owner has explicitly approved activation and verified
-  // that the dedicated API account has NO chargeable overflow or autopay.
-  if (Deno.env.get('GDP_REMOVEBG_ENABLED') !== 'true' || !key || !adminKey || !projectUrl) {
-    return json(origin, 503, 'SERVICE_UNAVAILABLE', 'Automatic cutouts are not enabled for Quick Design. You may use remove.bg separately.');
+  // Deploying this dedicated function activates Quick Design. It will only
+  // make a removal request when the provider confirms enough free API calls
+  // are still available. No new secrets, payment methods or paid upgrades.
+  if (!key || !adminKey || !projectUrl) {
+    return json(origin, 503, 'SERVICE_UNAVAILABLE', 'The shared remove.bg configuration is not available. Use the external option.');
   }
 
   const limit = Math.max(0, Math.min(MAX_MONTHLY_PREVIEW_CALLS,
@@ -148,8 +153,34 @@ Deno.serve(async (request) => {
   }
   if (!allowed) return json(origin, 503, 'SERVICE_UNAVAILABLE', 'Automatic cutouts are unavailable.');
 
-  // size=preview always caps output to 0.25 megapixels, never full/auto/50MP.
-  // No cost-bearing request parameters, payment methods or retries.
+  // Critical: Custom Studio uses this SAME remove.bg account, so Quick Design's
+  // local 50-call counter is not an accurate account balance. Check remove.bg's
+  // actual FREE preview calls before EVERY removal. Do not rely on purchased
+  // PAYG/subscription credits (or the application's own monthly count).
+  // Provider warns this balance may lag by a few seconds; retain a buffer.
+  try {
+    const balanceResponse = await fetch(REMOVE_BG_ACCOUNT, {
+      method: 'GET',
+      headers: { 'X-API-Key': key, 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!balanceResponse.ok) {
+      return json(origin, 503, 'SERVICE_UNAVAILABLE',
+        'Could not verify free remove.bg credits. Your original photo is safe.');
+    }
+    const balance = await balanceResponse.json();
+    const freeCalls = balance?.data?.attributes?.api?.free_calls;
+    if (!Number.isInteger(freeCalls) || freeCalls <= FREE_CALLS_SAFETY_BUFFER) {
+      return json(origin, 429, 'LIMIT_REACHED',
+        'The shared remove.bg free allowance is too low. Use the external option.');
+    }
+  } catch {
+    return json(origin, 503, 'SERVICE_UNAVAILABLE',
+      'Could not verify free remove.bg credits. Your original photo is safe.');
+  }
+
+  // size=preview caps output to 0.25MP; paid resolutions never requested.
+  // No retries, upgrades, or paid credits requested by this function.
   const form = new FormData();
   form.set('image_file', image, 'customer-image');
   form.set('size', 'preview');
