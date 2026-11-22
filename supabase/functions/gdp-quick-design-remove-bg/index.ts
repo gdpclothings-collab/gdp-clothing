@@ -175,7 +175,7 @@ Deno.serve(async (request) => {
     }
     return new Response(buffer, {
       status: 200,
-      headers: { ...cors(origin), 'Content-Type': 'image/png' },
+      headers: { ...cors(origin), 'Content-Type': 'application/octet-stream', 'X-GDP-Image-Type': 'image/png' },
     });
   } catch {
     return json(origin, 502, 'SERVICE_UNAVAILABLE', 'Automatic cutout timed out. Keep your original photo or open remove.bg.');
