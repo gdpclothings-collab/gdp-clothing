@@ -35,3 +35,23 @@ Offer Facebook Marketplace customers two instant, watermarked bootleg layout pre
 - [ ] Establish protected source-photo handoff and actual 300-DPI print quality before a full production release.
 
 **DRAFT PR ONLY. NO MERGE, PRODUCTION DEPLOYMENT, PAID SERVICE OR LIVE DATA CHANGES.** Production release requires separate explicit owner authorization and completed QA. Do not invent a preview URL.
+
+
+## No-extra-charge customer assistance update
+- Accessible **Help with my design** button in the header and **Need design help?** in the request section. Opens a responsive local modal with five common questions and a quick-start guide.
+- Customer can copy a plain-text summary of current design settings and open the existing GDP contact page in a separate tab. The modal does **not** collect or transmit photos, open a paid AI conversation, or submit a lead.
+- Five distinct no-cost, OFL-licensed Google Fonts (Anton, Bebas Neue, Graduate, Bangers, Rye) load through the already permitted Google Fonts hosts. System font fallbacks are used if unavailable. No paid font subscription.
+- Intended print layout is now **12 × 16 inches**. Browser preview aspect is 750 × 1000, **not** a print-ready file; the theoretical 300-DPI target is 3600 × 4800. Original GDP template files remain unchanged; preview uses canvas scaling.
+- Forced **CUSTOM BOOTLEG** subtitle removed; optional subtitle remains blank when blank.
+- Background removal is an optional, experimental ONNX model running **on the customer's device** after downloading its open weights. This is not a ChatGPT/OpenAI API, not a hosted AI generation feature, and not a paid remove.bg service. Source originals stay local. High mobile download size, model-host quotas, support for customer devices, subject edge quality, and CDN/CSP require real-device QA before launch.
+- Development Cloudflare preview **does not submit sales leads**. The actual production handoff is blocked pending approval, secure source-image transfer and real end-to-end tests.
+
+Additional QA:
+- [ ] Help opens from both positions, closes by Escape and Close, traps keyboard focus, and preserves selected template, photos, name and chosen sample.
+- [ ] Contact GDP opens the existing public contact page in a new tab; no outbound request is sent automatically.
+- [ ] Copy details gives a useful summary without customer photo bytes, signed URLs or secrets.
+- [ ] Five fonts appear distinctly on Android; straight/upward/downward name curves remain legible.
+- [ ] Measure local model download, privacy, masking quality, and error fallback on real Android phone. Test with cats/dogs, humans, dark hair/fur and low-contrast backgrounds.
+- [ ] Confirm all CI checks PASS on PR #609 before seeking any live merge or release.
+
+**Release gate stays CLOSED.** No paid API usage, customer charges, automatic PR merge or live deployment is authorized by this phase.
