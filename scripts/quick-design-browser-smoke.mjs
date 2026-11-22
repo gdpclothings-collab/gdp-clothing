@@ -133,7 +133,7 @@ try {
       }
       cutoutPosts += 1;
       if (cutoutPosts === 1) {
-        await route.fulfill({ status: 200, contentType: 'image/png', headers, body: pixel });
+        await route.fulfill({ status: 200, contentType: 'application/octet-stream', headers, body: pixel });
       } else {
         await route.fulfill({
           status: 429, contentType: 'application/json', headers,
@@ -144,7 +144,14 @@ try {
     assert.equal(cutoutPosts, 0, 'No external cutout request before customer consent');
     const originalFirstPhoto = await page.getByAltText('Uploaded photo 1').getAttribute('src');
     await page.getByRole('checkbox', { name: /Automatic background removal/i }).check();
-    await page.getByRole('alert').filter({ hasText: /Free automatic background removal has reached its limit/ }).waitFor({ timeout: 20000 });
+    try {
+      await page.getByRole('alert').filter({ hasText: /Free automatic background removal has reached its limit/ }).waitFor({ timeout: 20000 });
+    } catch (error) {
+      const alerts = await page.getByRole('alert').allTextContents();
+      throw new Error('Expected quota fallback after mock binary cutout. POSTs=' + cutoutPosts +
+        ', alerts=' + JSON.stringify(alerts) + ', page errors=' + JSON.stringify(errors) +
+        ', timeout=' + (error?.message || 'unknown'));
+    }
     assert.equal(cutoutPosts, 2, 'Quota response must stop additional automatic requests');
     assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).isChecked(), false, 'Quota failure must disable automatic processing');
     assert.notEqual(await page.getByAltText('Uploaded photo 1').getAttribute('src'), originalFirstPhoto, 'First successful cutout must be preserved');
