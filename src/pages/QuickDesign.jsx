@@ -18,6 +18,7 @@ import './quickDesignFonts.css';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 const ACCENTS = ['#f9c846', '#ffffff', '#fb61bd', '#80f1f2', '#b3fb6e'];
+const PHASE_B_DEFAULT_BACKGROUND = QUICK_DESIGN_BACKGROUNDS.some((item) => item.id === 'flame-inferno') ? 'flame-inferno' : (QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
 const INPUT = 'min-w-0 w-full rounded-xl border border-white/20 bg-[#17191d] px-3 py-3 text-sm text-white outline-none focus:border-lime-300 focus:ring-2 focus:ring-lime-300/20';
 const BTN = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50';
 const MAX_PREVIEW_NOTICE = 'Previews are watermarked and not print-ready. GDP reviews the original photos and approves final print quality after ordering.';
@@ -47,7 +48,7 @@ export default function QuickDesign() {
   const [message, setMessage] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
   const closeHelp = useCallback(() => setHelpOpen(false), []);
-  const [backgroundId, setBackgroundId] = useState(QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
+  const [backgroundId, setBackgroundId] = useState(PHASE_B_DEFAULT_BACKGROUND);
   const [headline, setHeadline] = useState('');
   const [subline, setSubline] = useState('');
   const [fontId, setFontId] = useState('serif');
@@ -232,7 +233,7 @@ export default function QuickDesign() {
     setCutoutError('');
     setCutoutUnavailable(false);
     setAutoCutout(false);
-    setBackgroundId(QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
+    setBackgroundId(PHASE_B_DEFAULT_BACKGROUND);
     setAccent(ACCENTS[2]);
     setSelected('A');
     setResults([]);
