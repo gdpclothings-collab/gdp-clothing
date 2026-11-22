@@ -116,16 +116,41 @@ try {
     assert.equal(await page.getByRole('combobox', { name: 'Premium text style' }).inputValue(), 'silver-chrome', 'Help must preserve premium text style');
     assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true', 'Opening Help must preserve the chosen sample');
 
-    // Reproduce the Android recording's failed CDN import, with a long URL
-    // originating from the browser module loader. The app must remain in
-    // bounds and fall back to original photos without uploading to remove.bg.
-    await page.route('https://cdn.jsdelivr.net/**', (route) => route.abort());
+    // Phase B must NOT send photos to remove.bg without explicit consent.
+    // Simulate one successful free cutout then a server-enforced quota stop.
+    // Never call the real third-party API or spend credits during tests.
+    let cutoutPosts = 0;
+    await page.route('**/functions/v1/gdp-quick-design-remove-bg', async (route) => {
+      const method = route.request().method();
+      const headers = {
+        'access-control-allow-origin': BASE,
+        'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
+        'access-control-allow-methods': 'POST, OPTIONS',
+      };
+      if (method === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers });
+        return;
+      }
+      cutoutPosts += 1;
+      if (cutoutPosts === 1) {
+        await route.fulfill({ status: 200, contentType: 'image/png', headers, body: pixel });
+      } else {
+        await route.fulfill({
+          status: 429, contentType: 'application/json', headers,
+          body: JSON.stringify({ code: 'LIMIT_REACHED', message: 'No free calls left', fallback: 'https://www.remove.bg/' }),
+        });
+      }
+    });
+    assert.equal(cutoutPosts, 0, 'No external cutout request before customer consent');
+    const originalFirstPhoto = await page.getByAltText('Uploaded photo 1').getAttribute('src');
     await page.getByRole('checkbox', { name: /Automatic background removal/i }).check();
-    await page.getByRole('alert').filter({ hasText: /Automatic cutout is unavailable/ }).waitFor({ timeout: 20000 });
-    assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).isChecked(), false, 'On-device model error must turn off failing automatic cutout');
+    await page.getByRole('alert').filter({ hasText: /Free automatic background removal has reached its limit/ }).waitFor({ timeout: 20000 });
+    assert.equal(cutoutPosts, 2, 'Quota response must stop additional automatic requests');
+    assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).isChecked(), false, 'Quota failure must disable automatic processing');
+    assert.notEqual(await page.getByAltText('Uploaded photo 1').getAttribute('src'), originalFirstPhoto, 'First successful cutout must be preserved');
     assert.equal(await page.getByRole('link', { name: /Open remove.bg \(external\)/ }).getAttribute('href'), 'https://www.remove.bg/');
     overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    assert.ok(overflowAfterPhotos <= 4, 'Cutout error must not expose white right-side panel: ' + overflowAfterPhotos);
+    assert.ok(overflowAfterPhotos <= 4, 'Quota fallback must not expose white right-side panel: ' + overflowAfterPhotos);
     assert.deepEqual(uploads, [], 'Previewing must not upload customer photos to storage');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
