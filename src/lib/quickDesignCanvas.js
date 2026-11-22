@@ -44,56 +44,87 @@ function drawContain(ctx, img, x, y, w, h) {
   ctx.drawImage(img, x + (w - sw * ratio) / 2, y + (h - sh * ratio) / 2, sw * ratio, sh * ratio);
 }
 
-function drawPhoto(ctx, image, box, color) {
+// Soft-edge studio montage: preserve the source pixels and original GDP template.
+// This is a feathered photo composite, not AI subject extraction/background removal.
+function drawPhoto(ctx, image, box, color, variant = 'A', index = 0) {
   const x = box[0] * PREVIEW_W;
   const y = box[1] * PREVIEW_H;
   const w = box[2] * PREVIEW_W;
   const h = box[3] * PREVIEW_H;
   const angle = box[4] || 0;
+  const layer = document.createElement('canvas');
+  layer.width = Math.ceil(w);
+  layer.height = Math.ceil(h);
+  const layerCtx = layer.getContext('2d', { alpha: true });
+  if (!layerCtx) return;
+  const sw = image.naturalWidth || image.width;
+  const sh = image.naturalHeight || image.height;
+  // Keep the person's proportions; never stretch or apply a facial filter.
+  const ratio = Math.max(layer.width / sw, layer.height / sh);
+  layerCtx.drawImage(image, (layer.width - sw * ratio) / 2, (layer.height - sh * ratio) / 2, sw * ratio, sh * ratio);
+
+  // Feather a soft oval at the photo edge to avoid hard rectangular collage cards.
+  // A source PNG cutout retains its own alpha; this mask only fades outer pixels.
+  const radius = Math.max(layer.width, layer.height) / 2;
+  layerCtx.save();
+  layerCtx.translate(layer.width / 2, layer.height / 2);
+  layerCtx.scale(layer.width / Math.max(layer.width, layer.height), layer.height / Math.max(layer.width, layer.height));
+  const mask = layerCtx.createRadialGradient(0, 0, radius * 0.31, 0, 0, radius);
+  mask.addColorStop(0, 'rgba(255,255,255,1)');
+  mask.addColorStop(0.68, 'rgba(255,255,255,1)');
+  mask.addColorStop(0.90, 'rgba(255,255,255,0.48)');
+  mask.addColorStop(1, 'rgba(255,255,255,0)');
+  layerCtx.globalCompositeOperation = 'destination-in';
+  layerCtx.fillStyle = mask;
+  layerCtx.fillRect(-radius, -radius, radius * 2, radius * 2);
+  layerCtx.restore();
+
   ctx.save();
   ctx.translate(x + w / 2, y + h / 2);
   ctx.rotate(angle);
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 5;
-  roundedRect(ctx, -w / 2, -h / 2, w, h, 17);
-  ctx.fillStyle = '#101010';
+  const glow = ctx.createRadialGradient(0, 0, w * 0.12, 0, 0, w * 0.7);
+  glow.addColorStop(0, variant === 'B' ? color + '45' : color + '28');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, w * 0.67, h * 0.64, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
+  // A faint colored rim follows the softened silhouette, not a rectangular border.
   ctx.save();
-  roundedRect(ctx, -w / 2, -h / 2, w, h, 17);
-  ctx.clip();
-  const sw = image.naturalWidth || image.width;
-  const sh = image.naturalHeight || image.height;
-  const ratio = Math.max(w / sw, h / sh);
-  ctx.drawImage(image, -sw * ratio / 2, -sh * ratio / 2, sw * ratio, sh * ratio);
+  ctx.shadowColor = color;
+  ctx.shadowBlur = variant === 'B' ? 29 : 19;
+  ctx.globalAlpha = index === 0 ? 0.98 : 0.94;
+  ctx.drawImage(layer, -w / 2, -h / 2, w, h);
   ctx.restore();
-  ctx.strokeStyle = '#f8f6f1';
-  ctx.lineWidth = 7;
-  roundedRect(ctx, -w / 2, -h / 2, w, h, 17);
-  ctx.stroke();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  roundedRect(ctx, -w / 2 + 5, -h / 2 + 5, w - 10, h - 10, 13);
-  ctx.stroke();
   ctx.restore();
 }
 
+function paintTextVeil(ctx, centerY, height) {
+  const grad = ctx.createLinearGradient(0, centerY - height / 2, 0, centerY + height / 2);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(0.3, 'rgba(0,0,0,0.68)');
+  grad.addColorStop(0.7, 'rgba(0,0,0,0.68)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, centerY - height / 2, PREVIEW_W, height);
+}
+
+// A: centered hero with supporting portraits. B: asymmetric editorial spread.
+// Both work with just one source photo and remain distinct for 1–5 uploads.
 const LAYOUTS = {
   A: [
-    [0.13, 0.24, 0.74, 0.43, -0.015],
-    [0.06, 0.47, 0.37, 0.25, -0.10],
-    [0.59, 0.48, 0.35, 0.25, 0.09],
-    [0.29, 0.60, 0.36, 0.19, 0.03],
-    [0.08, 0.66, 0.30, 0.16, -0.07],
+    [0.15, 0.245, 0.70, 0.465, -0.012],
+    [0.025, 0.56, 0.37, 0.245, -0.115],
+    [0.64, 0.55, 0.34, 0.255, 0.105],
+    [0.31, 0.65, 0.34, 0.19, 0.045],
+    [0.03, 0.675, 0.28, 0.15, -0.12],
   ],
   B: [
-    [0.07, 0.31, 0.48, 0.37, -0.08],
-    [0.48, 0.27, 0.46, 0.41, 0.075],
-    [0.26, 0.51, 0.49, 0.27, -0.025],
-    [0.05, 0.62, 0.33, 0.18, -0.06],
-    [0.66, 0.63, 0.29, 0.19, 0.09],
+    [0.06, 0.24, 0.58, 0.59, -0.115],
+    [0.53, 0.265, 0.44, 0.44, 0.105],
+    [0.39, 0.48, 0.58, 0.35, -0.04],
+    [0.025, 0.54, 0.34, 0.25, 0.08],
+    [0.71, 0.65, 0.28, 0.18, 0.14],
   ],
 };
 
@@ -156,14 +187,19 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
   // Preserve the full original GDP template: no filters, stretching or cropping.
   drawContain(ctx, background, 0, 0, PREVIEW_W, PREVIEW_H);
   const layout = LAYOUTS[variant === 'B' ? 'B' : 'A'];
-  images.forEach((image, index) => drawPhoto(ctx, image, layout[index], accent));
-  // The editable typography sits above the collage on both layout options.
-  ctx.fillStyle = 'rgba(0,0,0,0.68)';
-  ctx.fillRect(0, PREVIEW_H * 0.095, PREVIEW_W, PREVIEW_H * 0.13);
-  paintHeadline(ctx, headline, PREVIEW_H * 0.164, PREVIEW_W * 0.89, 96, accent);
-  ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  ctx.fillRect(0, PREVIEW_H * 0.835, PREVIEW_W, PREVIEW_H * 0.085);
-  paintHeadline(ctx, subline, PREVIEW_H * 0.878, PREVIEW_W * 0.87, 47, '#ffffff');
+  images.forEach((image, index) => drawPhoto(ctx, image, layout[index], accent, variant, index));
+  // Two deliberate treatments, leaving the GDP template itself unmodified.
+  if (variant === 'B') {
+    paintTextVeil(ctx, PREVIEW_H * 0.145, PREVIEW_H * 0.115);
+    paintHeadline(ctx, subline, PREVIEW_H * 0.145, PREVIEW_W * 0.82, 43, '#ffffff');
+    paintTextVeil(ctx, PREVIEW_H * 0.83, PREVIEW_H * 0.185);
+    paintHeadline(ctx, headline, PREVIEW_H * 0.83, PREVIEW_W * 0.92, 109, accent);
+  } else {
+    paintTextVeil(ctx, PREVIEW_H * 0.165, PREVIEW_H * 0.195);
+    paintHeadline(ctx, headline, PREVIEW_H * 0.165, PREVIEW_W * 0.90, 94, accent);
+    paintTextVeil(ctx, PREVIEW_H * 0.866, PREVIEW_H * 0.13);
+    paintHeadline(ctx, subline, PREVIEW_H * 0.866, PREVIEW_W * 0.84, 47, '#ffffff');
+  }
   drawWatermark(ctx);
   return canvas;
 }
@@ -174,31 +210,92 @@ export function renderQuickDesignMockup(artwork) {
   canvas.height = 720;
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Your browser does not support T-shirt previews.');
-  const gradient = ctx.createLinearGradient(0, 0, 600, 720);
-  gradient.addColorStop(0, '#22232a');
-  gradient.addColorStop(1, '#08090e');
-  ctx.fillStyle = gradient;
+
+  const backdrop = ctx.createRadialGradient(290, 230, 35, 300, 350, 680);
+  backdrop.addColorStop(0, '#46464b');
+  backdrop.addColorStop(0.5, '#222329');
+  backdrop.addColorStop(1, '#0b0b0f');
+  ctx.fillStyle = backdrop;
   ctx.fillRect(0, 0, 600, 720);
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillRect(0, 0, 600, 1);
+
+  const outline = new Path2D('M188 76 L243 43 Q300 87 357 43 L412 76 Q487 101 554 173 L477 327 L425 301 L421 658 Q302 681 179 658 L175 301 L123 327 L46 173 Q110 102 188 76 Z');
   ctx.save();
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 28;
-  const shirt = new Path2D('M192 75 L242 42 Q300 89 358 42 L408 75 L547 166 L473 315 L417 291 L417 660 Q300 680 183 660 L183 291 L127 315 L53 166 Z');
-  ctx.fillStyle = '#101014';
-  ctx.fill(shirt);
-  ctx.shadowBlur = 0;
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = '#34343a';
-  ctx.stroke(shirt);
-  ctx.beginPath();
-  ctx.ellipse(300, 71, 49, 26, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#24242b';
-  ctx.fill();
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 32;
+  ctx.shadowOffsetY = 20;
+  const fabric = ctx.createLinearGradient(48, 250, 550, 340);
+  fabric.addColorStop(0, '#111114');
+  fabric.addColorStop(0.15, '#26262a');
+  fabric.addColorStop(0.37, '#09090b');
+  fabric.addColorStop(0.62, '#17171b');
+  fabric.addColorStop(0.84, '#101014');
+  fabric.addColorStop(1, '#303036');
+  ctx.fillStyle = fabric;
+  ctx.fill(outline);
   ctx.restore();
-  // Approximate black unisex shirt silhouette; artwork is not a guaranteed print placement.
-  drawContain(ctx, artwork, 181, 180, 238, 336);
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.font = '600 17px Arial, sans-serif';
+  ctx.save();
+  ctx.clip(outline);
+
+  // Subtle fabric lighting, sleeve fall and hem folds for a better visual mockup.
+  const fold = ctx.createLinearGradient(175, 180, 425, 610);
+  fold.addColorStop(0, 'rgba(255,255,255,0.045)');
+  fold.addColorStop(0.44, 'rgba(255,255,255,0)');
+  fold.addColorStop(0.65, 'rgba(0,0,0,0.19)');
+  fold.addColorStop(1, 'rgba(255,255,255,0.045)');
+  ctx.fillStyle = fold;
+  ctx.fillRect(170, 140, 260, 550);
+  ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+  ctx.lineWidth = 4;
+  for (const [a, b, c, d] of [
+    [175, 309, 211, 438], [425, 302, 387, 450],
+    [180, 562, 237, 662], [417, 550, 375, 661],
+    [121, 141, 160, 258], [478, 148, 445, 264],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(a, b);
+    ctx.quadraticCurveTo((a + c) / 2 + 8, (b + d) / 2, c, d);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(240,240,245,0.12)';
+  ctx.lineWidth = 2;
+  ctx.stroke(outline);
+  // Collar ring and stitching; the neckline does not overlap the artwork.
+  ctx.beginPath();
+  ctx.ellipse(300, 69, 55, 31, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#2c2c32';
+  ctx.fill();
+  ctx.strokeStyle = '#55545b';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(300, 64, 44, 22, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#111115';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(185, 641);
+  ctx.quadraticCurveTo(301, 656, 417, 641);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(126, 309);
+  ctx.lineTo(51, 175);
+  ctx.moveTo(474, 309);
+  ctx.lineTo(548, 175);
+  ctx.stroke();
+
+  // Approximate chest A3 placement, not a production placement guarantee.
+  drawContain(ctx, artwork, 184, 179, 232, 335);
+  ctx.font = '700 14px Arial, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('ILLUSTRATIVE BLACK T-SHIRT MOCKUP', 300, 700);
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.fillText('BLACK UNISEX TEE • ILLUSTRATIVE MOCKUP', 300, 700);
   return canvas;
 }
