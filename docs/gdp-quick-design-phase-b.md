@@ -38,3 +38,13 @@ The free 0.25MP previews cannot be treated as the promised 3600×4800-pixel, 300
 - [ ] Staging-only Supabase migration and function deployment + signed/authenticated quota tests
 - [ ] 300-DPI production export, secure source photo transfer and print-area QA
 - [ ] Separate owner approval to merge to production
+
+
+## Conditional background removal: preserve transparent originals (2026-11-22)
+- Customers opt in with the existing **Automatic background removal with remove.bg** checkbox. The button is not pre-selected; no photo is sent to any external service before consent.
+- A lightweight browser alpha check runs before each API request. If a PNG or WebP has meaningful transparency and at least two transparent corners, it is marked **Transparent • unchanged** and is displayed from its original browser URL. The image bytes, size and layers are not modified, and **zero API credits** are consumed.
+- JPEG is always opaque. Opaque PNG/WebP files are classified as needs-removal and processed sequentially through the existing guarded remove.bg server proxy only when enabled. This is NOT a semantic AI background detector and cannot guarantee an opaque image needs removal.
+- Unreadable images fail closed without a third-party request; original preserved. Quota exhaustion or API failure preserves previously processed and original photos; automatic processing stops, and the external remove.bg link is offered.
+- The branch uses the SAME existing Custom Studio secret REMOVE_BG_API_KEY; no new remove.bg account/API key. Do not call the existing remove-photo-background production function directly for this preview: its size=auto setting and existing day-based limits don't meet zero-charge guarantees.
+- Supabase production inspection found reserve_quick_design_removebg_preview is **not installed** yet, although consume_background_removal_quota is installed for Custom Studio. Quick Design's guarded Edge Function has NOT been deployed or activated. Review free API credits/billing before allowing real requests. The local alpha preflight and mock request logic can be tested in Cloudflare's draft preview.
+- Browser regression includes a real transparent PNG + four opaque PNGs, confirms no API call for the first image, one mock-success opaque cutout, one mock 429 quota failure, and unchanged original image URL across desktop and mobile.
