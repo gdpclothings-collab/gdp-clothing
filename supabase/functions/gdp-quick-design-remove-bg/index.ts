@@ -1,6 +1,7 @@
 // GDP Quick Design / Phase B: preview-resolution remove.bg proxy.
-// STAGING-ONLY SOURCE: not deployed; enabling requires separate approval,
-// Supabase migration, reviewed secret setup and a free-only account.
+// STAGING-ONLY SOURCE: not deployed. Uses EXISTING Custom Studio
+// REMOVE_BG_API_KEY project secret. Activation still requires separate approval,
+// quota migration, zero-charge account verification and preview authorization.
 // NEVER put the remove.bg key or Supabase secret key in the web bundle.
 // The API returns one PNG and stores no photo or output on our servers.
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
@@ -80,13 +81,15 @@ Deno.serve(async (request) => {
     return json(origin, 405, 'METHOD_NOT_ALLOWED', 'Only photo uploads are supported.');
   }
 
-  const key = Deno.env.get('GDP_REMOVEBG_API_KEY') || '';
+  // Reuse the SAME project-level remove.bg secret that Custom Studio's active
+  // remove-photo-background function already reads. No second account/key.
+  const key = Deno.env.get('REMOVE_BG_API_KEY') || '';
   const adminKey = getServerKey();
   const projectUrl = Deno.env.get('SUPABASE_URL') || '';
   // Fail closed until an owner has explicitly approved activation and verified
   // that the dedicated API account has NO chargeable overflow or autopay.
   if (Deno.env.get('GDP_REMOVEBG_ENABLED') !== 'true' || !key || !adminKey || !projectUrl) {
-    return json(origin, 503, 'SERVICE_UNAVAILABLE', 'Automatic cutouts are not configured. Please use remove.bg separately.');
+    return json(origin, 503, 'SERVICE_UNAVAILABLE', 'Automatic cutouts are not enabled for Quick Design. You may use remove.bg separately.');
   }
 
   const limit = Math.max(0, Math.min(MAX_MONTHLY_PREVIEW_CALLS,
