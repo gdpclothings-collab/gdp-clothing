@@ -8,11 +8,14 @@ import {
   validateQuickDesignFile,
   quickDesignLayoutCount,
 } from '../src/lib/quickDesignCanvas.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES } from '../src/lib/quickDesignGarmentMockup.js';
 
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
 assert.equal(quickDesignLayoutCount('A'), 5);
 assert.equal(quickDesignLayoutCount('B'), 5);
+assert.deepEqual(QUICK_DESIGN_GARMENTS.map((item) => item.id), ['tshirt', 'sweatshirt', 'hoodie']);
+assert.deepEqual(QUICK_DESIGN_SIDES.map((item) => item.id), ['front', 'back']);
 assert.ok(QUICK_DESIGN_BACKGROUNDS.length >= 5, 'Must reuse real GDP bootleg backgrounds');
 for (const template of QUICK_DESIGN_BACKGROUNDS) {
   assert.equal(template.category, 'photo_bootleg');
@@ -40,6 +43,20 @@ assert.doesNotMatch(page, /checkout\/payment|stripe\.confirm|createPaymentIntent
 assert.match(canvas, /const PREVIEW_H = 1000/);
 assert.match(canvas, /targetWidthPx: 3600, targetHeightPx: 4800/);
 assert.match(canvas, /quickDesignFont/);
+assert.match(canvas, /paintPremiumTextGlyph/);
+assert.match(canvas, /fontSizePercent = 100/);
+assert.match(canvas, /premiumStyle = 'solid'/);
+const mockupCode = readFileSync('src/lib/quickDesignGarmentMockup.js', 'utf8');
+assert.match(mockupCode, /selectedGarment === 'hoodie'/);
+assert.match(mockupCode, /selectedSide = side === 'back'/);
+assert.match(mockupCode, /not an assertion about Gildan product/);
+assert.match(page, /Preview your garment/);
+assert.match(page, /Premium text style/);
+assert.match(page, /Name font size/);
+assert.match(page, /'Requested print side: '/);
+assert.match(page, /fontSizePercent,/);
+assert.match(page, /premiumStyle,/);
+assert.doesNotMatch(mockupCode, /fetch\(|remove\.bg|stripe|openai/i, 'Garment preview must run without network or paid generation');
 assert.match(canvas, /curve === 'up' \|\| curve === 'down'/);
 assert.match(page, /Automatic background removal \(experimental\)/);
 const help = readFileSync('src/components/storefront/QuickDesignHelp.jsx', 'utf8');
