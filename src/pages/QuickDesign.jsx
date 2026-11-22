@@ -163,7 +163,7 @@ export default function QuickDesign() {
     setPreviewBusy(true);
     setPreviewError('');
     const options = {
-      photos: photos.map((item) => ({ ...item, url: (autoCutout || cutoutUnavailable) ? (item.cutoutUrl || item.url) : item.url })),
+      photos: photos.map((item) => ({ ...item, url: item.cutoutUrl || item.url })),
       backgroundUrl: selectedBackground.fullAsset || selectedBackground.assetUrl,
       headline: headline || 'YOUR NAME',
       subline: subline.trim(),
@@ -185,7 +185,7 @@ export default function QuickDesign() {
       }
     }).finally(() => { if (!cancelled) setPreviewBusy(false); });
     return () => { cancelled = true; };
-  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle, autoCutout, cutoutUnavailable]);
+  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle]);
 
   // Switching shirt / crewneck / hoodie or front / back only redraws the
   // selected mockup, rather than recomputing the two original photo samples.
@@ -388,42 +388,43 @@ export default function QuickDesign() {
     <div className="mx-auto grid min-w-0 max-w-6xl grid-cols-[minmax(0,1fr)] gap-7 px-4 py-9 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
       <div className="min-w-0 space-y-7">
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
-          <SmallHeading number="1">Add your photos</SmallHeading>
-          <label className="mb-4 flex min-w-0 items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span className="min-w-0 break-words"><strong>Automatic background removal with remove.bg (optional)</strong><span className="mt-1 block text-xs text-white/65">If enabled, Quick Design first checks each photo locally. PNG/WebP images that already have a transparent background stay unchanged and use no remove.bg credits. Opaque photos (including JPGs) are sent to remove.bg for a low-resolution transparent preview. Your photos are sent only after you enable this option. The free quota is shared.</span></span></label>
-          {isCloudflareBranchPreview && <p role="status" className="mb-3 rounded-lg border border-white/15 bg-black/30 p-3 text-xs leading-5 text-white/70">Phase B preview: background removal starts OFF until you choose it. Already-transparent uploads stay unchanged. To process opaque photos, enable the checkbox or tap the green remove-background button after uploading.</p>}
-          <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
-            <button type="button" onClick={checkRemoveBgConnection} disabled={connectionChecking} className={BTN + ' border border-white/25 bg-black/30 text-white/85 hover:bg-white/10'} data-gdp-check-removal="true">{connectionChecking ? 'Checking free removal…' : 'Check remove.bg connection (no photo sent)'}</button>
-            {connectionStatus && <span role="status" data-gdp-removal-connection={connectionStatus.code} className={'min-w-0 max-w-full break-words text-xs leading-5 ' + (connectionStatus.ready ? 'text-lime-200' : 'text-amber-200')}>{connectionStatus.message}</span>}
-          </div>
-          <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-5 text-center hover:border-lime-300">
-            <ImagePlus size={28} className="text-lime-300" />
-            <span className="font-bold">Tap to upload 1–5 photos</span>
-            <span className="text-xs text-white/60">JPG, PNG or WebP • up to 10 MB each</span>
+          <SmallHeading number="1">Upload photos</SmallHeading>
+          <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-4 text-center hover:border-lime-300">
+            <ImagePlus size={25} className="text-lime-300" />
+            <span className="font-bold">Add 1–5 photos</span>
+            <span className="text-xs text-white/60">JPG, PNG or WebP · 10 MB maximum each</span>
             <input aria-label="Upload customer photos" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} />
           </label>
-          {photos.length > 0 && !autoCutout && !cutoutBusy && photos.some((item) => !item.cutoutUrl && item.bgStatus !== 'skipped') && <div className="mt-3 rounded-xl border border-lime-300/30 bg-lime-300/5 p-3">
-            <p className="text-sm font-semibold text-white">Background removal is OFF. Your photos are still original.</p>
-            <button type="button" onClick={() => switchCutouts(true)} className={BTN + ' mt-3 w-full bg-lime-300 text-black hover:bg-lime-200'} data-gdp-remove-photos="true">Remove photo backgrounds</button>
-            <p className="mt-2 text-xs leading-5 text-white/60">Selecting this sends only opaque photos to the external remove.bg service. Transparent images remain unchanged. Free credits and server limits apply.</p>
-          </div>}
-          {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-4 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
+          {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-3 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
             <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
-              <img src={(autoCutout || cutoutUnavailable) ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full object-contain bg-neutral-700" />
+              <img src={item.cutoutUrl || item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full bg-neutral-700 object-contain" />
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
-              {item.bgStatus === 'skipped' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="transparent">Transparent • unchanged</span>}
-              {item.bgStatus === 'done' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="removed">Background removed</span>}
+              {item.bgStatus === 'skipped' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="transparent">Transparent</span>}
+              {item.bgStatus === 'done' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="removed">Removed</span>}
               {item.bgStatus === 'failed' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-amber-200" data-gdp-photo-status="failed">Original kept</span>}
-              {!autoCutout && item.bgStatus === 'pending' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-white" data-gdp-photo-status="off">Not processed</span>}
+              {!autoCutout && item.bgStatus === 'pending' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-white" data-gdp-photo-status="off">Original</span>}
             </div>
           )}</div>}
-          {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Checking photos; removing opaque backgrounds when needed…</p>}
-          {cutoutError && <p role="alert" className="mt-3 max-w-full min-w-0 break-words rounded-lg bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">{cutoutError}</p>}
-          <p className="mt-3 max-w-full break-words text-xs leading-5 text-white/55">Original photos are preserved. Transparent PNG/WebP uploads are not changed or sent to remove.bg. Opaque uploads are processed only with your consent and within the server's free-use safeguards. Free cutouts are previews, not final 300-DPI production files.</p>
-          <div className="mt-3 min-w-0 rounded-xl border border-white/15 bg-black/20 p-3" data-gdp-cutout-fallback="true">
-            <p className="text-xs font-bold text-white/85">Need an alternative background remover?</p>
-            <p className="mt-1 text-xs leading-5 text-white/65">When the shared free allowance runs low or cannot be verified, open remove.bg directly, save a transparent PNG and upload it here with automatic removal turned OFF. External remove.bg has its own privacy terms and may offer paid upgrades; GDP does not purchase those for you.</p>
-            <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 max-w-full items-center rounded-lg border border-white/25 px-3 text-sm font-bold text-lime-200 underline underline-offset-2 hover:bg-white/10">Open remove.bg (external)</a>
-          </div>
+          {photos.length > 0 && !autoCutout && !cutoutBusy && !cutoutUnavailable && photos.some((item) => !item.cutoutUrl && item.bgStatus !== 'skipped') && <div className="mt-3">
+            <button type="button" onClick={() => switchCutouts(true)} className={BTN + ' w-full bg-lime-300 text-black hover:bg-lime-200'} data-gdp-remove-photos="true">Remove backgrounds</button>
+            <p className="mt-1.5 text-center text-[11px] leading-4 text-white/55">Uses remove.bg for opaque photos only. Transparent images stay unchanged.</p>
+          </div>}
+          {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Removing backgrounds…</p>}
+          {photos.length > 0 && autoCutout && !cutoutPending && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-lime-200" data-gdp-auto-remove-status="on"><span><CheckCircle2 size={14} className="mr-1 inline"/> Auto-removal on for new uploads</span><button type="button" onClick={() => switchCutouts(false)} className="min-h-9 rounded-lg border border-white/20 px-3 text-white/70 hover:bg-white/10">Turn off</button></div>}
+          {cutoutError && <div role="alert" className="mt-3 min-w-0 max-w-full rounded-lg bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">
+            <p className="break-words">{cutoutError}</p>
+            <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block font-bold text-amber-100 underline underline-offset-2">Open remove.bg (external)</a>
+          </div>}
+          <details className="mt-3 min-w-0 rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-xs text-white/65" data-gdp-removal-help="true">
+            <summary className="cursor-pointer py-1 font-semibold text-white/80">Background removal help</summary>
+            <div className="space-y-2 pb-2 pt-3 leading-5">
+              <p>Removing a background sends opaque photos to remove.bg after you tap the button. Existing transparent PNG/WebP images are kept as uploaded. Free preview limits apply; your originals stay safe.</p>
+              <button type="button" onClick={checkRemoveBgConnection} disabled={connectionChecking} className={BTN + ' w-full border border-white/25 bg-black/30 text-white/85 hover:bg-white/10'} data-gdp-check-removal="true">{connectionChecking ? 'Checking connection…' : 'Check remove.bg connection'}</button>
+              {connectionStatus && <p role="status" data-gdp-removal-connection={connectionStatus.code} className={'break-words ' + (connectionStatus.ready ? 'text-lime-200' : 'text-amber-200')}>{connectionStatus.message}</p>}
+              {!cutoutError && <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="inline-block font-semibold text-lime-200 underline underline-offset-2">Open remove.bg (external)</a>}
+              <p>These are low-resolution design previews, not 300-DPI print files.</p>
+            </div>
+          </details>
           {message && <p role="status" className="mt-3 min-w-0 max-w-full break-words rounded-lg bg-amber-300/10 p-3 text-sm text-amber-200">{message}</p>}
         </section>
 
