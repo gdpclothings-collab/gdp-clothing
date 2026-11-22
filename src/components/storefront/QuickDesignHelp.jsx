@@ -4,11 +4,11 @@ import { BookOpen, Check, ClipboardCopy, ExternalLink, HelpCircle, Mail, X } fro
 const HELP_TOPICS = [
   {
     title: 'How do I make my two free samples?',
-    answer: 'Upload up to five JPG, PNG or WebP photos, choose a GDP background, enter a name, and select a font and text curve. Samples A and B appear automatically. Both are free watermarked previews.',
+    answer: 'Upload up to five JPG, PNG or WebP photos, choose a GDP background, enter a name, and select a font and text curve. Phase B Samples A (Layered Classic) and B (Dramatic Stack) appear automatically. These are free watermarked previews; transparent cutouts give the strongest layered-pet effect.',
   },
   {
     title: 'My background removal is slow or looks wrong',
-    answer: 'The optional on-device remover can be slow, especially on phones. If it fails, your original image is kept and previews continue. You may separately open remove.bg to upload a photo yourself, download its transparent PNG, then upload that PNG here. This is an external service with its own terms, privacy rules and low-resolution free preview limit; GDP never sends images there automatically.',
+    answer: 'If you enable the optional remove.bg checkbox, your uploaded photo is sent to remove.bg for a low-resolution transparent preview. GDP keeps your original image in the editor. The free allowance is shared across customers and guarded by a hard monthly cap. When unavailable, use the external remove.bg link, save a transparent PNG and reupload it with automatic removal turned OFF. Never buy credits to use the GDP preview. This is not print-ready artwork.',
   },
   {
     title: 'Can I leave the subtitle blank?',
@@ -114,7 +114,7 @@ export default function QuickDesignHelp({ onClose, details }) {
           <div className="mt-5 rounded-xl border border-lime-300/15 bg-lime-300/5 p-4">
             <div className="flex items-center gap-2 text-sm font-extrabold text-lime-200"><BookOpen size={17} /> Quick start</div>
             <ol className="mt-3 space-y-2 text-sm leading-6 text-white/85">
-              <li>1. Add one to five photos and review the optional cutouts.</li>
+              <li>1. Add one to five photos. Opt in to remove.bg only if you want photos processed by the external service.</li>
               <li>2. Pick an original GDP bootleg background.</li>
               <li>3. Add your name, font size, premium finish, color, and straight or curved text.</li>
               <li>4. Compare both free samples, then preview T-shirt, sweatshirt or hoodie (front/back).</li>
