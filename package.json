@@ -17,6 +17,7 @@
     "test:tax-safeguard": "node scripts/verify-gdp-tax-registration-safeguard-v1.mjs",
     "test:pst-only-safeguard": "node scripts/verify-gdp-pst-only-checkout-safeguard-v1.mjs",
     "test:custom-studio-smoke": "node scripts/custom-studio-garment-smoke.mjs",
+    "test:quick-design": "node scripts/verify-quick-design-mvp.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
