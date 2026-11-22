@@ -143,6 +143,7 @@ jobs:
           node --test tests/bootleg-glow-visual.test.mjs
           node --test tests/bootleg-glow-preview-resets.test.mjs
           node scripts/verify-storefront-seo-ux.mjs
+          node scripts/verify-quick-design-mvp.mjs
 
       - name: Verify immutable invoice ledger and atomic migration manifest
         run: |
