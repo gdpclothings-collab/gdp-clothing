@@ -9,12 +9,19 @@ import {
   quickDesignLayoutCount,
 } from '../src/lib/quickDesignCanvas.js';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES } from '../src/lib/quickDesignGarmentMockup.js';
+import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { QUICK_DESIGN_PHASE_B_NAMES, getQuickDesignPhaseBLayout, getQuickDesignPhaseBRenderOrder } from '../src/lib/quickDesignPhaseBLayout.js';
 
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
 assert.equal(quickDesignLayoutCount('A'), 5);
 assert.equal(quickDesignLayoutCount('B'), 5);
+assert.equal(await detectQuickDesignBackground({ type: 'image/jpeg', size: 100 }), 'needs-removal');
+assert.equal(await detectQuickDesignBackground({ type: 'image/heic', size: 100 }), 'unreadable');
+const transparencyCheck = readFileSync('src/lib/quickDesignTransparency.js', 'utf8');
+assert.match(transparencyCheck, /cornersAreTransparent/);
+assert.match(transparencyCheck, /already-transparent/);
+assert.doesNotMatch(transparencyCheck, /fetch\(|supabase\.functions|api\.remove\.bg|X-API-Key/i, 'Alpha preflight must be local and free');
 assert.equal(QUICK_DESIGN_PHASE_B_NAMES.A, 'Layered Classic');
 assert.equal(QUICK_DESIGN_PHASE_B_NAMES.B, 'Dramatic Stack');
 for (let count = 1; count <= 5; count += 1) {
@@ -80,6 +87,9 @@ assert.doesNotMatch(mockupCode, /fetch\(|remove\.bg|stripe|openai/i, 'Garment pr
 assert.match(canvas, /curve === 'up' \|\| curve === 'down'/);
 assert.match(page, /Automatic background removal with remove\.bg \(optional\)/);
 assert.match(page, /requestQuickDesignRemoveBgCutout\(target\.file\)/);
+assert.match(page, /detectQuickDesignBackground\(target\.file\)/);
+assert.match(page, /transparency === 'already-transparent'/);
+assert.match(page, /data-gdp-photo-status="transparent"/);
 assert.doesNotMatch(page, /removeQuickDesignBackground\(/, 'Experimental device model must not process uploads anymore');
 const help = readFileSync('src/components/storefront/QuickDesignHelp.jsx', 'utf8');
 const fontStyles = readFileSync('src/pages/quickDesignFonts.css', 'utf8');
