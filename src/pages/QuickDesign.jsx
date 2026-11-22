@@ -37,6 +37,7 @@ function SmallHeading({ number, children }) {
 
 export default function QuickDesign() {
   const location = useLocation();
+  const isCloudflareBranchPreview = typeof window !== 'undefined' && /^.+\.gdp-clothing\.pages\.dev$/i.test(window.location.hostname);
   const [photos, setPhotos] = useState([]);
   const urlsRef = useRef(new Set());
   const [message, setMessage] = useState('');
@@ -198,6 +199,7 @@ export default function QuickDesign() {
 
   const submitRequest = async (event) => {
     event.preventDefault();
+    if (isCloudflareBranchPreview) { setSendError('This is the development preview. Sending customer requests is disabled here. No details were submitted.'); return; }
     setSendError('');
     setSubmitted(null);
     if (!selectedResult || previewBusy || !photos.length) {
@@ -361,6 +363,7 @@ export default function QuickDesign() {
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="5">Request this design</SmallHeading>
+          {isCloudflareBranchPreview && <p role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-200/10 p-3 text-sm text-amber-100">Development preview: request submissions are disabled to protect live customer data. You can test the design controls and sample downloads safely.</p>}
           <p className="mb-5 text-sm leading-6 text-white/65">Choose your preferred sample, then send GDP your contact details and design choices. This is a request, not a purchase or payment.</p>
           {submitted ? <div role="status" className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5">
             <CheckCircle2 className="text-emerald-300" size={26} />
@@ -386,9 +389,9 @@ export default function QuickDesign() {
             </label>
             <div className="hidden" aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={customer.website} onChange={(e) => updateCustomer('website', e.target.value)}/></label></div>
             {sendError && <p role="alert" className="rounded-lg bg-red-950/60 p-3 text-sm text-red-200">{sendError}</p>}
-            <button type="submit" disabled={!selectedResult || previewBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
+            <button type="submit" disabled={isCloudflareBranchPreview || !selectedResult || previewBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
               {sending ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
-              {sending ? 'Sending your request…' : 'Submit Sample ' + selected + ' request'}
+              {sending ? 'Sending your request…' : (isCloudflareBranchPreview ? 'Request submission disabled in preview' : 'Submit Sample ' + selected + ' request')}
               {!sending && <ArrowRight size={18}/>}
             </button>
             <p className="text-xs leading-5 text-white/55">This sends contact info and design selections through GDP's existing request system. Images remain on your device; GDP will request the original photo files. No payment or automatic order is created.</p>
