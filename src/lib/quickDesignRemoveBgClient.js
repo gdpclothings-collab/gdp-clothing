@@ -25,10 +25,17 @@ export async function requestQuickDesignRemoveBgCutout(file) {
       const code = KNOWN_CODES.has(details.code) ? details.code : 'SERVICE_UNAVAILABLE';
       return { ok: false, code, message: fallbackMessage(code) };
     }
-    if (!(data instanceof Blob) || !data.size || !data.type.startsWith('image/png')) {
+    if (!(data instanceof Blob) || !data.size || data.size > 5 * 1024 * 1024) {
       return { ok: false, code: 'SERVICE_UNAVAILABLE', message: fallbackMessage('SERVICE_UNAVAILABLE') };
     }
-    return { ok: true, cutoutUrl: URL.createObjectURL(data), code: 'OK' };
+    // Supabase Functions parses application/octet-stream as a Blob. Validate
+    // actual PNG magic bytes before creating a displayable image URL.
+    const magic = new Uint8Array(await data.slice(0, 8).arrayBuffer());
+    if (![137,80,78,71,13,10,26,10].every((value, index) => magic[index] === value)) {
+      return { ok: false, code: 'SERVICE_UNAVAILABLE', message: fallbackMessage('SERVICE_UNAVAILABLE') };
+    }
+    const png = new Blob([data], { type: 'image/png' });
+    return { ok: true, cutoutUrl: URL.createObjectURL(png), code: 'OK' };
   } catch {
     return { ok: false, code: 'SERVICE_UNAVAILABLE', message: fallbackMessage('SERVICE_UNAVAILABLE') };
   }
