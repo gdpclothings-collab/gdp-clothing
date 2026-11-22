@@ -146,26 +146,36 @@ try {
         await route.fulfill({ status: 204, headers });
         return;
       }
+      if (method === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', headers,
+          body: JSON.stringify({ ready: true, code: 'READY', message: 'Free preview removal is available.' }) });
+        return;
+      }
       cutoutPosts += 1;
       if (cutoutPosts === 1) {
         await route.fulfill({ status: 200, contentType: 'application/octet-stream', headers, body: Buffer.from(transparentBase64, 'base64') });
       } else {
         await route.fulfill({
           status: 429, contentType: 'application/json', headers,
-          body: JSON.stringify({ code: 'LIMIT_REACHED', message: 'No free calls left', fallback: 'https://www.remove.bg/' }),
+          body: JSON.stringify({ code: 'LIMIT_REACHED', message: 'The shared remove.bg free allowance is too low. Use the external option.', fallback: 'https://www.remove.bg/' }),
         });
       }
     });
     assert.equal(cutoutPosts, 0, 'No external cutout request before customer consent');
     const originalTransparentPhoto = await page.getByAltText('Uploaded photo 1').getAttribute('src');
     const originalOpaquePhoto = await page.getByAltText('Uploaded photo 2').getAttribute('src');
-    await page.getByRole('checkbox', { name: /Automatic background removal/i }).check();
+    const offNotice = page.getByText('Background removal is OFF. Your photos are still original.');
+    assert.ok(await offNotice.isVisible(), 'Uploading photos alone must clearly explain that removal is OFF');
+    await page.locator('[data-gdp-check-removal="true"]').click();
+    await page.locator('[data-gdp-removal-connection="READY"]').waitFor({ timeout: 10000 });
+    assert.equal(cutoutPosts, 0, 'Connection status must not upload or process photos');
+    await page.locator('[data-gdp-remove-photos="true"]').click();
     await page.locator('[data-gdp-photo-status="transparent"]').waitFor({ timeout: 15000 });
     // Other queued opaque photos may start immediately after alpha detection.
     // Exact no-spend behavior is proven by the unchanged first source URL,
     // skipped status and only two POSTs (success then quota-limit).
     try {
-      await page.getByRole('alert').filter({ hasText: /Free automatic background removal has reached its limit/ }).waitFor({ timeout: 20000 });
+      await page.getByRole('alert').filter({ hasText: /free allowance is too low/ }).waitFor({ timeout: 20000 });
     } catch (error) {
       const alerts = await page.getByRole('alert').allTextContents();
       throw new Error('Expected quota fallback after mock binary cutout. POSTs=' + cutoutPosts +
@@ -173,6 +183,7 @@ try {
         ', timeout=' + (error?.message || 'unknown'));
     }
     assert.equal(cutoutPosts, 2, 'Quota response must stop additional automatic requests');
+    assert.ok(await page.locator('[data-gdp-photo-status="failed"]').count() >= 1, 'Original must be kept after quota error');
     assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).isChecked(), false, 'Quota failure must disable automatic processing');
     assert.equal(await page.getByAltText('Uploaded photo 1').getAttribute('src'), originalTransparentPhoto, 'Already-transparent photo must remain unchanged');
     assert.notEqual(await page.getByAltText('Uploaded photo 2').getAttribute('src'), originalOpaquePhoto, 'First opaque photo must receive the mock cutout');
