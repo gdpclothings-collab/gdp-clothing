@@ -8,7 +8,7 @@ const HELP_TOPICS = [
   },
   {
     title: 'My background removal is slow or looks wrong',
-    answer: 'The optional background remover downloads a model to your device and may take longer on mobile data or slower phones. Hair and pet fur can be difficult. Turn it off to use your original photo, or upload a transparent PNG cutout. No photos are sent to a background-removal service.',
+    answer: 'The optional on-device remover can be slow, especially on phones. If it fails, your original image is kept and previews continue. You may separately open remove.bg to upload a photo yourself, download its transparent PNG, then upload that PNG here. This is an external service with its own terms, privacy rules and low-resolution free preview limit; GDP never sends images there automatically.',
   },
   {
     title: 'Can I leave the subtitle blank?',
