@@ -222,7 +222,7 @@ function drawArtwork(ctx, artwork, garment, side) {
 
 /**
  * @param {{
- *   artworkSource: string | HTMLCanvasElement | HTMLImageElement,
+ *   artworkSource?: string | HTMLCanvasElement | HTMLImageElement,
  *   garment?: string,
  *   side?: string,
  * }} options
