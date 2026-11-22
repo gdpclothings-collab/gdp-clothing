@@ -220,6 +220,13 @@ function drawArtwork(ctx, artwork, garment, side) {
   ctx.restore();
 }
 
+/**
+ * @param {{
+ *   artworkSource: string | HTMLCanvasElement | HTMLImageElement,
+ *   garment?: string,
+ *   side?: string,
+ * }} options
+ */
 export async function renderQuickDesignGarmentMockup({
   artworkSource,
   garment = 'tshirt',
