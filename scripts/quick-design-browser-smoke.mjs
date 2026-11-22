@@ -32,6 +32,10 @@ try {
     await page.getByRole('textbox', { name: 'Main name or heading' }).fill('HENRY');
     await page.getByRole('combobox', { name: 'Bootleg name font' }).selectOption('serif');
     await page.getByRole('combobox', { name: 'Name layout' }).selectOption('up');
+    await page.getByRole('button', { name: 'Increase name font size' }).click();
+    await page.getByRole('button', { name: 'Increase name font size' }).click();
+    assert.match(await page.locator('[data-gdp-font-size-value]').innerText(), /110%/);
+    await page.getByRole('combobox', { name: 'Premium text style' }).selectOption('silver-chrome');
 
     await page.locator('input[aria-label="Upload customer photos"]').setInputFiles({
       name: 'test-photo.png', mimeType: 'image/png', buffer: pixel,
@@ -55,11 +59,27 @@ try {
     assert.equal(await subtitle.inputValue(), '', 'No hidden CUSTOM BOOTLEG subtitle should appear');
 
     await page.getByRole('button', { name: 'Choose Sample B', exact: true }).click();
-    await page.getByAltText('Sample B on an illustrative black T-shirt').waitFor({ timeout: 10000 });
+    await page.getByRole('button', { name: 'Preview Sweatshirt' }).click();
+    await page.getByRole('button', { name: 'Show Back view' }).click();
+    await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
+    const garmentImage = page.locator('[data-gdp-garment-image="true"]');
+    const crewneckBack = await garmentImage.getAttribute('src');
+    assert.ok(crewneckBack?.startsWith('data:image/jpeg;base64,'), 'Sweatshirt back preview renders locally');
+    await page.getByRole('button', { name: 'Preview Hoodie' }).click();
+    await page.getByAltText('Sample B on illustrative black Hoodie back view').waitFor({ timeout: 10000 });
+    const hoodieBack = await garmentImage.getAttribute('src');
+    assert.notEqual(crewneckBack, hoodieBack, 'Sweatshirt and hoodie must show different garment silhouettes');
+    await page.getByRole('button', { name: 'Show Front view' }).click();
+    await page.getByAltText('Sample B on illustrative black Hoodie front view').waitFor({ timeout: 10000 });
+    const hoodieFront = await garmentImage.getAttribute('src');
+    assert.notEqual(hoodieFront, hoodieBack, 'Front and back hoodie views must be different');
     assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true');
     await page.locator('[data-gdp-help-trigger="request"]').click();
     await page.getByRole('dialog', { name: 'Need help with your design?' }).waitFor();
     await page.getByRole('button', { name: 'Close design help' }).click();
+    assert.equal(await page.getByRole('button', { name: 'Preview Hoodie' }).getAttribute('aria-pressed'), 'true', 'Help must preserve garment');
+    assert.equal(await page.getByRole('button', { name: 'Show Front view' }).getAttribute('aria-pressed'), 'true', 'Help must preserve print side');
+    assert.equal(await page.getByRole('combobox', { name: 'Premium text style' }).inputValue(), 'silver-chrome', 'Help must preserve premium text style');
     assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true', 'Opening Help must preserve the chosen sample');
 
     assert.deepEqual(uploads, [], 'Previewing must not upload customer photos to storage');
