@@ -11,12 +11,13 @@ export const QUICK_DESIGN_BACKGROUNDS = GDP_STYLE_TEMPLATES.filter((item) =>
 const PREVIEW_W = 750;
 const PREVIEW_H = 1000;
 export const QUICK_DESIGN_PRINT_SIZE = Object.freeze({ widthIn: 12, heightIn: 16, targetWidthPx: 3600, targetHeightPx: 4800 });
+// Five distinct free OFL-licensed Google Fonts with system fallbacks.
 export const QUICK_DESIGN_FONTS = Object.freeze([
-  { id: 'impact', label: 'Street Impact', css: 'Impact, Haettenschweiler, sans-serif', weight: '900' },
-  { id: 'black', label: 'Retro Block', css: 'Arial Black, Arial, sans-serif', weight: '900' },
-  { id: 'serif', label: 'Vintage Varsity', css: 'Georgia, Times New Roman, serif', weight: '900' },
-  { id: 'rounded', label: 'Bold Retro', css: 'Trebuchet MS, Arial, sans-serif', weight: '900' },
-  { id: 'typewriter', label: 'Old School', css: 'Courier New, monospace', weight: '900' },
+  { id: 'impact', label: 'Street Impact', family: 'Anton', css: '"Anton", Impact, sans-serif', weight: '400' },
+  { id: 'black', label: 'Retro Block', family: 'Bebas Neue', css: '"Bebas Neue", Impact, sans-serif', weight: '400' },
+  { id: 'serif', label: 'Vintage Varsity', family: 'Graduate', css: '"Graduate", Georgia, serif', weight: '400' },
+  { id: 'rounded', label: 'Bold Retro', family: 'Bangers', css: '"Bangers", Impact, sans-serif', weight: '400' },
+  { id: 'typewriter', label: 'Old School', family: 'Rye', css: '"Rye", Georgia, serif', weight: '400' },
 ]);
 
 export function validateQuickDesignFile(file) {
@@ -218,6 +219,13 @@ function drawWatermark(ctx) {
 
 export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', variant = 'A', fontId = 'impact', curve = 'straight' }) {
   if (!Array.isArray(photos) || photos.length === 0) throw new Error('Please upload a photo first.');
+  // Font must be ready before canvas measurement/painting, otherwise the preview
+  // can show different glyph widths from the customer-facing font selector.
+  const chosenFont = quickDesignFont(fontId);
+  if (typeof document !== 'undefined' && document.fonts?.load) {
+    try { await document.fonts.load(chosenFont.weight + ' 88px "' + chosenFont.family + '"'); }
+    catch { /* Offline or blocked CDN: use the system fallback. */ }
+  }
   const [background, ...images] = await Promise.all([
     loadImage(backgroundUrl),
     ...photos.slice(0, QUICK_DESIGN_MAX_PHOTOS).map((item) => loadImage(item.url)),
