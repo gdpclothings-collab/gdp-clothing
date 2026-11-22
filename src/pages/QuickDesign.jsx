@@ -5,10 +5,12 @@ import { salesLeadApi } from '@/lib/salesLeadApi';
 import {
   QUICK_DESIGN_BACKGROUNDS,
   QUICK_DESIGN_MAX_PHOTOS,
+  QUICK_DESIGN_FONTS,
   validateQuickDesignFile,
   renderQuickDesignArtwork,
   renderQuickDesignMockup,
 } from '@/lib/quickDesignCanvas';
+import { removeQuickDesignBackground } from '@/lib/quickDesignBackgroundRemoval';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 const ACCENTS = ['#f9c846', '#ffffff', '#fb61bd', '#80f1f2', '#b3fb6e'];
@@ -40,7 +42,12 @@ export default function QuickDesign() {
   const [message, setMessage] = useState('');
   const [backgroundId, setBackgroundId] = useState(QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
   const [headline, setHeadline] = useState('');
-  const [subline, setSubline] = useState('ONE OF A KIND');
+  const [subline, setSubline] = useState('');
+  const [fontId, setFontId] = useState('impact');
+  const [curve, setCurve] = useState('straight');
+  const [autoCutout, setAutoCutout] = useState(true);
+  const [cutoutBusy, setCutoutBusy] = useState(false);
+  const [cutoutError, setCutoutError] = useState('');
   const [accent, setAccent] = useState(ACCENTS[0]);
   const [results, setResults] = useState([]);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -56,11 +63,33 @@ export default function QuickDesign() {
     QUICK_DESIGN_BACKGROUNDS.find((background) => background.id === backgroundId) || QUICK_DESIGN_BACKGROUNDS[0],
   [backgroundId]);
   const selectedResult = results.find((item) => item.variant === selected);
+  const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'working');
 
   useEffect(() => () => {
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     urlsRef.current.clear();
   }, []);
+
+  // Sequential client-only inference avoids multiple large model copies on phones.
+  useEffect(() => {
+    if (!autoCutout || cutoutBusy) return;
+    const target = photos.find((item) => item.bgStatus === 'pending');
+    if (!target) return;
+    setCutoutBusy(true);
+    setCutoutError('');
+    setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, bgStatus: 'working' } : item));
+    removeQuickDesignBackground(target.url).then((cutoutUrl) => {
+      if (!urlsRef.current.has(target.url)) {
+        URL.revokeObjectURL(cutoutUrl);
+        return;
+      }
+      urlsRef.current.add(cutoutUrl);
+      setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, cutoutUrl, bgStatus: 'done' } : item));
+    }).catch((error) => {
+      setCutoutError('Cutout unavailable; original photo is safe. ' + (error?.message || ''));
+      setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, bgStatus: 'failed' } : item));
+    }).finally(() => setCutoutBusy(false));
+  }, [photos, autoCutout, cutoutBusy]);
 
   useEffect(() => {
     if (!photos.length || !selectedBackground) {
@@ -73,11 +102,13 @@ export default function QuickDesign() {
     setPreviewBusy(true);
     setPreviewError('');
     const options = {
-      photos,
+      photos: photos.map((item) => ({ ...item, url: autoCutout ? (item.cutoutUrl || item.url) : item.url })),
       backgroundUrl: selectedBackground.fullAsset || selectedBackground.assetUrl,
       headline: headline || 'YOUR NAME',
-      subline: subline || 'CUSTOM BOOTLEG',
+      subline: subline.trim(),
       accent,
+      fontId,
+      curve,
     };
     Promise.all(['A', 'B'].map(async (variant) => {
       const artwork = await renderQuickDesignArtwork({ ...options, variant });
@@ -92,7 +123,7 @@ export default function QuickDesign() {
       }
     }).finally(() => { if (!cancelled) setPreviewBusy(false); });
     return () => { cancelled = true; };
-  }, [photos, selectedBackground, headline, subline, accent]);
+  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, autoCutout]);
 
   const addPhotos = (event) => {
     const incoming = Array.from(event.target.files || []);
@@ -113,7 +144,7 @@ export default function QuickDesign() {
     const items = incoming.map((file) => {
       const url = URL.createObjectURL(file);
       urlsRef.current.add(url);
-      return { id: crypto.randomUUID(), url, file };
+      return { id: crypto.randomUUID(), url, file, bgStatus: 'pending', cutoutUrl: '' };
     });
     setSubmitted(null);
     setPhotos((current) => [...current, ...items]);
@@ -125,6 +156,7 @@ export default function QuickDesign() {
     if (target) {
       URL.revokeObjectURL(target.url);
       urlsRef.current.delete(target.url);
+      if (target.cutoutUrl) { URL.revokeObjectURL(target.cutoutUrl); urlsRef.current.delete(target.cutoutUrl); }
     }
     setSubmitted(null);
   };
@@ -134,7 +166,10 @@ export default function QuickDesign() {
     urlsRef.current.clear();
     setPhotos([]);
     setHeadline('');
-    setSubline('ONE OF A KIND');
+    setSubline('');
+    setFontId('impact');
+    setCurve('straight');
+    setCutoutError('');
     setBackgroundId(QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
     setAccent(ACCENTS[0]);
     setSelected('A');
@@ -183,6 +218,10 @@ export default function QuickDesign() {
         'Headline: ' + headline.trim().slice(0, 36),
         'Subtitle: ' + subline.trim().slice(0, 36),
         'Accent: ' + accent,
+        'Font: ' + fontId,
+        'Name curve: ' + curve,
+        'Artwork format: 12 x 16 inches (3600 x 4800 pixels at 300 DPI target)',
+        'Local cutout: ' + (autoCutout ? 'enabled' : 'disabled'),
         'Uploaded photos on customer device: ' + photos.length,
         'Black unisex T-shirt, size: ' + customer.size,
         'Requested quantity: ' + customer.quantity,
@@ -217,6 +256,10 @@ export default function QuickDesign() {
   };
 
   const updateCustomer = (key, value) => setCustomer((current) => ({ ...current, [key]: value }));
+  const switchCutouts = (enabled) => {
+    setAutoCutout(enabled);
+    if (enabled) setPhotos((items) => items.map((item) => !item.cutoutUrl ? { ...item, bgStatus: 'pending' } : item));
+  };
 
   return <div className="min-h-screen bg-[#090b0e] text-white" data-gdp-quick-design="true">
     <section className="border-b border-white/10 bg-gradient-to-br from-[#131c20] via-[#111016] to-[#16121d] px-4 py-12 sm:px-6">
@@ -236,6 +279,7 @@ export default function QuickDesign() {
       <div className="space-y-7">
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="1">Add your photos</SmallHeading>
+          <label className="mb-4 flex items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span><strong>Automatic background removal (experimental)</strong><span className="mt-1 block text-xs text-white/60">Free on-device model. First download may be large or slow. Original photos are kept; switch off if cutouts look wrong.</span></span></label>
           <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-5 text-center hover:border-lime-300">
             <ImagePlus size={28} className="text-lime-300" />
             <span className="font-bold">Tap to upload 1–5 photos</span>
@@ -244,16 +288,19 @@ export default function QuickDesign() {
           </label>
           {photos.length > 0 && <div className="mt-4 grid grid-cols-5 gap-2">{photos.map((item, index) =>
             <div key={item.id} className="relative aspect-square overflow-hidden rounded-lg border border-white/20">
-              <img src={item.url} alt={'Uploaded photo ' + (index + 1)} className="h-full w-full object-cover" />
+              <img src={autoCutout ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="h-full w-full object-contain bg-neutral-700" />
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
             </div>
           )}</div>}
-          <p className="mt-3 text-xs leading-5 text-white/55">Photos stay on your device while you design. Soft edge feathering blends the edges of photos but does not cut subjects out of their backgrounds. Transparent PNG cutouts work best; automatic background removal is not included.</p>
+          {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Removing photo backgrounds on your device…</p>}
+          {cutoutError && <p role="alert" className="mt-3 rounded-lg bg-amber-300/10 p-3 text-xs text-amber-100">{cutoutError}</p>}
+          <p className="mt-3 text-xs leading-5 text-white/55">Original photos stay on your device. Review pet, hair and fine edges carefully. No photo is uploaded to a removal server.</p>
           {message && <p role="status" className="mt-3 rounded-lg bg-amber-300/10 p-3 text-sm text-amber-200">{message}</p>}
         </section>
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="2">Choose a GDP background</SmallHeading>
+          <p className="mb-3 text-xs text-white/60">Background stretches vertically to 12″ × 16″, with your name at the top. The GDP source image remains unchanged.</p>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-4">
             {QUICK_DESIGN_BACKGROUNDS.map((background) =>
               <button key={background.id} type="button" onClick={() => { setBackgroundId(background.id); setSubmitted(null); }}
@@ -270,7 +317,9 @@ export default function QuickDesign() {
           <SmallHeading number="3">Personalize the text</SmallHeading>
           <div className="grid gap-4">
             <Field title="Main name or heading"><input className={INPUT} maxLength={36} value={headline} onChange={(e) => { setHeadline(e.target.value); setSubmitted(null); }} placeholder="e.g. HENRY" /></Field>
-            <Field title="Subtitle"><input className={INPUT} maxLength={36} value={subline} onChange={(e) => { setSubline(e.target.value); setSubmitted(null); }} placeholder="e.g. FOREVER LOVED" /></Field>
+            <Field title="Subtitle (optional)"><input className={INPUT} maxLength={36} value={subline} onChange={(e) => { setSubline(e.target.value); setSubmitted(null); }} placeholder="Leave blank to show no subtitle" /></Field>
+            <Field title="Bootleg name font"><select value={fontId} onChange={(e) => { setFontId(e.target.value); setSubmitted(null); }} className={INPUT}>{QUICK_DESIGN_FONTS.map((font) => <option key={font.id} value={font.id}>{font.label}</option>)}</select></Field>
+            <Field title="Name layout"><select value={curve} onChange={(e) => { setCurve(e.target.value); setSubmitted(null); }} className={INPUT}><option value="straight">Straight</option><option value="up">Curve upward</option><option value="down">Curve downward</option></select></Field>
             <div><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-white/70">Name color</span>
               <div className="flex gap-3">{ACCENTS.map((color) =>
                 <button key={color} type="button" onClick={() => { setAccent(color); setSubmitted(null); }} aria-label={'Choose color ' + color}
@@ -286,6 +335,7 @@ export default function QuickDesign() {
       <div className="space-y-7">
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="4">Compare your two samples</SmallHeading>
+          <p className="mb-2 text-xs text-white/55">12″ × 16″ portrait layout; the print target would be 3600 × 4800 px at 300 DPI after source-quality checks.</p>
           <p className="mb-4 text-sm text-white/65">Sample A uses a centered hero montage. Sample B uses a bold, off-center editorial layout. Both use soft photo edges without changing your original background.</p>
           {!photos.length ? <div className="rounded-xl border border-dashed border-white/20 bg-black/20 p-12 text-center text-white/60">Upload at least one photo to create Samples A and B instantly.</div> :
           previewBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Creating both previews on your device…</div> :
@@ -336,7 +386,7 @@ export default function QuickDesign() {
             </label>
             <div className="hidden" aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={customer.website} onChange={(e) => updateCustomer('website', e.target.value)}/></label></div>
             {sendError && <p role="alert" className="rounded-lg bg-red-950/60 p-3 text-sm text-red-200">{sendError}</p>}
-            <button type="submit" disabled={!selectedResult || previewBusy || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
+            <button type="submit" disabled={!selectedResult || previewBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
               {sending ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
               {sending ? 'Sending your request…' : 'Submit Sample ' + selected + ' request'}
               {!sending && <ArrowRight size={18}/>}
