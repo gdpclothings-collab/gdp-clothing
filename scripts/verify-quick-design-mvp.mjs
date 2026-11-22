@@ -37,4 +37,16 @@ assert.match(page, /rightsConfirmed/);
 assert.match(canvas, /drawWatermark\(ctx\)/);
 assert.doesNotMatch(canvas, /fetch\(|supabase\.|openai|replicate|remove\.bg/i, 'Preview generation must remain local and free');
 assert.doesNotMatch(page, /checkout\/payment|stripe\.confirm|createPaymentIntent/);
-console.log('PASS – Quick Design MVP static integration, asset presence, local rendering and request safeguards');
+assert.match(canvas, /const PREVIEW_H = 1000/);
+assert.match(canvas, /targetWidthPx: 3600, targetHeightPx: 4800/);
+assert.match(canvas, /quickDesignFont/);
+assert.match(canvas, /curve === 'up' \|\| curve === 'down'/);
+assert.match(page, /Automatic background removal \(experimental\)/);
+assert.match(page, /Request submission disabled in preview/);
+assert.doesNotMatch(page, /subline: subline \|\| 'CUSTOM BOOTLEG'/);
+const headers = readFileSync('public/_headers', 'utf8');
+assert.match(headers, /\/quick-design\n  Content-Security-Policy:/);
+const globalRule = headers.split('/quick-design')[0];
+assert.doesNotMatch(globalRule, /https:\/\/cdn\.jsdelivr\.net|huggingface\.co/, 'Site-wide CSP must remain strict');
+console.log('PASS – Quick Design staging, print aspect, font options, automatic cutout setup and no live data mutation');
+
