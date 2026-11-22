@@ -99,7 +99,7 @@ assert.match(page, /<QuickDesignHelp onClose=/);
 assert.match(help, /role="dialog" aria-modal="true"/);
 assert.match(help, /https:\/\/gdpclothing\.ca\/pages\/contact/);
 assert.match(help, /Copy design details/);
-assert.match(help, /If you enable the optional remove\.bg checkbox/);
+assert.match(help, /If you enable remove\.bg, Quick Design first checks/);
 assert.match(help, /Phase B Samples A/);
 assert.match(fontStyles, /fonts\.googleapis\.com/);
 assert.match(fontStyles, /Anton.*Bangers.*Bebas\+Neue.*Graduate.*Rye/);
