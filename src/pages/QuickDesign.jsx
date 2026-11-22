@@ -12,6 +12,7 @@ import {
 } from '@/lib/quickDesignCanvas';
 import { removeQuickDesignBackground } from '@/lib/quickDesignBackgroundRemoval';
 import QuickDesignHelp from '@/components/storefront/QuickDesignHelp';
+import './quickDesignFonts.css';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 const ACCENTS = ['#f9c846', '#ffffff', '#fb61bd', '#80f1f2', '#b3fb6e'];
@@ -327,6 +328,10 @@ export default function QuickDesign() {
             <Field title="Main name or heading"><input className={INPUT} maxLength={36} value={headline} onChange={(e) => { setHeadline(e.target.value); setSubmitted(null); }} placeholder="e.g. HENRY" /></Field>
             <Field title="Subtitle (optional)"><input className={INPUT} maxLength={36} value={subline} onChange={(e) => { setSubline(e.target.value); setSubmitted(null); }} placeholder="Leave blank to show no subtitle" /></Field>
             <Field title="Bootleg name font"><select value={fontId} onChange={(e) => { setFontId(e.target.value); setSubmitted(null); }} className={INPUT}>{QUICK_DESIGN_FONTS.map((font) => <option key={font.id} value={font.id}>{font.label}</option>)}</select></Field>
+            <div aria-live="polite" className="rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-white/50">Selected font preview</p>
+              <p className="mt-2 break-words text-3xl text-lime-300" style={{ fontFamily: QUICK_DESIGN_FONTS.find((font) => font.id === fontId)?.css || 'Impact, sans-serif', fontWeight: 400 }}>{(headline || 'YOUR NAME').slice(0, 36)}</p>
+            </div>
             <Field title="Name layout"><select value={curve} onChange={(e) => { setCurve(e.target.value); setSubmitted(null); }} className={INPUT}><option value="straight">Straight</option><option value="up">Curve upward</option><option value="down">Curve downward</option></select></Field>
             <div><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-white/70">Name color</span>
               <div className="flex gap-3">{ACCENTS.map((color) =>
