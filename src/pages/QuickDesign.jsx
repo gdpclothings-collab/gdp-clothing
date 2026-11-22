@@ -17,7 +17,7 @@ import './quickDesignFonts.css';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 const ACCENTS = ['#f9c846', '#ffffff', '#fb61bd', '#80f1f2', '#b3fb6e'];
-const INPUT = 'w-full rounded-xl border border-white/20 bg-[#17191d] px-3 py-3 text-sm text-white outline-none focus:border-lime-300 focus:ring-2 focus:ring-lime-300/20';
+const INPUT = 'min-w-0 w-full rounded-xl border border-white/20 bg-[#17191d] px-3 py-3 text-sm text-white outline-none focus:border-lime-300 focus:ring-2 focus:ring-lime-300/20';
 const BTN = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50';
 const MAX_PREVIEW_NOTICE = 'Previews are watermarked and not print-ready. GDP reviews the original photos and approves final print quality after ordering.';
 
@@ -53,7 +53,7 @@ export default function QuickDesign() {
   const [curve, setCurve] = useState('straight');
   const [fontSizePercent, setFontSizePercent] = useState(100);
   const [premiumStyle, setPremiumStyle] = useState('solid');
-  const [autoCutout, setAutoCutout] = useState(true);
+  const [autoCutout, setAutoCutout] = useState(false);
   const [cutoutBusy, setCutoutBusy] = useState(false);
   const [cutoutError, setCutoutError] = useState('');
   const [accent, setAccent] = useState(ACCENTS[0]);
@@ -101,7 +101,11 @@ export default function QuickDesign() {
       urlsRef.current.add(cutoutUrl);
       setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, cutoutUrl, bgStatus: 'done' } : item));
     }).catch((error) => {
-      setCutoutError('Cutout unavailable; original photo is safe. ' + (error?.message || ''));
+      // Fail safely without repeatedly downloading large models on mobile.
+      // Never render untrusted long CDN error URLs that force horizontal scroll.
+      console.warn('Quick Design local cutout failed:', error?.name || 'ModelLoadError');
+      setCutoutError('Automatic cutout is unavailable on this device. Your original photos are safe. For an optional external fallback, use remove.bg, download the transparent PNG, and upload it here.');
+      setAutoCutout(false);
       setPhotos((items) => items.map((item) => item.id === target.id ? { ...item, bgStatus: 'failed' } : item));
     }).finally(() => setCutoutBusy(false));
   }, [photos, autoCutout, cutoutBusy]);
@@ -305,7 +309,7 @@ export default function QuickDesign() {
     if (enabled) setPhotos((items) => items.map((item) => !item.cutoutUrl ? { ...item, bgStatus: 'pending' } : item));
   };
 
-  return <div className="min-h-screen bg-[#090b0e] text-white" data-gdp-quick-design="true">
+  return <div className="min-h-screen w-full min-w-0 max-w-full overflow-x-clip bg-[#090b0e] text-white" data-gdp-quick-design="true">
     <section className="border-b border-white/10 bg-gradient-to-br from-[#131c20] via-[#111016] to-[#16121d] px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -322,37 +326,42 @@ export default function QuickDesign() {
       </div>
     </section>
 
-    <div className="mx-auto grid max-w-6xl gap-7 px-4 py-9 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-      <div className="space-y-7">
-        <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
+    <div className="mx-auto grid min-w-0 max-w-6xl grid-cols-[minmax(0,1fr)] gap-7 px-4 py-9 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+      <div className="min-w-0 space-y-7">
+        <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="1">Add your photos</SmallHeading>
-          <label className="mb-4 flex items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span><strong>Automatic background removal (experimental)</strong><span className="mt-1 block text-xs text-white/60">Free on-device model. First download may be large or slow. Original photos are kept; switch off if cutouts look wrong.</span></span></label>
+          <label className="mb-4 flex min-w-0 items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span className="min-w-0 break-words"><strong>Automatic background removal (experimental)</strong><span className="mt-1 block text-xs text-white/60">Optional experimental model runs on your phone and may require a large download. Off by default so previews load quickly; originals remain untouched.</span></span></label>
           <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-5 text-center hover:border-lime-300">
             <ImagePlus size={28} className="text-lime-300" />
             <span className="font-bold">Tap to upload 1–5 photos</span>
             <span className="text-xs text-white/60">JPG, PNG or WebP • up to 10 MB each</span>
             <input aria-label="Upload customer photos" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} />
           </label>
-          {photos.length > 0 && <div className="mt-4 grid grid-cols-5 gap-2">{photos.map((item, index) =>
-            <div key={item.id} className="relative aspect-square overflow-hidden rounded-lg border border-white/20">
-              <img src={autoCutout ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="h-full w-full object-contain bg-neutral-700" />
+          {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-4 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
+            <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
+              <img src={autoCutout ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full object-contain bg-neutral-700" />
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
             </div>
           )}</div>}
           {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Removing photo backgrounds on your device…</p>}
-          {cutoutError && <p role="alert" className="mt-3 rounded-lg bg-amber-300/10 p-3 text-xs text-amber-100">{cutoutError}</p>}
-          <p className="mt-3 text-xs leading-5 text-white/55">Original photos stay on your device. Review pet, hair and fine edges carefully. No photo is uploaded to a removal server.</p>
-          {message && <p role="status" className="mt-3 rounded-lg bg-amber-300/10 p-3 text-sm text-amber-200">{message}</p>}
+          {cutoutError && <p role="alert" className="mt-3 max-w-full min-w-0 break-words rounded-lg bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">{cutoutError}</p>}
+          <p className="mt-3 max-w-full break-words text-xs leading-5 text-white/55">Original photos stay on your device when using this tool. Review pet fur and hair edges carefully. No photos are uploaded to an AI service automatically.</p>
+          <div className="mt-3 min-w-0 rounded-xl border border-white/15 bg-black/20 p-3" data-gdp-cutout-fallback="true">
+            <p className="text-xs font-bold text-white/85">Need an alternative background remover?</p>
+            <p className="mt-1 text-xs leading-5 text-white/65">You can open remove.bg separately, choose which photos to upload there, download a transparent PNG and add it here. Their free previews are limited in resolution and are not suitable as guaranteed production files. GDP never sends your photos there automatically.</p>
+            <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 max-w-full items-center rounded-lg border border-white/25 px-3 text-sm font-bold text-lime-200 underline underline-offset-2 hover:bg-white/10">Open remove.bg (external)</a>
+          </div>
+          {message && <p role="status" className="mt-3 min-w-0 max-w-full break-words rounded-lg bg-amber-300/10 p-3 text-sm text-amber-200">{message}</p>}
         </section>
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="2">Choose a GDP background</SmallHeading>
           <p className="mb-3 text-xs text-white/60">Background stretches vertically to 12″ × 16″, with your name at the top. The GDP source image remains unchanged.</p>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-4 gap-2 sm:grid-cols-4">
             {QUICK_DESIGN_BACKGROUNDS.map((background) =>
               <button key={background.id} type="button" onClick={() => { setBackgroundId(background.id); setSubmitted(null); }}
                 aria-pressed={backgroundId === background.id}
-                className={'overflow-hidden rounded-xl border-2 p-1 text-left transition ' + (backgroundId === background.id ? 'border-lime-300 bg-lime-300/10' : 'border-white/15 hover:border-white/50')}>
+                className={'min-w-0 overflow-hidden rounded-xl border-2 p-1 text-left transition ' + (backgroundId === background.id ? 'border-lime-300 bg-lime-300/10' : 'border-white/15 hover:border-white/50')}>
                 <img src={background.thumbnail} alt="" loading="lazy" className="aspect-[297/420] w-full rounded-md bg-black object-contain" />
                 <span className="mt-1 block truncate px-1 text-[10px] font-bold">{background.name}</span>
               </button>
@@ -400,8 +409,8 @@ export default function QuickDesign() {
         <button type="button" onClick={reset} className={BTN + ' border border-white/20 bg-white/5 hover:bg-white/10'}><RotateCcw size={16}/> Start over</button>
       </div>
 
-      <div className="space-y-7">
-        <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
+      <div className="min-w-0 space-y-7">
+        <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="4">Compare your two samples</SmallHeading>
           <p className="mb-2 text-xs text-white/55">12″ × 16″ portrait layout; the print target would be 3600 × 4800 px at 300 DPI after source-quality checks.</p>
           <p className="mb-4 text-sm text-white/65">Sample A uses a centered hero montage. Sample B uses a bold, off-center editorial layout. Both use soft photo edges without changing your original background.</p>
