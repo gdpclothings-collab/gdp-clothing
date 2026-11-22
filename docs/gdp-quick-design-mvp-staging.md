@@ -55,3 +55,19 @@ Additional QA:
 - [ ] Confirm all CI checks PASS on PR #609 before seeking any live merge or release.
 
 **Release gate stays CLOSED.** No paid API usage, customer charges, automatic PR merge or live deployment is authorized by this phase.
+
+
+## Customer review follow-up: premium lettering and six garment views
+- **remove.bg is not integrated.** Its free previews have limits; GDP retains optional local ONNX cutouts with no pay-per-image API charges. Real Android performance and quality remain a QA blocker.
+- **Name font size** is a 60–160% slider in 5% increments, with plus/minus buttons and auto-fit for long curved names. Size is applied to both watermarked samples and recorded in request metadata.
+- **Premium text styles** reuse GDP Custom Studio's existing PREMIUM_TEXT_STYLES recipes and paintPremiumTextGlyph: solid, Sunset Gold Chrome, Silver Chrome, Neon Glow, Retro 3D, Rose Gold, Ice Blue, Fire & Flame, Holographic, Royal Purple and Emerald Metal. No paid service.
+- **Illustrative garment visualizer** renders black T-shirt, crewneck sweatshirt and pullover hoodie with separate front/back views. Switching garment does not regenerate the photo collage, and only the SELECTED side is pictured. This does not request double-sided printing.
+- Mockups are canvas illustrations, NOT certified Gildan photography. Actual garment availability, exact print area, and customer sizes need production checks.
+- Garment and print side are included in the sales-lead metadata but photos are not uploaded. Preview-mode submissions remain disabled.
+- Customer Help text now covers premium lettering, font size, garment and print side.
+
+### Added QA
+- [x] Static contracts: three garment types, two sides, premium text painter, size controls, no network/charge calls in garment visualizer.
+- [ ] Browser tests: typography and all garment/side combinations, no horizontal overflow, no network uploads.
+- [ ] Real Android model cutout and garment layout quality checks.
+- [ ] Real garment photographs and print guide before production brand/size claims.
