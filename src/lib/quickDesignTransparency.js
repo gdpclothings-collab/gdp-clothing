@@ -40,8 +40,8 @@ export async function detectQuickDesignBackground(file) {
       await image.decode();
     }
     const source = bitmap || image;
-    const width = source.width || source.naturalWidth;
-    const height = source.height || source.naturalHeight;
+    const width = bitmap ? bitmap.width : image?.naturalWidth;
+    const height = bitmap ? bitmap.height : image?.naturalHeight;
     if (!width || !height) return 'unreadable';
 
     const canvas = document.createElement('canvas');
