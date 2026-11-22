@@ -9,7 +9,7 @@ import {
   validateQuickDesignFile,
   renderQuickDesignArtwork,
 } from '@/lib/quickDesignCanvas';
-import { requestQuickDesignRemoveBgCutout } from '@/lib/quickDesignRemoveBgClient';
+import { requestQuickDesignRemoveBgCutout, checkQuickDesignRemoveBgConnection } from '@/lib/quickDesignRemoveBgClient';
 import { detectQuickDesignBackground } from '@/lib/quickDesignTransparency';
 import { PREMIUM_TEXT_STYLES } from '@/lib/customStudioV2PremiumTextStyles';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES, renderQuickDesignGarmentMockup } from '@/lib/quickDesignGarmentMockup';
@@ -61,6 +61,8 @@ export default function QuickDesign() {
   const [cutoutBusy, setCutoutBusy] = useState(false);
   const [cutoutError, setCutoutError] = useState('');
   const [cutoutUnavailable, setCutoutUnavailable] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState(null);
+  const [connectionChecking, setConnectionChecking] = useState(false);
   const [accent, setAccent] = useState(ACCENTS[2]);
   const [results, setResults] = useState([]);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -256,6 +258,7 @@ export default function QuickDesign() {
     setGarmentMockup('');
     setCutoutError('');
     setCutoutUnavailable(false);
+    setConnectionStatus(null);
     setAutoCutout(false);
     setBackgroundId(PHASE_B_DEFAULT_BACKGROUND);
     setAccent(ACCENTS[2]);
@@ -347,6 +350,14 @@ export default function QuickDesign() {
   };
 
   const updateCustomer = (key, value) => setCustomer((current) => ({ ...current, [key]: value }));
+  const checkRemoveBgConnection = async () => {
+    setConnectionChecking(true);
+    setConnectionStatus(null);
+    const result = await checkQuickDesignRemoveBgConnection();
+    setConnectionStatus(result);
+    setConnectionChecking(false);
+  };
+
   const switchCutouts = (enabled) => {
     cutoutRunRef.current += 1;
     setAutoCutout(enabled);
@@ -379,19 +390,30 @@ export default function QuickDesign() {
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="1">Add your photos</SmallHeading>
           <label className="mb-4 flex min-w-0 items-start gap-3 rounded-xl border border-lime-300/20 bg-lime-300/5 p-3 text-sm leading-5 text-white/80"><input type="checkbox" className="mt-1 accent-lime-300" checked={autoCutout} onChange={(e) => switchCutouts(e.target.checked)} /> <span className="min-w-0 break-words"><strong>Automatic background removal with remove.bg (optional)</strong><span className="mt-1 block text-xs text-white/65">If enabled, Quick Design first checks each photo locally. PNG/WebP images that already have a transparent background stay unchanged and use no remove.bg credits. Opaque photos (including JPGs) are sent to remove.bg for a low-resolution transparent preview. Your photos are sent only after you enable this option. The free quota is shared.</span></span></label>
-          {isCloudflareBranchPreview && <p role="status" className="mb-3 rounded-lg border border-white/15 bg-black/30 p-3 text-xs leading-5 text-white/70">Phase B preview: turn on Automatic background removal above to process opaque photos using the existing GDP remove.bg account. Already-transparent images stay unchanged. Only verified free preview calls are allowed; if free credits run low, the original photo is preserved and the external option remains available.</p>}
+          {isCloudflareBranchPreview && <p role="status" className="mb-3 rounded-lg border border-white/15 bg-black/30 p-3 text-xs leading-5 text-white/70">Phase B preview: background removal starts OFF until you choose it. Already-transparent uploads stay unchanged. To process opaque photos, enable the checkbox or tap the green remove-background button after uploading.</p>}
+          <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
+            <button type="button" onClick={checkRemoveBgConnection} disabled={connectionChecking} className={BTN + ' border border-white/25 bg-black/30 text-white/85 hover:bg-white/10'} data-gdp-check-removal="true">{connectionChecking ? 'Checking free removal…' : 'Check remove.bg connection (no photo sent)'}</button>
+            {connectionStatus && <span role="status" data-gdp-removal-connection={connectionStatus.code} className={'min-w-0 max-w-full break-words text-xs leading-5 ' + (connectionStatus.ready ? 'text-lime-200' : 'text-amber-200')}>{connectionStatus.message}</span>}
+          </div>
           <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-5 text-center hover:border-lime-300">
             <ImagePlus size={28} className="text-lime-300" />
             <span className="font-bold">Tap to upload 1–5 photos</span>
             <span className="text-xs text-white/60">JPG, PNG or WebP • up to 10 MB each</span>
             <input aria-label="Upload customer photos" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} />
           </label>
+          {photos.length > 0 && !autoCutout && !cutoutBusy && photos.some((item) => !item.cutoutUrl && item.bgStatus !== 'skipped') && <div className="mt-3 rounded-xl border border-lime-300/30 bg-lime-300/5 p-3">
+            <p className="text-sm font-semibold text-white">Background removal is OFF. Your photos are still original.</p>
+            <button type="button" onClick={() => switchCutouts(true)} className={BTN + ' mt-3 w-full bg-lime-300 text-black hover:bg-lime-200'} data-gdp-remove-photos="true">Remove photo backgrounds</button>
+            <p className="mt-2 text-xs leading-5 text-white/60">Selecting this sends only opaque photos to the external remove.bg service. Transparent images remain unchanged. Free credits and server limits apply.</p>
+          </div>}
           {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-4 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
             <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
               <img src={(autoCutout || cutoutUnavailable) ? (item.cutoutUrl || item.url) : item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full object-contain bg-neutral-700" />
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
               {item.bgStatus === 'skipped' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="transparent">Transparent • unchanged</span>}
               {item.bgStatus === 'done' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="removed">Background removed</span>}
+              {item.bgStatus === 'failed' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-amber-200" data-gdp-photo-status="failed">Original kept</span>}
+              {!autoCutout && item.bgStatus === 'pending' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-white" data-gdp-photo-status="off">Not processed</span>}
             </div>
           )}</div>}
           {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Checking photos; removing opaque backgrounds when needed…</p>}
