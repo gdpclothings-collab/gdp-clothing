@@ -18,6 +18,12 @@ try {
     await page.locator('[data-gdp-quick-design="true"]').waitFor({ timeout: 30000 });
     assert.equal(await page.getByText("Ask GDP", { exact: true }).count(), 0, "Assistant overlay must not cover Quick Design controls");
     assert.match(await page.locator('h1').innerText(), /2 free bootleg samples/i);
+    // CI tests the zero-fee canvas pathway, not a large external ONNX download.
+    await page.getByRole('checkbox', { name: /Automatic background removal/i }).uncheck();
+    await page.getByRole('textbox', { name: 'Main name or heading' }).fill('HENRY');
+    await page.getByRole('combobox', { name: 'Bootleg name font' }).selectOption('serif');
+    await page.getByRole('combobox', { name: 'Name layout' }).selectOption('up');
+
     await page.locator('input[aria-label="Upload customer photos"]').setInputFiles({
       name: 'test-photo.png', mimeType: 'image/png', buffer: pixel,
     });
@@ -30,6 +36,15 @@ try {
     assert.ok(srcA?.startsWith('data:image/jpeg;base64,'), 'Sample A must be locally rendered');
     assert.ok(srcB?.startsWith('data:image/jpeg;base64,'), 'Sample B must be locally rendered');
     assert.notEqual(srcA, srcB, 'Sample A and B must use genuinely different compositions');
+    const artworkSize = await page.evaluate(async () => {
+      const img = document.querySelector('img[alt="Watermarked sample A artwork"]');
+      await img.decode();
+      return [img.naturalWidth, img.naturalHeight];
+    });
+    assert.deepEqual(artworkSize, [750, 1000], 'Preview output must be a 12x16 ratio');
+    const subtitle = page.getByRole('textbox', { name: /Subtitle/i });
+    assert.equal(await subtitle.inputValue(), '', 'No hidden CUSTOM BOOTLEG subtitle should appear');
+
     await page.getByRole('button', { name: 'Choose Sample B', exact: true }).click();
     await page.getByAltText('Sample B on an illustrative black T-shirt').waitFor({ timeout: 10000 });
     assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true');
