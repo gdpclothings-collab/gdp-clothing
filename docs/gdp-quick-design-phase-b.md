@@ -9,36 +9,34 @@ Replace the previous overlapping **rectangular photo cards** with a bootleg comp
 - No source photo face/animal warping; whole cutout is aspect-ratio-preserved, alpha-margin-trimmed, with user-selected original GDP background bitmap unchanged.
 - HENRY-inspired defaults: arched varsity lettering, Sunset Gold Chrome, pink accent. Existing name customization, font, subtitle, 60–160% size, styles, 12×16 ratio, watermarked samples, and tee/crewneck/hoodie front/back visualizer retained.
 
-## remove.bg free-preview integration: reuse existing Custom Studio API key, NOT ACTIVATED
-The 2026-11-21 remove.bg API documentation states the initial 50 free API calls per month and free preview outputs of only **0.25 MP**. The API page also announces a switch to Leonardo.Ai beginning **2026-12-01**; reconfirm terms, API eligibility, availability, and actual free account allowances before activating.
+## remove.bg free-preview integration: activated for the branch preview on November 22, 2026
 
-Implementation:
-1. Browser checkbox starts OFF. If checked, each photo is sent through Supabase Edge Function gdp-quick-design-remove-bg. This is explicit consent to a third-party processor; preview rendering itself remains on-device.
-2. Server refuses requests unless GDP_REMOVEBG_ENABLED=true, the existing project-level Custom Studio secret REMOVE_BG_API_KEY is configured, and a new per-feature GDP_REMOVEBG_HASH_SALT is securely provisioned, and the quota RPC exists. Staging-domain use additionally requires GDP_REMOVEBG_ALLOW_PREVIEW=true; keep this false in production.
-3. The function accepts only JPG/PNG/WebP <=10 MB with MIME plus header validation, uses API size=preview, format=png, crop=true, and never requests full/auto/high-res output.
-4. Staging migration 20261122000000_quick_design_removebg_free_preview_quota.sql atomically reserves a call before contacting remove.bg. Hard cap **max 50 attempted calls per UTC calendar month** and **max 6 calls per hashed caller per hour**. Failed API calls STILL consume the reservation. No retry loop. No invoice/payments/code for paid credits.
-5. A rate/quota/config/error response preserves original photos and any successfully processed cutouts, disables further automatic processing, and offers **Open remove.bg** (external). Customers can manually reupload PNGs with automatic processing OFF.
-6. No raw photos, outputs, IP addresses, or API keys are saved in database or logs. Hourly salted identity hashes and aggregate monthly counters only.
-7. No production edge function deploy, migration application, secret configuration, or merge has been performed.
+GDP Clothing has one Supabase project and ONE shared remove.bg server-side secret, REMOVE_BG_API_KEY, originally used by Custom Studio's remove-photo-background. Quick Design uses a separate `gdp-quick-design-remove-bg` Edge Function; it does NOT modify the production Custom Studio function, whose existing size=auto behavior is unchanged.
 
-### Important commercial restriction
-The 50-call application cap does **not** guarantee 50 calls are available or free on a particular remove.bg account. The account may already have used allowances elsewhere, and its billing settings may permit charges. Before deployment GDP must verify the **existing Custom Studio remove.bg account** has an available free allowance, **no payment method or auto-top-ups, and no chargeable overflow**, then use a separate staging Supabase project/branch for integration QA. This account is shared with Custom Studio: Quick Design's 50-call counter is not an account-wide ceiling and cannot prevent charges from Custom Studio calls. If the existing account is not demonstrably free-only, keep automatic Quick Design removal disabled. If no cost-free account can be verified, keep the server disabled and use the external manual link.
+The owner previously authorized enabling Quick Design automatic removal. This execution:
+- Applied migration quick_design_removebg_free_preview_quota_20261122 to the existing Supabase project. Checked RPC exists and is executable by service_role but NOT anon or authenticated.
+- Deployed gdp-quick-design-remove-bg Edge Function version 1 (ACTIVE), verify_jwt=false for customer guest usage. Allowed Origin is limited to GDP Clothing official domains and Cloudflare Pages branch previews. Unauthorized origin/method/file format is rejected, with no image processing.
+- Function uses ONLY size=preview, format=png, crop=true. The high-resolution print source and Custom Studio original output remain separate.
+- Before EVERY provider image call it makes a read-only GET https://api.remove.bg/v1.0/account using the server-held existing REMOVE_BG_API_KEY. It requires a valid free_calls integer GREATER THAN 5. Paid credits reported in subscription/payg are never used to decide to proceed. If balance cannot be verified or fewer than 6 free calls remain, it refuses the upload and preserves the original. This buffer mitigates (but cannot fully eliminate) lag and concurrency of the shared account.
+- Atomic DB reservation stops this Quick Design function after 50 attempted calls per UTC month, or 6 attempts per hashed identity per UTC hour. Failed checks or upstream errors do not auto-retry. The account can still be used by Custom Studio, which has different quota rules.
+- No customer photo is sent externally without the opt-in checkbox. Existing transparent PNG/WebP originals are skipped locally and left untouched, no remove.bg call. Error/limit displays the external URL.
+- No actual remove.bg image requests were made during deployment or browser QA, so no credits were intentionally spent. Provider's remaining free balance at time of customer use is not guaranteed.
+- The read-only account-balance API may report delayed free_calls values; fully guaranteeing no charges under parallel Custom Studio use would additionally require an account-level provider spending hard-stop or a shared global admission controller. Keep the safety buffer.
+- Supabase deployment is active for the Preview's API path; GitHub PR #609 remains DRAFT and NOT merged into production. Live GDP storefront UI has not been redeployed.
 
-The free 0.25MP previews cannot be treated as the promised 3600×4800-pixel, 300-DPI production artwork. Secure transfer of original files, final 300-DPI export, customer consent policy, manual approval and print-area QA remain separate release gates.
+Note: The remove.bg docs announce that API background removal moves to Leonardo.Ai beginning December 1, 2026; re-check API availability and free terms before that date.
 
-## Release checklist
-- [x] Phase B canvas layout code and HENRY-inspired typography defaults committed
-- [x] Third-party upload consent and guarded browser client implemented
-- [x] Optional free-preview API proxy and atomic quota migration committed, not deployed
-- [x] Chrome, neon, text and garment controls retained
-- [ ] Browser CI PASS at 360px, 390px and 1280px with five-photo mocks and 429 fallback
-- [ ] Real Android manual preview of original HENRY-like dogs with actual transparent cutouts
-- [x] Reuse Custom Studio's existing server-side REMOVE_BG_API_KEY; no second remove.bg account or key needed
-- [ ] Verify free-only billing settings and current usage of the existing shared account, including the 2026-12-01 API migration
-- [ ] Staging-only Supabase migration and function deployment + signed/authenticated quota tests
-- [ ] 300-DPI production export, secure source photo transfer and print-area QA
-- [ ] Separate owner approval to merge to production
-
+### QA
+- [x] Phase B previews and original GDP backdrop preserved
+- [x] New quota migration applied; service-role-only execution verified
+- [x] New Edge Function deployed and ACTIVE
+- [x] Same existing Custom Studio remove.bg secret configured by reference
+- [x] Free account balance preflight and 5-call buffer coded
+- [x] Transparent PNG and opaque JPG/PNG conditional handling + automatic quota fallback
+- [ ] Actual Android test with a real photo; record successful cutout or free-credit fallback
+- [ ] Verify remove.bg provider account-level hard stop / billing controls independently
+- [ ] Real 3600x4800 300 DPI print export and secure original source transfer
+- [ ] Owner approval to merge/deploy storefront changes
 
 ## Conditional background removal: preserve transparent originals (2026-11-22)
 - Customers opt in with the existing **Automatic background removal with remove.bg** checkbox. The button is not pre-selected; no photo is sent to any external service before consent.
@@ -46,5 +44,5 @@ The free 0.25MP previews cannot be treated as the promised 3600×4800-pixel, 300
 - JPEG is always opaque. Opaque PNG/WebP files are classified as needs-removal and processed sequentially through the existing guarded remove.bg server proxy only when enabled. This is NOT a semantic AI background detector and cannot guarantee an opaque image needs removal.
 - Unreadable images fail closed without a third-party request; original preserved. Quota exhaustion or API failure preserves previously processed and original photos; automatic processing stops, and the external remove.bg link is offered.
 - The branch uses the SAME existing Custom Studio secret REMOVE_BG_API_KEY; no new remove.bg account/API key. Do not call the existing remove-photo-background production function directly for this preview: its size=auto setting and existing day-based limits don't meet zero-charge guarantees.
-- Supabase production inspection found reserve_quick_design_removebg_preview is **not installed** yet, although consume_background_removal_quota is installed for Custom Studio. Quick Design's guarded Edge Function has NOT been deployed or activated. Review free API credits/billing before allowing real requests. The local alpha preflight and mock request logic can be tested in Cloudflare's draft preview.
+- Supabase quota migration now installed and the guarded Quick Design Edge Function is active. Browser QA uses mocked, no-cost provider responses; actual provider processing still requires available free credits.
 - Browser regression includes a real transparent PNG + four opaque PNGs, confirms no API call for the first image, one mock-success opaque cutout, one mock 429 quota failure, and unchanged original image URL across desktop and mobile.
