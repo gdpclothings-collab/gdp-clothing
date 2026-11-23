@@ -9,7 +9,7 @@ import {
   quickDesignLayoutCount,
   getQuickDesignSubjectFit,
 } from '../src/lib/quickDesignCanvas.js';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
@@ -113,6 +113,37 @@ for (const garment of QUICK_DESIGN_GARMENTS) {
   }
 }
 assert.equal(checkedCombinations, 12, '3 garments × 2 colors × 2 print sides');
+
+// Phase G: twelve real blank-image regions sourced from the customer-approved
+// black/white front/back garment sheet. All are clean, local image assets.
+const atlasData = readFileSync(resolve('public' + QUICK_DESIGN_BLANK_ATLAS_URL));
+assert.equal(atlasData.subarray(0, 4).toString(), 'RIFF', 'Atlas is an actual local WebP image');
+assert.equal(atlasData.subarray(8, 12).toString(), 'WEBP', 'Garment images must decode as WebP');
+assert.deepEqual(QUICK_DESIGN_BLANK_ATLAS_SIZE, {
+  width: 1536, height: 720, cellWidth: 256, cellHeight: 360,
+});
+const atlasRegions = new Set();
+for (const garment of QUICK_DESIGN_GARMENTS) {
+  assert.deepEqual(QUICK_DESIGN_PRINT_PLACEMENTS[garment.id].front,
+    QUICK_DESIGN_PRINT_PLACEMENTS[garment.id].back,
+    'Front/back artwork scale and vertical placement must match per garment');
+  for (const color of QUICK_DESIGN_COLORS) {
+    for (const side of QUICK_DESIGN_SIDES) {
+      const crop = getQuickDesignBlankGarmentCrop(garment.id, color.id, side.id);
+      assert.equal(crop.sw, 256);
+      assert.equal(crop.sh, 360);
+      assert.ok(crop.sx >= 0 && crop.sy >= 0 &&
+        crop.sx + crop.sw <= 1536 && crop.sy + crop.sh <= 720,
+        'No garment should crop outside the 12-view original blank sheet');
+      assert.ok(crop.dx >= 0 && crop.dy >= 0 &&
+        crop.dx + crop.dw <= 600 && crop.dy + crop.dh <= 720,
+        'Garment preview should remain inside customer preview canvas');
+      atlasRegions.add(crop.sx + ':' + crop.sy);
+    }
+  }
+}
+assert.equal(atlasRegions.size, 12, 'Each garment, color and side must map to its own approved blank image');
+
 for (const side of ['front', 'back']) {
   for (const color of ['black', 'white']) {
     const path = getQuickDesignStudioFabricAsset('sweatshirt', side, color);
@@ -161,6 +192,14 @@ assert.match(mockupCode, /selectedSide = side === 'back'/);
 assert.match(mockupCode, /not certified/);
 assert.match(mockupCode, /selectedColor = QUICK_DESIGN_COLORS/);
 assert.match(mockupCode, /const OUTPUT_SCALE = 2/, 'Render double-density device mockups');
+assert.match(mockupCode, /loadApprovedBlankGarments\(\)/,
+  'The customer-approved sheet must be attempted before old fabric fallbacks');
+assert.match(mockupCode, /ctx\.drawImage\(approvedAtlas, crop\.sx, crop\.sy, crop\.sw, crop\.sh/,
+  'The displayed garment must come from the selected blank atlas region');
+assert.ok(mockupCode.indexOf('const approvedAtlas = await loadApprovedBlankGarments()') <
+  mockupCode.indexOf('const fabricAssetUrl = getQuickDesignStudioFabricAsset(selectedGarment, selectedSide, selectedColor)'),
+  'Prioritize the approved customer garment sheet over Custom Studio fallback assets');
+
 assert.ok(mockupCode.includes('renderStudioCrewneckFabric(ctx, studioGarment, selectedColor)'),
   'Quick Design must reuse existing Custom Studio fabric templates for crewneck garments');
 
