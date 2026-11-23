@@ -456,14 +456,73 @@ function drawBackdrop(ctx) {
   ctx.fillRect(12, 12, WIDTH - 24, HEIGHT - 24);
 }
 
+/**
+ * Preserve the visible artwork's true aspect ratio, but center the rendered
+ * content rather than centering the large transparent A3 canvas margins.
+ * Cropping only fully transparent pixels prevents an apparently off-center
+ * print while keeping all subject faces, lettering, and background effects.
+ */
+export function getQuickDesignBalancedArtworkPlacement(zone, imageWidth, imageHeight, visibleBounds) {
+  const [x, y, w, h] = zone;
+  const sw = Math.max(1, imageWidth || 1);
+  const sh = Math.max(1, imageHeight || 1);
+  const crop = visibleBounds || { x: 0, y: 0, w: sw, h: sh };
+  const safeCrop = {
+    x: Math.max(0, Math.min(sw - 1, crop.x)),
+    y: Math.max(0, Math.min(sh - 1, crop.y)),
+    w: Math.max(1, Math.min(sw - crop.x, crop.w)),
+    h: Math.max(1, Math.min(sh - crop.y, crop.h)),
+  };
+  const factor = Math.min(w / safeCrop.w, h / safeCrop.h);
+  const dw = safeCrop.w * factor;
+  const dh = safeCrop.h * factor;
+  return { sx: safeCrop.x, sy: safeCrop.y, sw: safeCrop.w, sh: safeCrop.h,
+    dx: x + (w - dw) / 2, dy: y + (h - dh) / 2, dw, dh };
+}
+
+function measureQuickDesignArtworkContent(image) {
+  const sw = image.naturalWidth || image.width;
+  const sh = image.naturalHeight || image.height;
+  const sample = document.createElement('canvas');
+  sample.width = 150;
+  sample.height = Math.max(1, Math.round(150 * sh / sw));
+  const sc = sample.getContext('2d', { willReadFrequently: true });
+  if (!sc) return null;
+  sc.drawImage(image, 0, 0, sample.width, sample.height);
+  const data = sc.getImageData(0, 0, sample.width, sample.height).data;
+  let left = sample.width, top = sample.height, right = -1, bottom = -1;
+  for (let py = 0; py < sample.height; py++) {
+    for (let px = 0; px < sample.width; px++) {
+      if (data[(py * sample.width + px) * 4 + 3] < 16) continue;
+      if (px < left) left = px;
+      if (px > right) right = px;
+      if (py < top) top = py;
+      if (py > bottom) bottom = py;
+    }
+  }
+  if (right < left || bottom < top) return null;
+  // A small safety gutter protects semi-transparent glow at the edges.
+  const pad = 2;
+  const x0 = Math.max(0, left - pad) / sample.width * sw;
+  const y0 = Math.max(0, top - pad) / sample.height * sh;
+  const x1 = Math.min(sample.width, right + pad + 1) / sample.width * sw;
+  const y1 = Math.min(sample.height, bottom + pad + 1) / sample.height * sh;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 function drawArtwork(ctx, artwork, garment, side, color) {
   const position = QUICK_DESIGN_PRINT_PLACEMENTS[garment][side];
+  const sw = artwork.naturalWidth || artwork.width;
+  const sh = artwork.naturalHeight || artwork.height;
+  let bounds = null;
+  try { bounds = measureQuickDesignArtworkContent(artwork); }
+  catch { /* Browser canvas edge case: preserve existing full-image fallback. */ }
+  const fitted = getQuickDesignBalancedArtworkPlacement(position, sw, sh, bounds);
   ctx.save();
-  // White mockups need a slight silhouette shadow for translucent edges.
-  // Never alter the original customer artwork itself.
   ctx.shadowColor = color === 'white' ? 'rgba(45,45,60,.22)' : 'rgba(0,0,0,0.35)';
   ctx.shadowBlur = color === 'white' ? 3 : 2;
-  drawContained(ctx, artwork, ...position);
+  ctx.drawImage(artwork, fitted.sx, fitted.sy, fitted.sw, fitted.sh,
+    fitted.dx, fitted.dy, fitted.dw, fitted.dh);
   ctx.restore();
 }
 
