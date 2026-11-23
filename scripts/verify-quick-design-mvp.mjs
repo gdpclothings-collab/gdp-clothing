@@ -8,7 +8,7 @@ import {
   validateQuickDesignFile,
   quickDesignLayoutCount,
 } from '../src/lib/quickDesignCanvas.js';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
@@ -42,6 +42,24 @@ assert.deepEqual(QUICK_DESIGN_GARMENTS.map((item) => item.id), ['tshirt', 'sweat
 assert.deepEqual(QUICK_DESIGN_SIDES.map((item) => item.id), ['front', 'back']);
 assert.deepEqual(QUICK_DESIGN_COLORS.map((item) => item.id), ['black', 'white']);
 assert.deepEqual(QUICK_DESIGN_COLORS.map((item) => item.label), ['Black', 'White']);
+let checkedCombinations = 0;
+for (const garment of QUICK_DESIGN_GARMENTS) {
+  for (const color of QUICK_DESIGN_COLORS) {
+    for (const side of QUICK_DESIGN_SIDES) {
+      checkedCombinations += 1;
+      const position = QUICK_DESIGN_PRINT_PLACEMENTS[garment.id]?.[side.id];
+      assert.equal(position?.length, 4, 'Every garment/side needs a print position');
+      const [x, y, w, h] = position;
+      assert.ok(x >= 175 && x + w <= 427, 'Print should stay inside torso width');
+      assert.ok(y >= 190 && y + h <= 503, 'Print should stay above pouch/hem');
+      assert.ok(w <= 195 && h <= 260, 'Conservative centered design placement');
+      assert.ok(Math.abs((x + w / 2) - 300) <= 3, 'Artwork must be horizontally centered');
+      assert.ok(color.id === 'black' || color.id === 'white');
+    }
+  }
+}
+assert.equal(checkedCombinations, 12, '3 garments × 2 colors × 2 print sides');
+
 assert.ok(QUICK_DESIGN_BACKGROUNDS.length >= 5, 'Must reuse real GDP bootleg backgrounds');
 for (const template of QUICK_DESIGN_BACKGROUNDS) {
   assert.equal(template.category, 'photo_bootleg');
@@ -77,6 +95,15 @@ assert.match(mockupCode, /selectedGarment === 'hoodie'/);
 assert.match(mockupCode, /selectedSide = side === 'back'/);
 assert.match(mockupCode, /not certified/);
 assert.match(mockupCode, /selectedColor = QUICK_DESIGN_COLORS/);
+assert.match(mockupCode, /const OUTPUT_SCALE = 2/, 'Render double-density device mockups');
+assert.match(mockupCode, /ctx\.scale\(OUTPUT_SCALE, OUTPUT_SCALE\)/);
+assert.match(mockupCode, /ctx\.imageSmoothingQuality = 'high'/);
+assert.match(mockupCode, /drawSeamDetails\(ctx, selectedGarment, selectedColor\)/);
+assert.match(mockupCode, /QUICK_DESIGN_PRINT_PLACEMENTS\[garment\]\[side\]/);
+assert.match(canvas, /rgba\(255,255,255,0\.17\)/, 'Watermark still exists at reduced opacity');
+assert.match(canvas, /GDP CLOTHING  •  SAMPLE/, 'Never allow unwatermarked previews');
+assert.match(page, /only\s+\{garmentSide\}\s+printing/i);
+
 assert.match(mockupCode, /color === 'white'/);
 assert.match(mockupCode, /fillGarment\(ctx, outline, selectedColor\)/);
 assert.match(mockupCode, /drawHood\(ctx, selectedSide, selectedColor\)/);
