@@ -175,6 +175,54 @@ function fillGarment(ctx, shape, color) {
   ctx.restore();
 }
 
+// Local studio fallback for T-shirts and hoodies: subtly differentiated
+// jersey vs fleece, retaining all existing shoulder seams and silhouette.
+function paintTailoredFabric(ctx, shape, color, garment) {
+  const white = color === 'white';
+  ctx.save();
+  ctx.clip(shape);
+  const panelGlow = ctx.createLinearGradient(155, 110, 454, 657);
+  panelGlow.addColorStop(0, white ? 'rgba(255,255,255,.31)' : 'rgba(255,255,255,.072)');
+  panelGlow.addColorStop(.24, white ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.012)');
+  panelGlow.addColorStop(.72, white ? 'rgba(63,66,73,.065)' : 'rgba(0,0,0,.19)');
+  panelGlow.addColorStop(1, white ? 'rgba(255,255,255,.17)' : 'rgba(246,246,252,.023)');
+  ctx.fillStyle = panelGlow;
+  ctx.fillRect(109, 116, 382, 555);
+
+  // Ribbed fleece has a slightly broader weave than smooth jersey cotton.
+  // Draw all thread flecks deterministically so switching variants cannot
+  // cause flickering or a changing/random texture.
+  const threads = garment === 'hoodie' ? 2100 : 1450;
+  let seed = garment === 'hoodie' ? 31567 : 41019;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+  ctx.lineWidth = garment === 'hoodie' ? 1 : .5;
+  for (let i = 0; i < threads; i += 1) {
+    const x = 127 + random() * 346;
+    const y = 140 + random() * 511;
+    const dy = garment === 'hoodie' ? 2.7 : 1.1;
+    ctx.strokeStyle = white
+      ? (random() > .5 ? 'rgba(72,79,91,.05)' : 'rgba(255,255,255,.26)')
+      : (random() > .5 ? 'rgba(230,234,241,.048)' : 'rgba(0,0,0,.14)');
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (random() - .5) * 2, y + dy);
+    ctx.stroke();
+  }
+
+  for (const centerX of [183, 418]) {
+    const sideFold = ctx.createRadialGradient(centerX, 385, 6, centerX, 405, 95);
+    sideFold.addColorStop(0, white ? 'rgba(49,54,66,.07)' : 'rgba(0,0,0,.20)');
+    sideFold.addColorStop(.64, white ? 'rgba(72,79,87,.022)' : 'rgba(0,0,0,.07)');
+    sideFold.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sideFold;
+    ctx.fillRect(centerX - 100, 175, 200, 400);
+  }
+  ctx.restore();
+}
+
 function drawNeck(ctx, mode, side, color) {
   const white = color === 'white';
   ctx.save();
@@ -437,6 +485,7 @@ export async function renderQuickDesignGarmentMockup({
     : new Path2D('M191 114 Q222 99 246 87 Q300 123 354 87 Q379 99 409 114 Q470 136 540 193 Q546 199 540 209 L499 317 Q496 328 485 325 L429 299 L421 658 Q302 679 180 658 L172 299 L115 325 Q105 328 102 317 L60 209 Q54 199 61 193 Q132 136 191 114 Z');
 
   fillGarment(ctx, outline, selectedColor);
+  paintTailoredFabric(ctx, outline, selectedColor, selectedGarment);
   if (selectedGarment === 'hoodie') drawHoodSurface(ctx, selectedSide, selectedColor);
   else drawNeck(ctx, selectedGarment, selectedSide, selectedColor);
   drawRibbing(ctx, selectedGarment, selectedColor);
