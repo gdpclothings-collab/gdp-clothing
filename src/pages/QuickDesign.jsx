@@ -13,7 +13,6 @@ import { requestQuickDesignRemoveBgCutout, checkQuickDesignRemoveBgConnection } 
 import { detectQuickDesignBackground } from '@/lib/quickDesignTransparency';
 import { PREMIUM_TEXT_STYLES } from '@/lib/customStudioV2PremiumTextStyles';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES, renderQuickDesignGarmentMockup } from '@/lib/quickDesignGarmentMockup';
-import { QUICK_DESIGN_PHASE_B_NAMES } from '@/lib/quickDesignPhaseBLayout';
 import QuickDesignHelp from '@/components/storefront/QuickDesignHelp';
 import './quickDesignFonts.css';
 
@@ -67,10 +66,9 @@ export default function QuickDesign() {
   const [results, setResults] = useState([]);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState('');
-  const [selected, setSelected] = useState('A');
+  const [mockupGallery, setMockupGallery] = useState({});
   const [garment, setGarment] = useState('tshirt');
   const [garmentSide, setGarmentSide] = useState('front');
-  const [garmentMockup, setGarmentMockup] = useState('');
   const [garmentBusy, setGarmentBusy] = useState(false);
   const [garmentError, setGarmentError] = useState('');
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '', size: 'M', quantity: 1, notes: '', website: '' });
@@ -82,7 +80,9 @@ export default function QuickDesign() {
   const selectedBackground = useMemo(() =>
     QUICK_DESIGN_BACKGROUNDS.find((background) => background.id === backgroundId) || QUICK_DESIGN_BACKGROUNDS[0],
   [backgroundId]);
-  const selectedResult = results.find((item) => item.variant === selected);
+  const selectedResult = results[0] || null;
+  const mockupKey = garment + ':' + garmentSide;
+  const selectedMockup = mockupGallery[mockupKey] || '';
   const selectedGarment = QUICK_DESIGN_GARMENTS.find((item) => item.id === garment) || QUICK_DESIGN_GARMENTS[0];
   const selectedPremium = PREMIUM_TEXT_STYLES.find((item) => item.id === premiumStyle);
   const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'checking' || item.bgStatus === 'working');
@@ -173,38 +173,46 @@ export default function QuickDesign() {
       fontSizePercent,
       premiumStyle,
     };
-    Promise.all(['A', 'B'].map(async (variant) => {
-      const artwork = await renderQuickDesignArtwork({ ...options, variant });
-      return { variant, artwork: artwork.toDataURL('image/jpeg', 0.84) };
-    })).then((previews) => {
-      if (!cancelled) setResults(previews);
+    renderQuickDesignArtwork(options).then((canvas) => {
+      if (!cancelled) setResults([{ artwork: canvas.toDataURL('image/png') }]);
     }).catch((error) => {
       if (!cancelled) {
         setResults([]);
-        setPreviewError(error?.message || 'Could not generate your samples.');
+        setPreviewError(error?.message || 'Could not render your design.');
       }
     }).finally(() => { if (!cancelled) setPreviewBusy(false); });
     return () => { cancelled = true; };
   }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle]);
 
-  // Switching shirt / crewneck / hoodie or front / back only redraws the
-  // selected mockup, rather than recomputing the two original photo samples.
+  // Six distinct garment/side choices use the SAME transparent STORM-style
+  // artwork. The customer chooses ONE garment and ONE print side; switching
+  // views never creates a two-sided order.
   useEffect(() => {
     if (!selectedResult?.artwork || previewBusy) {
-      setGarmentMockup('');
+      setMockupGallery({});
       setGarmentBusy(false);
       return undefined;
     }
     let cancelled = false;
     setGarmentBusy(true);
     setGarmentError('');
-    setGarmentMockup('');
-    renderQuickDesignGarmentMockup({ artworkSource: selectedResult.artwork, garment, side: garmentSide })
-      .then((canvas) => { if (!cancelled) setGarmentMockup(canvas.toDataURL('image/jpeg', 0.9)); })
-      .catch((error) => { if (!cancelled) setGarmentError(error?.message || 'Could not render this garment.'); })
-      .finally(() => { if (!cancelled) setGarmentBusy(false); });
+    setMockupGallery({});
+    const all = QUICK_DESIGN_GARMENTS.flatMap((item) =>
+      QUICK_DESIGN_SIDES.map((side) => ({ garment: item.id, side: side.id })));
+    Promise.all(all.map(async (item) => {
+      const canvas = await renderQuickDesignGarmentMockup({
+        artworkSource: selectedResult.artwork, garment: item.garment, side: item.side,
+      });
+      return [item.garment + ':' + item.side, canvas.toDataURL('image/jpeg', 0.89)];
+    })).then((entries) => {
+      if (!cancelled) setMockupGallery(Object.fromEntries(entries));
+    }).catch((error) => {
+      if (!cancelled) setGarmentError(error?.message || 'Could not render garment previews.');
+    }).finally(() => {
+      if (!cancelled) setGarmentBusy(false);
+    });
     return () => { cancelled = true; };
-  }, [selectedResult?.artwork, garment, garmentSide, previewBusy]);
+  }, [selectedResult?.artwork, previewBusy]);
 
   const addPhotos = (event) => {
     const incoming = Array.from(event.target.files || []);
@@ -255,32 +263,31 @@ export default function QuickDesign() {
     setPremiumStyle('gold-chrome');
     setGarment('tshirt');
     setGarmentSide('front');
-    setGarmentMockup('');
+    setMockupGallery({});
     setCutoutError('');
     setCutoutUnavailable(false);
     setConnectionStatus(null);
     setAutoCutout(false);
     setBackgroundId(PHASE_B_DEFAULT_BACKGROUND);
     setAccent(ACCENTS[2]);
-    setSelected('A');
     setResults([]);
     setSubmitted(null);
     setMessage('');
   };
 
   const shareFiles = async () => {
-    if (!selectedResult || !navigator.share || !navigator.canShare) {
+    if (!selectedMockup || !navigator.share || !navigator.canShare) {
       setMessage('Sharing is unavailable in this browser. Download the sample and attach it with your original photos when GDP contacts you.');
       return;
     }
     try {
-      const blob = await (await fetch(selectedResult.artwork)).blob();
-      const files = [new File([blob], 'GDP-Sample-' + selected + '.jpg', { type: 'image/jpeg' }), ...photos.map((item) => item.file)];
+      const blob = await (await fetch(selectedMockup)).blob();
+      const files = [new File([blob], 'GDP-' + garment + '-' + garmentSide + '-mockup.jpg', { type: 'image/jpeg' }), ...photos.map((item) => item.file)];
       if (!navigator.canShare({ files })) {
         setMessage('Your device cannot share these files together. Download the sample and send your photos separately.');
         return;
       }
-      await navigator.share({ files, title: 'GDP Clothing custom bootleg request', text: 'GDP Quick Design – Sample ' + selected + ', ' + selectedGarment.label + ', ' + garmentSide + '. Please share these files with GDP Clothing.' });
+      await navigator.share({ files, title: 'GDP Clothing garment mockup', text: 'GDP Quick Design — ' + selectedGarment.label + ', ' + garmentSide + ' print only. Please share these files with GDP Clothing.' });
     } catch (error) {
       if (error?.name !== 'AbortError') setMessage('Could not share the files. You can download the sample instead.');
     }
@@ -292,7 +299,7 @@ export default function QuickDesign() {
     setSendError('');
     setSubmitted(null);
     if (!selectedResult || previewBusy || !photos.length) {
-      setSendError('Finish your design and choose a sample first.');
+      setSendError('Finish your design and choose a garment first.');
       return;
     }
     if (!rightsConfirmed) {
@@ -304,7 +311,7 @@ export default function QuickDesign() {
       const params = new URLSearchParams(location.search);
       const notes = [
         '[GDP QUICK DESIGN MVP — contact and choices only; original photos and previews are NOT uploaded by this form]',
-        'Sample: ' + selected,
+        'Preview: Phase C STORM-style garment mockup (one print side only)',
         'Background: ' + (selectedBackground?.name || backgroundId) + ' (' + backgroundId + ')',
         'Headline: ' + headline.trim().slice(0, 36),
         'Subtitle: ' + subline.trim().slice(0, 36),
