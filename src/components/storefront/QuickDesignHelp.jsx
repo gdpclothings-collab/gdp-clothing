@@ -16,7 +16,7 @@ const HELP_TOPICS = [
   },
   {
     title: 'How do I change the name style?',
-    answer: 'Choose one of five bootleg font presets, adjust the 60–160% font-size slider, and choose a premium finish such as chrome, neon glow or retro 3D. Set a name color, then choose Straight, Curve upward or Curve downward. The Selected Font Preview now uses the same actual Straight, Curve upward or Curve downward lettering as the final sample. Long names auto-fit within the 12 × 16-inch layout.',
+    answer: 'Choose one of five bootleg font presets, adjust the 60–160% font-size slider, and choose a premium finish such as chrome, neon glow or retro 3D. Set a name color, then choose Straight, Curve upward or Curve downward. The Selected Font Preview now uses the same actual Straight, Curve upward or Curve downward lettering as the final sample. Long names auto-fit within the A3 portrait 297 × 420 mm composition.',
   },
   {
     title: 'How do I keep pet and people faces visible?',
@@ -87,7 +87,7 @@ export default function QuickDesignHelp({ onClose, details }) {
       'Garment: ' + (details?.garment || '(not chosen)'),
       'Garment colour: ' + (details?.garmentColor || '(not chosen)'),
       'Side to print: ' + (details?.garmentSide || '(not chosen)'),
-      'Artwork preview: 12 x 16 inches',
+      'Artwork target: A3 portrait 297 x 420 mm (3508 x 4961 pixels at 300 DPI)',
       'Note: Original photos and previews are NOT included in this text.',
     ].join('\n');
     try {
