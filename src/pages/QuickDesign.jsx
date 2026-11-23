@@ -12,7 +12,7 @@ import {
 import { requestQuickDesignRemoveBgCutout, checkQuickDesignRemoveBgConnection } from '@/lib/quickDesignRemoveBgClient';
 import { detectQuickDesignBackground } from '@/lib/quickDesignTransparency';
 import { PREMIUM_TEXT_STYLES } from '@/lib/customStudioV2PremiumTextStyles';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES, renderQuickDesignGarmentMockup } from '@/lib/quickDesignGarmentMockup';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, renderQuickDesignGarmentMockup } from '@/lib/quickDesignGarmentMockup';
 import QuickDesignHelp from '@/components/storefront/QuickDesignHelp';
 import './quickDesignFonts.css';
 
@@ -68,6 +68,7 @@ export default function QuickDesign() {
   const [previewError, setPreviewError] = useState('');
   const [garmentMockup, setGarmentMockup] = useState('');
   const [garment, setGarment] = useState('');
+  const [garmentColor, setGarmentColor] = useState('');
   const [garmentSide, setGarmentSide] = useState('');
   const [garmentBusy, setGarmentBusy] = useState(false);
   const [garmentError, setGarmentError] = useState('');
@@ -83,7 +84,8 @@ export default function QuickDesign() {
   const selectedResult = results[0] || null;
   const selectedMockup = garmentMockup;
   const selectedGarment = QUICK_DESIGN_GARMENTS.find((item) => item.id === garment);
-  const placementChosen = Boolean(selectedGarment && QUICK_DESIGN_SIDES.some((item) => item.id === garmentSide));
+  const selectedColor = QUICK_DESIGN_COLORS.find((item) => item.id === garmentColor);
+  const placementChosen = Boolean(selectedGarment && selectedColor && QUICK_DESIGN_SIDES.some((item) => item.id === garmentSide));
   const selectedPremium = PREMIUM_TEXT_STYLES.find((item) => item.id === premiumStyle);
   const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'checking' || item.bgStatus === 'working');
 
@@ -184,9 +186,9 @@ export default function QuickDesign() {
     return () => { cancelled = true; };
   }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle, placementChosen]);
 
-  // Only ONE selected garment and ONE print side are previewed at a time.
-  // A customer must explicitly select both before previewing; switching a
-  // garment clears the prior side so no second side can be implied.
+  // Show only one selected garment/color/print-side mockup. Each choice is
+  // explicit: changing the garment resets color and side; changing color
+  // resets side. This prevents showing a stale/mismatched mockup.
   useEffect(() => {
     if (!placementChosen || !selectedResult?.artwork || previewBusy) {
       setGarmentMockup('');
@@ -198,7 +200,7 @@ export default function QuickDesign() {
     setGarmentError('');
     setGarmentMockup('');
     renderQuickDesignGarmentMockup({
-      artworkSource: selectedResult.artwork, garment, side: garmentSide,
+      artworkSource: selectedResult.artwork, garment, side: garmentSide, color: garmentColor,
     }).then((canvas) => {
       if (!cancelled) setGarmentMockup(canvas.toDataURL('image/jpeg', 0.89));
     }).catch((error) => {
@@ -207,7 +209,7 @@ export default function QuickDesign() {
       if (!cancelled) setGarmentBusy(false);
     });
     return () => { cancelled = true; };
-  }, [selectedResult?.artwork, garment, garmentSide, placementChosen, previewBusy]);
+  }, [selectedResult?.artwork, garment, garmentColor, garmentSide, placementChosen, previewBusy]);
 
   const addPhotos = (event) => {
     const incoming = Array.from(event.target.files || []);
@@ -257,6 +259,7 @@ export default function QuickDesign() {
     setFontSizePercent(100);
     setPremiumStyle('gold-chrome');
     setGarment('');
+    setGarmentColor('');
     setGarmentSide('');
     setGarmentMockup('');
     setCutoutError('');
@@ -277,12 +280,12 @@ export default function QuickDesign() {
     }
     try {
       const blob = await (await fetch(selectedMockup)).blob();
-      const files = [new File([blob], 'GDP-' + garment + '-' + garmentSide + '-mockup.jpg', { type: 'image/jpeg' }), ...photos.map((item) => item.file)];
+      const files = [new File([blob], 'GDP-' + garmentColor + '-' + garment + '-' + garmentSide + '-mockup.jpg', { type: 'image/jpeg' }), ...photos.map((item) => item.file)];
       if (!navigator.canShare({ files })) {
         setMessage('Your device cannot share these files together. Download the sample and send your photos separately.');
         return;
       }
-      await navigator.share({ files, title: 'GDP Clothing garment mockup', text: 'GDP Quick Design — ' + selectedGarment.label + ', ' + garmentSide + ' print only. Please share these files with GDP Clothing.' });
+      await navigator.share({ files, title: 'GDP Clothing garment mockup', text: 'GDP Quick Design — ' + selectedColor.label + ' ' + selectedGarment.label + ', ' + garmentSide + ' print only. Please share these files with GDP Clothing.' });
     } catch (error) {
       if (error?.name !== 'AbortError') setMessage('Could not share the files. You can download the sample instead.');
     }
@@ -294,7 +297,7 @@ export default function QuickDesign() {
     setSendError('');
     setSubmitted(null);
     if (!placementChosen || !selectedResult || !selectedMockup || previewBusy || garmentBusy || !photos.length) {
-      setSendError('Finish your design and choose a garment first.');
+      setSendError('Choose a garment, Black or White colour, and one print side first.');
       return;
     }
     if (!rightsConfirmed) {
@@ -318,7 +321,8 @@ export default function QuickDesign() {
         'Artwork format: 12 x 16 inches (3600 x 4800 pixels at 300 DPI target)',
         'remove.bg cutout (external opt-in): ' + (autoCutout || cutoutUnavailable ? 'enabled or attempted' : 'disabled'),
         'Uploaded photos on customer device: ' + photos.length,
-        'Black ' + selectedGarment.label + ', size: ' + customer.size,
+        'Garment: ' + selectedColor.label + ' ' + selectedGarment.label + ', size: ' + customer.size,
+        'Requested garment color: ' + selectedColor.label + ' (' + garmentColor + ')',
         'Requested print side: ' + garmentSide + ' only',
         'Requested quantity: ' + customer.quantity,
         'Customer notes: ' + customer.notes.trim().slice(0, 1000),
@@ -330,7 +334,7 @@ export default function QuickDesign() {
         customerEmail: customer.email.trim(),
         customerPhone: customer.phone.trim(),
         orderType: 'custom_apparel',
-        garmentType: 'Black ' + selectedGarment.label + ' – ' + customer.size,
+        garmentType: selectedColor.label + ' ' + selectedGarment.label + ' – ' + customer.size,
         quantity: Math.max(1, Math.min(100, Number(customer.quantity) || 1)),
         artworkReady: false,
         budgetRange: '',
@@ -378,7 +382,7 @@ export default function QuickDesign() {
           <button type="button" data-gdp-help-trigger="header" onClick={() => setHelpOpen(true)} aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" className={BTN + ' border border-lime-300/40 bg-lime-300/10 text-lime-100 hover:bg-lime-300/20'}><HelpCircle size={19}/> Help with my design</button>
         </div>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">Your design. <span className="text-lime-300">On any garment.</span></h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">First choose your garment and print side, then upload photos and personalize the design. Preview only your selected garment. No paid image generation required.</p>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">First choose your garment, colour and print side, then upload photos and personalize the design. Preview only your selected garment. No paid image generation required.</p>
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-white/70">
           <span className="rounded-full border border-white/20 px-3 py-2">Choose garment &amp; print side first</span>
           <span className="rounded-full border border-white/20 px-3 py-2">On-device sample rendering</span>
@@ -391,30 +395,43 @@ export default function QuickDesign() {
       <div className="min-w-0 space-y-7">
         <section className="min-w-0 rounded-2xl border border-lime-300/25 bg-white/5 p-5" data-gdp-garment-first="true">
           <SmallHeading number="1">Choose your garment</SmallHeading>
-          <p className="mb-3 text-xs text-white/65">Choose the clothing first, then where the design will be printed.</p>
+          <p className="mb-3 text-xs text-white/65">Select garment, colour, then one print side.</p>
           <div role="group" aria-label="Choose garment type" className="grid grid-cols-3 gap-2">
             {QUICK_DESIGN_GARMENTS.map((item) =>
               <button key={item.id} type="button" aria-label={'Choose ' + item.label} aria-pressed={garment === item.id}
-                onClick={() => { setGarment(item.id); setGarmentSide(''); setSubmitted(null); }}
+                onClick={() => { setGarment(item.id); setGarmentColor(''); setGarmentSide(''); setSubmitted(null); }}
                 className={'min-h-14 min-w-0 rounded-xl border-2 px-1 py-2 text-center text-xs font-extrabold transition sm:text-sm ' + (garment === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/50')}>
                 <span className="block">{item.label}</span>
               </button>
             )}
           </div>
           {garment ? <>
-            <p className="mb-2 mt-4 text-xs font-bold text-white/75">Which side do you want printed?</p>
-            <div role="group" aria-label="Choose print side" className="grid grid-cols-2 gap-2">
-              {QUICK_DESIGN_SIDES.map((item) =>
-                <button key={item.id} type="button" aria-label={'Print on ' + item.label} aria-pressed={garmentSide === item.id}
-                  onClick={() => { setGarmentSide(item.id); setSubmitted(null); }}
-                  className={'min-h-12 rounded-xl border-2 px-3 py-2 text-sm font-extrabold transition ' + (garmentSide === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 hover:border-white/40')}>
+            <p className="mb-2 mt-4 text-xs font-bold text-white/75">Choose garment colour</p>
+            <div role="group" aria-label="Choose garment color" data-gdp-color-selector="true" className="grid grid-cols-2 gap-2">
+              {QUICK_DESIGN_COLORS.map((item) =>
+                <button key={item.id} type="button" aria-label={'Choose ' + item.label + ' garment color'} aria-pressed={garmentColor === item.id}
+                  onClick={() => { setGarmentColor(item.id); setGarmentSide(''); setSubmitted(null); }}
+                  className={'flex min-h-12 items-center justify-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-extrabold transition ' + (garmentColor === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/40')}>
+                  <span aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full border border-white/30 shadow-sm" style={{ backgroundColor: item.hex }} />
                   {item.label}
                 </button>
               )}
             </div>
-            <p className="mt-2 text-xs text-white/55">Select one side only. Front and Back are separate printing options.</p>
-          </> : <p className="mt-3 text-xs text-white/55">Select a garment to choose Front or Back.</p>}
-          {placementChosen && <p role="status" data-gdp-garment-choice="true" className="mt-3 flex items-center gap-2 text-sm font-semibold text-lime-200"><CheckCircle2 size={16}/> {selectedGarment.label} · {garmentSide === 'front' ? 'Front' : 'Back'} printing selected</p>}
+            {garmentColor ? <>
+              <p className="mb-2 mt-4 text-xs font-bold text-white/75">Which side do you want printed?</p>
+              <div role="group" aria-label="Choose print side" className="grid grid-cols-2 gap-2">
+                {QUICK_DESIGN_SIDES.map((item) =>
+                  <button key={item.id} type="button" aria-label={'Print on ' + item.label} aria-pressed={garmentSide === item.id}
+                    onClick={() => { setGarmentSide(item.id); setSubmitted(null); }}
+                    className={'min-h-12 rounded-xl border-2 px-3 py-2 text-sm font-extrabold transition ' + (garmentSide === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/40')}>
+                    {item.label}
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-white/55">Select one side only. Front and Back are separate printing options.</p>
+            </> : <p className="mt-3 text-xs text-white/55">Select Black or White to choose Front or Back.</p>}
+          </> : <p className="mt-3 text-xs text-white/55">Select a garment to choose its colour and print side.</p>}
+          {placementChosen && <p role="status" data-gdp-garment-choice="true" className="mt-3 flex items-center gap-2 text-sm font-semibold text-lime-200"><CheckCircle2 size={16}/> {selectedColor.label} {selectedGarment.label} · {garmentSide === 'front' ? 'Front' : 'Back'} printing selected</p>}
         </section>
 
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
@@ -425,7 +442,7 @@ export default function QuickDesign() {
             <span className="text-xs text-white/60">JPG, PNG or WebP · 10 MB maximum each</span>
             <input aria-label="Upload customer photos" className="sr-only" disabled={!placementChosen} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} />
           </label>
-          {!placementChosen && <p className="mt-2 text-xs text-white/60">Select your garment and print side in Step 1 to enable photo uploads.</p>}
+          {!placementChosen && <p className="mt-2 text-xs text-white/60">Select a garment, Black or White colour, and Front or Back in Step 1 to enable uploads.</p>}
           {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-3 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
             <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
               <img src={item.cutoutUrl || item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full bg-neutral-700 object-contain" />
@@ -517,21 +534,21 @@ export default function QuickDesign() {
       <div className="min-w-0 space-y-7">
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5" data-gdp-garment-preview="true">
           <SmallHeading number="5">Your garment preview</SmallHeading>
-          <p className="mb-4 text-xs leading-5 text-white/65">One STORM-inspired design on your chosen black garment and print side. Your name stays above the pets; the GDP storm/flame background sits mainly below.</p>
-          {!placementChosen ? <div role="status" data-gdp-preview-gated="true" className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">First choose your garment and Front or Back in Step 1.</div> :
+          <p className="mb-4 text-xs leading-5 text-white/65">One STORM-inspired design on your selected garment colour and print side. Your name stays above the pets; the GDP storm/flame background sits mainly below.</p>
+          {!placementChosen ? <div role="status" data-gdp-preview-gated="true" className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">First choose your garment, colour, and Front or Back in Step 1.</div> :
           !photos.length ? <div role="status" data-gdp-preview-gated="true" className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">Add a photo in Step 2 to see your selected mockup.</div> :
           previewBusy || garmentBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Creating your selected mockup…</div> :
           previewError || garmentError ? <p role="alert" className="rounded-xl bg-red-950/50 p-4 text-sm text-red-200">{previewError || garmentError}</p> :
           selectedMockup ? <>
-            <p data-gdp-preview-label="true" className="mb-3 text-sm font-bold text-lime-200">{selectedGarment.label} · {garmentSide === 'front' ? 'Front' : 'Back'} print</p>
+            <p data-gdp-preview-label="true" className="mb-3 text-sm font-bold text-lime-200">{selectedColor.label} {selectedGarment.label} · {garmentSide === 'front' ? 'Front' : 'Back'} print</p>
             <div className="overflow-hidden rounded-xl border border-white/10 bg-[#16171b]">
               <img data-gdp-garment-image="true" src={selectedMockup}
-                alt={'Black ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto max-h-[560px] w-full object-contain" />
+                alt={selectedColor.label + ' ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto max-h-[560px] w-full object-contain" />
             </div>
             <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. Studio-rendered illustration, not a manufacturer-certified photo. Actual print size and placement require GDP approval.</p>
             <p className="mt-2 text-xs leading-5 text-white/55">{MAX_PREVIEW_NOTICE}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
+              <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garmentColor + '-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
               <button type="button" onClick={shareFiles} className={BTN + ' border border-white/20 hover:bg-white/10'}><Share2 size={16}/> Share mockup + photos</button>
             </div>
           </> : <p className="rounded-xl bg-black/20 p-6 text-center text-sm text-white/60">Your selected garment preview will appear here.</p>}
@@ -543,13 +560,13 @@ export default function QuickDesign() {
             <button type="button" data-gdp-help-trigger="request" aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" onClick={() => setHelpOpen(true)} className={BTN + ' border border-white/25 bg-white/5 text-white hover:bg-white/10'}><HelpCircle size={17}/> Need design help?</button>
           </div>
           {isCloudflareBranchPreview && <p role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-200/10 p-3 text-sm text-amber-100">Development preview: request submissions are disabled to protect live customer data. You can test your selected garment mockup and save the preview image safely.</p>}
-          <p className="mb-5 text-sm leading-6 text-white/65">Your garment and side were selected in Step 1. This is a design request, not a purchase or payment.</p>
+          <p className="mb-5 text-sm leading-6 text-white/65">Your garment, colour and print side were selected in Step 1. This is a design request, not a purchase or payment.</p>
           {submitted ? <div role="status" className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5">
             <CheckCircle2 className="text-emerald-300" size={26} />
             <h3 className="mt-2 text-xl font-black">Your design request was received.</h3>
-            <p className="mt-2 text-sm leading-6 text-white/75">GDP received your contact details and selected {selectedGarment.label} {garmentSide} mockup. <strong>Your photos and preview image have not been uploaded.</strong> Save/share the sample with its original photos when GDP contacts you, so production can proceed.</p>
+            <p className="mt-2 text-sm leading-6 text-white/75">GDP received your contact details and selected {selectedColor.label} {selectedGarment.label} {garmentSide} mockup. <strong>Your photos and preview image have not been uploaded.</strong> Save/share the sample with its original photos when GDP contacts you, so production can proceed.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-lime-300 text-black'}><Download size={16}/> Save selected mockup</button>
+              <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garmentColor + '-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-lime-300 text-black'}><Download size={16}/> Save selected mockup</button>
               <button type="button" onClick={shareFiles} className={BTN + ' border border-white/20'}><Share2 size={16}/> Share original files</button>
             </div>
           </div> :
