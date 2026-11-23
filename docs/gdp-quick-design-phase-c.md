@@ -38,3 +38,17 @@ The Phase C renderer reproduces these composition RULES, not the reference custo
 
 ## Non-goals
 Do not deploy production; do not buy a service, generate an AI image for each user, charge a card, modify real orders, change Saskatchewan PST 6% or GST 0%, or promise two-sided printing.
+
+
+## Phase C garment color variants (approved 2026-11-22)
+
+Owner selected the strict order: **Garment → Color → Front/Back → Upload → Customize → Preview**.
+- Allow only **Black** and **White** across T-shirt, Sweatshirt and Hoodie. Do not preselect any of the three garment/colour/side inputs.
+- Choosing a garment reveals the two color swatches. Only after a color is chosen can the customer choose Front or Back; photo upload and mockup remain disabled until all three are chosen. Changing garment resets color and side; changing color resets side to prevent stale previews.
+- Browser mockup painter uses one original STORM-reference artwork for both garment colors. The white fabric uses its own cloth gradients, folds, stitching, hood, cuffs, and neckline. Only mockup fabric lighting/shadows change; the customer's artwork is not changed.
+- Show just the **one** selected garment/color/side mockup. Never display a gallery suggesting all six (now twelve) variations are purchased or both sides included.
+- File downloads, Web Share mockup filenames, share description, visible preview label, copied Help details, and customer-lead garment summary must include the chosen color. Production preview form remains disabled on Cloudflare preview branches.
+- Continue original/no-cost remove.bg safeguards, opaque-photo opt-in, and local transparent-photo bypass. No changes to production checkout, tax, products, live data, or payment settings.
+- Stage-only QA: run static verification, browser selection gates at 360/390/1280px, compare white fabric brightness against black, swap selected garment and color after photo upload, verify only the last selected side stays pressed. Full source art production output/photography still separate from preview illustrations.
+
+Release remains DRAFT PR #609; no merge or production deployment without owner approval.
