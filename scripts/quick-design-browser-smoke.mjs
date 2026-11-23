@@ -59,6 +59,25 @@ try {
     await page.getByRole('textbox', { name: 'Main name or heading' }).fill('HENRY');
     await page.getByRole('combobox', { name: 'Bootleg name font' }).selectOption('serif');
     await page.getByRole('combobox', { name: 'Name layout' }).selectOption('up');
+    const fontPreview = page.locator('[data-gdp-font-preview="true"]');
+    await fontPreview.waitFor({ timeout: 15000 });
+    const upPreview = await fontPreview.getAttribute('src');
+    assert.equal(await page.locator('[data-gdp-font-curve="up"]').count(), 1);
+    await page.getByRole('combobox', { name: 'Name layout' }).selectOption('down');
+    await page.waitForFunction((previous) => {
+      const img = document.querySelector('[data-gdp-font-curve="down"] [data-gdp-font-preview="true"]');
+      return img?.getAttribute('src')?.startsWith('data:image/png') &&
+        img.getAttribute('src') !== previous;
+    }, upPreview, { timeout: 15000 });
+    const downPreview = await fontPreview.getAttribute('src');
+    await page.getByRole('combobox', { name: 'Name layout' }).selectOption('straight');
+    await page.waitForFunction((previous) => {
+      const img = document.querySelector('[data-gdp-font-curve="straight"] [data-gdp-font-preview="true"]');
+      return img?.getAttribute('src')?.startsWith('data:image/png') &&
+        img.getAttribute('src') !== previous;
+    }, downPreview, { timeout: 15000 });
+    await page.getByRole('combobox', { name: 'Name layout' }).selectOption('up');
+    await fontPreview.waitFor({ timeout: 15000 });
     await page.getByRole('button', { name: 'Increase name font size' }).click();
     await page.getByRole('button', { name: 'Increase name font size' }).click();
     assert.match(await page.locator('[data-gdp-font-size-value]').innerText(), /110%/);
@@ -85,6 +104,8 @@ try {
       })),
     ]);
     assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
+    assert.equal(await page.locator('[data-gdp-main-photo="true"]').count(), 1, 'Exactly one main photo must be selected');
+    assert.equal(await page.getByRole('button', { name: 'Make photo 5 main subject' }).count(), 1);
     let overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflowAfterPhotos <= 4, 'Five photos must not expose white right-side panel: ' + overflowAfterPhotos);
     // Only the selected combination gets a rendered mockup. Changing garment
@@ -241,6 +262,44 @@ try {
     assert.equal(await page.getByRole('link', { name: /Open remove.bg \(external\)/ }).getAttribute('href'), 'https://www.remove.bg/');
     overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflowAfterPhotos <= 4, 'Quota fallback must not expose white right-side panel: ' + overflowAfterPhotos);
+    // A different first/main photo must become the hero without reuploading
+    // or spending remove.bg credits.
+    const priorFifthPhoto = await page.getByAltText('Uploaded photo 5').getAttribute('src');
+    await page.getByRole('button', { name: 'Make photo 5 main subject' }).click();
+    assert.equal(await page.locator('[data-gdp-main-photo="true"]').count(), 1);
+    assert.equal(await page.getByAltText('Uploaded photo 1').getAttribute('src'), priorFifthPhoto);
+
+    if (viewport.width === 1280) {
+      // Exhaustively verify 3 × 2 × 2 selector paths without another
+      // network request or an implied two-sided print.
+      let combinations = 0;
+      for (const type of ['T-shirt', 'Sweatshirt', 'Hoodie']) {
+        await page.getByRole('button', { name: 'Choose ' + type }).click();
+        for (const garmentColor of ['Black', 'White']) {
+          await page.getByRole('button', { name: 'Choose ' + garmentColor + ' garment color' }).click();
+          for (const side of ['Front', 'Back']) {
+            await page.getByRole('button', { name: 'Print on ' + side }).click();
+            await page.locator('[data-gdp-garment-image="true"]').waitFor({ timeout: 30000 });
+            const label = await page.locator('[data-gdp-preview-label="true"]').innerText();
+            assert.ok(label.includes(type) && label.includes(garmentColor) && label.includes(side),
+              'Preview choice mismatch: ' + label);
+            assert.equal(await page.locator('[data-gdp-garment-image="true"]').count(), 1);
+            combinations += 1;
+          }
+          // Color change resets the selected side without hiding uploads.
+        }
+      }
+      assert.equal(combinations, 12);
+    }
+
+    // Confirm the full composition survives 1–5 face-containing photos.
+    for (let count = 5; count >= 1; count -= 1) {
+      assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), count);
+      if (count > 1) {
+        await page.getByRole('button', { name: 'Remove photo ' + count }).click();
+      }
+    }
+    await page.locator('[data-gdp-garment-image="true"]').waitFor({ timeout: 30000 });
     assert.deepEqual(uploads, [], 'Previewing must not upload customer photos to storage');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
