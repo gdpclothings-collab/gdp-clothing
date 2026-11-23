@@ -1,5 +1,5 @@
 // Quick Design garment visualizer. All six combinations render in the browser.
-// These are illustrative black garments, not an assertion about Gildan product
+// These are enhanced studio-rendered black garments, not an assertion about Gildan product
 // photography or a guarantee of actual printable area. No network calls.
 export const QUICK_DESIGN_GARMENTS = Object.freeze([
   { id: 'tshirt', label: 'T-shirt', description: 'Short sleeves' },
@@ -59,11 +59,50 @@ function fillGarment(ctx, shape) {
   ctx.fillStyle = bodyLight;
   ctx.fillRect(60, 80, 480, 610);
 
+  // Fine jersey/fleece grain breaks up the vector-flat surface without remote
+  // stock photos or claims of manufacturer-certified imagery. Deterministic
+  // tiny highlights/shadows stay clipped within the exact garment silhouette.
+  let seed = 937;
+  const pseudo = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+  for (let i = 0; i < 1250; i += 1) {
+    const x = 115 + pseudo() * 385;
+    const y = 130 + pseudo() * 520;
+    const light = pseudo() > 0.56;
+    ctx.fillStyle = light ? 'rgba(245,246,249,0.035)' : 'rgba(0,0,0,0.13)';
+    ctx.fillRect(x, y, 0.65 + pseudo() * 1.3, 0.4 + pseudo() * 1.5);
+  }
+
+  // Localized diagonal fold shading and fine seam glints approximate cloth
+  // drape, rather than a flat fill (still a clearly labelled illustration).
+  const centerFold = ctx.createLinearGradient(175, 255, 418, 624);
+  centerFold.addColorStop(0, 'rgba(255,255,255,.035)');
+  centerFold.addColorStop(.34, 'rgba(0,0,0,.05)');
+  centerFold.addColorStop(.59, 'rgba(255,255,255,.045)');
+  centerFold.addColorStop(1, 'rgba(0,0,0,.16)');
+  ctx.fillStyle = centerFold;
+  ctx.fillRect(143, 220, 327, 446);
+
   const folds = [
     [174, 294, 212, 445], [426, 298, 388, 455],
     [180, 555, 222, 657], [421, 551, 387, 657],
     [131, 150, 177, 255], [466, 160, 430, 264],
   ];
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(225,225,235,.075)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 5]);
+  ctx.beginPath();
+  ctx.moveTo(190, 132); ctx.quadraticCurveTo(172, 225, 174, 318);
+  ctx.moveTo(410, 132); ctx.quadraticCurveTo(428, 221, 426, 318);
+  ctx.moveTo(183, 340); ctx.quadraticCurveTo(183, 506, 181, 635);
+  ctx.moveTo(418, 340); ctx.quadraticCurveTo(418, 508, 420, 635);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
   ctx.strokeStyle = 'rgba(228,229,238,0.04)';
   ctx.lineWidth = 4;
   folds.forEach(([ax, ay, bx, by]) => {
