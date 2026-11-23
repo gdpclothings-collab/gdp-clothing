@@ -31,6 +31,8 @@ try {
     assert.equal(await page.locator('[data-gdp-garment-first="true"]').count(), 1);
     assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
     assert.equal(await page.locator('[data-gdp-garment-image="true"]').count(), 0);
+    assert.equal(await page.locator('input[aria-label="Upload customer photos"]').isDisabled(), true,
+      'Customers must choose garment and side BEFORE uploading photos');
     assert.equal(await page.getByRole('button', { name: 'Print on Front' }).count(), 0,
       'Side buttons must appear only after choosing garment');
     await page.getByRole('button', { name: 'Choose T-shirt' }).click();
@@ -39,6 +41,7 @@ try {
     await page.getByRole('button', { name: 'Print on Front' }).click();
     await page.locator('[data-gdp-garment-choice="true"]').waitFor();
     assert.match(await page.locator('[data-gdp-garment-choice="true"]').innerText(), /T-shirt.*Front/);
+    assert.equal(await page.locator('input[aria-label="Upload customer photos"]').isEnabled(), true);
 
     // Background-removal instructions remain in collapsed optional help.
     assert.equal(await page.locator('[data-gdp-removal-help="true"]').evaluate((el) => el.open), false);
