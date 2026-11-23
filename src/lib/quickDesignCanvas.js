@@ -351,11 +351,13 @@ function drawWatermark(ctx) {
   ctx.rotate(-0.48);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '900 51px Arial, sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.32)';
-  ctx.strokeStyle = 'rgba(0,0,0,0.38)';
-  ctx.lineWidth = 3;
-  [-250, -85, 85, 250].forEach((y) => {
+  // Softer but persistent coverage keeps previews readable yet visibly
+  // watermarked. Never export this sample as the final print master.
+  ctx.font = '900 43px Arial, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.17)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 2;
+  [-255, -85, 85, 255].forEach((y) => {
     ctx.strokeText('GDP CLOTHING  •  SAMPLE', 0, y);
     ctx.fillText('GDP CLOTHING  •  SAMPLE', 0, y);
   });
