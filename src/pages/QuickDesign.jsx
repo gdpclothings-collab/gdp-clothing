@@ -66,9 +66,9 @@ export default function QuickDesign() {
   const [results, setResults] = useState([]);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState('');
-  const [mockupGallery, setMockupGallery] = useState({});
-  const [garment, setGarment] = useState('tshirt');
-  const [garmentSide, setGarmentSide] = useState('front');
+  const [garmentMockup, setGarmentMockup] = useState('');
+  const [garment, setGarment] = useState('');
+  const [garmentSide, setGarmentSide] = useState('');
   const [garmentBusy, setGarmentBusy] = useState(false);
   const [garmentError, setGarmentError] = useState('');
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '', size: 'M', quantity: 1, notes: '', website: '' });
@@ -81,9 +81,9 @@ export default function QuickDesign() {
     QUICK_DESIGN_BACKGROUNDS.find((background) => background.id === backgroundId) || QUICK_DESIGN_BACKGROUNDS[0],
   [backgroundId]);
   const selectedResult = results[0] || null;
-  const mockupKey = garment + ':' + garmentSide;
-  const selectedMockup = mockupGallery[mockupKey] || '';
-  const selectedGarment = QUICK_DESIGN_GARMENTS.find((item) => item.id === garment) || QUICK_DESIGN_GARMENTS[0];
+  const selectedMockup = garmentMockup;
+  const selectedGarment = QUICK_DESIGN_GARMENTS.find((item) => item.id === garment);
+  const placementChosen = Boolean(selectedGarment && QUICK_DESIGN_SIDES.some((item) => item.id === garmentSide));
   const selectedPremium = PREMIUM_TEXT_STYLES.find((item) => item.id === premiumStyle);
   const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'checking' || item.bgStatus === 'working');
 
@@ -153,7 +153,7 @@ export default function QuickDesign() {
   }, [photos, autoCutout, cutoutBusy, cutoutUnavailable]);
 
   useEffect(() => {
-    if (!photos.length || !selectedBackground) {
+    if (!placementChosen || !photos.length || !selectedBackground) {
       setResults([]);
       setPreviewBusy(false);
       setPreviewError('');
@@ -182,37 +182,32 @@ export default function QuickDesign() {
       }
     }).finally(() => { if (!cancelled) setPreviewBusy(false); });
     return () => { cancelled = true; };
-  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle]);
+  }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle, placementChosen]);
 
-  // Six distinct garment/side choices use the SAME transparent STORM-style
-  // artwork. The customer chooses ONE garment and ONE print side; switching
-  // views never creates a two-sided order.
+  // Only ONE selected garment and ONE print side are previewed at a time.
+  // A customer must explicitly select both before previewing; switching a
+  // garment clears the prior side so no second side can be implied.
   useEffect(() => {
-    if (!selectedResult?.artwork || previewBusy) {
-      setMockupGallery({});
+    if (!placementChosen || !selectedResult?.artwork || previewBusy) {
+      setGarmentMockup('');
       setGarmentBusy(false);
       return undefined;
     }
     let cancelled = false;
     setGarmentBusy(true);
     setGarmentError('');
-    setMockupGallery({});
-    const all = QUICK_DESIGN_GARMENTS.flatMap((item) =>
-      QUICK_DESIGN_SIDES.map((side) => ({ garment: item.id, side: side.id })));
-    Promise.all(all.map(async (item) => {
-      const canvas = await renderQuickDesignGarmentMockup({
-        artworkSource: selectedResult.artwork, garment: item.garment, side: item.side,
-      });
-      return [item.garment + ':' + item.side, canvas.toDataURL('image/jpeg', 0.89)];
-    })).then((entries) => {
-      if (!cancelled) setMockupGallery(Object.fromEntries(entries));
+    setGarmentMockup('');
+    renderQuickDesignGarmentMockup({
+      artworkSource: selectedResult.artwork, garment, side: garmentSide,
+    }).then((canvas) => {
+      if (!cancelled) setGarmentMockup(canvas.toDataURL('image/jpeg', 0.89));
     }).catch((error) => {
-      if (!cancelled) setGarmentError(error?.message || 'Could not render garment previews.');
+      if (!cancelled) setGarmentError(error?.message || 'Could not render your selected garment.');
     }).finally(() => {
       if (!cancelled) setGarmentBusy(false);
     });
     return () => { cancelled = true; };
-  }, [selectedResult?.artwork, previewBusy]);
+  }, [selectedResult?.artwork, garment, garmentSide, placementChosen, previewBusy]);
 
   const addPhotos = (event) => {
     const incoming = Array.from(event.target.files || []);
@@ -261,9 +256,9 @@ export default function QuickDesign() {
     setCurve('up');
     setFontSizePercent(100);
     setPremiumStyle('gold-chrome');
-    setGarment('tshirt');
-    setGarmentSide('front');
-    setMockupGallery({});
+    setGarment('');
+    setGarmentSide('');
+    setGarmentMockup('');
     setCutoutError('');
     setCutoutUnavailable(false);
     setConnectionStatus(null);
@@ -298,7 +293,7 @@ export default function QuickDesign() {
     if (isCloudflareBranchPreview) { setSendError('This is the development preview. Sending customer requests is disabled here. No details were submitted.'); return; }
     setSendError('');
     setSubmitted(null);
-    if (!selectedResult || !selectedMockup || previewBusy || garmentBusy || !photos.length) {
+    if (!placementChosen || !selectedResult || !selectedMockup || previewBusy || garmentBusy || !photos.length) {
       setSendError('Finish your design and choose a garment first.');
       return;
     }
@@ -394,8 +389,36 @@ export default function QuickDesign() {
 
     <div className="mx-auto grid min-w-0 max-w-6xl grid-cols-[minmax(0,1fr)] gap-7 px-4 py-9 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
       <div className="min-w-0 space-y-7">
+        <section className="min-w-0 rounded-2xl border border-lime-300/25 bg-white/5 p-5" data-gdp-garment-first="true">
+          <SmallHeading number="1">Choose your garment</SmallHeading>
+          <p className="mb-3 text-xs text-white/65">Choose the clothing first, then where the design will be printed.</p>
+          <div role="group" aria-label="Choose garment type" className="grid grid-cols-3 gap-2">
+            {QUICK_DESIGN_GARMENTS.map((item) =>
+              <button key={item.id} type="button" aria-label={'Choose ' + item.label} aria-pressed={garment === item.id}
+                onClick={() => { setGarment(item.id); setGarmentSide(''); setSubmitted(null); }}
+                className={'min-h-14 min-w-0 rounded-xl border-2 px-1 py-2 text-center text-xs font-extrabold transition sm:text-sm ' + (garment === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/50')}>
+                <span className="block">{item.label}</span>
+              </button>
+            )}
+          </div>
+          {garment ? <>
+            <p className="mb-2 mt-4 text-xs font-bold text-white/75">Which side do you want printed?</p>
+            <div role="group" aria-label="Choose print side" className="grid grid-cols-2 gap-2">
+              {QUICK_DESIGN_SIDES.map((item) =>
+                <button key={item.id} type="button" aria-label={'Print on ' + item.label} aria-pressed={garmentSide === item.id}
+                  onClick={() => { setGarmentSide(item.id); setSubmitted(null); }}
+                  className={'min-h-12 rounded-xl border-2 px-3 py-2 text-sm font-extrabold transition ' + (garmentSide === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 hover:border-white/40')}>
+                  {item.label}
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-white/55">Select one side only. Front and Back are separate printing options.</p>
+          </> : <p className="mt-3 text-xs text-white/55">Select a garment to choose Front or Back.</p>}
+          {placementChosen && <p role="status" data-gdp-garment-choice="true" className="mt-3 flex items-center gap-2 text-sm font-semibold text-lime-200"><CheckCircle2 size={16}/> {selectedGarment.label} · {garmentSide === 'front' ? 'Front' : 'Back'} printing selected</p>}
+        </section>
+
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
-          <SmallHeading number="1">Upload photos</SmallHeading>
+          <SmallHeading number="2">Upload photos</SmallHeading>
           <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-4 text-center hover:border-lime-300">
             <ImagePlus size={25} className="text-lime-300" />
             <span className="font-bold">Add 1–5 photos</span>
@@ -436,7 +459,7 @@ export default function QuickDesign() {
         </section>
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
-          <SmallHeading number="2">Choose a GDP background</SmallHeading>
+          <SmallHeading number="3">Choose a GDP background</SmallHeading>
           <p className="mb-3 text-xs text-white/60">Choose an original GDP background. Phase C keeps its effects behind your pets and toward the bottom, with your name above.</p>
           <div className="grid min-w-0 grid-cols-4 gap-2 sm:grid-cols-4">
             {QUICK_DESIGN_BACKGROUNDS.map((background) =>
@@ -451,7 +474,7 @@ export default function QuickDesign() {
         </section>
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
-          <SmallHeading number="3">Personalize the text</SmallHeading>
+          <SmallHeading number="4">Personalize the text</SmallHeading>
           <div className="grid gap-4">
             <Field title="Main name or heading"><input className={INPUT} maxLength={36} value={headline} onChange={(e) => { setHeadline(e.target.value); setSubmitted(null); }} placeholder="e.g. HENRY" /></Field>
             <Field title="Subtitle (optional)"><input className={INPUT} maxLength={36} value={subline} onChange={(e) => { setSubline(e.target.value); setSubmitted(null); }} placeholder="Leave blank to show no subtitle" /></Field>
@@ -492,60 +515,34 @@ export default function QuickDesign() {
 
       <div className="min-w-0 space-y-7">
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5" data-gdp-garment-preview="true">
-          <SmallHeading number="4">Preview on a garment</SmallHeading>
-          <p className="mb-4 text-xs leading-5 text-white/65">One STORM-inspired design: name above, your pets centered, selected GDP storm/flame artwork at the bottom. View all six black garment options.</p>
-          {!photos.length ? <div className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">Upload at least one photo to preview your design on a T-shirt, sweatshirt or hoodie.</div> :
-          previewBusy || garmentBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Generating garment previews on your device…</div> :
+          <SmallHeading number="5">Your garment preview</SmallHeading>
+          <p className="mb-4 text-xs leading-5 text-white/65">One STORM-inspired design on your chosen black garment and print side. Your name stays above the pets; the GDP storm/flame background sits mainly below.</p>
+          {!placementChosen ? <div role="status" data-gdp-preview-gated="true" className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">First choose your garment and Front or Back in Step 1.</div> :
+          !photos.length ? <div role="status" data-gdp-preview-gated="true" className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">Add a photo in Step 2 to see your selected mockup.</div> :
+          previewBusy || garmentBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Creating your selected mockup…</div> :
           previewError || garmentError ? <p role="alert" className="rounded-xl bg-red-950/50 p-4 text-sm text-red-200">{previewError || garmentError}</p> :
           selectedMockup ? <>
-            <div role="group" aria-label="Choose garment type" className="grid grid-cols-3 gap-2">
-              {QUICK_DESIGN_GARMENTS.map((item) =>
-                <button key={item.id} type="button" aria-label={'Preview ' + item.label} aria-pressed={garment === item.id} onClick={() => { setGarment(item.id); setSubmitted(null); }}
-                  className={'min-h-12 rounded-xl border-2 px-1 py-2 text-center text-xs font-extrabold transition sm:text-sm ' + (garment === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/50')}>
-                  {item.label}
-                </button>
-              )}
+            <p data-gdp-preview-label="true" className="mb-3 text-sm font-bold text-lime-200">{selectedGarment.label} · {garmentSide === 'front' ? 'Front' : 'Back'} print</p>
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-[#16171b]">
+              <img data-gdp-garment-image="true" src={selectedMockup}
+                alt={'Black ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto max-h-[560px] w-full object-contain" />
             </div>
-            <div role="group" aria-label="Choose print side" className="mt-3 grid grid-cols-2 gap-2">
-              {QUICK_DESIGN_SIDES.map((item) =>
-                <button key={item.id} type="button" aria-label={'Show ' + item.label + ' view'} aria-pressed={garmentSide === item.id}
-                  onClick={() => { setGarmentSide(item.id); setSubmitted(null); }}
-                  className={'min-h-11 rounded-xl border-2 px-3 py-2 text-sm font-extrabold transition ' + (garmentSide === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/40')}>
-                  {item.label}
-                </button>
-              )}
-            </div>
-            <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#16171b]">
-              <img data-gdp-garment-image="true" src={selectedMockup} alt={'Black ' + selectedGarment.label + ' ' + garmentSide + ' mockup with the custom STORM-style artwork'} className="mx-auto max-h-[560px] w-full object-contain" />
-            </div>
-            <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-white/65">Six preview options</p>
-            <div data-gdp-mockup-gallery="true" className="grid grid-cols-3 gap-2">
-              {QUICK_DESIGN_GARMENTS.flatMap((item) => QUICK_DESIGN_SIDES.map((side) => {
-                const key = item.id + ':' + side.id;
-                return <button key={key} type="button" aria-label={'View ' + item.label + ' ' + side.label} aria-pressed={mockupKey === key}
-                  onClick={() => { setGarment(item.id); setGarmentSide(side.id); setSubmitted(null); }}
-                  className={'min-w-0 overflow-hidden rounded-xl border-2 text-center transition ' + (mockupKey === key ? 'border-lime-300 bg-lime-300/10' : 'border-white/15 bg-black/20 hover:border-white/40')}>
-                  <img src={mockupGallery[key]} loading="lazy" alt={'Black ' + item.label + ' ' + side.label + ' preview'} className="aspect-[5/6] w-full object-cover" />
-                  <span className="block truncate px-1 py-2 text-[10px] font-bold sm:text-xs">{item.label}<span className="block text-white/60">{side.label}</span></span>
-                </button>;
-              }))}
-            </div>
-            <p className="mt-4 text-xs leading-5 text-white/55">Preview only • selected print side: <strong>{garmentSide}</strong>. Front and back are alternatives; both are not included. These are studio-rendered black garment illustrations, not certified manufacturer photos. GDP verifies final production size and source resolution.</p>
+            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. Studio-rendered illustration, not a manufacturer-certified photo. Actual print size and placement require GDP approval.</p>
             <p className="mt-2 text-xs leading-5 text-white/55">{MAX_PREVIEW_NOTICE}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
               <button type="button" onClick={shareFiles} className={BTN + ' border border-white/20 hover:bg-white/10'}><Share2 size={16}/> Share mockup + photos</button>
             </div>
-          </> : <p className="rounded-xl bg-black/20 p-6 text-center text-sm text-white/60">Choose a garment to preview your design.</p>}
+          </> : <p className="rounded-xl bg-black/20 p-6 text-center text-sm text-white/60">Your selected garment preview will appear here.</p>}
         </section>
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <SmallHeading number="5">Request this design</SmallHeading>
+            <SmallHeading number="6">Request this design</SmallHeading>
             <button type="button" data-gdp-help-trigger="request" aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" onClick={() => setHelpOpen(true)} className={BTN + ' border border-white/25 bg-white/5 text-white hover:bg-white/10'}><HelpCircle size={17}/> Need design help?</button>
           </div>
-          {isCloudflareBranchPreview && <p role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-200/10 p-3 text-sm text-amber-100">Development preview: request submissions are disabled to protect live customer data. You can test all six mockups and save preview images safely.</p>}
-          <p className="mb-5 text-sm leading-6 text-white/65">Choose a garment and one print side, then share your design choices. This is a request, not a purchase or payment.</p>
+          {isCloudflareBranchPreview && <p role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-200/10 p-3 text-sm text-amber-100">Development preview: request submissions are disabled to protect live customer data. You can test your selected garment mockup and save the preview image safely.</p>}
+          <p className="mb-5 text-sm leading-6 text-white/65">Your garment and side were selected in Step 1. This is a design request, not a purchase or payment.</p>
           {submitted ? <div role="status" className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5">
             <CheckCircle2 className="text-emerald-300" size={26} />
             <h3 className="mt-2 text-xl font-black">Your design request was received.</h3>
@@ -570,7 +567,7 @@ export default function QuickDesign() {
             </label>
             <div className="hidden" aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={customer.website} onChange={(e) => updateCustomer('website', e.target.value)}/></label></div>
             {sendError && <p role="alert" className="rounded-lg bg-red-950/60 p-3 text-sm text-red-200">{sendError}</p>}
-            <button type="submit" disabled={isCloudflareBranchPreview || !selectedMockup || previewBusy || garmentBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
+            <button type="submit" disabled={isCloudflareBranchPreview || !placementChosen || !selectedMockup || previewBusy || garmentBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
               {sending ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
               {sending ? 'Sending your request…' : (isCloudflareBranchPreview ? 'Request submission disabled in preview' : 'Submit design request')}
               {!sending && <ArrowRight size={18}/>}
@@ -591,7 +588,7 @@ export default function QuickDesign() {
       photoCount: photos.length,
       fontSizePercent,
       premiumStyle: selectedPremium?.label || 'Solid color',
-      garment: selectedGarment.label,
+      garment: selectedGarment?.label || '(not chosen)',
       garmentSide,
     }} />}
   </div>;
