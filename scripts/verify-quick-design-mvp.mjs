@@ -8,7 +8,7 @@ import {
   validateQuickDesignFile,
   quickDesignLayoutCount,
 } from '../src/lib/quickDesignCanvas.js';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
@@ -40,6 +40,8 @@ for (let count = 1; count <= 5; count += 1) {
 assert.equal(getQuickDesignPhaseCLayout(1)[0].role, 'hero');
 assert.deepEqual(QUICK_DESIGN_GARMENTS.map((item) => item.id), ['tshirt', 'sweatshirt', 'hoodie']);
 assert.deepEqual(QUICK_DESIGN_SIDES.map((item) => item.id), ['front', 'back']);
+assert.deepEqual(QUICK_DESIGN_COLORS.map((item) => item.id), ['black', 'white']);
+assert.deepEqual(QUICK_DESIGN_COLORS.map((item) => item.label), ['Black', 'White']);
 assert.ok(QUICK_DESIGN_BACKGROUNDS.length >= 5, 'Must reuse real GDP bootleg backgrounds');
 for (const template of QUICK_DESIGN_BACKGROUNDS) {
   assert.equal(template.category, 'photo_bootleg');
@@ -73,10 +75,27 @@ assert.match(canvas, /premiumStyle = 'gold-chrome'/);
 const mockupCode = readFileSync('src/lib/quickDesignGarmentMockup.js', 'utf8');
 assert.match(mockupCode, /selectedGarment === 'hoodie'/);
 assert.match(mockupCode, /selectedSide = side === 'back'/);
-assert.match(mockupCode, /not an assertion about Gildan product/);
+assert.match(mockupCode, /not certified/);
+assert.match(mockupCode, /selectedColor = QUICK_DESIGN_COLORS/);
+assert.match(mockupCode, /color === 'white'/);
+assert.match(mockupCode, /fillGarment\(ctx, outline, selectedColor\)/);
+assert.match(mockupCode, /drawHood\(ctx, selectedSide, selectedColor\)/);
+assert.match(mockupCode, /drawArtwork\(ctx, artwork, selectedGarment, selectedSide, selectedColor\)/);
+assert.match(mockupCode, /selectedColor\.toUpperCase\(\)/);
 assert.match(page, /Your garment preview/);
 assert.match(page, /data-gdp-garment-first="true"/, 'Garment selection must be first');
 assert.ok(page.indexOf('data-gdp-garment-first="true"') < page.indexOf('number="2">Upload photos'), 'Garment choice precedes photo upload');
+assert.match(page, /data-gdp-color-selector="true"/, 'Color choices must be visible after garment selection');
+assert.match(page, /QUICK_DESIGN_COLORS\.map/, 'Both black and white selectors must render');
+assert.ok(page.indexOf('data-gdp-color-selector="true"') < page.indexOf('aria-label="Choose print side"'), 'Garment → Color → Front/Back order must be preserved');
+assert.match(page, /setGarmentColor\(''\)/, 'Changing garment resets color');
+assert.match(page, /setGarmentSide\(''\)/, 'Changing color resets print side');
+assert.match(page, /selectedColor && QUICK_DESIGN_SIDES/, 'All 3 choices must gate photo upload and mockup');
+assert.match(page, /disabled=\{!placementChosen\}/, 'Uploading is blocked until all three choices are made');
+assert.match(page, /color: garmentColor/, 'Color must reach the garment painter');
+assert.match(page, /garmentColor \+ '-' \+ garment \+ '-' \+ garmentSide/, 'Downloaded and shared mockup filename must include color');
+assert.match(page, /'Requested garment color: '/, 'Customer request must record garment color');
+assert.match(page, /garmentType: selectedColor\.label/, 'Lead submission must include garment color');
 assert.match(page, /data-gdp-preview-gated="true"/, 'Mockup must require explicit garment and side');
 assert.match(page, /data-gdp-garment-image="true"/);
 assert.match(page, /setGarmentSide\(''\)/, 'Switching garment resets side');
@@ -114,6 +133,8 @@ assert.match(help, /https:\/\/gdpclothing\.ca\/pages\/contact/);
 assert.match(help, /Copy design details/);
 assert.match(help, /If you enable remove\.bg, Quick Design first checks/);
 assert.match(help, /Step 1: choose a T-shirt/);
+assert.match(help, /then choose Black or White/);
+assert.match(help, /'Garment colour: ' \+ \(details\?\.garmentColor/);
 assert.doesNotMatch(help, /Phase B Samples A|Sample A or B/);
 assert.match(fontStyles, /fonts\.googleapis\.com/);
 assert.match(fontStyles, /Anton.*Bangers.*Bebas\+Neue.*Graduate.*Rye/);
@@ -165,5 +186,5 @@ const headers = readFileSync('public/_headers', 'utf8');
 assert.match(headers, /Content-Security-Policy:/);
 assert.doesNotMatch(headers, /https:\/\/cdn\.jsdelivr\.net|huggingface\.co|wasm-unsafe-eval/, 'No device-model CDN or WASM CSP exceptions should remain');
 assert.doesNotMatch(headers, /\/quick-design\n  Content-Security-Policy:/, 'Quick Design must inherit the standard strict CSP');
-console.log('PASS – Phase C single STORM-style transparent artwork, six mockups, one print side, and guarded remove.bg opt-in');
+console.log('PASS – Phase C black/white garment-first color-second side-third mockups, single-side request, guarded remove.bg');
 
