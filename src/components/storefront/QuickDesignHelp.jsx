@@ -4,7 +4,7 @@ import { BookOpen, Check, ClipboardCopy, ExternalLink, HelpCircle, Mail, X } fro
 const HELP_TOPICS = [
   {
     title: 'How do I preview my design on a garment?',
-    answer: 'Step 1: choose a T-shirt, Sweatshirt or Hoodie, then explicitly choose Front or Back printing. Step 2: upload up to five photos. Choose a GDP storm/flame background and customize the name. Only your selected black garment and side are shown in the preview. Switching garments requires choosing a print side again.',
+    answer: 'Step 1: choose a T-shirt, Sweatshirt or Hoodie, then choose Black or White, then explicitly choose Front or Back printing. Step 2: upload up to five photos. Select a GDP storm/flame background and personalize the name. Only your chosen garment, colour and print side appear in the mockup. Changing the garment resets colour and side; changing colour resets side.',
   },
   {
     title: 'My background removal is slow or looks wrong',
@@ -20,11 +20,11 @@ const HELP_TOPICS = [
   },
   {
     title: 'Are front and back both included?',
-    answer: 'No. Each mockup is an alternative. Only the garment and one selected side are included in a design request. The black garment images are studio-rendered illustrations rather than manufacturer-certified photos.',
+    answer: 'No. Each mockup is an alternative. Only the garment and one selected side are included in a design request. The Black and White garment images are studio-rendered illustrations, not manufacturer-certified photos.',
   },
   {
     title: 'What if I need help finishing or ordering?',
-    answer: 'Choose a black garment and print side, save or share the mockup, and use the contact link below. Include your name, selected style and original photos when GDP asks for them. The development preview does not upload photos, place an order, or charge your card.',
+    answer: 'Choose your garment, Black or White colour, and print side, then save or share the mockup using the contact link below. Include your name, selected style and original photos when GDP asks for them. The development preview does not upload photos, place an order, or charge your card.',
   },
 ];
 
@@ -80,8 +80,9 @@ export default function QuickDesignHelp({ onClose, details }) {
       'Premium finish: ' + (details?.premiumStyle || 'Solid color'),
       'Name layout: ' + (details?.curve || 'straight'),
       'Photos selected: ' + (details?.photoCount || 0),
-      'Garment: ' + (details?.garment || 'T-shirt'),
-      'Side to print: ' + (details?.garmentSide || 'front'),
+      'Garment: ' + (details?.garment || '(not chosen)'),
+      'Garment colour: ' + (details?.garmentColor || '(not chosen)'),
+      'Side to print: ' + (details?.garmentSide || '(not chosen)'),
       'Artwork preview: 12 x 16 inches',
       'Note: Original photos and previews are NOT included in this text.',
     ].join('\n');
