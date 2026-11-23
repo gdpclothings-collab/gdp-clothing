@@ -31,7 +31,7 @@ The arrangement uses deliberate overlap in the lower body/paws to avoid isolated
 
 On a sweatshirt selection, the app loads the correct local SVG `#black` / `#white` variant, composes it with gentle local texture/shadow treatment, and overlays the same selected artwork at a conservative centered print position. If a local asset fails to load, it falls back to the current on-device renderer.
 
-**T-shirt and hoodie:** The repository does not currently include matching approved front/back Black/White standalone garment photos or templates for these types. Their already existing high-density `1200 × 1440` canvas models remain, with Phase E micro-weave, creases, stitching, and shadowing. No incorrect sweatshirt photo has been passed off as a T-shirt/hoodie image.
+**T-shirt and hoodie:** The repository does not currently include matching approved front/back Black/White standalone garment photos or templates for these types. Their high-density `1200 × 1440` canvas models now add fabric-specific jersey/fleece yarn strokes, soft torso lights and shadowed side folds on top of the previous seam/crease renderer. No sweatshirt photo has been misrepresented as a T-shirt or hoodie image.
 
 All are **illustrative display previews** (not verified manufacturer photographs, print-area guarantees, or 300-DPI production files).
 
