@@ -491,69 +491,67 @@ export default function QuickDesign() {
       </div>
 
       <div className="min-w-0 space-y-7">
-        <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
-          <SmallHeading number="4">Compare your two samples</SmallHeading>
-          <p className="mb-2 text-xs text-white/55">12″ × 16″ portrait layout; the print target would be 3600 × 4800 px at 300 DPI after source-quality checks.</p>
-          <p className="mb-4 text-sm text-white/65">Phase B: Sample A builds a balanced, overlapping hero portrait; Sample B creates a dramatic multi-layer stack. Transparent PNG cutouts get glowing pink-and-white subject outlines. The selected GDP background remains the original image.</p>
-          {!photos.length ? <div className="rounded-xl border border-dashed border-white/20 bg-black/20 p-12 text-center text-white/60">Upload at least one photo to create Samples A and B instantly.</div> :
-          previewBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Creating both previews on your device…</div> :
-          previewError ? <p role="alert" className="rounded-xl bg-red-950/50 p-4 text-sm text-red-200">{previewError}</p> :
-          <div className="grid grid-cols-2 gap-3">{results.map((item) =>
-            <button key={item.variant} data-gdp-sample-option={item.variant} aria-label={"Choose Sample " + item.variant} type="button" onClick={() => { setSelected(item.variant); setSubmitted(null); }} aria-pressed={selected === item.variant}
-              className={'overflow-hidden rounded-xl border-2 text-left transition ' + (selected === item.variant ? 'border-lime-300 bg-lime-300/10' : 'border-white/15 hover:border-white/50')}>
-              <img src={item.artwork} alt={'Watermarked sample ' + item.variant + ' artwork'} className="aspect-[297/420] w-full object-contain" />
-              <span className="flex items-center justify-between p-3 text-sm font-black"><span>Sample {item.variant}<small className="mt-0.5 block text-[10px] font-medium text-white/60">{QUICK_DESIGN_PHASE_B_NAMES[item.variant]}</small></span> {selected === item.variant ? <CheckCircle2 size={18} className="text-lime-300" /> : null}</span>
-            </button>)}</div>}
-          <p className="mt-4 text-xs leading-5 text-white/60">{MAX_PREVIEW_NOTICE}</p>
-          {selectedResult && !previewBusy && <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={() => downloadSample(selectedResult.artwork, 'GDP-Quick-Design-Sample-' + selected + '.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save Sample {selected}</button>
-            <button type="button" onClick={shareFiles} className={BTN + ' border border-white/20 hover:bg-white/10'}><Share2 size={16}/> Share sample + photos</button>
-          </div>}
+        <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5" data-gdp-garment-preview="true">
+          <SmallHeading number="4">Preview on a garment</SmallHeading>
+          <p className="mb-4 text-xs leading-5 text-white/65">One STORM-inspired design: name above, your pets centered, selected GDP storm/flame artwork at the bottom. View all six black garment options.</p>
+          {!photos.length ? <div className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">Upload at least one photo to preview your design on a T-shirt, sweatshirt or hoodie.</div> :
+          previewBusy || garmentBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Generating garment previews on your device…</div> :
+          previewError || garmentError ? <p role="alert" className="rounded-xl bg-red-950/50 p-4 text-sm text-red-200">{previewError || garmentError}</p> :
+          selectedMockup ? <>
+            <div role="group" aria-label="Choose garment type" className="grid grid-cols-3 gap-2">
+              {QUICK_DESIGN_GARMENTS.map((item) =>
+                <button key={item.id} type="button" aria-label={'Preview ' + item.label} aria-pressed={garment === item.id} onClick={() => { setGarment(item.id); setSubmitted(null); }}
+                  className={'min-h-12 rounded-xl border-2 px-1 py-2 text-center text-xs font-extrabold transition sm:text-sm ' + (garment === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/50')}>
+                  {item.label}
+                </button>
+              )}
+            </div>
+            <div role="group" aria-label="Choose print side" className="mt-3 grid grid-cols-2 gap-2">
+              {QUICK_DESIGN_SIDES.map((item) =>
+                <button key={item.id} type="button" aria-label={'Show ' + item.label + ' view'} aria-pressed={garmentSide === item.id}
+                  onClick={() => { setGarmentSide(item.id); setSubmitted(null); }}
+                  className={'min-h-11 rounded-xl border-2 px-3 py-2 text-sm font-extrabold transition ' + (garmentSide === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/40')}>
+                  {item.label}
+                </button>
+              )}
+            </div>
+            <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#16171b]">
+              <img data-gdp-garment-image="true" src={selectedMockup} alt={'Black ' + selectedGarment.label + ' ' + garmentSide + ' mockup with the custom STORM-style artwork'} className="mx-auto max-h-[560px] w-full object-contain" />
+            </div>
+            <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-white/65">Six preview options</p>
+            <div data-gdp-mockup-gallery="true" className="grid grid-cols-3 gap-2">
+              {QUICK_DESIGN_GARMENTS.flatMap((item) => QUICK_DESIGN_SIDES.map((side) => {
+                const key = item.id + ':' + side.id;
+                return <button key={key} type="button" aria-label={'View ' + item.label + ' ' + side.label} aria-pressed={mockupKey === key}
+                  onClick={() => { setGarment(item.id); setGarmentSide(side.id); setSubmitted(null); }}
+                  className={'min-w-0 overflow-hidden rounded-xl border-2 text-center transition ' + (mockupKey === key ? 'border-lime-300 bg-lime-300/10' : 'border-white/15 bg-black/20 hover:border-white/40')}>
+                  <img src={mockupGallery[key]} loading="lazy" alt={'Black ' + item.label + ' ' + side.label + ' preview'} className="aspect-[5/6] w-full object-cover" />
+                  <span className="block truncate px-1 py-2 text-[10px] font-bold sm:text-xs">{item.label}<span className="block text-white/60">{side.label}</span></span>
+                </button>;
+              }))}
+            </div>
+            <p className="mt-4 text-xs leading-5 text-white/55">Preview only • selected print side: <strong>{garmentSide}</strong>. Front and back are alternatives; both are not included. These are studio-rendered black garment illustrations, not certified manufacturer photos. GDP verifies final production size and source resolution.</p>
+            <p className="mt-2 text-xs leading-5 text-white/55">{MAX_PREVIEW_NOTICE}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
+              <button type="button" onClick={shareFiles} className={BTN + ' border border-white/20 hover:bg-white/10'}><Share2 size={16}/> Share mockup + photos</button>
+            </div>
+          </> : <p className="rounded-xl bg-black/20 p-6 text-center text-sm text-white/60">Choose a garment to preview your design.</p>}
         </section>
-
-        {selectedResult && !previewBusy && <section className="rounded-2xl border border-white/15 bg-white/5 p-5" data-gdp-garment-preview="true">
-          <h2 className="mb-2 text-lg font-black">Preview your garment • Sample {selected}</h2>
-          <p className="mb-4 text-sm leading-6 text-white/65">Choose a garment and the side where you would like your selected artwork printed.</p>
-          <div role="group" aria-label="Choose garment type" className="grid grid-cols-3 gap-2">
-            {QUICK_DESIGN_GARMENTS.map((item) =>
-              <button key={item.id} type="button" aria-label={'Preview ' + item.label} aria-pressed={garment === item.id} onClick={() => { setGarment(item.id); setSubmitted(null); }}
-                className={'min-h-16 rounded-xl border-2 p-2 text-center transition ' + (garment === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 text-white/75 hover:border-white/50')}>
-                <span className="block text-xs font-extrabold sm:text-sm">{item.label}</span>
-                <span className="mt-1 block text-[10px] text-white/55">{item.description}</span>
-              </button>
-            )}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Choose print side">
-            {QUICK_DESIGN_SIDES.map((item) =>
-              <button key={item.id} type="button" aria-label={'Show ' + item.label + ' view'} aria-pressed={garmentSide === item.id}
-                onClick={() => { setGarmentSide(item.id); setSubmitted(null); }}
-                className={'min-h-11 rounded-xl border-2 px-4 py-2 text-sm font-extrabold transition ' + (garmentSide === item.id ? 'border-lime-300 bg-lime-300/10 text-lime-100' : 'border-white/15 bg-black/20 hover:border-white/40')}>
-                {item.label}
-              </button>
-            )}
-          </div>
-          <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#16171b]">
-            {garmentBusy ? <div role="status" className="flex min-h-64 items-center justify-center gap-2 text-sm text-white/65"><Loader2 size={18} className="animate-spin"/> Updating garment preview…</div> :
-            garmentError ? <p role="alert" className="p-5 text-sm text-amber-200">{garmentError}</p> :
-            garmentMockup ? <img data-gdp-garment-image="true" src={garmentMockup} alt={'Sample ' + selected + ' on illustrative black ' + selectedGarment.label + ' ' + garmentSide + ' view'} className="mx-auto max-h-[520px] w-full object-contain" /> :
-            <p className="p-6 text-center text-sm text-white/60">Select a garment to view your design.</p>}
-          </div>
-          <p className="mt-3 text-xs leading-5 text-white/55">Illustrative black {selectedGarment.label.toLowerCase()} • {garmentSide} only. This view does not add two-sided printing. Not a verified Gildan product photo. Actual print size and placement depend on the garment and require GDP's production check.</p>
-        </section>}
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <SmallHeading number="5">Request this design</SmallHeading>
             <button type="button" data-gdp-help-trigger="request" aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" onClick={() => setHelpOpen(true)} className={BTN + ' border border-white/25 bg-white/5 text-white hover:bg-white/10'}><HelpCircle size={17}/> Need design help?</button>
           </div>
-          {isCloudflareBranchPreview && <p role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-200/10 p-3 text-sm text-amber-100">Development preview: request submissions are disabled to protect live customer data. You can test the design controls and sample downloads safely.</p>}
-          <p className="mb-5 text-sm leading-6 text-white/65">Choose your preferred sample, then send GDP your contact details and design choices. This is a request, not a purchase or payment.</p>
+          {isCloudflareBranchPreview && <p role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-200/10 p-3 text-sm text-amber-100">Development preview: request submissions are disabled to protect live customer data. You can test all six mockups and save preview images safely.</p>}
+          <p className="mb-5 text-sm leading-6 text-white/65">Choose a garment and one print side, then share your design choices. This is a request, not a purchase or payment.</p>
           {submitted ? <div role="status" className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5">
             <CheckCircle2 className="text-emerald-300" size={26} />
             <h3 className="mt-2 text-xl font-black">Your design request was received.</h3>
-            <p className="mt-2 text-sm leading-6 text-white/75">GDP received your contact details and Sample {selected} selection. <strong>Your photos and preview image have not been uploaded.</strong> Save/share the sample with its original photos when GDP contacts you, so production can proceed.</p>
+            <p className="mt-2 text-sm leading-6 text-white/75">GDP received your contact details and selected {selectedGarment.label} {garmentSide} mockup. <strong>Your photos and preview image have not been uploaded.</strong> Save/share the sample with its original photos when GDP contacts you, so production can proceed.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => downloadSample(selectedResult.artwork, 'GDP-Quick-Design-Sample-' + selected + '.jpg')} className={BTN + ' bg-lime-300 text-black'}><Download size={16}/> Save selected sample</button>
+              <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-lime-300 text-black'}><Download size={16}/> Save selected mockup</button>
               <button type="button" onClick={shareFiles} className={BTN + ' border border-white/20'}><Share2 size={16}/> Share original files</button>
             </div>
           </div> :
@@ -574,7 +572,7 @@ export default function QuickDesign() {
             {sendError && <p role="alert" className="rounded-lg bg-red-950/60 p-3 text-sm text-red-200">{sendError}</p>}
             <button type="submit" disabled={isCloudflareBranchPreview || !selectedResult || previewBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
               {sending ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
-              {sending ? 'Sending your request…' : (isCloudflareBranchPreview ? 'Request submission disabled in preview' : 'Submit Sample ' + selected + ' request')}
+              {sending ? 'Sending your request…' : (isCloudflareBranchPreview ? 'Request submission disabled in preview' : 'Submit design request')}
               {!sending && <ArrowRight size={18}/>}
             </button>
             <p className="text-xs leading-5 text-white/55">This sends contact info and design selections through GDP's existing request system. Images remain on your device; GDP will request the original photo files. No payment or automatic order is created.</p>
@@ -586,7 +584,7 @@ export default function QuickDesign() {
     {helpOpen && <QuickDesignHelp onClose={closeHelp} details={{
       headline,
       subline,
-      selected,
+      printSide: garmentSide,
       background: selectedBackground?.name || '',
       font: QUICK_DESIGN_FONTS.find((font) => font.id === fontId)?.label || 'Street Impact',
       curve,
