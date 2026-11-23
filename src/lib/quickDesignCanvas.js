@@ -55,9 +55,27 @@ function drawContain(ctx, img, x, y, w, h) {
   ctx.drawImage(img, x + (w - sw * ratio) / 2, y + (h - sh * ratio) / 2, sw * ratio, sh * ratio);
 }
 
-// Subject-first Phase B painter. An actual transparent cutout keeps its exact
-// alpha silhouette (hair, ears, fur). An opaque photo gets only a soft feather:
-// it is never falsely described as a removed background.
+/**
+ * Fit a complete source photograph into its allotted subject slot without
+ * cropping. For true transparent cutouts, first trim empty alpha padding.
+ * This prevents clipped faces from cover-style scaling on tall/wide photos.
+ * Face recognition is not implied: review is still necessary.
+ */
+export function getQuickDesignSubjectFit(sourceWidth, sourceHeight, targetWidth, targetHeight, bounds = null) {
+  const sourceW = Math.max(1, Number(sourceWidth) || 1);
+  const sourceH = Math.max(1, Number(sourceHeight) || 1);
+  const width = Math.max(1, Number(targetWidth) || 1);
+  const height = Math.max(1, Number(targetHeight) || 1);
+  const crop = bounds || { x: 0, y: 0, w: sourceW, h: sourceH };
+  const scale = Math.min(width * .98 / Math.max(1, crop.w), height * .98 / Math.max(1, crop.h));
+  const imageW = crop.w * scale;
+  const imageH = crop.h * scale;
+  return { crop, imageW, imageH, x: (width - imageW) / 2, y: (height - imageH) / 2 };
+}
+
+// Subject-first Phase E painter. Both opaque photos and transparent cutouts
+// preserve their complete visible anatomy; only empty alpha margins are trimmed.
+
 function trimmedAlphaBounds(image) {
   const sw = image.naturalWidth || image.width || 1;
   const sh = image.naturalHeight || image.height || 1;
@@ -108,15 +126,11 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
   const crop = cutoutBounds || { x: 0, y: 0, w: sw, h: sh };
   const isCutout = Boolean(cutoutBounds);
 
-  // Never stretch animal or human anatomy. Cutouts are fully contained and
-  // trim transparent margins so tiny subjects get a professional hero scale.
-  const scale = isCutout
-    ? Math.min((layer.width * .985) / crop.w, (layer.height * .985) / crop.h)
-    : Math.max(layer.width / crop.w, layer.height / crop.h);
-  const actualW = crop.w * scale;
-  const actualH = crop.h * scale;
-  layerCtx.drawImage(image, crop.x, crop.y, crop.w, crop.h,
-    (layer.width - actualW) / 2, (layer.height - actualH) / 2, actualW, actualH);
+  // Preserve FULL face/subject framing even for opaque portrait images.
+  // Never use cover/crop for pet or human source photos.
+  const fitted = getQuickDesignSubjectFit(sw, sh, layer.width, layer.height, crop);
+  layerCtx.drawImage(image, fitted.crop.x, fitted.crop.y, fitted.crop.w, fitted.crop.h,
+    fitted.x, fitted.y, fitted.imageW, fitted.imageH);
 
   if (!isCutout) {
     // A soft blend is an honest fallback, not a pretend photo cutout.
@@ -343,6 +357,34 @@ function paintHeadline(ctx, content, y, maxWidth, initialSize, color, {
     drawText(value, PREVIEW_W / 2, y);
   }
   ctx.restore();
+}
+
+/**
+ * Small font preview rendered with the EXACT same paintHeadline() algorithm
+ * used for the customer artwork (curvature, glyph rotation, size, and finishes).
+ */
+export async function renderQuickDesignNamePreview({
+  headline = 'YOUR NAME',
+  fontId = 'serif',
+  curve = 'up',
+  fontSizePercent = 100,
+  accent = '#fb61bd',
+  premiumStyle = 'gold-chrome',
+} = {}) {
+  const font = quickDesignFont(fontId);
+  if (typeof document !== 'undefined' && document.fonts?.load) {
+    try { await document.fonts.load(font.weight + ' 88px "' + font.family + '"'); }
+    catch { /* Use the same fallback family as final artwork. */ }
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = PREVIEW_W;
+  canvas.height = 390;
+  const ctx = canvas.getContext('2d', { alpha: true });
+  if (!ctx) throw new Error('Font preview is unavailable on this device.');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  paintHeadline(ctx, headline || 'YOUR NAME', 195, PREVIEW_W * .935, 112, accent,
+    { fontId, curve, fontSizePercent, premiumStyle });
+  return canvas;
 }
 
 function drawWatermark(ctx) {
