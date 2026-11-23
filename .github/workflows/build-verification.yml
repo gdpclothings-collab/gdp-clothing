@@ -197,11 +197,14 @@ jobs:
           npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/gdp-preview.log 2>&1 &
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
-          node scripts/storefront-render-guard.mjs || {
+          # Phase C staging QA first, so an unrelated Collections-page
+          # overflow cannot prevent us from seeing the six-mockup results.
+          # No additional runner, workflow or external paid service.
+          node scripts/quick-design-browser-smoke.mjs || {
             cat /tmp/gdp-preview.log
             exit 1
           }
-          node scripts/quick-design-browser-smoke.mjs || {
+          node scripts/storefront-render-guard.mjs || {
             cat /tmp/gdp-preview.log
             exit 1
           }
