@@ -3,8 +3,8 @@ import { BookOpen, Check, ClipboardCopy, ExternalLink, HelpCircle, Mail, X } fro
 
 const HELP_TOPICS = [
   {
-    title: 'How do I make my two free samples?',
-    answer: 'Upload up to five JPG, PNG or WebP photos, choose a GDP background, enter a name, and select a font and text curve. Phase B Samples A (Layered Classic) and B (Dramatic Stack) appear automatically. These are free watermarked previews; transparent cutouts give the strongest layered-pet effect.',
+    title: 'How do I preview my design on a garment?',
+    answer: 'Upload up to five photos, optionally remove backgrounds, choose a GDP flame or storm background and enter your name. One STORM-inspired composition places the name above your pets and the background toward the bottom. Choose T-shirt, Sweatshirt or Hoodie, then Front or Back. You can compare six black garment mockups.',
   },
   {
     title: 'My background removal is slow or looks wrong',
@@ -19,12 +19,12 @@ const HELP_TOPICS = [
     answer: 'Choose one of five bootleg font presets, adjust the 60–160% font-size slider, and choose a premium finish such as chrome, neon glow or retro 3D. Set a name color, then choose Straight, Curve upward or Curve downward. Long names auto-fit within the 12 × 16-inch layout.',
   },
   {
-    title: 'Can I see my design on a sweatshirt or hoodie?',
-    answer: 'Yes. Under Preview your garment, select T-shirt, Sweatshirt or Hoodie, then Front or Back. The preview applies your selected design on only the chosen side; changing the view does not add a second print or extra charge.',
+    title: 'Are front and back both included?',
+    answer: 'No. Each mockup is an alternative. Only the garment and one selected side are included in a design request. The black garment images are studio-rendered illustrations rather than manufacturer-certified photos.',
   },
   {
     title: 'What if I need help finishing or ordering?',
-    answer: 'Choose Sample A or B, save the watermarked sample, and use the contact link below. Include your name, selected style and original photos when GDP asks for them. The preview form does not upload photos, place an order, or charge your card.',
+    answer: 'Choose a black garment and print side, save or share the mockup, and use the contact link below. Include your name, selected style and original photos when GDP asks for them. The development preview does not upload photos, place an order, or charge your card.',
   },
 ];
 
@@ -73,7 +73,7 @@ export default function QuickDesignHelp({ onClose, details }) {
       'GDP Quick Design – customer help request',
       'Name: ' + (details?.headline?.trim() || '(not entered)'),
       'Subtitle: ' + (details?.subline?.trim() || '(none)'),
-      'Sample: ' + (details?.selected || 'A'),
+      'Layout: STORM-inspired — name top, pets center, background bottom',
       'GDP background: ' + (details?.background || '(not selected)'),
       'Font: ' + (details?.font || 'Street Impact'),
       'Font size: ' + (details?.fontSizePercent || 100) + '%',
