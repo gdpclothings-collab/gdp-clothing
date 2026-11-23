@@ -7,10 +7,11 @@ import {
   QUICK_DESIGN_MAX_FILE_BYTES,
   validateQuickDesignFile,
   quickDesignLayoutCount,
+  getQuickDesignSubjectFit,
 } from '../src/lib/quickDesignCanvas.js';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
-import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
+import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
@@ -38,6 +39,35 @@ for (let count = 1; count <= 5; count += 1) {
     Array.from({length: count}, (_, i) => i), 'Every uploaded pet must appear once');
 }
 assert.equal(getQuickDesignPhaseCLayout(1)[0].role, 'hero');
+const intersects = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x &&
+  a.y < b.y + b.h && a.y + a.h > b.y;
+for (let count = 1; count <= 5; count += 1) {
+  const layers = getQuickDesignPhaseCRenderOrder(count);
+  const faces = layers.map(getQuickDesignFacePriorityRegion);
+  for (let i = 0; i < layers.length; i += 1) {
+    assert.ok(faces[i].w > 0 && faces[i].h > 0);
+    assert.ok(faces[i].x >= 0 && faces[i].y >= 0 &&
+      faces[i].x + faces[i].w <= 1 && faces[i].y + faces[i].h <= 1,
+    'The face-priority region should remain inside the artwork');
+    for (let j = i + 1; j < layers.length; j += 1) {
+      assert.equal(intersects(faces[i], layers[j]), false,
+        `Face-priority region of image ${layers[i].photoIndex + 1} is covered by later image ${layers[j].photoIndex + 1} for count ${count}`);
+    }
+  }
+}
+for (const [sw, sh] of [[1000, 1000], [200, 1200], [1200, 200], [400, 800], [800, 400]]) {
+  const fitted = getQuickDesignSubjectFit(sw, sh, 320, 460);
+  assert.deepEqual(fitted.crop, { x: 0, y: 0, w: sw, h: sh },
+    'Opaque photos retain the complete face and source image');
+  assert.ok(fitted.imageW <= 320 && fitted.imageH <= 460 && fitted.x >= 0 && fitted.y >= 0,
+    'Opaque photos must fit without cropped edges');
+  assert.ok(Math.abs(fitted.imageW / fitted.imageH - sw / sh) < 1e-8,
+    'No stretched pet or person anatomy');
+}
+const transparentCutout = getQuickDesignSubjectFit(800, 1200, 300, 400, { x: 50, y: 80, w: 600, h: 800 });
+assert.ok(transparentCutout.imageW <= 300 && transparentCutout.imageH <= 400,
+  'Trimmed transparent subject must fit without cropping');
+
 assert.deepEqual(QUICK_DESIGN_GARMENTS.map((item) => item.id), ['tshirt', 'sweatshirt', 'hoodie']);
 assert.deepEqual(QUICK_DESIGN_SIDES.map((item) => item.id), ['front', 'back']);
 assert.deepEqual(QUICK_DESIGN_COLORS.map((item) => item.id), ['black', 'white']);
@@ -174,6 +204,18 @@ assert.match(page, /setCutoutUnavailable\(true\)/);
 assert.match(page, /setAutoCutout\(false\)/);
 assert.match(canvas, /trimmedAlphaBounds/);
 assert.match(canvas, /paintPhaseCPortraits/);
+assert.match(canvas, /getQuickDesignSubjectFit\(sw, sh, layer.width, layer.height, crop\)/,
+  'Photo rendering must use non-cropping contain mode for both opaque and transparent sources');
+assert.doesNotMatch(canvas, /Math.max\(layer.width \/ crop.w, layer.height \/ crop.h\)/,
+  'Cover scaling would crop faces');
+assert.match(canvas, /export async function renderQuickDesignNamePreview/);
+assert.match(canvas, /paintHeadline\(ctx, headline \|\| 'YOUR NAME', 195/,
+  'The selected-font preview must share the final curved letter renderer');
+assert.match(page, /data-gdp-font-curve=\{curve\}/);
+assert.match(page, /data-gdp-font-preview="true"/);
+assert.match(page, /Make photo /);
+assert.match(page, /makeMainPhoto\(item.id\)/);
+
 assert.match(canvas, /paintStormBottom/);
 assert.match(canvas, /destination-in/);
 assert.match(canvas, /canvas\.getContext\('2d', \{ alpha: true \}\)/);
