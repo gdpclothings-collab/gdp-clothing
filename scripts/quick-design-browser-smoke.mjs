@@ -115,6 +115,31 @@ try {
     await garmentImage.waitFor({ timeout: 45000 });
     const blackShirtFront = await garmentImage.getAttribute('src');
     assert.ok(blackShirtFront?.startsWith('data:image/jpeg;base64,'));
+    // Phase G: prove the preview ACTUALLY uses the approved blank source,
+    // rather than passing only because the fallback canvas renderer works.
+    const atlasPixelParity = await garmentImage.evaluate(async (el) => {
+      await el.decode();
+      const atlas = new Image();
+      atlas.src = '/images/quick-design/gdp-blank-garment-atlas.webp';
+      await atlas.decode();
+      const expected = document.createElement('canvas');
+      expected.width = 600; expected.height = 720;
+      const e = expected.getContext('2d', { willReadFrequently: true });
+      e.drawImage(atlas, 0, 0, 256, 360, 65, 10, 470, 660);
+      const canvas = document.createElement('canvas');
+      canvas.width = el.naturalWidth; canvas.height = el.naturalHeight;
+      const c = canvas.getContext('2d', { willReadFrequently: true });
+      c.drawImage(el, 0, 0);
+      // Near the upper-left unprinted background, outside garment and artwork.
+      const ex = [...e.getImageData(77, 65, 1, 1).data].slice(0, 3);
+      const got = [...c.getImageData(154, 130, 1, 1).data].slice(0, 3);
+      return { width: atlas.naturalWidth, height: atlas.naturalHeight,
+        maxDifference: Math.max(...ex.map((value, i) => Math.abs(value - got[i]))) };
+    });
+    assert.equal(atlasPixelParity.width, 1536);
+    assert.equal(atlasPixelParity.height, 720);
+    assert.ok(atlasPixelParity.maxDifference <= 22,
+      'Image-backed mockup must paint the approved blank atlas rather than the old dark fallback: ' + JSON.stringify(atlasPixelParity));
     assert.equal(await page.locator('[data-gdp-mockup-gallery]').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'false');
