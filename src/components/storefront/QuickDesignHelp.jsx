@@ -19,7 +19,7 @@ const HELP_TOPICS = [
     answer: 'Choose one of five bootleg font presets, adjust the 60–160% font-size slider, and choose a premium finish such as chrome, neon glow or retro 3D. Set a name color, then choose Straight, Curve upward or Curve downward. The Selected Font Preview now uses the same actual Straight, Curve upward or Curve downward lettering as the final sample. Long names auto-fit within the 12 × 16-inch layout.',
   },
   {
-    title: 'How do I keep my pet or person's face visible?',
+    title: 'How do I keep pet and people faces visible?',
     answer: 'Quick Design fits the full uploaded photo without cropping, arranges portrait areas so nearby photos do not cover the main face region, and lets you tap the star on any photo to make it the largest main subject. A distant or already-obscured face cannot be recovered automatically. Review your preview and choose a clearer close-up if needed. Optional remove.bg remains separately controlled by its free-use safeguards.',
   },
   {
