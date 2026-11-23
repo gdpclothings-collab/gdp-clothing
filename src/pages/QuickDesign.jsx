@@ -202,7 +202,7 @@ export default function QuickDesign() {
     renderQuickDesignGarmentMockup({
       artworkSource: selectedResult.artwork, garment, side: garmentSide, color: garmentColor,
     }).then((canvas) => {
-      if (!cancelled) setGarmentMockup(canvas.toDataURL('image/jpeg', 0.89));
+      if (!cancelled) setGarmentMockup(canvas.toDataURL('image/jpeg', 0.92));
     }).catch((error) => {
       if (!cancelled) setGarmentError(error?.message || 'Could not render your selected garment.');
     }).finally(() => {
@@ -543,9 +543,9 @@ export default function QuickDesign() {
             <p data-gdp-preview-label="true" className="mb-3 text-sm font-bold text-lime-200">{selectedColor.label} {selectedGarment.label} · {garmentSide === 'front' ? 'Front' : 'Back'} print</p>
             <div className="overflow-hidden rounded-xl border border-white/10 bg-[#16171b]">
               <img data-gdp-garment-image="true" src={selectedMockup}
-                alt={selectedColor.label + ' ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto max-h-[560px] w-full object-contain" />
+                alt={selectedColor.label + ' ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto block h-auto max-h-[560px] w-full max-w-full object-contain" />
             </div>
-            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. Studio-rendered illustration, not a manufacturer-certified photo. Actual print size and placement require GDP approval.</p>
+            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. This high-detail studio illustration uses a centered print-area estimate, not a manufacturer-certified photo or exact Gildan print guide. GDP must approve final placement and print dimensions.</p>
             <p className="mt-2 text-xs leading-5 text-white/55">{MAX_PREVIEW_NOTICE}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garmentColor + '-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
