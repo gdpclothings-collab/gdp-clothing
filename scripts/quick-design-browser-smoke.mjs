@@ -17,12 +17,12 @@ try {
     assert.ok(response && response.status() < 400, 'Quick Design route must load');
     await page.locator('[data-gdp-quick-design="true"]').waitFor({ timeout: 30000 });
     assert.equal(await page.getByText("Ask GDP", { exact: true }).count(), 0, "Assistant overlay must not cover Quick Design controls");
-    assert.match(await page.locator('h1').innerText(), /2 free bootleg samples/i);
+    assert.match(await page.locator('h1').innerText(), /Your design.*On any garment/i);
     // Help is contextual and free; no persistent chat widget or paid API.
     await page.locator('[data-gdp-help-trigger="header"]').click();
     const help = page.getByRole('dialog', { name: 'Need help with your design?' });
     await help.waitFor({ timeout: 10000 });
-    assert.ok(await help.getByText('How do I make my two free samples?').count() > 0);
+    assert.ok(await help.getByText('How do I preview my design on a garment?').count() > 0);
     assert.equal(await help.getByRole('link', { name: /Contact GDP/i }).getAttribute('href'), 'https://gdpclothing.ca/pages/contact');
     await page.keyboard.press('Escape');
     assert.equal(await help.count(), 0, 'Escape must close help without changing design');
@@ -61,76 +61,49 @@ try {
     assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
     let overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflowAfterPhotos <= 4, 'Five photos must not expose white right-side panel: ' + overflowAfterPhotos);
-    const artworkA = page.getByAltText('Watermarked sample A artwork');
-    const artworkB = page.getByAltText('Watermarked sample B artwork');
-    await artworkA.waitFor({ timeout: 30000 });
-    await artworkB.waitFor({ timeout: 30000 });
-    const srcA = await artworkA.getAttribute('src');
-    const srcB = await artworkB.getAttribute('src');
-    assert.ok(srcA?.startsWith('data:image/jpeg;base64,'), 'Sample A must be locally rendered');
-    assert.ok(srcB?.startsWith('data:image/jpeg;base64,'), 'Sample B must be locally rendered');
-    assert.notEqual(srcA, srcB, 'Sample A and B must use genuinely different compositions');
-    const artworkSize = await page.evaluate(async () => {
-      const img = document.querySelector('img[alt="Watermarked sample A artwork"]');
-      await img.decode();
-      return [img.naturalWidth, img.naturalHeight];
-    });
-    assert.deepEqual(artworkSize, [750, 1000], 'Preview output must be a 12x16 ratio');
-    const subtitle = page.getByRole('textbox', { name: /Subtitle/i });
-    assert.equal(await subtitle.inputValue(), '', 'No hidden CUSTOM BOOTLEG subtitle should appear');
-
-    await page.getByRole('button', { name: 'Choose Sample B', exact: true }).click();
-    // Every one of the three garment types and both sides is rendered, not
-    // just a relabelled version of the same black T-shirt.
+    // One transparent STORM-reference composition, six distinct black garment
+    // mockups. The selected print SIDE is one choice, not two included prints.
+    const gallery = page.locator('[data-gdp-mockup-gallery="true"]');
+    await gallery.waitFor({ timeout: 60000 });
+    const options = gallery.locator('button');
+    assert.equal(await options.count(), 6, 'Exactly six front/back garment options required');
+    assert.equal(await page.locator('[data-gdp-sample-option]').count(), 0, 'A/B artwork choices must be removed');
+    assert.equal(await page.getByRole('button', { name: 'Show Front view' }).getAttribute('aria-pressed'), 'true',
+      'Front must be the default and only selected print side');
+    assert.equal(await page.getByRole('button', { name: 'Preview T-shirt' }).getAttribute('aria-pressed'), 'true',
+      'T-shirt must be the default garment');
     const garmentImage = page.locator('[data-gdp-garment-image="true"]');
-    const waitForNewGarment = async (previousSrc) => {
-      await page.waitForFunction(
-        (prior) => {
-          const image = document.querySelector('[data-gdp-garment-image="true"]');
-          return Boolean(image && image.getAttribute('src')?.startsWith('data:image/jpeg;base64,') && image.getAttribute('src') !== prior);
-        },
-        previousSrc,
-        { timeout: 15000 }
-      );
-    };
-    await page.getByAltText('Sample B on illustrative black T-shirt front view').waitFor({ timeout: 10000 });
-    const tshirtFront = await garmentImage.getAttribute('src');
-    await page.getByRole('button', { name: 'Show Back view' }).click();
-    await waitForNewGarment(tshirtFront);
-    await page.getByAltText('Sample B on illustrative black T-shirt back view').waitFor({ timeout: 10000 });
-    const tshirtBack = await garmentImage.getAttribute('src');
-    assert.notEqual(tshirtFront, tshirtBack, 'T-shirt sides must differ');
-    await page.getByRole('button', { name: 'Preview Sweatshirt' }).click();
-    await waitForNewGarment(tshirtBack);
-    await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
-    const crewneckBack = await garmentImage.getAttribute('src');
-    await page.getByRole('button', { name: 'Show Front view' }).click();
-    await waitForNewGarment(crewneckBack);
-    await page.getByAltText('Sample B on illustrative black Sweatshirt front view').waitFor({ timeout: 10000 });
-    const crewneckFront = await garmentImage.getAttribute('src');
-    assert.notEqual(crewneckFront, crewneckBack, 'Sweatshirt sides must differ');
-    await page.getByRole('button', { name: 'Show Back view' }).click();
-    await waitForNewGarment(crewneckFront);
-    await page.getByAltText('Sample B on illustrative black Sweatshirt back view').waitFor({ timeout: 10000 });
-    assert.ok(crewneckBack?.startsWith('data:image/jpeg;base64,'), 'Sweatshirt back preview renders locally');
-    await page.getByRole('button', { name: 'Preview Hoodie' }).click();
-    await waitForNewGarment(crewneckBack);
-    await page.getByAltText('Sample B on illustrative black Hoodie back view').waitFor({ timeout: 10000 });
-    const hoodieBack = await garmentImage.getAttribute('src');
-    assert.notEqual(crewneckBack, hoodieBack, 'Sweatshirt and hoodie must show different garment silhouettes');
-    await page.getByRole('button', { name: 'Show Front view' }).click();
-    await waitForNewGarment(hoodieBack);
-    await page.getByAltText('Sample B on illustrative black Hoodie front view').waitFor({ timeout: 10000 });
-    const hoodieFront = await garmentImage.getAttribute('src');
-    assert.notEqual(hoodieFront, hoodieBack, 'Front and back hoodie views must be different');
-    assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true');
+    const imageSources = new Set();
+    for (const garment of ['T-shirt', 'Sweatshirt', 'Hoodie']) {
+      for (const side of ['Front', 'Back']) {
+        const option = page.getByRole('button', { name: 'View ' + garment + ' ' + side, exact: true });
+        assert.equal(await option.count(), 1, garment + ' ' + side + ' option must exist');
+        const image = option.locator('img');
+        const src = await image.getAttribute('src');
+        assert.ok(src?.startsWith('data:image/jpeg;base64,'), 'All six mockups must be fully rendered: ' + garment + ' ' + side);
+        imageSources.add(src);
+        await option.click();
+        assert.equal(await option.getAttribute('aria-pressed'), 'true', 'Select only ' + garment + ' ' + side);
+        assert.equal(await garmentImage.getAttribute('src'), src, 'Main mockup must show selected garment and side');
+        assert.equal(await page.getByRole('button', { name: 'Show ' + side + ' view' }).getAttribute('aria-pressed'), 'true');
+        const otherSide = side === 'Front' ? 'Back' : 'Front';
+        assert.equal(await page.getByRole('button', { name: 'Show ' + otherSide + ' view' }).getAttribute('aria-pressed'), 'false');
+      }
+    }
+    assert.equal(imageSources.size, 6, 'All six choices must render distinct garment/side images');
+    assert.ok(await page.getByText('Front and back are alternatives; both are not included.', { exact: false }).count() > 0);
+    const subtitle = page.getByRole('textbox', { name: /Subtitle/i });
+    assert.equal(await subtitle.inputValue(), '', 'No forced CUSTOM BOOTLEG subtitle');
     await page.locator('[data-gdp-help-trigger="request"]').click();
     await page.getByRole('dialog', { name: 'Need help with your design?' }).waitFor();
     await page.getByRole('button', { name: 'Close design help' }).click();
-    assert.equal(await page.getByRole('button', { name: 'Preview Hoodie' }).getAttribute('aria-pressed'), 'true', 'Help must preserve garment');
-    assert.equal(await page.getByRole('button', { name: 'Show Front view' }).getAttribute('aria-pressed'), 'true', 'Help must preserve print side');
-    assert.equal(await page.getByRole('combobox', { name: 'Premium text style' }).inputValue(), 'silver-chrome', 'Help must preserve premium text style');
-    assert.equal(await page.getByRole('button', { name: 'Choose Sample B', exact: true }).getAttribute('aria-pressed'), 'true', 'Opening Help must preserve the chosen sample');
+    assert.equal(await page.getByRole('button', { name: 'Preview Hoodie' }).getAttribute('aria-pressed'), 'true',
+      'Help must preserve selected garment');
+    assert.equal(await page.getByRole('button', { name: 'Show Back view' }).getAttribute('aria-pressed'), 'true',
+      'Help must preserve selected side');
+    assert.equal(await page.getByRole('combobox', { name: 'Premium text style' }).inputValue(), 'silver-chrome');
+    assert.ok(await page.getByRole('button', { name: 'Save mockup' }).count() > 0,
+      'Selected mockup must be downloadable without an order');
 
     // Phase B must NOT send photos to remove.bg without explicit consent.
     // Simulate one successful free cutout then a server-enforced quota stop.
@@ -198,7 +171,7 @@ try {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
     assert.deepEqual(errors, [], 'No uncaught client errors');
-    console.log('PASS Quick Design rendered two watermarked previews on ' + viewport.width + 'px viewport');
+    console.log('PASS Phase C six STORM-style garment mockups, Front/Back selection and guarded remove.bg on ' + viewport.width + 'px viewport');
     await page.close();
   }
 } finally {
