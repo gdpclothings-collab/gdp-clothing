@@ -298,7 +298,7 @@ export default function QuickDesign() {
     if (isCloudflareBranchPreview) { setSendError('This is the development preview. Sending customer requests is disabled here. No details were submitted.'); return; }
     setSendError('');
     setSubmitted(null);
-    if (!selectedResult || previewBusy || !photos.length) {
+    if (!selectedResult || !selectedMockup || previewBusy || garmentBusy || !photos.length) {
       setSendError('Finish your design and choose a garment first.');
       return;
     }
@@ -382,10 +382,10 @@ export default function QuickDesign() {
           <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-lime-300">GDP Clothing • Marketplace Quick Design</p>
           <button type="button" data-gdp-help-trigger="header" onClick={() => setHelpOpen(true)} aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" className={BTN + ' border border-lime-300/40 bg-lime-300/10 text-lime-100 hover:bg-lime-300/20'}><HelpCircle size={19}/> Help with my design</button>
         </div>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">2 free bootleg samples. <span className="text-lime-300">Instantly.</span></h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">Upload your photos, pick an original GDP background, edit the text and compare two layouts right here. No account, Photoshop or paid AI generation required.</p>
+        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">Your design. <span className="text-lime-300">On any garment.</span></h1>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">Upload your photos, create a STORM-inspired design, then preview it on black T-shirts, sweatshirts and hoodies. No paid image generation required.</p>
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-white/70">
-          <span className="rounded-full border border-white/20 px-3 py-2">Free watermarked previews</span>
+          <span className="rounded-full border border-white/20 px-3 py-2">Six garment previews</span>
           <span className="rounded-full border border-white/20 px-3 py-2">On-device sample rendering</span>
           <span className="rounded-full border border-white/20 px-3 py-2">T-shirt, sweatshirt and hoodie previews</span>
         </div>
@@ -437,7 +437,7 @@ export default function QuickDesign() {
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="2">Choose a GDP background</SmallHeading>
-          <p className="mb-3 text-xs text-white/60">Background stretches vertically to 12″ × 16″, with your name at the top. The GDP source image remains unchanged.</p>
+          <p className="mb-3 text-xs text-white/60">Choose an original GDP background. Phase C keeps its effects behind your pets and toward the bottom, with your name above.</p>
           <div className="grid min-w-0 grid-cols-4 gap-2 sm:grid-cols-4">
             {QUICK_DESIGN_BACKGROUNDS.map((background) =>
               <button key={background.id} type="button" onClick={() => { setBackgroundId(background.id); setSubmitted(null); }}
@@ -570,7 +570,7 @@ export default function QuickDesign() {
             </label>
             <div className="hidden" aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={customer.website} onChange={(e) => updateCustomer('website', e.target.value)}/></label></div>
             {sendError && <p role="alert" className="rounded-lg bg-red-950/60 p-3 text-sm text-red-200">{sendError}</p>}
-            <button type="submit" disabled={isCloudflareBranchPreview || !selectedResult || previewBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
+            <button type="submit" disabled={isCloudflareBranchPreview || !selectedMockup || previewBusy || garmentBusy || cutoutPending || sending || !headline.trim()} className={BTN + ' w-full bg-lime-300 py-3 text-black hover:bg-lime-200'}>
               {sending ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
               {sending ? 'Sending your request…' : (isCloudflareBranchPreview ? 'Request submission disabled in preview' : 'Submit design request')}
               {!sending && <ArrowRight size={18}/>}
