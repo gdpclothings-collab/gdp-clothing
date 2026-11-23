@@ -10,37 +10,34 @@ import {
 } from '../src/lib/quickDesignCanvas.js';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_SIDES } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
-import { QUICK_DESIGN_PHASE_B_NAMES, getQuickDesignPhaseBLayout, getQuickDesignPhaseBRenderOrder } from '../src/lib/quickDesignPhaseBLayout.js';
+import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
-assert.equal(quickDesignLayoutCount('A'), 5);
-assert.equal(quickDesignLayoutCount('B'), 5);
+assert.equal(quickDesignLayoutCount(), 5);
 assert.equal(await detectQuickDesignBackground({ type: 'image/jpeg', size: 100 }), 'needs-removal');
 assert.equal(await detectQuickDesignBackground({ type: 'image/heic', size: 100 }), 'unreadable');
 const transparencyCheck = readFileSync('src/lib/quickDesignTransparency.js', 'utf8');
 assert.match(transparencyCheck, /cornersAreTransparent/);
 assert.match(transparencyCheck, /already-transparent/);
-assert.doesNotMatch(transparencyCheck, /fetch\(|supabase\.functions|api\.remove\.bg|X-API-Key/i, 'Alpha preflight must be local and free');
-assert.equal(QUICK_DESIGN_PHASE_B_NAMES.A, 'Layered Classic');
-assert.equal(QUICK_DESIGN_PHASE_B_NAMES.B, 'Dramatic Stack');
+assert.doesNotMatch(transparencyCheck, /fetch\(|supabase\.functions|api\.remove\.bg|X-API-Key/i,
+  'Alpha preflight must be local and free');
+assert.equal(QUICK_DESIGN_PHASE_C_REFERENCE.nameAtTop, true);
+assert.equal(QUICK_DESIGN_PHASE_C_REFERENCE.subjectCentered, true);
+assert.equal(QUICK_DESIGN_PHASE_C_REFERENCE.backgroundAnchoredBottom, true);
+assert.equal(QUICK_DESIGN_PHASE_C_REFERENCE.transparentArtworkEdge, true);
 for (let count = 1; count <= 5; count += 1) {
-  const a = getQuickDesignPhaseBLayout('A', count);
-  const b = getQuickDesignPhaseBLayout('B', count);
-  assert.equal(a.length, count, 'Sample A must use exactly the uploaded photo count');
-  assert.equal(b.length, count, 'Sample B must use exactly the uploaded photo count');
-  for (const slots of [a, b]) {
-    for (const slot of slots) {
-      assert.ok(slot.x >= 0 && slot.y >= 0 && slot.w > 0 && slot.h > 0,
-        'All collage positions must be on the print canvas');
-      assert.ok(slot.x + slot.w <= 1.001 && slot.y + slot.h <= 1.001,
-        'Subject placement must fit the original GDP background');
-    }
+  const layout = getQuickDesignPhaseCLayout(count);
+  assert.equal(layout.length, count, 'Every uploaded photo must be used once');
+  for (const slot of layout) {
+    assert.ok(slot.x >= 0 && slot.y >= 0 && slot.w > 0 && slot.h > 0);
+    assert.ok(slot.x + slot.w <= 1.001 && slot.y + slot.h <= 1.001,
+      'Phase C pet composition must fit the original 12 x 16 print area');
   }
+  assert.deepEqual(getQuickDesignPhaseCRenderOrder(count).map((item) => item.photoIndex).sort(),
+    Array.from({length: count}, (_, i) => i), 'Every uploaded pet must appear once');
 }
-assert.notDeepEqual(getQuickDesignPhaseBLayout('A', 5), getQuickDesignPhaseBLayout('B', 5));
-assert.deepEqual(getQuickDesignPhaseBRenderOrder('A', 5).map((item) => item.photoIndex).sort(), [0,1,2,3,4]);
-assert.equal(getQuickDesignPhaseBLayout('A', 1)[0].role, 'hero');
+assert.equal(getQuickDesignPhaseCLayout(1)[0].role, 'hero');
 assert.deepEqual(QUICK_DESIGN_GARMENTS.map((item) => item.id), ['tshirt', 'sweatshirt', 'hoodie']);
 assert.deepEqual(QUICK_DESIGN_SIDES.map((item) => item.id), ['front', 'back']);
 assert.ok(QUICK_DESIGN_BACKGROUNDS.length >= 5, 'Must reuse real GDP bootleg backgrounds');
@@ -72,12 +69,16 @@ assert.match(canvas, /targetWidthPx: 3600, targetHeightPx: 4800/);
 assert.match(canvas, /quickDesignFont/);
 assert.match(canvas, /paintPremiumTextGlyph/);
 assert.match(canvas, /fontSizePercent = 100/);
-assert.match(canvas, /premiumStyle = 'solid'/);
+assert.match(canvas, /premiumStyle = 'gold-chrome'/);
 const mockupCode = readFileSync('src/lib/quickDesignGarmentMockup.js', 'utf8');
 assert.match(mockupCode, /selectedGarment === 'hoodie'/);
 assert.match(mockupCode, /selectedSide = side === 'back'/);
 assert.match(mockupCode, /not an assertion about Gildan product/);
-assert.match(page, /Preview your garment/);
+assert.match(page, /Preview on a garment/);
+assert.match(page, /data-gdp-mockup-gallery="true"/);
+assert.match(page, /data-gdp-garment-image="true"/);
+assert.match(page, /QUICK_DESIGN_GARMENTS\.flatMap/);
+assert.doesNotMatch(page, /Compare your two samples|Choose Sample [AB]|Sample [AB]/, 'Phase C must not expose Sample A/B');
 assert.match(page, /Premium text style/);
 assert.match(page, /Name font size/);
 assert.match(page, /'Requested print side: '/);
@@ -106,7 +107,8 @@ assert.match(help, /role="dialog" aria-modal="true"/);
 assert.match(help, /https:\/\/gdpclothing\.ca\/pages\/contact/);
 assert.match(help, /Copy design details/);
 assert.match(help, /If you enable remove\.bg, Quick Design first checks/);
-assert.match(help, /Phase B Samples A/);
+assert.match(help, /One STORM-inspired composition/);
+assert.doesNotMatch(help, /Phase B Samples A|Sample A or B/);
 assert.match(fontStyles, /fonts\.googleapis\.com/);
 assert.match(fontStyles, /Anton.*Bangers.*Bebas\+Neue.*Graduate.*Rye/);
 assert.doesNotMatch(page + help + canvas, /api\.openai\.com|createPaymentIntent|stripe\.confirm|https:\/\/api\.remove\.bg/i, 'Browser must never embed a remove.bg endpoint/key or payment integration');
@@ -117,8 +119,11 @@ assert.match(page, /data-gdp-photo-grid="true"/);
 assert.match(page, /setCutoutUnavailable\(true\)/);
 assert.match(page, /setAutoCutout\(false\)/);
 assert.match(canvas, /trimmedAlphaBounds/);
-assert.match(canvas, /paintPhaseBPortraits/);
-assert.match(canvas, /ctx\.drawImage\(background, 0, 0, PREVIEW_W, PREVIEW_H\)/);
+assert.match(canvas, /paintPhaseCPortraits/);
+assert.match(canvas, /paintStormBottom/);
+assert.match(canvas, /destination-in/);
+assert.match(canvas, /canvas\.getContext\('2d', \{ alpha: true \}\)/);
+assert.doesNotMatch(canvas, /Promise\.all\(\['A', 'B'\]/, 'Only one artwork composition allowed');
 const client = readFileSync('src/lib/quickDesignRemoveBgClient.js', 'utf8');
 assert.match(client, /supabase\.functions\.invoke\('gdp-quick-design-remove-bg'/);
 assert.doesNotMatch(client, /X-API-Key|GDP_REMOVEBG_API_KEY|https:\/\/api\.remove\.bg/);
@@ -154,5 +159,5 @@ const headers = readFileSync('public/_headers', 'utf8');
 assert.match(headers, /Content-Security-Policy:/);
 assert.doesNotMatch(headers, /https:\/\/cdn\.jsdelivr\.net|huggingface\.co|wasm-unsafe-eval/, 'No device-model CDN or WASM CSP exceptions should remain');
 assert.doesNotMatch(headers, /\/quick-design\n  Content-Security-Policy:/, 'Quick Design must inherit the standard strict CSP');
-console.log('PASS – Phase B layouts, shared free-only remove.bg account balance check, opt-in and quota gating, 1–5 photos');
+console.log('PASS – Phase C single STORM-style transparent artwork, six mockups, one print side, and guarded remove.bg opt-in');
 
