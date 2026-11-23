@@ -607,6 +607,7 @@ export default function QuickDesign() {
       fontSizePercent,
       premiumStyle: selectedPremium?.label || 'Solid color',
       garment: selectedGarment?.label || '(not chosen)',
+      garmentColor: selectedColor?.label || '(not chosen)',
       garmentSide,
     }} />}
   </div>;
