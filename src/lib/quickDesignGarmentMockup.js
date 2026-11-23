@@ -60,7 +60,7 @@ export function getQuickDesignStudioFabricAsset(garment, side, color) {
 // Conservative, centered chest/back zones: source art remains transparent and
 // aspect-ratio preserved. No second side is ever implied or rendered.
 export const QUICK_DESIGN_PRINT_PLACEMENTS = Object.freeze({
-  tshirt: Object.freeze({ front: Object.freeze([202, 195, 196, 245]), back: Object.freeze([202, 195, 196, 245]) }),
+  tshirt: Object.freeze({ front: Object.freeze([203, 195, 194, 245]), back: Object.freeze([203, 195, 194, 245]) }),
   sweatshirt: Object.freeze({ front: Object.freeze([208, 205, 184, 240]), back: Object.freeze([208, 205, 184, 240]) }),
   hoodie: Object.freeze({ front: Object.freeze([209, 212, 182, 202]), back: Object.freeze([209, 212, 182, 202]) }),
 });
