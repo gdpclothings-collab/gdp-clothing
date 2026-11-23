@@ -278,11 +278,21 @@ try {
         for (const garmentColor of ['Black', 'White']) {
           await page.getByRole('button', { name: 'Choose ' + garmentColor + ' garment color' }).click();
           for (const side of ['Front', 'Back']) {
+            const previousImage = await page.locator('[data-gdp-garment-image="true"]').getAttribute('src').catch(() => null);
             await page.getByRole('button', { name: 'Print on ' + side }).click();
-            await page.locator('[data-gdp-garment-image="true"]').waitFor({ timeout: 30000 });
-            const label = await page.locator('[data-gdp-preview-label="true"]').innerText();
-            assert.ok(label.includes(type) && label.includes(garmentColor) && label.includes(side),
-              'Preview choice mismatch: ' + label);
+            // The old mockup is deliberately cleared during async rendering.
+            // Wait for the newly decoded, selected-side image instead of
+            // checking a momentary loading state between React commits.
+            await page.waitForFunction(({ type, garmentColor, side, previousImage }) => {
+              const image = document.querySelector('[data-gdp-garment-image="true"]');
+              const label = document.querySelector('[data-gdp-preview-label="true"]');
+              return image?.complete && image.naturalWidth > 0 &&
+                image.getAttribute('src')?.startsWith('data:image/jpeg;base64,') &&
+                image.getAttribute('src') !== previousImage &&
+                label?.textContent?.includes(type) &&
+                label.textContent.includes(garmentColor) &&
+                label.textContent.includes(side);
+            }, { type, garmentColor, side, previousImage }, { timeout: 30000 });
             assert.equal(await page.locator('[data-gdp-garment-image="true"]').count(), 1);
             combinations += 1;
           }
