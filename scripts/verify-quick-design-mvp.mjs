@@ -113,7 +113,7 @@ assert.match(help, /role="dialog" aria-modal="true"/);
 assert.match(help, /https:\/\/gdpclothing\.ca\/pages\/contact/);
 assert.match(help, /Copy design details/);
 assert.match(help, /If you enable remove\.bg, Quick Design first checks/);
-assert.match(help, /One STORM-inspired composition/);
+assert.match(help, /Step 1: choose a T-shirt/);
 assert.doesNotMatch(help, /Phase B Samples A|Sample A or B/);
 assert.match(fontStyles, /fonts\.googleapis\.com/);
 assert.match(fontStyles, /Anton.*Bangers.*Bebas\+Neue.*Graduate.*Rye/);
