@@ -278,7 +278,7 @@ try {
         for (const garmentColor of ['Black', 'White']) {
           await page.getByRole('button', { name: 'Choose ' + garmentColor + ' garment color' }).click();
           for (const side of ['Front', 'Back']) {
-            const previousImage = await page.locator('[data-gdp-garment-image="true"]').getAttribute('src').catch(() => null);
+            const previousImage = await page.locator('[data-gdp-garment-image="true"]').evaluateAll((nodes) => nodes[0]?.getAttribute('src') || null);
             await page.getByRole('button', { name: 'Print on ' + side }).click();
             // The old mockup is deliberately cleared during async rendering.
             // Wait for the newly decoded, selected-side image instead of
