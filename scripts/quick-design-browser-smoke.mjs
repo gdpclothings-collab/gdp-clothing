@@ -27,7 +27,23 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await help.count(), 0, 'Escape must close help without changing design');
 
-    // Upload must start with one clear action; instructions are hidden in optional help.
+    // Garment FIRST, side SECOND, preview only after both choices and photos.
+    assert.equal(await page.locator('[data-gdp-garment-first="true"]').count(), 1);
+    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
+    assert.equal(await page.locator('[data-gdp-garment-image="true"]').count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).count(), 0,
+      'Side buttons must appear only after choosing garment');
+    await page.getByRole('button', { name: 'Choose T-shirt' }).click();
+    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1,
+      'Choosing a garment alone cannot show a preview');
+    await page.getByRole('button', { name: 'Print on Front' }).click();
+    await page.locator('[data-gdp-garment-choice="true"]').waitFor();
+    assert.match(await page.locator('[data-gdp-garment-choice="true"]').innerText(), /T-shirt.*Front/);
+
+    // Background-removal instructions remain in collapsed optional help.
+    assert.equal(await page.locator('[data-gdp-removal-help="true"]').evaluate((el) => el.open), false);
+    assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).count(), 0);
+    await page.getByRole('textbox', { name: 'Main name or heading' }).fill('HENRY');
     assert.equal(await page.locator('[data-gdp-removal-help="true"]').evaluate((el) => el.open), false, 'Background-removal help must be collapsed by default');
     assert.equal(await page.getByRole('checkbox', { name: /Automatic background removal/i }).count(), 0, 'Crowded duplicate checkbox must be removed');
     await page.getByRole('textbox', { name: 'Main name or heading' }).fill('HENRY');
@@ -61,49 +77,53 @@ try {
     assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
     let overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflowAfterPhotos <= 4, 'Five photos must not expose white right-side panel: ' + overflowAfterPhotos);
-    // One transparent STORM-reference composition, six distinct black garment
-    // mockups. The selected print SIDE is one choice, not two included prints.
-    const gallery = page.locator('[data-gdp-mockup-gallery="true"]');
-    await gallery.waitFor({ timeout: 60000 });
-    const options = gallery.locator('button');
-    assert.equal(await options.count(), 6, 'Exactly six front/back garment options required');
-    assert.equal(await page.locator('[data-gdp-sample-option]').count(), 0, 'A/B artwork choices must be removed');
-    assert.equal(await page.getByRole('button', { name: 'Show Front view' }).getAttribute('aria-pressed'), 'true',
-      'Front must be the default and only selected print side');
-    assert.equal(await page.getByRole('button', { name: 'Preview T-shirt' }).getAttribute('aria-pressed'), 'true',
-      'T-shirt must be the default garment');
+    // One selected mockup, never a gallery of six. The user can switch their
+    // CHOICE, but only the explicitly selected side appears in the result.
     const garmentImage = page.locator('[data-gdp-garment-image="true"]');
-    const imageSources = new Set();
-    for (const garment of ['T-shirt', 'Sweatshirt', 'Hoodie']) {
-      for (const side of ['Front', 'Back']) {
-        const option = page.getByRole('button', { name: 'View ' + garment + ' ' + side, exact: true });
-        assert.equal(await option.count(), 1, garment + ' ' + side + ' option must exist');
-        const image = option.locator('img');
-        const src = await image.getAttribute('src');
-        assert.ok(src?.startsWith('data:image/jpeg;base64,'), 'All six mockups must be fully rendered: ' + garment + ' ' + side);
-        imageSources.add(src);
-        await option.click();
-        assert.equal(await option.getAttribute('aria-pressed'), 'true', 'Select only ' + garment + ' ' + side);
-        assert.equal(await garmentImage.getAttribute('src'), src, 'Main mockup must show selected garment and side');
-        assert.equal(await page.getByRole('button', { name: 'Show ' + side + ' view' }).getAttribute('aria-pressed'), 'true');
-        const otherSide = side === 'Front' ? 'Back' : 'Front';
-        assert.equal(await page.getByRole('button', { name: 'Show ' + otherSide + ' view' }).getAttribute('aria-pressed'), 'false');
-      }
-    }
-    assert.equal(imageSources.size, 6, 'All six choices must render distinct garment/side images');
-    assert.ok(await page.getByText('Front and back are alternatives; both are not included.', { exact: false }).count() > 0);
+    await garmentImage.waitFor({ timeout: 45000 });
+    const shirtFront = await garmentImage.getAttribute('src');
+    assert.ok(shirtFront?.startsWith('data:image/jpeg;base64,'), 'T-shirt front must render locally');
+    assert.equal(await page.locator('[data-gdp-mockup-gallery]').count(), 0,
+      'Do not show all six mockups before or after choosing a side');
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'false');
+    await page.getByRole('button', { name: 'Print on Back' }).click();
+    await page.waitForFunction((src) => {
+      const im = document.querySelector('[data-gdp-garment-image="true"]');
+      return im && im.getAttribute('src') !== src && im.getAttribute('src')?.startsWith('data:image/jpeg;base64,');
+    }, shirtFront, { timeout: 20000 });
+    const shirtBack = await garmentImage.getAttribute('src');
+    assert.notEqual(shirtFront, shirtBack, 'Selected front/back mockups must be visually distinct');
+    assert.match(await page.locator('[data-gdp-preview-label="true"]').innerText(), /T-shirt.*Back/);
+
+    await page.getByRole('button', { name: 'Choose Sweatshirt' }).click();
+    assert.equal(await page.locator('[data-gdp-garment-image="true"]').count(), 0,
+      'Changing garment requires reselecting the print side');
+    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
+    await page.getByRole('button', { name: 'Print on Front' }).click();
+    await garmentImage.waitFor({ timeout: 30000 });
+    const sweatshirtFront = await garmentImage.getAttribute('src');
+    assert.ok(sweatshirtFront?.startsWith('data:image/jpeg;base64,'));
+    assert.notEqual(shirtFront, sweatshirtFront, 'Sweatshirt must differ from the T-shirt');
+    await page.getByRole('button', { name: 'Choose Hoodie' }).click();
+    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
+    await page.getByRole('button', { name: 'Print on Back' }).click();
+    await garmentImage.waitFor({ timeout: 30000 });
+    const hoodieBack = await garmentImage.getAttribute('src');
+    assert.ok(hoodieBack?.startsWith('data:image/jpeg;base64,'));
+    assert.notEqual(hoodieBack, shirtBack, 'Hoodie and T-shirt should show different silhouettes');
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'false');
+    assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'true');
     const subtitle = page.getByRole('textbox', { name: /Subtitle/i });
-    assert.equal(await subtitle.inputValue(), '', 'No forced CUSTOM BOOTLEG subtitle');
+    assert.equal(await subtitle.inputValue(), '');
     await page.locator('[data-gdp-help-trigger="request"]').click();
     await page.getByRole('dialog', { name: 'Need help with your design?' }).waitFor();
     await page.getByRole('button', { name: 'Close design help' }).click();
-    assert.equal(await page.getByRole('button', { name: 'Preview Hoodie' }).getAttribute('aria-pressed'), 'true',
-      'Help must preserve selected garment');
-    assert.equal(await page.getByRole('button', { name: 'Show Back view' }).getAttribute('aria-pressed'), 'true',
-      'Help must preserve selected side');
+    assert.equal(await page.getByRole('button', { name: 'Choose Hoodie' }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('combobox', { name: 'Premium text style' }).inputValue(), 'silver-chrome');
-    assert.ok(await page.getByRole('button', { name: 'Save mockup' }).count() > 0,
-      'Selected mockup must be downloadable without an order');
+    assert.equal(await page.getByRole('button', { name: 'Save mockup' }).count(), 1,
+      'The one selected garment mockup must be downloadable');
 
     // Phase B must NOT send photos to remove.bg without explicit consent.
     // Simulate one successful free cutout then a server-enforced quota stop.
@@ -171,7 +191,7 @@ try {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
     assert.deepEqual(errors, [], 'No uncaught client errors');
-    console.log('PASS Phase C six STORM-style garment mockups, Front/Back selection and guarded remove.bg on ' + viewport.width + 'px viewport');
+    console.log('PASS garment-first side-second single mockup and guarded remove.bg on ' + viewport.width + 'px viewport');
     await page.close();
   }
 } finally {
