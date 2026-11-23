@@ -27,21 +27,28 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await help.count(), 0, 'Escape must close help without changing design');
 
-    // Garment FIRST, side SECOND, preview only after both choices and photos.
+    // Garment → Color → Front/Back: all three MUST be explicit; upload gated.
     assert.equal(await page.locator('[data-gdp-garment-first="true"]').count(), 1);
     assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
     assert.equal(await page.locator('[data-gdp-garment-image="true"]').count(), 0);
-    assert.equal(await page.locator('input[aria-label="Upload customer photos"]').isDisabled(), true,
-      'Customers must choose garment and side BEFORE uploading photos');
+    const uploader = page.locator('input[aria-label="Upload customer photos"]');
+    assert.equal(await uploader.isDisabled(), true, 'All choices are required before uploading');
+    assert.equal(await page.locator('[data-gdp-color-selector="true"]').count(), 0,
+      'Choose garment before showing colors');
     assert.equal(await page.getByRole('button', { name: 'Print on Front' }).count(), 0,
-      'Side buttons must appear only after choosing garment');
+      'Choose garment and color before showing print side');
+
     await page.getByRole('button', { name: 'Choose T-shirt' }).click();
-    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1,
-      'Choosing a garment alone cannot show a preview');
+    assert.equal(await page.locator('[data-gdp-color-selector="true"]').count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).count(), 0);
+    assert.equal(await uploader.isDisabled(), true);
+    await page.getByRole('button', { name: 'Choose Black garment color' }).click();
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).count(), 1);
+    assert.equal(await uploader.isDisabled(), true, 'Color alone does not unlock upload');
     await page.getByRole('button', { name: 'Print on Front' }).click();
     await page.locator('[data-gdp-garment-choice="true"]').waitFor();
-    assert.match(await page.locator('[data-gdp-garment-choice="true"]').innerText(), /T-shirt.*Front/);
-    assert.equal(await page.locator('input[aria-label="Upload customer photos"]').isEnabled(), true);
+    assert.match(await page.locator('[data-gdp-garment-choice="true"]').innerText(), /Black.*T-shirt.*Front/);
+    assert.equal(await uploader.isEnabled(), true, 'Garment + color + side unlock uploads');
 
     // Background-removal instructions remain in collapsed optional help.
     assert.equal(await page.locator('[data-gdp-removal-help="true"]').evaluate((el) => el.open), false);
@@ -80,53 +87,97 @@ try {
     assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
     let overflowAfterPhotos = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflowAfterPhotos <= 4, 'Five photos must not expose white right-side panel: ' + overflowAfterPhotos);
-    // One selected mockup, never a gallery of six. The user can switch their
-    // CHOICE, but only the explicitly selected side appears in the result.
+    // Only the selected combination gets a rendered mockup. Changing garment
+    // resets color+side, and changing color resets the side. Verify that WHITE
+    // changes actual garment pixels, not merely the label or metadata.
     const garmentImage = page.locator('[data-gdp-garment-image="true"]');
     await garmentImage.waitFor({ timeout: 45000 });
-    const shirtFront = await garmentImage.getAttribute('src');
-    assert.ok(shirtFront?.startsWith('data:image/jpeg;base64,'), 'T-shirt front must render locally');
-    assert.equal(await page.locator('[data-gdp-mockup-gallery]').count(), 0,
-      'Do not show all six mockups before or after choosing a side');
+    const blackShirtFront = await garmentImage.getAttribute('src');
+    assert.ok(blackShirtFront?.startsWith('data:image/jpeg;base64,'));
+    assert.equal(await page.locator('[data-gdp-mockup-gallery]').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'false');
+
+    const brightnessAtHem = async () => garmentImage.evaluate(async (el) => {
+      await el.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = el.naturalWidth;
+      canvas.height = el.naturalHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(el, 0, 0);
+      return [...ctx.getImageData(300, 600, 1, 1).data].slice(0, 3).reduce((a, b) => a + b, 0) / 3;
+    });
+    const blackBrightness = await brightnessAtHem();
+
+    await page.getByRole('button', { name: 'Choose White garment color' }).click();
+    assert.equal(await uploader.isDisabled(), true, 'Changing garment color resets selected print side');
+    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
+    assert.equal(await garmentImage.count(), 0, 'A stale black preview must be hidden');
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'false');
+    await page.getByRole('button', { name: 'Print on Front' }).click();
+    assert.equal(await uploader.isEnabled(), true);
+    await garmentImage.waitFor({ timeout: 30000 });
+    const whiteShirtFront = await garmentImage.getAttribute('src');
+    assert.ok(whiteShirtFront?.startsWith('data:image/jpeg;base64,'));
+    assert.notEqual(blackShirtFront, whiteShirtFront, 'Changing color must rerender mockup');
+    const whiteBrightness = await brightnessAtHem();
+    assert.ok(whiteBrightness > blackBrightness + 80,
+      'White garment must look materially lighter than black: black=' + blackBrightness + ' white=' + whiteBrightness);
+    assert.match(await page.locator('[data-gdp-preview-label="true"]').innerText(), /White.*T-shirt.*Front/);
     await page.getByRole('button', { name: 'Print on Back' }).click();
     await page.waitForFunction((src) => {
       const im = document.querySelector('[data-gdp-garment-image="true"]');
       return im && im.getAttribute('src') !== src && im.getAttribute('src')?.startsWith('data:image/jpeg;base64,');
-    }, shirtFront, { timeout: 20000 });
-    const shirtBack = await garmentImage.getAttribute('src');
-    assert.notEqual(shirtFront, shirtBack, 'Selected front/back mockups must be visually distinct');
-    assert.match(await page.locator('[data-gdp-preview-label="true"]').innerText(), /T-shirt.*Back/);
+    }, whiteShirtFront, { timeout: 20000 });
+    const whiteShirtBack = await garmentImage.getAttribute('src');
+    assert.notEqual(whiteShirtFront, whiteShirtBack, 'Front and back must stay visually distinct');
+    assert.match(await page.locator('[data-gdp-preview-label="true"]').innerText(), /White.*T-shirt.*Back/);
 
     await page.getByRole('button', { name: 'Choose Sweatshirt' }).click();
-    assert.equal(await page.locator('[data-gdp-garment-image="true"]').count(), 0,
-      'Changing garment requires reselecting the print side');
-    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).count(), 0,
+      'Changing garment clears color selection and hides side choices');
+    assert.equal(await uploader.isDisabled(), true);
+    assert.equal(await garmentImage.count(), 0);
+    await page.getByRole('button', { name: 'Choose Black garment color' }).click();
     await page.getByRole('button', { name: 'Print on Front' }).click();
     await garmentImage.waitFor({ timeout: 30000 });
-    const sweatshirtFront = await garmentImage.getAttribute('src');
-    assert.ok(sweatshirtFront?.startsWith('data:image/jpeg;base64,'));
-    assert.notEqual(shirtFront, sweatshirtFront, 'Sweatshirt must differ from the T-shirt');
-    await page.getByRole('button', { name: 'Choose Hoodie' }).click();
-    assert.equal(await page.locator('[data-gdp-preview-gated="true"]').count(), 1);
+    const blackSweatshirtFront = await garmentImage.getAttribute('src');
+    assert.ok(blackSweatshirtFront?.startsWith('data:image/jpeg;base64,'));
+    assert.notEqual(blackShirtFront, blackSweatshirtFront, 'Sweatshirt must differ from T-shirt');
+    await page.getByRole('button', { name: 'Choose White garment color' }).click();
     await page.getByRole('button', { name: 'Print on Back' }).click();
     await garmentImage.waitFor({ timeout: 30000 });
-    const hoodieBack = await garmentImage.getAttribute('src');
-    assert.ok(hoodieBack?.startsWith('data:image/jpeg;base64,'));
-    assert.notEqual(hoodieBack, shirtBack, 'Hoodie and T-shirt should show different silhouettes');
-    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'false');
-    assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'true');
+    const whiteSweatshirtBack = await garmentImage.getAttribute('src');
+    assert.ok(whiteSweatshirtBack?.startsWith('data:image/jpeg;base64,'));
+    assert.notEqual(blackSweatshirtFront, whiteSweatshirtBack);
+
+    await page.getByRole('button', { name: 'Choose Hoodie' }).click();
+    assert.equal(await uploader.isDisabled(), true);
+    await page.getByRole('button', { name: 'Choose Black garment color' }).click();
+    await page.getByRole('button', { name: 'Print on Back' }).click();
+    await garmentImage.waitFor({ timeout: 30000 });
+    const blackHoodieBack = await garmentImage.getAttribute('src');
+    assert.ok(blackHoodieBack?.startsWith('data:image/jpeg;base64,'));
+    await page.getByRole('button', { name: 'Choose White garment color' }).click();
+    await page.getByRole('button', { name: 'Print on Front' }).click();
+    await garmentImage.waitFor({ timeout: 30000 });
+    const whiteHoodieFront = await garmentImage.getAttribute('src');
+    assert.ok(whiteHoodieFront?.startsWith('data:image/jpeg;base64,'));
+    assert.notEqual(blackHoodieBack, whiteHoodieFront);
+    assert.match(await page.locator('[data-gdp-preview-label="true"]').innerText(), /White.*Hoodie.*Front/);
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'false');
     const subtitle = page.getByRole('textbox', { name: /Subtitle/i });
     assert.equal(await subtitle.inputValue(), '');
     await page.locator('[data-gdp-help-trigger="request"]').click();
     await page.getByRole('dialog', { name: 'Need help with your design?' }).waitFor();
     await page.getByRole('button', { name: 'Close design help' }).click();
     assert.equal(await page.getByRole('button', { name: 'Choose Hoodie' }).getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Choose White garment color' }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('combobox', { name: 'Premium text style' }).inputValue(), 'silver-chrome');
     assert.equal(await page.getByRole('button', { name: 'Save mockup' }).count(), 1,
-      'The one selected garment mockup must be downloadable');
+      'Selected garment and color must have exactly one downloadable mockup');
 
     // Phase B must NOT send photos to remove.bg without explicit consent.
     // Simulate one successful free cutout then a server-enforced quota stop.
@@ -194,7 +245,7 @@ try {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 4, 'Quick Design viewport should not overflow horizontally: ' + overflow);
     assert.deepEqual(errors, [], 'No uncaught client errors');
-    console.log('PASS garment-first side-second single mockup and guarded remove.bg on ' + viewport.width + 'px viewport');
+    console.log('PASS garment → black/white color → front/back single mockup and guarded remove.bg on ' + viewport.width + 'px viewport');
     await page.close();
   }
 } finally {
