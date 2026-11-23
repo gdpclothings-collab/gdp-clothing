@@ -90,6 +90,43 @@ function fillGarment(ctx, shape, color) {
     ctx.fillRect(x, y, 0.65 + pseudo() * 1.3, 0.4 + pseudo() * 1.5);
   }
 
+  // Subtle soft-edge cloth drape and micro-weave. This reuses the existing
+  // locally generated high-resolution garment set rather than fetching
+  // unlicensed mockup photos or introducing a paid image generator.
+  ctx.save();
+  const weave = white ? 'rgba(59,61,68,.025)' : 'rgba(241,242,244,.018)';
+  ctx.strokeStyle = weave;
+  ctx.lineWidth = 0.52;
+  for (let y = 165; y < 652; y += 3.7) {
+    ctx.beginPath();
+    ctx.moveTo(150, y);
+    ctx.quadraticCurveTo(302, y + Math.sin(y * .034) * 1.5, 450, y);
+    ctx.stroke();
+  }
+  const drape = [
+    { x: 192, y: 205, cx: 215, cy: 335, ex: 185, ey: 590, w: 13 },
+    { x: 407, y: 206, cx: 385, cy: 350, ex: 421, ey: 591, w: 13 },
+    { x: 241, y: 432, cx: 252, cy: 512, ex: 212, ey: 657, w: 9 },
+    { x: 360, y: 437, cx: 352, cy: 518, ex: 388, ey: 657, w: 9 },
+  ];
+  for (const fold of drape) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(fold.x, fold.y);
+    ctx.quadraticCurveTo(fold.cx, fold.cy, fold.ex, fold.ey);
+    ctx.strokeStyle = white ? 'rgba(73,76,84,.17)' : 'rgba(0,0,0,.25)';
+    ctx.lineWidth = fold.w;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = white ? 'rgba(69,74,86,.09)' : 'rgba(0,0,0,.21)';
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = white ? 'rgba(255,255,255,.65)' : 'rgba(247,247,251,.065)';
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
   // Localized diagonal fold shading and fine seam glints approximate cloth
   // drape, rather than a flat fill (still a clearly labelled illustration).
   const centerFold = ctx.createLinearGradient(175, 255, 418, 624);
