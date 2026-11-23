@@ -514,7 +514,7 @@ export default function QuickDesign() {
 
         <section className="rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="3">Choose a GDP background</SmallHeading>
-          <p className="mb-3 text-xs text-white/60">Choose an original GDP background. Phase C keeps its effects behind your pets and toward the bottom, with your name above.</p>
+          <p className="mb-3 text-xs text-white/60">Choose an original GDP background. Photos form a close, balanced bootleg collage with your name above and the original GDP effects behind and below.</p>
           <div className="grid min-w-0 grid-cols-4 gap-2 sm:grid-cols-4">
             {QUICK_DESIGN_BACKGROUNDS.map((background) =>
               <button key={background.id} type="button" onClick={() => { setBackgroundId(background.id); setSubmitted(null); }}
@@ -575,7 +575,7 @@ export default function QuickDesign() {
       <div className="min-w-0 space-y-7">
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5" data-gdp-garment-preview="true">
           <SmallHeading number="5">Your garment preview</SmallHeading>
-          <p className="mb-4 text-xs leading-5 text-white/65">One STORM-inspired design on your selected garment colour and print side. Your name stays above the pets; the GDP storm/flame background sits mainly below.</p>
+          <p className="mb-4 text-xs leading-5 text-white/65">One STORM-style design on your selected garment colour and print side. Photos stay closely grouped, with your name above and the original GDP storm/flame backdrop behind and below.</p>
           {!placementChosen ? <div role="status" data-gdp-preview-gated="true" className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">First choose your garment, colour, and Front or Back in Step 1.</div> :
           !photos.length ? <div role="status" data-gdp-preview-gated="true" className="rounded-xl border border-dashed border-white/20 bg-black/20 p-8 text-center text-sm text-white/60">Add a photo in Step 2 to see your selected mockup.</div> :
           previewBusy || garmentBusy ? <div role="status" className="flex min-h-48 items-center justify-center gap-3 text-white/70"><Loader2 className="animate-spin" /> Creating your selected mockup…</div> :
