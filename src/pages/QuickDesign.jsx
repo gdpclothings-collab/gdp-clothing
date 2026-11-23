@@ -378,9 +378,9 @@ export default function QuickDesign() {
           <button type="button" data-gdp-help-trigger="header" onClick={() => setHelpOpen(true)} aria-haspopup="dialog" aria-expanded={helpOpen} aria-controls="gdp-quick-design-help-dialog" className={BTN + ' border border-lime-300/40 bg-lime-300/10 text-lime-100 hover:bg-lime-300/20'}><HelpCircle size={19}/> Help with my design</button>
         </div>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">Your design. <span className="text-lime-300">On any garment.</span></h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">Upload your photos, create a STORM-inspired design, then preview it on black T-shirts, sweatshirts and hoodies. No paid image generation required.</p>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">First choose your garment and print side, then upload photos and personalize the design. Preview only your selected garment. No paid image generation required.</p>
         <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold text-white/70">
-          <span className="rounded-full border border-white/20 px-3 py-2">Six garment previews</span>
+          <span className="rounded-full border border-white/20 px-3 py-2">Choose garment &amp; print side first</span>
           <span className="rounded-full border border-white/20 px-3 py-2">On-device sample rendering</span>
           <span className="rounded-full border border-white/20 px-3 py-2">T-shirt, sweatshirt and hoodie previews</span>
         </div>
@@ -419,12 +419,13 @@ export default function QuickDesign() {
 
         <section className="min-w-0 rounded-2xl border border-white/15 bg-white/5 p-5">
           <SmallHeading number="2">Upload photos</SmallHeading>
-          <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-4 text-center hover:border-lime-300">
+          <label aria-disabled={!placementChosen} className={"flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/25 bg-black/20 p-4 text-center " + (placementChosen ? "cursor-pointer hover:border-lime-300" : "cursor-not-allowed opacity-55")}>
             <ImagePlus size={25} className="text-lime-300" />
             <span className="font-bold">Add 1–5 photos</span>
             <span className="text-xs text-white/60">JPG, PNG or WebP · 10 MB maximum each</span>
-            <input aria-label="Upload customer photos" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} />
+            <input aria-label="Upload customer photos" className="sr-only" disabled={!placementChosen} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} />
           </label>
+          {!placementChosen && <p className="mt-2 text-xs text-white/60">Select your garment and print side in Step 1 to enable photo uploads.</p>}
           {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-3 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
             <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
               <img src={item.cutoutUrl || item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full bg-neutral-700 object-contain" />
