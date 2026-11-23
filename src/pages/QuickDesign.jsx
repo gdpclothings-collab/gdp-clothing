@@ -22,7 +22,7 @@ const ACCENTS = ['#f9c846', '#ffffff', '#fb61bd', '#80f1f2', '#b3fb6e'];
 const PHASE_B_DEFAULT_BACKGROUND = QUICK_DESIGN_BACKGROUNDS.some((item) => item.id === 'flame-inferno') ? 'flame-inferno' : (QUICK_DESIGN_BACKGROUNDS[0]?.id || '');
 const INPUT = 'min-w-0 w-full rounded-xl border border-white/20 bg-[#17191d] px-3 py-3 text-sm text-white outline-none focus:border-lime-300 focus:ring-2 focus:ring-lime-300/20';
 const BTN = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50';
-const MAX_PREVIEW_NOTICE = 'Previews are watermarked and not print-ready. GDP reviews the original photos and approves final print quality after ordering.';
+const MAX_PREVIEW_NOTICE = 'Clean A3-proportioned previews are for layout review, not a verified print-ready file. GDP checks original photo resolution and approves the final print size after ordering.';
 
 function downloadSample(dataUrl, filename) {
   const link = document.createElement('a');
@@ -346,7 +346,7 @@ export default function QuickDesign() {
         'Name curve: ' + curve,
         'Name size: ' + fontSizePercent + '%',
         'Text style: ' + (selectedPremium?.label || 'Solid color'),
-        'Artwork format: 12 x 16 inches (3600 x 4800 pixels at 300 DPI target)',
+        'Artwork target: A3 portrait, 297 x 420 mm (3508 x 4961 pixels at 300 DPI)',
         'remove.bg cutout (external opt-in): ' + (autoCutout || cutoutUnavailable ? 'enabled or attempted' : 'disabled'),
         'Uploaded photos on customer device: ' + photos.length,
         'Garment: ' + selectedColor.label + ' ' + selectedGarment.label + ', size: ' + customer.size,
@@ -506,7 +506,7 @@ export default function QuickDesign() {
               <button type="button" onClick={checkRemoveBgConnection} disabled={connectionChecking} className={BTN + ' w-full border border-white/25 bg-black/30 text-white/85 hover:bg-white/10'} data-gdp-check-removal="true">{connectionChecking ? 'Checking connection…' : 'Check remove.bg connection'}</button>
               {connectionStatus && <p role="status" data-gdp-removal-connection={connectionStatus.code} className={'break-words ' + (connectionStatus.ready ? 'text-lime-200' : 'text-amber-200')}>{connectionStatus.message}</p>}
               {!cutoutError && <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="inline-block font-semibold text-lime-200 underline underline-offset-2">Open remove.bg (external)</a>}
-              <p>These are low-resolution design previews, not 300-DPI print files.</p>
+              <p>The design uses A3 portrait proportions (297 × 420 mm). The on-screen mockup is a preview, not proof that your photos meet 300-DPI print quality.</p>
             </div>
           </details>
           {message && <p role="status" className="mt-3 min-w-0 max-w-full break-words rounded-lg bg-amber-300/10 p-3 text-sm text-amber-200">{message}</p>}
@@ -586,7 +586,7 @@ export default function QuickDesign() {
               <img data-gdp-garment-image="true" src={selectedMockup}
                 alt={selectedColor.label + ' ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto block h-auto max-h-[560px] w-full max-w-full object-contain" />
             </div>
-            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. Your artwork is layered onto GDP's new blank garment reference in the preview only. These are generated mockups, not manufacturer-certified garment photographs or exact Gildan print guides. GDP must approve actual print placement and dimensions.</p>
+            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. Your watermark-free A3 layout is centered by visible artwork content on GDP's approved blank garment. This is a digital mockup, not a certified print-placement guide. GDP must review original photo resolution and final A3 printing dimensions.</p>
             <p className="mt-2 text-xs leading-5 text-white/55">{MAX_PREVIEW_NOTICE}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garmentColor + '-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
