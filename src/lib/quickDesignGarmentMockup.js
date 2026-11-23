@@ -19,6 +19,35 @@ const WIDTH = 600;
 const HEIGHT = 720;
 const OUTPUT_SCALE = 2; // High-density 1200 × 1440 customer mockup for mobile and desktop.
 
+// Approved BLANK front/back garment sheet, created for GDP Quick Design.
+// Realistic-looking generated reference, not a manufacturer-certified photo.
+// The art is composited at runtime; the source templates stay unprinted.
+export const QUICK_DESIGN_BLANK_ATLAS_URL = '/images/quick-design/gdp-blank-garment-atlas.webp';
+export const QUICK_DESIGN_BLANK_ATLAS_SIZE = Object.freeze({ width: 1536, height: 720, cellWidth: 256, cellHeight: 360 });
+const APPROVED_GARMENT_INDEX = Object.freeze({ tshirt: 0, sweatshirt: 1, hoodie: 2 });
+let approvedAtlasPromise = null;
+
+export function getQuickDesignBlankGarmentCrop(garment, color, side) {
+  const g = Object.hasOwn(APPROVED_GARMENT_INDEX, garment) ? garment : 'tshirt';
+  const column = APPROVED_GARMENT_INDEX[g] * 2 + (side === 'back' ? 1 : 0);
+  const row = color === 'white' ? 1 : 0;
+  return Object.freeze({
+    sx: column * QUICK_DESIGN_BLANK_ATLAS_SIZE.cellWidth,
+    sy: row * QUICK_DESIGN_BLANK_ATLAS_SIZE.cellHeight,
+    sw: QUICK_DESIGN_BLANK_ATLAS_SIZE.cellWidth,
+    sh: QUICK_DESIGN_BLANK_ATLAS_SIZE.cellHeight,
+    dx: 65, dy: 10, dw: 470, dh: 660,
+  });
+}
+
+function loadApprovedBlankGarments() {
+  if (!approvedAtlasPromise) {
+    approvedAtlasPromise = imageFromSource(QUICK_DESIGN_BLANK_ATLAS_URL)
+      .catch(() => { approvedAtlasPromise = null; return null; });
+  }
+  return approvedAtlasPromise;
+}
+
 // Reuse Custom Studio's EXISTING local Black/White Gildan crewneck templates.
 // No remote asset, third-party service, subscription, or new customer upload.
 export function getQuickDesignStudioFabricAsset(garment, side, color) {
@@ -31,9 +60,9 @@ export function getQuickDesignStudioFabricAsset(garment, side, color) {
 // Conservative, centered chest/back zones: source art remains transparent and
 // aspect-ratio preserved. No second side is ever implied or rendered.
 export const QUICK_DESIGN_PRINT_PLACEMENTS = Object.freeze({
-  tshirt: Object.freeze({ front: Object.freeze([204, 203, 192, 256]), back: Object.freeze([204, 199, 192, 256]) }),
-  sweatshirt: Object.freeze({ front: Object.freeze([207, 219, 186, 248]), back: Object.freeze([207, 215, 186, 248]) }),
-  hoodie: Object.freeze({ front: Object.freeze([208, 255, 184, 242]), back: Object.freeze([210, 231, 180, 242]) }),
+  tshirt: Object.freeze({ front: Object.freeze([202, 195, 196, 245]), back: Object.freeze([202, 195, 196, 245]) }),
+  sweatshirt: Object.freeze({ front: Object.freeze([208, 205, 184, 240]), back: Object.freeze([208, 205, 184, 240]) }),
+  hoodie: Object.freeze({ front: Object.freeze([209, 212, 182, 202]), back: Object.freeze([209, 212, 182, 202]) }),
 });
 
 function imageFromSource(source) {
@@ -465,21 +494,35 @@ export async function renderQuickDesignGarmentMockup({
   ctx.scale(OUTPUT_SCALE, OUTPUT_SCALE);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  drawBackdrop(ctx);
-
-  // Original Custom Studio sweatshirt assets are a better match than a
-  // generic silhouette, and include the selected side and color. If an asset
-  // is missing/offline, use the existing local cloth painter instead.
-  const fabricAssetUrl = getQuickDesignStudioFabricAsset(selectedGarment, selectedSide, selectedColor);
-  let studioGarment = null;
-  if (fabricAssetUrl) {
-    try { studioGarment = await imageFromSource(fabricAssetUrl); }
-    catch { /* Keep the free on-device fallback. */ }
-  }
-  const usedStudioFabric = studioGarment
-    ? renderStudioCrewneckFabric(ctx, studioGarment, selectedColor) : false;
-  if (!usedStudioFabric) {
-    if (selectedGarment === 'hoodie') drawHood(ctx, selectedSide, selectedColor);
+  // The customer-approved blank garment sheet is the PRIMARY visual.
+  // It is local, contains exactly 12 blank front/back views and no branding,
+  // and never gets changed when customer artwork is applied to this canvas.
+  const approvedAtlas = await loadApprovedBlankGarments();
+  const usingApprovedBlankGarment = Boolean(
+    approvedAtlas &&
+    approvedAtlas.naturalWidth === QUICK_DESIGN_BLANK_ATLAS_SIZE.width &&
+    approvedAtlas.naturalHeight === QUICK_DESIGN_BLANK_ATLAS_SIZE.height
+  );
+  if (usingApprovedBlankGarment) {
+    ctx.fillStyle = '#b5b5b7';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    const crop = getQuickDesignBlankGarmentCrop(selectedGarment, selectedColor, selectedSide);
+    ctx.drawImage(approvedAtlas, crop.sx, crop.sy, crop.sw, crop.sh,
+      crop.dx, crop.dy, crop.dw, crop.dh);
+  } else {
+    // If a browser cannot decode WebP or the asset is offline, retain the
+    // existing free Custom Studio crewneck/local T-shirt/hoodie fallback.
+    drawBackdrop(ctx);
+    const fabricAssetUrl = getQuickDesignStudioFabricAsset(selectedGarment, selectedSide, selectedColor);
+    let studioGarment = null;
+    if (fabricAssetUrl) {
+      try { studioGarment = await imageFromSource(fabricAssetUrl); }
+      catch { /* Keep the free on-device fallback. */ }
+    }
+    const usedStudioFabric = studioGarment
+      ? renderStudioCrewneckFabric(ctx, studioGarment, selectedColor) : false;
+    if (!usedStudioFabric) {
+      if (selectedGarment === 'hoodie') drawHood(ctx, selectedSide, selectedColor);
   const outline = selectedGarment === 'tshirt'
     ? new Path2D('M191 89 Q216 68 244 43 Q300 87 356 43 Q383 68 410 89 Q477 111 547 175 Q554 181 547 194 L493 312 Q489 321 478 316 L427 292 L421 657 Q300 679 180 657 L173 292 L122 316 Q112 321 107 312 L53 194 Q46 181 54 175 Q124 111 191 89 Z')
     : new Path2D('M191 114 Q222 99 246 87 Q300 123 354 87 Q379 99 409 114 Q470 136 540 193 Q546 199 540 209 L499 317 Q496 328 485 325 L429 299 L421 658 Q302 679 180 658 L172 299 L115 325 Q105 328 102 317 L60 209 Q54 199 61 193 Q132 136 191 114 Z');
@@ -490,16 +533,25 @@ export async function renderQuickDesignGarmentMockup({
   else drawNeck(ctx, selectedGarment, selectedSide, selectedColor);
   drawRibbing(ctx, selectedGarment, selectedColor);
   drawSeamDetails(ctx, selectedGarment, selectedColor);
+    }
   }
 
   // Only the currently selected FRONT or BACK is printed in this illustrative
   // preview. We do not imply the customer requested a two-sided print.
   drawArtwork(ctx, artwork, selectedGarment, selectedSide, selectedColor);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.83)';
+  // Readable customer choice on both grey image-backed and dark fallback stages.
+  ctx.save();
+  ctx.fillStyle = 'rgba(12,13,17,0.86)';
+  ctx.beginPath();
+  ctx.roundRect(103, 675, 394, 34, 13);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.font = '700 15px Arial, sans-serif';
   const typeLabel = QUICK_DESIGN_GARMENTS.find((item) => item.id === selectedGarment)?.label || 'T-shirt';
-  ctx.fillText(selectedColor.toUpperCase() + ' ' + typeLabel.toUpperCase() + ' • ' + selectedSide.toUpperCase(), WIDTH / 2, 692);
+  ctx.fillText(selectedColor.toUpperCase() + ' ' + typeLabel.toUpperCase() + ' • ' + selectedSide.toUpperCase(), WIDTH / 2, 693);
+  ctx.restore();
   return canvas;
 }
