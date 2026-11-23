@@ -4,7 +4,7 @@ import { BookOpen, Check, ClipboardCopy, ExternalLink, HelpCircle, Mail, X } fro
 const HELP_TOPICS = [
   {
     title: 'How do I preview my design on a garment?',
-    answer: 'Upload up to five photos, optionally remove backgrounds, choose a GDP flame or storm background and enter your name. One STORM-inspired composition places the name above your pets and the background toward the bottom. Choose T-shirt, Sweatshirt or Hoodie, then Front or Back. You can compare six black garment mockups.',
+    answer: 'Step 1: choose a T-shirt, Sweatshirt or Hoodie, then explicitly choose Front or Back printing. Step 2: upload up to five photos. Choose a GDP storm/flame background and customize the name. Only your selected black garment and side are shown in the preview. Switching garments requires choosing a print side again.',
   },
   {
     title: 'My background removal is slow or looks wrong',
