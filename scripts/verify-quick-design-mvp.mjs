@@ -9,9 +9,9 @@ import {
   quickDesignLayoutCount,
   getQuickDesignSubjectFit,
 } from '../src/lib/quickDesignCanvas.js';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
-import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
+import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
@@ -39,6 +39,30 @@ for (let count = 1; count <= 5; count += 1) {
     Array.from({length: count}, (_, i) => i), 'Every uploaded pet must appear once');
 }
 assert.equal(getQuickDesignPhaseCLayout(1)[0].role, 'hero');
+for (let count = 2; count <= 5; count += 1) {
+  const layers = getQuickDesignPhaseCLayout(count);
+  const connections = getQuickDesignCollageConnections(count);
+  const seen = new Set([0]);
+  let previousSize = 0;
+  while (previousSize !== seen.size) {
+    previousSize = seen.size;
+    for (const { photoIndex, connectsTo } of connections) {
+      if (seen.has(photoIndex)) connectsTo.forEach(i => seen.add(i));
+    }
+  }
+  assert.equal(seen.size, count, 'All 2–5 collage layers must touch a connected subject, with no isolated photos');
+  const left = Math.min(...layers.map(s => s.x));
+  const right = Math.max(...layers.map(s => s.x + s.w));
+  assert.ok(Math.abs((left + right) / 2 - .5) < .014,
+    'All photo counts should remain optically centered and balanced');
+  if (count >= 3) {
+    const supportPhotos = layers.filter(s => s.role === 'support');
+    assert.equal(supportPhotos.length, 2);
+    assert.ok(Math.abs((supportPhotos[0].x + supportPhotos[1].x + supportPhotos[0].w) - 1) < .001,
+      'Mirrored left/right support photos should share symmetrical horizontal bounds');
+  }
+}
+
 const intersects = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x &&
   a.y < b.y + b.h && a.y + a.h > b.y;
 for (let count = 1; count <= 5; count += 1) {
@@ -89,6 +113,17 @@ for (const garment of QUICK_DESIGN_GARMENTS) {
   }
 }
 assert.equal(checkedCombinations, 12, '3 garments × 2 colors × 2 print sides');
+for (const side of ['front', 'back']) {
+  for (const color of ['black', 'white']) {
+    const path = getQuickDesignStudioFabricAsset('sweatshirt', side, color);
+    assert.equal(path, '/images/custom-studio/gildan-crewneck-' + side + '-colors.svg#' + color);
+    assert.ok(existsSync(resolve('public' + path.split('#')[0])),
+      'Missing approved Custom Studio ' + side + ' fabric asset');
+    assert.equal(getQuickDesignStudioFabricAsset('tshirt', side, color), null);
+    assert.equal(getQuickDesignStudioFabricAsset('hoodie', side, color), null);
+  }
+}
+
 
 assert.ok(QUICK_DESIGN_BACKGROUNDS.length >= 5, 'Must reuse real GDP bootleg backgrounds');
 for (const template of QUICK_DESIGN_BACKGROUNDS) {
@@ -126,6 +161,9 @@ assert.match(mockupCode, /selectedSide = side === 'back'/);
 assert.match(mockupCode, /not certified/);
 assert.match(mockupCode, /selectedColor = QUICK_DESIGN_COLORS/);
 assert.match(mockupCode, /const OUTPUT_SCALE = 2/, 'Render double-density device mockups');
+assert.ok(mockupCode.includes('renderStudioCrewneckFabric(ctx, studioGarment, selectedColor)'),
+  'Quick Design must reuse existing Custom Studio fabric templates for crewneck garments');
+
 assert.match(mockupCode, /ctx\.scale\(OUTPUT_SCALE, OUTPUT_SCALE\)/);
 assert.match(mockupCode, /ctx\.imageSmoothingQuality = 'high'/);
 assert.match(mockupCode, /drawSeamDetails\(ctx, selectedGarment, selectedColor\)/);
