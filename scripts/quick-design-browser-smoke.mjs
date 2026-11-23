@@ -165,12 +165,28 @@ try {
     const blackSweatshirtFront = await garmentImage.getAttribute('src');
     assert.ok(blackSweatshirtFront?.startsWith('data:image/jpeg;base64,'));
     assert.notEqual(blackShirtFront, blackSweatshirtFront, 'Sweatshirt must differ from T-shirt');
+    const sweatshirtFabricBrightness = () => garmentImage.evaluate(async (el) => {
+      await el.decode();
+      const sample = document.createElement('canvas');
+      sample.width = el.naturalWidth;
+      sample.height = el.naturalHeight;
+      const ctx = sample.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(el, 0, 0);
+      const pixel = ctx.getImageData(Math.round(el.naturalWidth * .5), Math.round(el.naturalHeight * .72), 1, 1).data;
+      return (pixel[0] + pixel[1] + pixel[2]) / 3;
+    });
+    const darkCrewneckBrightness = await sweatshirtFabricBrightness();
     await page.getByRole('button', { name: 'Choose White garment color' }).click();
     await page.getByRole('button', { name: 'Print on Back' }).click();
     await garmentImage.waitFor({ timeout: 30000 });
     const whiteSweatshirtBack = await garmentImage.getAttribute('src');
     assert.ok(whiteSweatshirtBack?.startsWith('data:image/jpeg;base64,'));
     assert.notEqual(blackSweatshirtFront, whiteSweatshirtBack);
+    const whiteCrewneckBrightness = await sweatshirtFabricBrightness();
+    assert.ok(whiteCrewneckBrightness > darkCrewneckBrightness + 80,
+      'Existing Custom Studio Black/White crewneck SVG must change actual fabric pixels: ' +
+      darkCrewneckBrightness + ' → ' + whiteCrewneckBrightness);
+    assert.ok(whiteCrewneckBrightness > 135, 'White crewneck fabric should render visibly white');
 
     await page.getByRole('button', { name: 'Choose Hoodie' }).click();
     assert.equal(await uploader.isDisabled(), true);
