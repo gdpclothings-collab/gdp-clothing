@@ -1,8 +1,11 @@
 /**
- * Phase C — one STORM-reference composition, not A/B variants.
- * Fractions are relative to the 750x1000 (12x16) transparent preview.
- * Main subject at center, supporting cutouts overlap below and on both sides.
- * All 1-5 uploaded photos appear once; user photo features are untouched.
+ * Phase E: subject/face-first STORM composition.
+ * Uses the original 750 × 1000 transparent artwork ratio and keeps all 1–5
+ * uploaded photos. The upper-center area of each subject has a protected
+ * face-priority region that later layers must not cover.
+ *
+ * This is geometry, NOT automatic face recognition: the original image must
+ * contain a visible face and the customer reviews the resulting preview.
  */
 export const QUICK_DESIGN_PHASE_C_REFERENCE = Object.freeze({
   nameAtTop: true,
@@ -11,27 +14,34 @@ export const QUICK_DESIGN_PHASE_C_REFERENCE = Object.freeze({
   transparentArtworkEdge: true,
 });
 
-const CENTER = { x: .21, y: .24, w: .58, h: .47, angle: 0, z: 3, role: 'hero' };
-const LEFT = { x: .005, y: .39, w: .41, h: .40, angle: -.035, z: 2, role: 'support' };
-const RIGHT = { x: .595, y: .39, w: .40, h: .40, angle: .035, z: 2, role: 'support' };
-const LOW_LEFT = { x: .07, y: .64, w: .44, h: .34, angle: -.025, z: 5, role: 'foreground' };
-const LOW_RIGHT = { x: .49, y: .64, w: .44, h: .34, angle: .025, z: 5, role: 'foreground' };
+const HERO = Object.freeze({ x: .285, y: .27, w: .43, h: .52, angle: 0, z: 1, role: 'hero' });
+const LEFT = Object.freeze({ x: .005, y: .42, w: .345, h: .40, angle: -.018, z: 2, role: 'support' });
+const RIGHT = Object.freeze({ x: .65, y: .42, w: .345, h: .40, angle: .018, z: 2, role: 'support' });
+const LOW_LEFT = Object.freeze({ x: .055, y: .70, w: .36, h: .26, angle: -.012, z: 3, role: 'foreground' });
+const LOW_RIGHT = Object.freeze({ x: .585, y: .70, w: .36, h: .26, angle: .012, z: 3, role: 'foreground' });
 
 export function getQuickDesignPhaseCLayout(photoCount = 5) {
   const count = Math.max(0, Math.min(5, Number(photoCount) || 0));
   if (!count) return [];
-  if (count === 1) return [{ ...CENTER, x: .10, y: .27, w: .80, h: .68, z: 1 }];
+  if (count === 1) return [{ ...HERO, x: .13, y: .25, w: .74, h: .69 }];
   if (count === 2) return [
-    { ...CENTER, x: .26, y: .27, w: .68, h: .59, z: 2 },
-    { ...LEFT, x: .03, y: .48, w: .49, h: .47, z: 3 },
+    { ...HERO, x: .36, y: .26, w: .55, h: .58 },
+    { ...LEFT, x: .025, y: .44, w: .42, h: .48 },
   ];
-  const layout = [CENTER, LEFT, RIGHT, LOW_LEFT, LOW_RIGHT];
-  if (count === 3) {
-    layout[0] = { ...CENTER, x: .22, y: .32, w: .56, h: .62 };
-    layout[1] = { ...LEFT, y: .46, h: .46 };
-    layout[2] = { ...RIGHT, y: .46, h: .46 };
-  }
-  return layout.slice(0, count).map((slot) => ({ ...slot }));
+  return [HERO, LEFT, RIGHT, LOW_LEFT, LOW_RIGHT].slice(0, count).map(slot => ({ ...slot }));
+}
+
+/**
+ * The upper-middle portrait region is reserved for each subject's face.
+ * Later-rendered layers may overlap torsos/paws, but not these regions.
+ */
+export function getQuickDesignFacePriorityRegion(slot) {
+  return {
+    x: slot.x + slot.w * .25,
+    y: slot.y + slot.h * .10,
+    w: slot.w * .50,
+    h: slot.h * .40,
+  };
 }
 
 export function getQuickDesignPhaseCRenderOrder(photoCount) {
