@@ -1,6 +1,6 @@
 // Quick Design realistic studio garment visualizer: 3 garment types × 2 colors × 2 sides.
 // All fabric and artwork are composed locally with no paid image service or network call.
-// These are studio illustrations, NOT manufacturer-certified photos or a size-specific print guide.
+// These are studio illustrations, not certified manufacturer photos or a size-specific print guide.
 export const QUICK_DESIGN_GARMENTS = Object.freeze([
   { id: 'tshirt', label: 'T-shirt', description: 'Short sleeves' },
   { id: 'sweatshirt', label: 'Sweatshirt', description: 'Crewneck' },
