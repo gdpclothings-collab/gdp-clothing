@@ -308,7 +308,7 @@ assert.match(page, /setCutoutUnavailable\(true\)/);
 assert.match(page, /setAutoCutout\(false\)/);
 assert.match(canvas, /trimmedAlphaBounds/);
 assert.match(canvas, /paintPhaseCPortraits/);
-assert.match(canvas, /getQuickDesignSubjectFit\(sw, sh, layer.width, layer.height, crop\)/,
+assert.match(canvas, /getQuickDesignSubjectFit\(sw, sh, w, h, crop\)/,
   'Photo rendering must use non-cropping contain mode for both opaque and transparent sources');
 assert.doesNotMatch(canvas, /Math.max\(layer.width \/ crop.w, layer.height \/ crop.h\)/,
   'Cover scaling would crop faces');
