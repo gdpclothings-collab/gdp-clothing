@@ -19,6 +19,15 @@ const WIDTH = 600;
 const HEIGHT = 720;
 const OUTPUT_SCALE = 2; // High-density 1200 × 1440 customer mockup for mobile and desktop.
 
+// Reuse Custom Studio's EXISTING local Black/White Gildan crewneck templates.
+// No remote asset, third-party service, subscription, or new customer upload.
+export function getQuickDesignStudioFabricAsset(garment, side, color) {
+  if (garment !== 'sweatshirt') return null;
+  const safeSide = side === 'back' ? 'back' : 'front';
+  const safeColor = color === 'white' ? 'white' : 'black';
+  return '/images/custom-studio/gildan-crewneck-' + safeSide + '-colors.svg#' + safeColor;
+}
+
 // Conservative, centered chest/back zones: source art remains transparent and
 // aspect-ratio preserved. No second side is ever implied or rendered.
 export const QUICK_DESIGN_PRINT_PLACEMENTS = Object.freeze({
@@ -323,6 +332,42 @@ function drawSeamDetails(ctx, garment, color) {
   ctx.restore();
 }
 
+// Add gentle local weave to the existing, color-matched Custom Studio SVG
+// garment silhouette without affecting the neutral showroom backdrop.
+function renderStudioCrewneckFabric(ctx, source, color) {
+  const fabricLayer = document.createElement('canvas');
+  fabricLayer.width = WIDTH;
+  fabricLayer.height = HEIGHT;
+  const fc = fabricLayer.getContext('2d', { alpha: true });
+  if (!fc) return false;
+  fc.drawImage(source, 0, 0, WIDTH, HEIGHT);
+  fc.save();
+  fc.globalCompositeOperation = 'source-atop';
+  const white = color === 'white';
+  const glow = fc.createLinearGradient(150, 180, 465, 570);
+  glow.addColorStop(0, white ? 'rgba(255,255,255,.20)' : 'rgba(255,255,255,.055)');
+  glow.addColorStop(.42, 'rgba(255,255,255,0)');
+  glow.addColorStop(1, white ? 'rgba(60,68,81,.045)' : 'rgba(0,0,0,.12)');
+  fc.fillStyle = glow;
+  fc.fillRect(50, 100, 500, 560);
+  fc.strokeStyle = white ? 'rgba(72,77,88,.033)' : 'rgba(235,236,241,.026)';
+  fc.lineWidth = 0.7;
+  for (let y = 155; y < 592; y += 4) {
+    fc.beginPath();
+    fc.moveTo(120, y);
+    fc.quadraticCurveTo(300, y + Math.sin(y / 43) * 2, 480, y);
+    fc.stroke();
+  }
+  fc.restore();
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.72)';
+  ctx.shadowBlur = 23;
+  ctx.shadowOffsetY = 13;
+  ctx.drawImage(fabricLayer, 0, 0);
+  ctx.restore();
+  return true;
+}
+
 function drawBackdrop(ctx) {
   const grad = ctx.createRadialGradient(300, 250, 40, 300, 370, 620);
   grad.addColorStop(0, '#52545b');
@@ -374,7 +419,19 @@ export async function renderQuickDesignGarmentMockup({
   ctx.imageSmoothingQuality = 'high';
   drawBackdrop(ctx);
 
-  if (selectedGarment === 'hoodie') drawHood(ctx, selectedSide, selectedColor);
+  // Original Custom Studio sweatshirt assets are a better match than a
+  // generic silhouette, and include the selected side and color. If an asset
+  // is missing/offline, use the existing local cloth painter instead.
+  const fabricAssetUrl = getQuickDesignStudioFabricAsset(selectedGarment, selectedSide, selectedColor);
+  let studioGarment = null;
+  if (fabricAssetUrl) {
+    try { studioGarment = await imageFromSource(fabricAssetUrl); }
+    catch { /* Keep the free on-device fallback. */ }
+  }
+  const usedStudioFabric = studioGarment
+    ? renderStudioCrewneckFabric(ctx, studioGarment, selectedColor) : false;
+  if (!usedStudioFabric) {
+    if (selectedGarment === 'hoodie') drawHood(ctx, selectedSide, selectedColor);
   const outline = selectedGarment === 'tshirt'
     ? new Path2D('M191 89 Q216 68 244 43 Q300 87 356 43 Q383 68 410 89 Q477 111 547 175 Q554 181 547 194 L493 312 Q489 321 478 316 L427 292 L421 657 Q300 679 180 657 L173 292 L122 316 Q112 321 107 312 L53 194 Q46 181 54 175 Q124 111 191 89 Z')
     : new Path2D('M191 114 Q222 99 246 87 Q300 123 354 87 Q379 99 409 114 Q470 136 540 193 Q546 199 540 209 L499 317 Q496 328 485 325 L429 299 L421 658 Q302 679 180 658 L172 299 L115 325 Q105 328 102 317 L60 209 Q54 199 61 193 Q132 136 191 114 Z');
@@ -384,6 +441,7 @@ export async function renderQuickDesignGarmentMockup({
   else drawNeck(ctx, selectedGarment, selectedSide, selectedColor);
   drawRibbing(ctx, selectedGarment, selectedColor);
   drawSeamDetails(ctx, selectedGarment, selectedColor);
+  }
 
   // Only the currently selected FRONT or BACK is printed in this illustrative
   // preview. We do not imply the customer requested a two-sided print.
