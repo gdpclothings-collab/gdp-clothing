@@ -16,7 +16,11 @@ const HELP_TOPICS = [
   },
   {
     title: 'How do I change the name style?',
-    answer: 'Choose one of five bootleg font presets, adjust the 60–160% font-size slider, and choose a premium finish such as chrome, neon glow or retro 3D. Set a name color, then choose Straight, Curve upward or Curve downward. Long names auto-fit within the 12 × 16-inch layout.',
+    answer: 'Choose one of five bootleg font presets, adjust the 60–160% font-size slider, and choose a premium finish such as chrome, neon glow or retro 3D. Set a name color, then choose Straight, Curve upward or Curve downward. The Selected Font Preview now uses the same actual Straight, Curve upward or Curve downward lettering as the final sample. Long names auto-fit within the 12 × 16-inch layout.',
+  },
+  {
+    title: 'How do I keep my pet or person's face visible?',
+    answer: 'Quick Design fits the full uploaded photo without cropping, arranges portrait areas so nearby photos do not cover the main face region, and lets you tap the star on any photo to make it the largest main subject. A distant or already-obscured face cannot be recovered automatically. Review your preview and choose a clearer close-up if needed. Optional remove.bg remains separately controlled by its free-use safeguards.',
   },
   {
     title: 'Are front and back both included?',
@@ -115,11 +119,11 @@ export default function QuickDesignHelp({ onClose, details }) {
           <div className="mt-5 rounded-xl border border-lime-300/15 bg-lime-300/5 p-4">
             <div className="flex items-center gap-2 text-sm font-extrabold text-lime-200"><BookOpen size={17} /> Quick start</div>
             <ol className="mt-3 space-y-2 text-sm leading-6 text-white/85">
-              <li>1. Add one to five photos. Opt in to remove.bg only if you want photos processed by the external service.</li>
-              <li>2. Pick an original GDP bootleg background.</li>
-              <li>3. Add your name, font size, premium finish, color, and straight or curved text.</li>
-              <li>4. Compare both free samples, then preview T-shirt, sweatshirt or hoodie (front/back).</li>
-              <li>5. Save your sample and contact GDP if you need help finishing.</li>
+              <li>1. Choose your garment, Black or White colour, then Front or Back.</li>
+              <li>2. Upload one to five photos. Tap the star to choose the main subject. Background removal is optional.</li>
+              <li>3. Pick an original GDP bootleg background.</li>
+              <li>4. Add your name and choose the font, size, colour, premium finish, and straight or curved lettering.</li>
+              <li>5. Review the single selected mockup, check faces and placement, then save or share it with GDP.</li>
             </ol>
           </div>
 
