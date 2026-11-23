@@ -1,15 +1,13 @@
 import { GDP_STYLE_TEMPLATES } from './customStudioStyleTemplates.js';
 import { paintPremiumTextGlyph, premiumTextPreset } from './customStudioV2PremiumTextStyles.js';
-import { getQuickDesignPhaseBLayout, getQuickDesignPhaseBRenderOrder, QUICK_DESIGN_PHASE_B_NAMES } from './quickDesignPhaseBLayout.js';
-
-export { QUICK_DESIGN_PHASE_B_NAMES };
+import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder } from './quickDesignPhaseCLayout.js';
 
 export const QUICK_DESIGN_MAX_PHOTOS = 5;
 export const QUICK_DESIGN_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const QUICK_DESIGN_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 export const QUICK_DESIGN_BACKGROUNDS = GDP_STYLE_TEMPLATES.filter((item) =>
   item.category === 'photo_bootleg' &&
-  ['flame-ice', 'flame-neon', 'flame-inferno', 'flame-toxic', 'chrome-galaxy-cosmic-violet', 'chrome-galaxy-emerald-rush', 'cosmic-storm-neon-violet', 'cosmic-storm-toxic-green'].includes(item.id)
+  ['flame-ice', 'flame-neon', 'flame-heatwave', 'flame-inferno', 'flame-toxic', 'chrome-galaxy-cosmic-violet', 'chrome-galaxy-emerald-rush', 'cosmic-storm-neon-violet', 'cosmic-storm-toxic-green', 'cosmic-storm-firestorm', 'cosmic-storm-ice-storm', 'cosmic-storm-solar-gold'].includes(item.id)
 );
 
 const PREVIEW_W = 750;
@@ -213,27 +211,57 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
   ctx.restore();
 }
 
-function paintPhaseBPortraits(ctx, images, accent, variant) {
-  const slots = getQuickDesignPhaseBRenderOrder(variant, images.length);
-  slots.forEach((slot) => {
+/**
+ * STORM-reference texture: use ONLY the selected EXISTING GDP background
+ * graphic, contained in a separate layer and feathered at its top/side edges.
+ * No baked-in customer faces, no opaque rectangular backdrop and no external
+ * art generation. Actual names are always ABOVE the pets.
+ */
+function paintStormBottom(ctx, background) {
+  const layer = document.createElement('canvas');
+  layer.width = PREVIEW_W;
+  layer.height = PREVIEW_H;
+  const bg = layer.getContext('2d', { alpha: true });
+  if (!bg) return;
+  // Retain the original GDP art's colors and source aspect ratio, placing its
+  // lower flame/storm energy behind and toward the bottom of the subjects.
+  const sw = background.naturalWidth || background.width;
+  const sh = background.naturalHeight || background.height;
+  const scale = Math.max(PREVIEW_W / sw, PREVIEW_H / sh);
+  const w = sw * scale;
+  const h = sh * scale;
+  bg.drawImage(background, (PREVIEW_W - w) / 2, PREVIEW_H - h, w, h);
+
+  bg.globalCompositeOperation = 'destination-in';
+  const vertical = bg.createLinearGradient(0, 0, 0, PREVIEW_H);
+  vertical.addColorStop(0, 'rgba(255,255,255,0)');
+  vertical.addColorStop(.30, 'rgba(255,255,255,0)');
+  vertical.addColorStop(.46, 'rgba(255,255,255,.34)');
+  vertical.addColorStop(.67, 'rgba(255,255,255,1)');
+  vertical.addColorStop(.90, 'rgba(255,255,255,1)');
+  vertical.addColorStop(1, 'rgba(255,255,255,.55)');
+  bg.fillStyle = vertical;
+  bg.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
+  const horizontal = bg.createLinearGradient(0, 0, PREVIEW_W, 0);
+  horizontal.addColorStop(0, 'rgba(255,255,255,0)');
+  horizontal.addColorStop(.08, 'rgba(255,255,255,.95)');
+  horizontal.addColorStop(.92, 'rgba(255,255,255,.95)');
+  horizontal.addColorStop(1, 'rgba(255,255,255,0)');
+  bg.fillStyle = horizontal;
+  bg.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
+  bg.globalCompositeOperation = 'source-over';
+  ctx.drawImage(layer, 0, 0);
+}
+
+function paintPhaseCPortraits(ctx, images, accent) {
+  getQuickDesignPhaseCRenderOrder(images.length).forEach((slot) => {
     const image = images[slot.photoIndex];
-    if (image) paintPhaseBSubject(ctx, image, slot, accent, variant);
+    if (image) paintPhaseBSubject(ctx, image, slot, accent, 'C');
   });
 }
 
-function paintTextVeil(ctx, centerY, height) {
-  const grad = ctx.createLinearGradient(0, centerY - height / 2, 0, centerY + height / 2);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(0.3, 'rgba(0,0,0,0.68)');
-  grad.addColorStop(0.7, 'rgba(0,0,0,0.68)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, centerY - height / 2, PREVIEW_W, height);
-}
-
-// Phase B shares a pure layout spec with regression tests and editorial labels.
-export function quickDesignLayoutCount(variant) {
-  return getQuickDesignPhaseBLayout(variant, QUICK_DESIGN_MAX_PHOTOS).length;
+export function quickDesignLayoutCount() {
+  return getQuickDesignPhaseCLayout(QUICK_DESIGN_MAX_PHOTOS).length;
 }
 
 export function quickDesignFont(fontId) {
@@ -334,14 +362,12 @@ function drawWatermark(ctx) {
   ctx.restore();
 }
 
-export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', variant = 'A', fontId = 'impact', curve = 'straight', fontSizePercent = 100, premiumStyle = 'solid' }) {
+export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', fontId = 'serif', curve = 'up', fontSizePercent = 100, premiumStyle = 'gold-chrome' }) {
   if (!Array.isArray(photos) || photos.length === 0) throw new Error('Please upload a photo first.');
-  // Font must be ready before canvas measurement/painting, otherwise the preview
-  // can show different glyph widths from the customer-facing font selector.
   const chosenFont = quickDesignFont(fontId);
   if (typeof document !== 'undefined' && document.fonts?.load) {
     try { await document.fonts.load(chosenFont.weight + ' 88px "' + chosenFont.family + '"'); }
-    catch { /* Offline or blocked CDN: use the system fallback. */ }
+    catch { /* Offline or blocked fonts use the system fallback. */ }
   }
   const [background, ...images] = await Promise.all([
     loadImage(backgroundUrl),
@@ -350,29 +376,22 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
   const canvas = document.createElement('canvas');
   canvas.width = PREVIEW_W;
   canvas.height = PREVIEW_H;
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d', { alpha: true });
   if (!ctx) throw new Error('Your browser does not support artwork previews.');
-  ctx.fillStyle = '#08080c';
-  ctx.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
-  // Fill the requested 12 × 16 portrait print ratio, stretching the original GDP artwork down.
-  // No crop, recolouring, or independent content edits; resizing may alter aspect ratio.
-  ctx.drawImage(background, 0, 0, PREVIEW_W, PREVIEW_H);
-  paintPhaseBPortraits(ctx, images, accent, variant);
-  // The customer name is at the TOP in both layouts; subtitle is optional.
-  if (variant === 'B') {
-    paintTextVeil(ctx, PREVIEW_H * 0.14, PREVIEW_H * 0.19);
-    paintHeadline(ctx, headline, PREVIEW_H * 0.145, PREVIEW_W * 0.89, 100, accent, { fontId, curve, fontSizePercent, premiumStyle });
-    if (subline?.trim()) {
-      paintTextVeil(ctx, PREVIEW_H * 0.86, PREVIEW_H * 0.14);
-      paintHeadline(ctx, subline, PREVIEW_H * 0.86, PREVIEW_W * 0.85, 46, '#ffffff', { fontId: 'black' });
-    }
-  } else {
-    paintTextVeil(ctx, PREVIEW_H * 0.155, PREVIEW_H * 0.22);
-    paintHeadline(ctx, headline, PREVIEW_H * 0.165, PREVIEW_W * 0.89, 96, accent, { fontId, curve, fontSizePercent, premiumStyle });
-    if (subline?.trim()) {
-      paintTextVeil(ctx, PREVIEW_H * 0.88, PREVIEW_H * 0.12);
-      paintHeadline(ctx, subline, PREVIEW_H * 0.88, PREVIEW_W * 0.84, 46, '#ffffff', { fontId: 'black' });
-    }
+  ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+
+  // Transparent garment-ready preview: no opaque poster rectangle. The
+  // selected ORIGINAL GDP bitmap is visible primarily toward the bottom.
+  paintStormBottom(ctx, background);
+  paintPhaseCPortraits(ctx, images, accent);
+
+  // STORM reference: oversized metallic name across the very top, photos
+  // in the center and warm background flames behind and below.
+  paintHeadline(ctx, headline, PREVIEW_H * .145, PREVIEW_W * .935, 112, accent,
+    { fontId, curve, fontSizePercent, premiumStyle });
+  if (subline?.trim()) {
+    paintHeadline(ctx, subline, PREVIEW_H * .915, PREVIEW_W * .84, 43, '#ffffff',
+      { fontId: 'black', premiumStyle: 'solid' });
   }
   drawWatermark(ctx);
   return canvas;
