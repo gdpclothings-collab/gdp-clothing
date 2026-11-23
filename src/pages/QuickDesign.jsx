@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Download, HelpCircle, ImagePlus, Loader2, RotateCcw, Share2, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Download, HelpCircle, ImagePlus, Loader2, RotateCcw, Share2, ShieldCheck, Star, Trash2 } from 'lucide-react';
 import { salesLeadApi } from '@/lib/salesLeadApi';
 import {
   QUICK_DESIGN_BACKGROUNDS,
@@ -8,6 +8,7 @@ import {
   QUICK_DESIGN_FONTS,
   validateQuickDesignFile,
   renderQuickDesignArtwork,
+  renderQuickDesignNamePreview,
 } from '@/lib/quickDesignCanvas';
 import { requestQuickDesignRemoveBgCutout, checkQuickDesignRemoveBgConnection } from '@/lib/quickDesignRemoveBgClient';
 import { detectQuickDesignBackground } from '@/lib/quickDesignTransparency';
@@ -51,6 +52,7 @@ export default function QuickDesign() {
   const closeHelp = useCallback(() => setHelpOpen(false), []);
   const [backgroundId, setBackgroundId] = useState(PHASE_B_DEFAULT_BACKGROUND);
   const [headline, setHeadline] = useState('');
+  const [namePreview, setNamePreview] = useState('');
   const [subline, setSubline] = useState('');
   const [fontId, setFontId] = useState('serif');
   const [curve, setCurve] = useState('up');
@@ -186,6 +188,21 @@ export default function QuickDesign() {
     return () => { cancelled = true; };
   }, [photos, selectedBackground, headline, subline, accent, fontId, curve, fontSizePercent, premiumStyle, placementChosen]);
 
+  // This miniature uses exactly the same curved lettering painter as the
+  // final artwork, not straight CSS text pretending to be a curved preview.
+  useEffect(() => {
+    let cancelled = false;
+    setNamePreview('');
+    renderQuickDesignNamePreview({
+      headline: headline || 'YOUR NAME', fontId, curve, fontSizePercent, accent, premiumStyle,
+    }).then((canvas) => {
+      if (!cancelled) setNamePreview(canvas.toDataURL('image/png'));
+    }).catch(() => {
+      if (!cancelled) setNamePreview('');
+    });
+    return () => { cancelled = true; };
+  }, [headline, fontId, curve, fontSizePercent, accent, premiumStyle]);
+
   // Show only one selected garment/color/print-side mockup. Each choice is
   // explicit: changing the garment resets color and side; changing color
   // resets side. This prevents showing a stale/mismatched mockup.
@@ -234,6 +251,17 @@ export default function QuickDesign() {
     });
     setSubmitted(null);
     setPhotos((current) => [...current, ...items]);
+  };
+
+  const makeMainPhoto = (id) => {
+    setPhotos((items) => {
+      const index = items.findIndex((item) => item.id === id);
+      if (index <= 0) return items;
+      const reordered = [...items];
+      [reordered[0], reordered[index]] = [reordered[index], reordered[0]];
+      return reordered;
+    });
+    setSubmitted(null);
   };
 
   const removePhoto = (id) => {
@@ -446,6 +474,13 @@ export default function QuickDesign() {
           {photos.length > 0 && <div data-gdp-photo-grid="true" className="mt-3 grid min-w-0 max-w-full grid-cols-5 gap-1.5 sm:gap-2">{photos.map((item, index) =>
             <div key={item.id} className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-white/20">
               <img src={item.cutoutUrl || item.url} alt={'Uploaded photo ' + (index + 1)} className="block h-full w-full max-w-full bg-neutral-700 object-contain" />
+              <button type="button" onClick={() => makeMainPhoto(item.id)} disabled={index === 0}
+                title={index === 0 ? 'Main subject' : 'Make this photo the main subject'}
+                aria-label={index === 0 ? 'Photo 1 is the main subject' : 'Make photo ' + (index + 1) + ' main subject'}
+                aria-pressed={index === 0} data-gdp-main-photo={index === 0 ? 'true' : 'false'}
+                className={'absolute left-0 top-0 rounded-br-lg p-1 ' + (index === 0 ? 'bg-lime-300 text-black' : 'bg-black/80 text-white hover:bg-lime-300 hover:text-black')}>
+                <Star size={14} fill={index === 0 ? 'currentColor' : 'none'} />
+              </button>
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
               {item.bgStatus === 'skipped' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="transparent">Transparent</span>}
               {item.bgStatus === 'done' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="removed">Removed</span>}
@@ -453,6 +488,7 @@ export default function QuickDesign() {
               {!autoCutout && item.bgStatus === 'pending' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-white" data-gdp-photo-status="off">Original</span>}
             </div>
           )}</div>}
+          {photos.length > 1 && <p className="mt-2 text-xs leading-5 text-white/60">Tap the star on a photo to make it the largest main subject. All photos are fitted without cropping; check that every face is clear before ordering.</p>}
           {photos.length > 0 && !autoCutout && !cutoutBusy && !cutoutUnavailable && photos.some((item) => !item.cutoutUrl && item.bgStatus !== 'skipped') && <div className="mt-3">
             <button type="button" onClick={() => switchCutouts(true)} className={BTN + ' w-full bg-lime-300 text-black hover:bg-lime-200'} data-gdp-remove-photos="true">Remove backgrounds</button>
             <p className="mt-1.5 text-center text-[11px] leading-4 text-white/55">Uses remove.bg for opaque photos only. Transparent images stay unchanged.</p>
@@ -499,7 +535,12 @@ export default function QuickDesign() {
             <Field title="Bootleg name font"><select value={fontId} onChange={(e) => { setFontId(e.target.value); setSubmitted(null); }} className={INPUT}>{QUICK_DESIGN_FONTS.map((font) => <option key={font.id} value={font.id}>{font.label}</option>)}</select></Field>
             <div aria-live="polite" className="rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-center">
               <p className="text-[10px] font-bold uppercase tracking-wide text-white/50">Selected font preview</p>
-              <p className="mt-2 break-words text-3xl" style={{ fontFamily: QUICK_DESIGN_FONTS.find((font) => font.id === fontId)?.css || 'Impact, sans-serif', fontWeight: 400, fontSize: Math.round(30 * fontSizePercent / 100) + 'px', lineHeight: 1.15, color: selectedPremium ? 'transparent' : accent, backgroundImage: selectedPremium ? 'linear-gradient(180deg,' + selectedPremium.stops.join(',') + ')' : undefined, WebkitBackgroundClip: selectedPremium ? 'text' : undefined, backgroundClip: selectedPremium ? 'text' : undefined, filter: selectedPremium?.glow ? 'drop-shadow(0 0 5px ' + selectedPremium.glow + ')' : undefined }}>{(headline || 'YOUR NAME').slice(0, 36)}</p>
+              <div className="mt-2 flex min-h-[116px] items-center justify-center overflow-hidden rounded-lg bg-[#121418]" data-gdp-font-curve={curve}>
+                {namePreview
+                  ? <img data-gdp-font-preview="true" src={namePreview} alt={(curve === 'up' ? 'Curved upward' : curve === 'down' ? 'Curved downward' : 'Straight') + ' preview of ' + (headline || 'YOUR NAME')} className="block h-auto max-h-[156px] w-full object-contain" />
+                  : <span role="status" className="text-xs text-white/50">Preparing name preview…</span>}
+              </div>
+              <p className="mt-1 text-xs text-white/55">{curve === 'up' ? 'Curved upward' : curve === 'down' ? 'Curved downward' : 'Straight'} — this matches the design lettering.</p>
             </div>
             <Field title="Name layout"><select value={curve} onChange={(e) => { setCurve(e.target.value); setSubmitted(null); }} className={INPUT}><option value="straight">Straight</option><option value="up">Curve upward</option><option value="down">Curve downward</option></select></Field>
             <div>
