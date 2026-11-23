@@ -10,9 +10,15 @@ export const QUICK_DESIGN_BACKGROUNDS = GDP_STYLE_TEMPLATES.filter((item) =>
   ['flame-ice', 'flame-neon', 'flame-heatwave', 'flame-inferno', 'flame-toxic', 'chrome-galaxy-cosmic-violet', 'chrome-galaxy-emerald-rush', 'cosmic-storm-neon-violet', 'cosmic-storm-toxic-green', 'cosmic-storm-firestorm', 'cosmic-storm-ice-storm', 'cosmic-storm-solar-gold'].includes(item.id)
 );
 
+// A3 portrait at 300 pixels per inch. Preview shares its aspect ratio.
 const PREVIEW_W = 750;
-const PREVIEW_H = 1000;
-export const QUICK_DESIGN_PRINT_SIZE = Object.freeze({ widthIn: 12, heightIn: 16, targetWidthPx: 3600, targetHeightPx: 4800 });
+const PREVIEW_H = 1061;
+export const QUICK_DESIGN_PRINT_SIZE = Object.freeze({
+  widthMm: 297, heightMm: 420,
+  widthIn: 297 / 25.4, heightIn: 420 / 25.4,
+  targetWidthPx: 3508, targetHeightPx: 4961,
+  previewWidthPx: PREVIEW_W, previewHeightPx: PREVIEW_H,
+});
 // Five distinct free OFL-licensed Google Fonts with system fallbacks.
 export const QUICK_DESIGN_FONTS = Object.freeze([
   { id: 'impact', label: 'Street Impact', family: 'Anton', css: '"Anton", Impact, sans-serif', weight: '400' },
@@ -115,11 +121,15 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
   const y = slot.y * PREVIEW_H;
   const w = slot.w * PREVIEW_W;
   const h = slot.h * PREVIEW_H;
+  // High-resolution A3 output must rasterize the original photo directly at
+  // export resolution, not upscale a tiny intermediate 750px preview layer.
+  const detailScale = Math.max(1, ctx.getTransform().a);
   const layer = document.createElement('canvas');
-  layer.width = Math.max(1, Math.ceil(w));
-  layer.height = Math.max(1, Math.ceil(h));
+  layer.width = Math.max(1, Math.ceil(w * detailScale));
+  layer.height = Math.max(1, Math.ceil(h * detailScale));
   const layerCtx = layer.getContext('2d', { alpha: true });
   if (!layerCtx) return;
+  layerCtx.scale(detailScale, detailScale);
   const sw = image.naturalWidth || image.width || 1;
   const sh = image.naturalHeight || image.height || 1;
   const cutoutBounds = trimmedAlphaBounds(image);
@@ -128,17 +138,17 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
 
   // Preserve FULL face/subject framing even for opaque portrait images.
   // Never use cover/crop for pet or human source photos.
-  const fitted = getQuickDesignSubjectFit(sw, sh, layer.width, layer.height, crop);
+  const fitted = getQuickDesignSubjectFit(sw, sh, w, h, crop);
   layerCtx.drawImage(image, fitted.crop.x, fitted.crop.y, fitted.crop.w, fitted.crop.h,
     fitted.x, fitted.y, fitted.imageW, fitted.imageH);
 
   if (!isCutout) {
     // A soft blend is an honest fallback, not a pretend photo cutout.
-    const radius = Math.max(layer.width, layer.height) * .57;
+    const radius = Math.max(w, h) * .57;
     layerCtx.save();
-    layerCtx.translate(layer.width / 2, layer.height / 2);
-    layerCtx.scale(layer.width / Math.max(layer.width, layer.height),
-      layer.height / Math.max(layer.width, layer.height));
+    layerCtx.translate(w / 2, h / 2);
+    layerCtx.scale(w / Math.max(w, h),
+      h / Math.max(w, h));
     const mask = layerCtx.createRadialGradient(0, 0, radius * .40, 0, 0, radius);
     mask.addColorStop(0, 'rgba(255,255,255,1)');
     mask.addColorStop(.61, 'rgba(255,255,255,1)');
@@ -153,12 +163,12 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
     // the GDP backdrop or changing the customer's dog/human features.
     layerCtx.save();
     layerCtx.globalCompositeOperation = 'source-atop';
-    const highlight = layerCtx.createLinearGradient(0, 0, layer.width, layer.height);
+    const highlight = layerCtx.createLinearGradient(0, 0, w, h);
     highlight.addColorStop(0, 'rgba(255,239,192,.11)');
     highlight.addColorStop(.5, 'rgba(255,255,255,0)');
     highlight.addColorStop(1, 'rgba(0,0,0,.06)');
     layerCtx.fillStyle = highlight;
-    layerCtx.fillRect(0, 0, layer.width, layer.height);
+    layerCtx.fillRect(0, 0, w, h);
     layerCtx.restore();
   }
 
@@ -232,11 +242,13 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
  * art generation. Actual names are always ABOVE the pets.
  */
 function paintStormBottom(ctx, background) {
+  const detailScale = Math.max(1, ctx.getTransform().a);
   const layer = document.createElement('canvas');
-  layer.width = PREVIEW_W;
-  layer.height = PREVIEW_H;
+  layer.width = Math.ceil(PREVIEW_W * detailScale);
+  layer.height = Math.ceil(PREVIEW_H * detailScale);
   const bg = layer.getContext('2d', { alpha: true });
   if (!bg) return;
+  bg.scale(detailScale, detailScale);
   // Retain the original GDP art's colors and source aspect ratio, placing its
   // lower flame/storm energy behind and toward the bottom of the subjects.
   const sw = background.naturalWidth || background.width;
@@ -264,7 +276,7 @@ function paintStormBottom(ctx, background) {
   bg.fillStyle = horizontal;
   bg.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
   bg.globalCompositeOperation = 'source-over';
-  ctx.drawImage(layer, 0, 0);
+  ctx.drawImage(layer, 0, 0, PREVIEW_W, PREVIEW_H);
 }
 
 function paintPhaseCPortraits(ctx, images, accent) {
@@ -387,26 +399,8 @@ export async function renderQuickDesignNamePreview({
   return canvas;
 }
 
-function drawWatermark(ctx) {
-  ctx.save();
-  ctx.translate(PREVIEW_W / 2, PREVIEW_H / 2);
-  ctx.rotate(-0.48);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  // Softer but persistent coverage keeps previews readable yet visibly
-  // watermarked. Never export this sample as the final print master.
-  ctx.font = '900 43px Arial, sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.17)';
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = 2;
-  [-255, -85, 85, 255].forEach((y) => {
-    ctx.strokeText('GDP CLOTHING  •  SAMPLE', 0, y);
-    ctx.fillText('GDP CLOTHING  •  SAMPLE', 0, y);
-  });
-  ctx.restore();
-}
 
-export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', fontId = 'serif', curve = 'up', fontSizePercent = 100, premiumStyle = 'gold-chrome' }) {
+export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline, subline, accent = '#f9c846', fontId = 'serif', curve = 'up', fontSizePercent = 100, premiumStyle = 'gold-chrome', outputSize = 'preview' }) {
   if (!Array.isArray(photos) || photos.length === 0) throw new Error('Please upload a photo first.');
   const chosenFont = quickDesignFont(fontId);
   if (typeof document !== 'undefined' && document.fonts?.load) {
@@ -417,12 +411,19 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
     loadImage(backgroundUrl),
     ...photos.slice(0, QUICK_DESIGN_MAX_PHOTOS).map((item) => loadImage(item.url)),
   ]);
+  // Default remains a lightweight customer preview. A3 uses actual
+  // 3508 × 4961 canvas pixels and renders layers at native output resolution,
+  // NOT a resized screenshot or a garment photograph. It is opt-in only.
+  const a3 = outputSize === 'a3';
   const canvas = document.createElement('canvas');
-  canvas.width = PREVIEW_W;
-  canvas.height = PREVIEW_H;
+  canvas.width = a3 ? QUICK_DESIGN_PRINT_SIZE.targetWidthPx : PREVIEW_W;
+  canvas.height = a3 ? QUICK_DESIGN_PRINT_SIZE.targetHeightPx : PREVIEW_H;
   const ctx = canvas.getContext('2d', { alpha: true });
   if (!ctx) throw new Error('Your browser does not support artwork previews.');
-  ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (a3) ctx.scale(canvas.width / PREVIEW_W, canvas.height / PREVIEW_H);
 
   // Transparent garment-ready preview: no opaque poster rectangle. The
   // selected ORIGINAL GDP bitmap is visible primarily toward the bottom.
@@ -437,7 +438,8 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
     paintHeadline(ctx, subline, PREVIEW_H * .915, PREVIEW_W * .84, 43, '#ffffff',
       { fontId: 'black', premiumStyle: 'solid' });
   }
-  drawWatermark(ctx);
+  // Owner-requested clean, transparent artwork: no repeated watermark
+  // overlay in previews or optional A3-sized composition renders.
   return canvas;
 }
 
