@@ -8,8 +8,9 @@ import {
   validateQuickDesignFile,
   quickDesignLayoutCount,
   getQuickDesignSubjectFit,
+  QUICK_DESIGN_PRINT_SIZE,
 } from '../src/lib/quickDesignCanvas.js';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
@@ -33,7 +34,7 @@ for (let count = 1; count <= 5; count += 1) {
   for (const slot of layout) {
     assert.ok(slot.x >= 0 && slot.y >= 0 && slot.w > 0 && slot.h > 0);
     assert.ok(slot.x + slot.w <= 1.001 && slot.y + slot.h <= 1.001,
-      'Phase C pet composition must fit the original 12 x 16 print area');
+      'Phase H pet composition must fit the A3 print layout');
   }
   assert.deepEqual(getQuickDesignPhaseCRenderOrder(count).map((item) => item.photoIndex).sort(),
     Array.from({length: count}, (_, i) => i), 'Every uploaded pet must appear once');
@@ -177,11 +178,22 @@ assert.match(page, /Promise\.all|renderQuickDesignArtwork/);
 assert.match(page, /salesLeadApi\.submit/);
 assert.match(page, /original photos and previews are NOT uploaded/);
 assert.match(page, /rightsConfirmed/);
-assert.match(canvas, /drawWatermark\(ctx\)/);
+assert.doesNotMatch(canvas, /drawWatermark\(|GDP CLOTHING  •  SAMPLE|watermark.*fillText/i,
+  'Neither preview nor A3 artwork may contain repeated sample watermarks');
 assert.doesNotMatch(canvas, /fetch\(|supabase\.|openai|replicate|remove\.bg/i, 'Preview generation must remain local and free');
 assert.doesNotMatch(page, /checkout\/payment|stripe\.confirm|createPaymentIntent/);
-assert.match(canvas, /const PREVIEW_H = 1000/);
-assert.match(canvas, /targetWidthPx: 3600, targetHeightPx: 4800/);
+assert.match(canvas, /const PREVIEW_H = 1061/);
+assert.deepEqual(
+  { widthMm: QUICK_DESIGN_PRINT_SIZE.widthMm, heightMm: QUICK_DESIGN_PRINT_SIZE.heightMm,
+    widthPx: QUICK_DESIGN_PRINT_SIZE.targetWidthPx, heightPx: QUICK_DESIGN_PRINT_SIZE.targetHeightPx },
+  { widthMm: 297, heightMm: 420, widthPx: 3508, heightPx: 4961 }
+);
+assert.ok(Math.abs(QUICK_DESIGN_PRINT_SIZE.previewWidthPx / QUICK_DESIGN_PRINT_SIZE.previewHeightPx - 297 / 420) < .0005);
+assert.match(canvas, /outputSize === 'a3'/);
+assert.match(canvas, /canvas\.width \/ PREVIEW_W, canvas\.height \/ PREVIEW_H/,
+  'A3 render must rerender source photos and original effects at A3 output scale');
+assert.match(canvas, /detailScale = Math.max\(1, ctx\.getTransform\(\)\.a\)/,
+  'Photo and backdrop layers must rasterize at export resolution');
 assert.match(canvas, /quickDesignFont/);
 assert.match(canvas, /paintPremiumTextGlyph/);
 assert.match(canvas, /fontSizePercent = 100/);
@@ -207,8 +219,23 @@ assert.match(mockupCode, /ctx\.scale\(OUTPUT_SCALE, OUTPUT_SCALE\)/);
 assert.match(mockupCode, /ctx\.imageSmoothingQuality = 'high'/);
 assert.match(mockupCode, /drawSeamDetails\(ctx, selectedGarment, selectedColor\)/);
 assert.match(mockupCode, /QUICK_DESIGN_PRINT_PLACEMENTS\[garment\]\[side\]/);
-assert.match(canvas, /rgba\(255,255,255,0\.17\)/, 'Watermark still exists at reduced opacity');
-assert.match(canvas, /GDP CLOTHING  •  SAMPLE/, 'Never allow unwatermarked previews');
+assert.doesNotMatch(canvas, /GDP CLOTHING  •  SAMPLE|function drawWatermark/,
+  'Phase H requires a clean sample free of repeated text overlays');
+assert.match(page, /A3 portrait, 297 x 420 mm/);
+assert.doesNotMatch(page, /Previews are watermarked|Artwork format: 12 x 16 inches/);
+assert.match(mockupCode, /getQuickDesignBalancedArtworkPlacement/);
+assert.match(mockupCode, /measureQuickDesignArtworkContent/,
+  'Artwork must center the visible alpha content, not the transparent image bounds');
+for (const garment of QUICK_DESIGN_GARMENTS) {
+  const zone = QUICK_DESIGN_PRINT_PLACEMENTS[garment.id].front;
+  const skewedArtwork = getQuickDesignBalancedArtworkPlacement(zone, 750, 1061, { x: 220, y: 160, w: 290, h: 550 });
+  assert.ok(Math.abs(skewedArtwork.dx + skewedArtwork.dw / 2 - 300) < .001,
+    'Visible design must be horizontally centered for ' + garment.id);
+  assert.ok(Math.abs(skewedArtwork.dy + skewedArtwork.dh / 2 - (zone[1] + zone[3] / 2)) < .001,
+    'Visible design must be vertically centered in the printable chest for ' + garment.id);
+  assert.ok(skewedArtwork.dw <= zone[2] && skewedArtwork.dh <= zone[3],
+    'Visible artwork must remain entirely inside the selected print zone');
+}
 assert.match(page, /only\s+\{garmentSide\}\s+printing/i);
 
 assert.match(mockupCode, /color === 'white'/);
