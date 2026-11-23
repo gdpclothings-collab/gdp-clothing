@@ -586,7 +586,7 @@ export default function QuickDesign() {
               <img data-gdp-garment-image="true" src={selectedMockup}
                 alt={selectedColor.label + ' ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto block h-auto max-h-[560px] w-full max-w-full object-contain" />
             </div>
-            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. This high-detail studio illustration uses a centered print-area estimate, not a manufacturer-certified photo or exact Gildan print guide. GDP must approve final placement and print dimensions.</p>
+            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. Your artwork is layered onto GDP's new blank garment reference in the preview only. These are generated mockups, not manufacturer-certified garment photographs or exact Gildan print guides. GDP must approve actual print placement and dimensions.</p>
             <p className="mt-2 text-xs leading-5 text-white/55">{MAX_PREVIEW_NOTICE}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garmentColor + '-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
