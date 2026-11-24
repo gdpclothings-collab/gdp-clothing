@@ -83,16 +83,38 @@ export const QUICK_DESIGN_GARMENT_SIZE_SCALES = Object.freeze({
   XS: .78, S: .90, M: 1, L: 1, XL: 1, '2XL': 1, '3XL': 1,
 });
 
-export function getQuickDesignGarmentPrintZone(garment = 'tshirt', side = 'front', size = 'M') {
+/**
+ * The approved 12-view atlas is a generated photograph sheet. Garment torsos
+ * are NOT consistently centered within each cell (especially Front/Back).
+ * Measured torso axes from the actual approved blank pixels, expressed in
+ * the 600-pixel-wide preview, keep prints centered on the CLOTHING itself.
+ * Preserve the same garment-specific height and scale for Front and Back.
+ */
+export const QUICK_DESIGN_TORSO_CENTERS = Object.freeze({
+  tshirt: Object.freeze({
+    black: Object.freeze({ front: 320, back: 289 }),
+    white: Object.freeze({ front: 315, back: 293 }),
+  }),
+  sweatshirt: Object.freeze({
+    black: Object.freeze({ front: 309, back: 291 }),
+    white: Object.freeze({ front: 311, back: 302 }),
+  }),
+  hoodie: Object.freeze({
+    black: Object.freeze({ front: 322, back: 293 }),
+    white: Object.freeze({ front: 327, back: 291 }),
+  }),
+});
+
+export function getQuickDesignGarmentPrintZone(garment = 'tshirt', side = 'front', size = 'M', color = 'black') {
   const selectedGarment = Object.hasOwn(QUICK_DESIGN_PRINT_PLACEMENTS, garment) ? garment : 'tshirt';
   const selectedSide = side === 'back' ? 'back' : 'front';
-  const [x, y, width, height] = QUICK_DESIGN_PRINT_PLACEMENTS[selectedGarment][selectedSide];
+  const selectedColor = color === 'white' ? 'white' : 'black';
+  const [, y, width, height] = QUICK_DESIGN_PRINT_PLACEMENTS[selectedGarment][selectedSide];
   const factor = QUICK_DESIGN_GARMENT_SIZE_SCALES[size] ?? 1;
   const w = width * factor;
   const h = height * factor;
-  // Match the visual center of the owner-approved large chest print. Scaling
-  // XS/S does not slide the name or the pets off the selected torso.
-  return [300 - w / 2, y + (height - h) / 2, w, h];
+  const torsoCenter = QUICK_DESIGN_TORSO_CENTERS[selectedGarment][selectedColor][selectedSide];
+  return [torsoCenter - w / 2, y + (height - h) / 2, w, h];
 }
 
 function imageFromSource(source) {
@@ -497,17 +519,27 @@ export function getQuickDesignBalancedArtworkPlacement(zone, imageWidth, imageHe
   const sw = Math.max(1, imageWidth || 1);
   const sh = Math.max(1, imageHeight || 1);
   const crop = visibleBounds || { x: 0, y: 0, w: sw, h: sh };
+  const cropX = Math.max(0, Math.min(sw - 1, crop.x));
+  const cropY = Math.max(0, Math.min(sh - 1, crop.y));
   const safeCrop = {
-    x: Math.max(0, Math.min(sw - 1, crop.x)),
-    y: Math.max(0, Math.min(sh - 1, crop.y)),
-    w: Math.max(1, Math.min(sw - crop.x, crop.w)),
-    h: Math.max(1, Math.min(sh - crop.y, crop.h)),
+    x: cropX, y: cropY,
+    w: Math.max(1, Math.min(sw - cropX, crop.w)),
+    h: Math.max(1, Math.min(sh - cropY, crop.h)),
   };
-  const factor = Math.min(w / safeCrop.w, h / safeCrop.h);
+  // Reserve a tiny 4px horizontal safety gutter for alpha-weighted optical
+  // balancing, never crop the original visible artwork or warp its aspect.
+  const factor = Math.min(Math.max(1, w - 8) / safeCrop.w, h / safeCrop.h);
   const dw = safeCrop.w * factor;
   const dh = safeCrop.h * factor;
+  let dx = x + (w - dw) / 2;
+  const dy = y + (h - dh) / 2;
+  if (Number.isFinite(crop.visualCenterX)) {
+    const opticalX = dx + (crop.visualCenterX - safeCrop.x) * factor;
+    const requestedShift = x + w / 2 - opticalX;
+    dx = Math.max(x, Math.min(x + w - dw, dx + Math.max(-8, Math.min(8, requestedShift))));
+  }
   return { sx: safeCrop.x, sy: safeCrop.y, sw: safeCrop.w, sh: safeCrop.h,
-    dx: x + (w - dw) / 2, dy: y + (h - dh) / 2, dw, dh };
+    dx, dy, dw, dh };
 }
 
 function measureQuickDesignArtworkContent(image) {
@@ -521,13 +553,24 @@ function measureQuickDesignArtworkContent(image) {
   sc.drawImage(image, 0, 0, sample.width, sample.height);
   const data = sc.getImageData(0, 0, sample.width, sample.height).data;
   let left = sample.width, top = sample.height, right = -1, bottom = -1;
+  let weightedX = 0, totalWeight = 0;
   for (let py = 0; py < sample.height; py++) {
     for (let px = 0; px < sample.width; px++) {
-      if (data[(py * sample.width + px) * 4 + 3] < 16) continue;
+      const offset = (py * sample.width + px) * 4;
+      const alpha = data[offset + 3];
+      if (alpha < 16) continue;
       if (px < left) left = px;
       if (px > right) right = px;
       if (py < top) top = py;
       if (py > bottom) bottom = py;
+      // Prefer fully visible dogs/text over low-alpha flames and soft glow.
+      // A mild colour-saturation term makes this an optical, not bounding-
+      // rectangle, centre without overemphasizing a single bright pixel.
+      const saturation = Math.max(data[offset], data[offset + 1], data[offset + 2]) -
+        Math.min(data[offset], data[offset + 1], data[offset + 2]);
+      const weight = Math.pow(alpha / 255, 2) * (0.85 + 0.15 * saturation / 255);
+      weightedX += px * weight;
+      totalWeight += weight;
     }
   }
   if (right < left || bottom < top) return null;
@@ -537,11 +580,12 @@ function measureQuickDesignArtworkContent(image) {
   const y0 = Math.max(0, top - pad) / sample.height * sh;
   const x1 = Math.min(sample.width, right + pad + 1) / sample.width * sw;
   const y1 = Math.min(sample.height, bottom + pad + 1) / sample.height * sh;
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0,
+    visualCenterX: (totalWeight > 0 ? weightedX / totalWeight : (left + right) / 2) / sample.width * sw };
 }
 
 function drawArtwork(ctx, artwork, garment, side, color, size) {
-  const position = getQuickDesignGarmentPrintZone(garment, side, size);
+  const position = getQuickDesignGarmentPrintZone(garment, side, size, color);
   const sw = artwork.naturalWidth || artwork.width;
   const sh = artwork.naturalHeight || artwork.height;
   let bounds = null;
