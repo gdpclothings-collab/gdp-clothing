@@ -26,10 +26,10 @@ export const QUICK_DESIGN_PRINT_SIZE = Object.freeze({
  * changing the number of photos preserves a visually connected composition.
  * A curved headline's last letter strokes can sit close to the subject glow.
  */
-// Physical A3 target: 12.7 mm (0.5 in) between the VISIBLE bottom of the
-// name and the top of the photo cutout. 420 mm / 1061 preview pixels.
-export const QUICK_DESIGN_NAME_PHOTO_GAP_IN = 0.5;
-export const QUICK_DESIGN_NAME_PHOTO_GAP_PX = Math.round(PREVIEW_H * 12.7 / 420);
+// Owner-approved tighter gap: about 0.1 inch between the VISIBLE letter edge
+// and the upper photo/keyline, rather than the earlier half-inch of empty art.
+export const QUICK_DESIGN_NAME_PHOTO_GAP_IN = 0.1;
+export const QUICK_DESIGN_NAME_PHOTO_GAP_PX = Math.round(PREVIEW_H * 2.54 / 420);
 
 export function getQuickDesignHeadlineY(photoCount = 1, metrics = null) {
   const hero = getQuickDesignPhaseCLayout(photoCount)[0];
@@ -259,35 +259,55 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
 }
 
 /**
- * Apply print-aware alpha cleanup exclusively to the selected storm BACKGROUND
- * layer. The source GDP art remains unchanged; pets, lettering, lightning and
- * subsequent photo/keyline layers are never processed.
- *
- * Wide rectangular fades create low-alpha "clouds" that a DTF RIP may place
- * white underbase beneath. A curved top shoulder and alpha floor prevent
- * unwanted boxy edges while preserving the brighter intended storm effects.
- *
- * This does NOT certify RIP white-underbase behavior or print-ready pixels.
+ * Phase K: preserve the FULL original storm bitmap and compress ONLY its
+ * upper sides toward the artwork center. We use a continuously changing
+ * horizontal scale, never a rectangular mask or destructive source crop.
+ * The entire previously visible bitmap region is mapped into each stripe.
+ * Above the pets the storm is about 28% narrower, smoothly returning to
+ * its original full width below them. Pets and typography are unaffected.
  */
-export function getQuickDesignDTFStormAlpha(alpha, normalizedX, normalizedY) {
-  const a = Math.max(0, Math.min(255, Number(alpha) || 0));
-  if (!a) return 0;
-  const x = Math.max(0, Math.min(1, Number(normalizedX) || 0));
+export function getQuickDesignStormTopScale(normalizedY) {
   const y = Math.max(0, Math.min(1, Number(normalizedY) || 0));
-  const smoothstep = (lo, hi, value) => {
-    const t = Math.max(0, Math.min(1, (value - lo) / (hi - lo)));
-    return t * t * (3 - 2 * t);
-  };
-  const shoulder = Math.pow(Math.max(0, (0.30 - Math.min(x, 1 - x)) / 0.30), 2);
-  const topStart = 0.39 + shoulder * 0.09;
-  const topEnd = 0.60 + shoulder * 0.05;
-  const topMask = smoothstep(topStart, topEnd, y);
-  const sideMask = smoothstep(0.012, 0.13, x) *
-    (1 - smoothstep(0.87, 0.988, x));
-  const retained = a * topMask * sideMask;
-  if (retained <= 22) return 0;
-  if (retained < 78) return Math.round(78 * smoothstep(22, 78, retained));
-  return Math.round(retained);
+  const t = Math.max(0, Math.min(1, (y - .32) / .36));
+  const smooth = t * t * (3 - 2 * t);
+  return .72 + .28 * smooth;
+}
+
+/**
+ * Small anti-halo alpha floor ONLY; the previous broad top-shoulder and side
+ * masks erased intentional lightning and storm colours. Keep the original
+ * soft edges and upper-side compression, but discard near-invisible pixels
+ * that could cause unpredictable DTF white-underbase haze.
+ * Printer RIP/underbase approval still requires a test print.
+ */
+export function getQuickDesignDTFStormAlpha(alpha, _normalizedX, _normalizedY) {
+  const value = Math.max(0, Math.min(255, Number(alpha) || 0));
+  if (value <= 12) return 0;
+  if (value >= 40) return Math.round(value);
+  const t = (value - 12) / 28;
+  const smooth = t * t * (3 - 2 * t);
+  return Math.round(value * smooth);
+}
+
+/**
+ * Draw every source horizontal stripe into a narrower DESTINATION near the
+ * top, while retaining all the previously visible source pixels. A3 uses
+ * small, native-resolution stripes and no bitmap enlargement from previews.
+ */
+function drawQuickDesignCompressedStorm(bg, background, sourceWidth, sourceHeight, coverScale) {
+  const sourceX = Math.max(0, (sourceWidth * coverScale - PREVIEW_W) / (2 * coverScale));
+  const sourceW = PREVIEW_W / coverScale;
+  const sourceY0 = PREVIEW_H - sourceHeight * coverScale;
+  const stripe = 2;
+  for (let y = 0; y < PREVIEW_H; y += stripe) {
+    const h = Math.min(stripe, PREVIEW_H - y);
+    const srcY = (y - sourceY0) / coverScale;
+    const srcH = h / coverScale;
+    const ratio = getQuickDesignStormTopScale((y + h / 2) / PREVIEW_H);
+    const w = PREVIEW_W * ratio;
+    const x = (PREVIEW_W - w) / 2;
+    bg.drawImage(background, sourceX, srcY, sourceW, srcH, x, y, w, h);
+  }
 }
 
 function cleanQuickDesignDTFStormLayer(bg, width, height) {
@@ -325,35 +345,35 @@ function paintStormBottom(ctx, background) {
   const bg = layer.getContext('2d', { alpha: true });
   if (!bg) return;
   bg.scale(detailScale, detailScale);
-  // Retain the original GDP art's colors and source aspect ratio, placing its
-  // lower flame/storm energy behind and toward the bottom of the subjects.
+  // Preserve the original GDP bitmap colours and vertical position. Only
+  // compress the top background sides; do not crop lightning or warp dogs.
   const sw = background.naturalWidth || background.width;
   const sh = background.naturalHeight || background.height;
-  const scale = Math.max(PREVIEW_W / sw, PREVIEW_H / sh);
-  const w = sw * scale;
-  const h = sh * scale;
-  bg.drawImage(background, (PREVIEW_W - w) / 2, PREVIEW_H - h, w, h);
+  const coverScale = Math.max(PREVIEW_W / sw, PREVIEW_H / sh);
+  bg.imageSmoothingEnabled = true;
+  bg.imageSmoothingQuality = 'high';
+  drawQuickDesignCompressedStorm(bg, background, sw, sh, coverScale);
 
   bg.globalCompositeOperation = 'destination-in';
   const vertical = bg.createLinearGradient(0, 0, 0, PREVIEW_H);
   vertical.addColorStop(0, 'rgba(255,255,255,0)');
-  vertical.addColorStop(.30, 'rgba(255,255,255,0)');
-  vertical.addColorStop(.46, 'rgba(255,255,255,.34)');
-  vertical.addColorStop(.67, 'rgba(255,255,255,1)');
+  vertical.addColorStop(.18, 'rgba(255,255,255,0)');
+  vertical.addColorStop(.32, 'rgba(255,255,255,.62)');
+  vertical.addColorStop(.49, 'rgba(255,255,255,1)');
   vertical.addColorStop(.90, 'rgba(255,255,255,1)');
-  vertical.addColorStop(1, 'rgba(255,255,255,.55)');
+  vertical.addColorStop(1, 'rgba(255,255,255,.70)');
   bg.fillStyle = vertical;
   bg.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
   const horizontal = bg.createLinearGradient(0, 0, PREVIEW_W, 0);
   horizontal.addColorStop(0, 'rgba(255,255,255,0)');
-  horizontal.addColorStop(.08, 'rgba(255,255,255,.95)');
-  horizontal.addColorStop(.92, 'rgba(255,255,255,.95)');
+  horizontal.addColorStop(.025, 'rgba(255,255,255,1)');
+  horizontal.addColorStop(.975, 'rgba(255,255,255,1)');
   horizontal.addColorStop(1, 'rgba(255,255,255,0)');
   bg.fillStyle = horizontal;
   bg.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
   bg.globalCompositeOperation = 'source-over';
-  // Clean ONLY the original storm artwork here. Do this after its existing
-  // artistic fades, before dogs, chrome names, lightning or secondary text.
+  // Apply only a tiny alpha floor; never erase upper-side storm artwork.
+  // Customer photos and metallic text are composited AFTER this step.
   cleanQuickDesignDTFStormLayer(bg, layer.width, layer.height);
   ctx.drawImage(layer, 0, 0, PREVIEW_W, PREVIEW_H);
 }
@@ -486,7 +506,7 @@ function measureQuickDesignHeadlineBottom(headline, baselineY, accent, options) 
   const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
   for (let y = sample.height - 1; y >= 0; y--) {
     for (let x = 0; x < sample.width; x++) {
-      if (pixels[(y * sample.width + x) * 4 + 3] >= 40) return y + 1;
+      if (pixels[(y * sample.width + x) * 4 + 3] >= 128) return y + 1;
     }
   }
   return baselineY + 56;
@@ -551,8 +571,8 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
   paintStormBottom(ctx, background);
   paintPhaseCPortraits(ctx, images, accent);
 
-  // Position the personalized title 0.5 inch above the ACTUAL visible
-  // photo edge, not the invisible center-padding of each subject's tall slot.
+  // Place the name about 0.1 inch above the ACTUAL photo cutout edge, using
+  // solid letter pixels rather than the blurred shadow as the measuring edge.
   // Preserve real font curvature and final A3 source-resolution rendering.
   const headlineOptions = { fontId, curve, fontSizePercent, premiumStyle };
   const originalHeadlineY = getQuickDesignHeadlineY(images.length);
