@@ -13,28 +13,31 @@ import {
   QUICK_DESIGN_NAME_PHOTO_GAP_IN,
   QUICK_DESIGN_NAME_PHOTO_GAP_PX,
   getQuickDesignDTFStormAlpha,
+  getQuickDesignStormTopScale,
 } from '../src/lib/quickDesignCanvas.js';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement, getQuickDesignGarmentPrintZone, QUICK_DESIGN_GARMENT_SIZE_SCALES, QUICK_DESIGN_TORSO_CENTERS } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
-// DTF upper-edge check: near-invisible semi-transparent storm pixels
-// must be cleared BEFORE compositing faces/text. Bright intended storm
-// survives inside the central/lower background without a boxy boundary.
-assert.equal(getQuickDesignDTFStormAlpha(255, .50, .25), 0,
-  'Storm must be transparent above its actual upper design area');
-assert.equal(getQuickDesignDTFStormAlpha(255, .03, .44), 0,
-  'Upper side shoulder must have no rectangular haze');
-assert.equal(getQuickDesignDTFStormAlpha(15, .50, .75), 0,
-  'Low-alpha haze below the white-underbase risk threshold is removed');
+// Phase K: full original background stays present; its top SIDES are
+// compressed inward, while the base remains unchanged and DTF alpha cleanup
+// removes only nearly invisible halos (no broad storm/lighting deletion).
+assert.equal(getQuickDesignStormTopScale(.16), .72,
+  'Upper-left and upper-right background must be tightened to 72% width');
+assert.ok(getQuickDesignStormTopScale(.5) > .72 && getQuickDesignStormTopScale(.5) < 1,
+  'Background top compression must release smoothly down its sides');
+assert.equal(getQuickDesignStormTopScale(.70), 1,
+  'Bottom and lower storm effects must retain their full original width');
+assert.equal(getQuickDesignDTFStormAlpha(255, .50, .25), 255,
+  'DTF cleanup must no longer remove intentionally bright upper artwork');
+assert.equal(getQuickDesignDTFStormAlpha(255, .03, .44), 255,
+  'Upper side storm and lightning must no longer be cropped by a shoulder mask');
+assert.equal(getQuickDesignDTFStormAlpha(10, .50, .75), 0,
+  'Clean only near-invisible alpha pixels that can create DTF underbase haze');
 assert.equal(getQuickDesignDTFStormAlpha(255, .50, .77), 255,
-  'Bright intentional lower storm effects must retain their alpha');
-assert.ok(getQuickDesignDTFStormAlpha(255, .50, .55) >
-  getQuickDesignDTFStormAlpha(255, .10, .55),
-  'Upper side taper must be softer than the center without a vertical box edge');
-assert.ok(getQuickDesignDTFStormAlpha(255, .50, .55) <
-  getQuickDesignDTFStormAlpha(255, .50, .70),
-  'Storm must fade smoothly upward rather than forming a hard top rectangle');
+  'Bright lower storm effects must keep their original transparency');
+assert.ok(getQuickDesignDTFStormAlpha(35, .50, .55) > 10,
+  'Preserve actual softly transparent design details instead of overtrimming them');
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
 assert.equal(quickDesignLayoutCount(), 5);
@@ -67,9 +70,9 @@ for (let count = 1; count <= 5; count += 1) {
     'Name baseline must sit about one font-half-height directly above the primary photo');
 }
 assert.equal(getQuickDesignPhaseCLayout(1)[0].role, 'hero');
-assert.equal(QUICK_DESIGN_NAME_PHOTO_GAP_IN, .5);
-assert.equal(QUICK_DESIGN_NAME_PHOTO_GAP_PX, 32,
-  'A3 portrait 0.5 inch spacing is approximately 32 pixels on the 750x1061 preview');
+assert.equal(QUICK_DESIGN_NAME_PHOTO_GAP_IN, .1);
+assert.equal(QUICK_DESIGN_NAME_PHOTO_GAP_PX, 6,
+  'Tight owner-requested gap is about 6 pixels at A3 preview scale');
 for (const photoCount of [1, 2, 3, 4, 5]) {
   for (const { photoTop, nameBottom } of [
     { photoTop: 340, nameBottom: 255 },
@@ -79,7 +82,7 @@ for (const photoCount of [1, 2, 3, 4, 5]) {
     const previousY = getQuickDesignHeadlineY(photoCount);
     const resultingGap = photoTop - (nameBottom + y - previousY);
     assert.ok(Math.abs(resultingGap - QUICK_DESIGN_NAME_PHOTO_GAP_PX) <= 1,
-      'Visible name gap must be 0.5 inch in A3 proportions, independent of photo count');
+      'Solid name-to-photo gap must be close to 0.1 inch, independent of photo count');
   }
 }
 for (let count = 2; count <= 5; count += 1) {
@@ -317,6 +320,8 @@ assert.match(mockupCode, /getQuickDesignGarmentPrintZone\(garment, side, size, c
 assert.notEqual(QUICK_DESIGN_TORSO_CENTERS.tshirt.white.front, 300,
   'Generated garment images are not all centered at x=300');
 assert.match(canvas, /measureQuickDesignHeadlineBottom\(/);
+assert.match(canvas, />= 128\) return y \+ 1/,
+  'Measure the main lettering rather than distant blur/glow');
 assert.match(canvas, /getQuickDesignVisiblePhotoTop\(/);
 assert.match(canvas, /paintHeadline\(ctx, headline, alignedHeadlineY/,
   'Headline Y must derive from visible rendered photo and glyph bounds');
@@ -428,8 +433,17 @@ assert.match(page, /Make photo /);
 assert.match(page, /makeMainPhoto\(item.id\)/);
 
 assert.match(canvas, /paintStormBottom/);
+assert.match(canvas, /getQuickDesignStormTopScale/);
 assert.match(canvas, /cleanQuickDesignDTFStormLayer\(bg, layer\.width, layer\.height\)/,
   'DTF alpha cleanup must run on separate background-only layer before subjects');
+assert.match(canvas, /drawQuickDesignCompressedStorm\(bg, background, sw, sh, coverScale\)/,
+  'Render full original storm source using upper-only compressed stripe mapping');
+assert.match(canvas, /sourceW = PREVIEW_W \/ coverScale/,
+  'Upper-side compression must retain all originally visible background pixels');
+assert.doesNotMatch(canvas, /const topStart = 0\.39 \+ shoulder/,
+  'Do not reinstate the destructive prior upper-shoulder mask');
+assert.match(canvas, /rgba\(255,255,255,1\).*?/,
+  'Preserve the original graduated storm transparency');
 assert.ok(canvas.indexOf('cleanQuickDesignDTFStormLayer(bg, layer.width, layer.height)') <
   canvas.indexOf('function paintPhaseCPortraits'),
   'DTF cleanup must never alter original customer photos or lettering');
