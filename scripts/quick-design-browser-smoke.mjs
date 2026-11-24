@@ -5,7 +5,7 @@ const BASE = 'http://127.0.0.1:4173';
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l3sAAAAASUVORK5CYII=', 'base64');
 const browser = await chromium.launch({ headless: true });
 try {
-  for (const viewport of [{ width: 360, height: 780 }, { width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  for (const viewport of [{ width: 360, height: 780 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
     const page = await browser.newPage({ viewport });
     const errors = [];
     const uploads = [];
@@ -229,6 +229,26 @@ try {
     assert.match(await page.locator('[data-gdp-preview-label="true"]').innerText(), /White.*Hoodie.*Front/);
     assert.equal(await page.getByRole('button', { name: 'Print on Front' }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('button', { name: 'Print on Back' }).getAttribute('aria-pressed'), 'false');
+
+    // Phase I: a customer choosing XS must see a smaller print on the same
+    // blank garment; selecting M should restore the prominent reference size.
+    const garmentSize = page.getByRole('combobox', { name: /Garment size/i });
+    const mediumMockup = await garmentImage.getAttribute('src');
+    await garmentSize.selectOption('XS');
+    await page.waitForFunction((previous) => {
+      const im = document.querySelector('[data-gdp-garment-image="true"]');
+      return im?.getAttribute('src')?.startsWith('data:image/jpeg;base64,') &&
+        im.getAttribute('src') !== previous;
+    }, mediumMockup, { timeout: 30000 });
+    const xsMockup = await garmentImage.getAttribute('src');
+    assert.notEqual(xsMockup, mediumMockup, 'XS print footprint must be smaller than medium');
+    await garmentSize.selectOption('M');
+    await page.waitForFunction((previous) => {
+      const im = document.querySelector('[data-gdp-garment-image="true"]');
+      return im?.getAttribute('src')?.startsWith('data:image/jpeg;base64,') &&
+        im.getAttribute('src') !== previous;
+    }, xsMockup, { timeout: 30000 });
+
     const subtitle = page.getByRole('textbox', { name: /Subtitle/i });
     assert.equal(await subtitle.inputValue(), '');
     await page.locator('[data-gdp-help-trigger="request"]').click();
