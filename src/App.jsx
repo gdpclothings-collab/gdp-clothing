@@ -27,6 +27,7 @@ const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const DTF = lazy(() => import('@/pages/DTF'));
 const DTFGangSheet = lazy(() => import('@/pages/DTFGangSheet'));
 const CustomOrders = lazy(() => import('@/pages/CustomOrders'));
+const QuickDesign = lazy(() => import('@/pages/QuickDesign'));
 const CustomStudio = lazy(() => import('@/pages/CustomStudioDesktopWorkspace'));
 const CustomStudioV2 = lazy(() => import('@/components/storefront/custom-studio-v2/CustomStudioV2PresentationGuard'));
 const Cart = lazy(() => import('@/pages/CartV2'));
@@ -95,6 +96,7 @@ const AuthenticatedApp = () => {
             <Route path="/products/dtf-gang-sheet" element={<DTFGangSheet />} />
             <Route path="/dtf-gang-sheet" element={<DTFGangSheet />} />
             <Route path="/custom-orders" element={<CustomOrders />} />
+            <Route path="/quick-design" element={<QuickDesign />} />
             <Route path="/bulk-orders" element={<CustomOrders />} />
             <Route path="/products/:slug" element={<ProductDetail />} />
             <Route path="/product/:id" element={<ProductDetail />} />

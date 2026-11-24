@@ -1,0 +1,5 @@
+/* GDP Quick Design only. Google Fonts catalog families are OFL-1.1.
+ * Network fetching of free font CSS/fonts uses the CDN already permitted by the
+ * existing GDP storefront CSP; no paid API or customer generation fees.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Bangers&family=Bebas+Neue&family=Graduate&family=Rye&display=swap');

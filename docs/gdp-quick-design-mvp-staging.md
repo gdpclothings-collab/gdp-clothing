@@ -1,0 +1,86 @@
+# GDP Quick Design MVP - staging only
+
+## Purpose
+Offer Facebook Marketplace customers two instant, watermarked bootleg layout previews without manual Photoshop preparation or paid AI usage.
+
+## Implemented in this branch
+- Guest-friendly /quick-design route and responsive storefront navigation.
+- 1-5 local JPG/PNG/WebP photos with 10 MB per-file limit.
+- Eight GDP Photo Bootleg background images from public/images/gdp-styles.
+- Editable headline, subtitle, and accent color.
+- Two deterministic photo-collage layouts rendered in the browser.
+- Watermarked artwork previews, black unisex T-shirt illustrations, sample selection, watermarked download and mobile native share where supported.
+- Contact form, shirt size, quantity, rights acknowledgment, and quote-request submission through the existing submit-sales-lead endpoint and its server-side IP rate limit.
+- No new dependencies, migrations, bucket grants, payment methods, tax settings, paid APIs or subscriptions.
+
+## Limits that must be communicated accurately
+- **Original photos and generated previews are not uploaded by this quote form.** Only design settings, selection and contact details are sent. Customers share original photo files separately.
+- No automatic photo-background removal. PNG transparency is respected when present.
+- Watermarked 750x1061 preview is not an A3 300-DPI print master. Production export must remain behind the existing controlled purchase/approval workflow.
+- Illustrative shirt vector is not a verified Gildan photo, and exact placement remains a final GDP review task.
+- Submitting a request is not a purchase, invoice or payment.
+- The existing server function may refuse unapproved Cloudflare branch-preview Origin headers. Testing must not alter production CORS configuration without separate approval.
+- No claim of unlimited hosting, storage, or backend usage. Local canvas work has no per-sample paid AI fees, but existing service quotas apply.
+
+## QA checklist and release blockers
+- [ ] Run npm run test:quick-design, npm run typecheck, npm run lint, npm run build.
+- [ ] Desktop and Android real-device tests: image types, uploads, editing, removal, reset and two distinct samples.
+- [ ] Test all eight backgrounds without image cropping/distortion and all transparent PNG paths.
+- [ ] Validate file-size limits and maximum photo count.
+- [ ] Confirm watermarks on both artwork and mockups, including downloaded files.
+- [ ] Confirm original image bytes are never sent to the quote endpoint.
+- [ ] Test Android native share and unsupported-browser fallback.
+- [ ] Test backend quote submission using a separate approved Origin and isolated test data. Confirm data appears in admin Sales Leads.
+- [ ] Confirm zero changes to existing Custom Studio, orders, Stripe Live Mode, PST 6%, GST 0%.
+- [ ] Establish protected source-photo handoff and actual 300-DPI print quality before a full production release.
+
+**DRAFT PR ONLY. NO MERGE, PRODUCTION DEPLOYMENT, PAID SERVICE OR LIVE DATA CHANGES.** Production release requires separate explicit owner authorization and completed QA. Do not invent a preview URL.
+
+
+## No-extra-charge customer assistance update
+- Accessible **Help with my design** button in the header and **Need design help?** in the request section. Opens a responsive local modal with five common questions and a quick-start guide.
+- Customer can copy a plain-text summary of current design settings and open the existing GDP contact page in a separate tab. The modal does **not** collect or transmit photos, open a paid AI conversation, or submit a lead.
+- Five distinct no-cost, OFL-licensed Google Fonts (Anton, Bebas Neue, Graduate, Bangers, Rye) load through the already permitted Google Fonts hosts. System font fallbacks are used if unavailable. No paid font subscription.
+- Intended print layout is now **12 × 16 inches**. Browser preview aspect is 750 × 1000, **not** a print-ready file; the theoretical 300-DPI target is 3600 × 4800. Original GDP template files remain unchanged; preview uses canvas scaling.
+- Forced **CUSTOM BOOTLEG** subtitle removed; optional subtitle remains blank when blank.
+- Background removal is an optional, experimental ONNX model running **on the customer's device** after downloading its open weights. This is not a ChatGPT/OpenAI API, not a hosted AI generation feature, and not a paid remove.bg service. Source originals stay local. High mobile download size, model-host quotas, support for customer devices, subject edge quality, and CDN/CSP require real-device QA before launch.
+- Development Cloudflare preview **does not submit sales leads**. The actual production handoff is blocked pending approval, secure source-image transfer and real end-to-end tests.
+
+Additional QA:
+- [ ] Help opens from both positions, closes by Escape and Close, traps keyboard focus, and preserves selected template, photos, name and chosen sample.
+- [ ] Contact GDP opens the existing public contact page in a new tab; no outbound request is sent automatically.
+- [ ] Copy details gives a useful summary without customer photo bytes, signed URLs or secrets.
+- [ ] Five fonts appear distinctly on Android; straight/upward/downward name curves remain legible.
+- [ ] Measure local model download, privacy, masking quality, and error fallback on real Android phone. Test with cats/dogs, humans, dark hair/fur and low-contrast backgrounds.
+- [ ] Confirm all CI checks PASS on PR #609 before seeking any live merge or release.
+
+**Release gate stays CLOSED.** No paid API usage, customer charges, automatic PR merge or live deployment is authorized by this phase.
+
+
+## Customer review follow-up: premium lettering and six garment views
+- **remove.bg is not integrated.** Its free previews have limits; GDP retains optional local ONNX cutouts with no pay-per-image API charges. Real Android performance and quality remain a QA blocker.
+- **Name font size** is a 60–160% slider in 5% increments, with plus/minus buttons and auto-fit for long curved names. Size is applied to both watermarked samples and recorded in request metadata.
+- **Premium text styles** reuse GDP Custom Studio's existing PREMIUM_TEXT_STYLES recipes and paintPremiumTextGlyph: solid, Sunset Gold Chrome, Silver Chrome, Neon Glow, Retro 3D, Rose Gold, Ice Blue, Fire & Flame, Holographic, Royal Purple and Emerald Metal. No paid service.
+- **Illustrative garment visualizer** renders black T-shirt, crewneck sweatshirt and pullover hoodie with separate front/back views. Switching garment does not regenerate the photo collage, and only the SELECTED side is pictured. This does not request double-sided printing.
+- Mockups are canvas illustrations, NOT certified Gildan photography. Actual garment availability, exact print area, and customer sizes need production checks.
+- Garment and print side are included in the sales-lead metadata but photos are not uploaded. Preview-mode submissions remain disabled.
+- Customer Help text now covers premium lettering, font size, garment and print side.
+
+### Added QA
+- [x] Static contracts: three garment types, two sides, premium text painter, size controls, no network/charge calls in garment visualizer.
+- [ ] Browser tests: typography and all garment/side combinations, no horizontal overflow, no network uploads.
+- [ ] Real Android model cutout and garment layout quality checks.
+- [ ] Real garment photographs and print guide before production brand/size claims.
+
+
+## Android 3965 follow-up: cutout failure and white right-edge panel
+
+- User recording shows five added photos, then an experimental browser module failure that rendered a long jsDelivr CDN URL; after upload, a pale right-edge panel appeared as the layout overflowed horizontally.
+- Quick Design now uses a min-width-zero responsive grid, constrained photo tiles, breakable error feedback, and a clip boundary on the Quick Design root to prevent the mobile right-edge panel. The full untrusted model-loader URL is no longer printed into the customer UI.
+- Free on-device cutout now defaults OFF. It remains opt-in; a failed attempt automatically disables processing and preserves every original photo rather than looping over all five.
+- The optional on-device import now uses jsDelivr's explicit browser ESM endpoint (+esm). This does **not** guarantee model compatibility on Android, and no success claim is made before real-device QA.
+- An explicit external link to https://www.remove.bg/ is offered for customer-selected manual removal and PNG reupload. No remove.bg API key is embedded or requested, no customer photo is forwarded, and no paid API calls, automatic uploads or charges are enabled.
+- remove.bg's free API supports only a limited number of low-resolution (0.25 MP) previews per month. Their high-resolution outputs/greater usage may require payment and are not assumed available or sufficient for 12 x 16-inch production.
+- Dedicated browser regression reproduces five uploads plus failed CDN import on 360px, 390px and desktop viewports, and asserts no horizontal overflow, no unintended uploads, and correct fallback to originals.
+
+**Production gate stays CLOSED.** Secure photo handoff, 300-DPI print export and local model quality are unverified.

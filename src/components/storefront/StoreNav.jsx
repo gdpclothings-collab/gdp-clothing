@@ -10,6 +10,7 @@ import "./storeNavLogo3d.css";
 const FALLBACK_NAV = [
   { label: "Home", path: "/" }, { label: "Shop", path: "/shop" }, { label: "DTF", path: "/dtf" },
   { label: "Collections", path: "/shop?view=collections" }, { label: "Custom Studio", path: "/custom-studio" },
+  { label: "Quick Design", path: "/quick-design" },
   { label: "About", path: "/pages/about" }, { label: "Contact", path: "/pages/contact" },
 ];
 
@@ -43,7 +44,7 @@ export default function StoreNav() {
     let active = true;
     Promise.all([storefrontContentApi.getMenu("main-menu"), storefrontContentApi.getHomepage({ previewDraft })]).then(([menu, homepage]) => {
       const items = (menu?.navigation_items || []).filter((item) => item.url).map((item) => normalizeNavigationItem({ label: item.label, path: item.url }));
-      if (!active) return; if (items.length) setNavItems(items); if (homepage) setLanding(homepage);
+      if (!active) return; if (items.length) setNavItems(items.some((item) => item.path.split("?")[0] === "/quick-design") ? items : [...items, { label: "Quick Design", path: "/quick-design" }]); if (homepage) setLanding(homepage);
     }).catch((error) => console.error("Store navigation content load failed:", error));
     return () => { active = false; };
   }, [previewDraft]);
