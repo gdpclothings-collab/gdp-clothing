@@ -274,19 +274,39 @@ export function getQuickDesignStormTopScale(normalizedY) {
 }
 
 /**
- * Small anti-halo alpha floor ONLY; the previous broad top-shoulder and side
- * masks erased intentional lightning and storm colours. Keep the original
- * soft edges and upper-side compression, but discard near-invisible pixels
- * that could cause unpredictable DTF white-underbase haze.
- * Printer RIP/underbase approval still requires a test print.
+ * Phase K visual correction: retain the selected GDP storm/flame background,
+ * but give it an ORGANIC PRINT-SHAPED silhouette behind the subject collage.
+ * The previous fully opaque central poster produced a conspicuous rectangular
+ * block above the pets. Here the upper contour follows a rounded shoulder,
+ * both sides feather out and the lower tail tapers without a hard edge.
+ *
+ * Only the background layer is affected. Original photos, name lettering,
+ * keylines, print positions and requested A3 dimensions remain untouched.
  */
-export function getQuickDesignDTFStormAlpha(alpha, _normalizedX, _normalizedY) {
-  const value = Math.max(0, Math.min(255, Number(alpha) || 0));
-  if (value <= 12) return 0;
-  if (value >= 40) return Math.round(value);
-  const t = (value - 12) / 28;
-  const smooth = t * t * (3 - 2 * t);
-  return Math.round(value * smooth);
+export function getQuickDesignDTFStormAlpha(alpha, normalizedX, normalizedY) {
+  const a = Math.max(0, Math.min(255, Number(alpha) || 0));
+  if (a <= 12) return 0;
+  const x = Math.max(0, Math.min(1, Number(normalizedX) || 0));
+  const y = Math.max(0, Math.min(1, Number(normalizedY) || 0));
+  const smoothstep = (low, high, value) => {
+    const t = Math.max(0, Math.min(1, (value - low) / (high - low)));
+    return t * t * (3 - 2 * t);
+  };
+  // Rounded organic upper shoulders, never the straight top of a rectangle.
+  // Preserve the selected background's flame/energy behind the upper dog.
+  const shoulders = Math.pow(Math.abs(x * 2 - 1), 1.45);
+  const irregularity = .012 * Math.sin(12 * x + 1.2) + .008 * Math.sin(23 * x);
+  const top = smoothstep(.36 + .14 * shoulders + irregularity,
+    .59 + .10 * shoulders + irregularity, y);
+  // Side contours fade gradually into the garment: no inked rectangular edge.
+  const sides = smoothstep(.045, .20, x) *
+    (1 - smoothstep(.80, .955, x));
+  // Bottom fade removes the visible rectangular foot and excess ink coverage.
+  const bottom = 1 - smoothstep(.80, .985, y);
+  // Make the background supporting art, not a saturated flame wall.
+  const masked = a * top * sides * bottom * .62;
+  if (masked <= 12) return 0;
+  return Math.round(masked);
 }
 
 /**
@@ -372,8 +392,9 @@ function paintStormBottom(ctx, background) {
   bg.fillStyle = horizontal;
   bg.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
   bg.globalCompositeOperation = 'source-over';
-  // Apply only a tiny alpha floor; never erase upper-side storm artwork.
-  // Customer photos and metallic text are composited AFTER this step.
+  // Organic upper and side feather softens the background behind the dogs,
+  // without reworking a single customer photo or the personalized headline.
+  // A physical DTF white-underbase test remains required before production.
   cleanQuickDesignDTFStormLayer(bg, layer.width, layer.height);
   ctx.drawImage(layer, 0, 0, PREVIEW_W, PREVIEW_H);
 }
