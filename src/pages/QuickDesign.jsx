@@ -218,6 +218,7 @@ export default function QuickDesign() {
     setGarmentMockup('');
     renderQuickDesignGarmentMockup({
       artworkSource: selectedResult.artwork, garment, side: garmentSide, color: garmentColor,
+      size: customer.size,
     }).then((canvas) => {
       if (!cancelled) setGarmentMockup(canvas.toDataURL('image/jpeg', 0.92));
     }).catch((error) => {
@@ -226,7 +227,7 @@ export default function QuickDesign() {
       if (!cancelled) setGarmentBusy(false);
     });
     return () => { cancelled = true; };
-  }, [selectedResult?.artwork, garment, garmentColor, garmentSide, placementChosen, previewBusy]);
+  }, [selectedResult?.artwork, garment, garmentColor, garmentSide, customer.size, placementChosen, previewBusy]);
 
   const addPhotos = (event) => {
     const incoming = Array.from(event.target.files || []);
@@ -586,7 +587,7 @@ export default function QuickDesign() {
               <img data-gdp-garment-image="true" src={selectedMockup}
                 alt={selectedColor.label + ' ' + selectedGarment.label + ' ' + garmentSide + ' mockup with STORM-style artwork'} className="mx-auto block h-auto max-h-[560px] w-full max-w-full object-contain" />
             </div>
-            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. The other side is not included. Your watermark-free A3 layout is centered by visible artwork content on GDP's approved blank garment. This is a digital mockup, not a certified print-placement guide. GDP must review original photo resolution and final A3 printing dimensions.</p>
+            <p className="mt-3 text-xs leading-5 text-white/55">Only {garmentSide} printing is selected. Your large A3-proportioned design is centered on GDP's approved blank garment, with the name high on the chest and subjects below. Smaller XS/S garments show a reduced print footprint. This is a visual mockup, not a guaranteed 297 × 420 mm print area: GDP must approve the transfer size, original photo quality, and fit before printing.</p>
             <p className="mt-2 text-xs leading-5 text-white/55">{MAX_PREVIEW_NOTICE}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => downloadSample(selectedMockup, 'GDP-' + garmentColor + '-' + garment + '-' + garmentSide + '-mockup.jpg')} className={BTN + ' bg-white text-black hover:bg-white/90'}><Download size={16}/> Save mockup</button>
