@@ -19,6 +19,17 @@ export const QUICK_DESIGN_PRINT_SIZE = Object.freeze({
   targetWidthPx: 3508, targetHeightPx: 4961,
   previewWidthPx: PREVIEW_W, previewHeightPx: PREVIEW_H,
 });
+
+/**
+ * Place the customized name directly ABOVE the upper photo, not floating
+ * in the old large empty area. Use the actual 1–5 image hero layout so that
+ * changing the number of photos preserves a visually connected composition.
+ * A curved headline's last letter strokes can sit close to the subject glow.
+ */
+export function getQuickDesignHeadlineY(photoCount = 1) {
+  const hero = getQuickDesignPhaseCLayout(photoCount)[0];
+  return Math.round(PREVIEW_H * (hero.y - .047));
+}
 // Five distinct free OFL-licensed Google Fonts with system fallbacks.
 export const QUICK_DESIGN_FONTS = Object.freeze([
   { id: 'impact', label: 'Street Impact', family: 'Anton', css: '"Anton", Impact, sans-serif', weight: '400' },
@@ -432,7 +443,7 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
 
   // STORM reference: oversized metallic name across the very top, photos
   // in the center and warm background flames behind and below.
-  paintHeadline(ctx, headline, PREVIEW_H * .145, PREVIEW_W * .935, 112, accent,
+  paintHeadline(ctx, headline, getQuickDesignHeadlineY(images.length), PREVIEW_W * .935, 112, accent,
     { fontId, curve, fontSizePercent, premiumStyle });
   if (subline?.trim()) {
     paintHeadline(ctx, subline, PREVIEW_H * .915, PREVIEW_W * .84, 43, '#ffffff',
