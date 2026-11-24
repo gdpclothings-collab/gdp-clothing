@@ -12,11 +12,29 @@ import {
   getQuickDesignHeadlineY,
   QUICK_DESIGN_NAME_PHOTO_GAP_IN,
   QUICK_DESIGN_NAME_PHOTO_GAP_PX,
+  getQuickDesignDTFStormAlpha,
 } from '../src/lib/quickDesignCanvas.js';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement, getQuickDesignGarmentPrintZone, QUICK_DESIGN_GARMENT_SIZE_SCALES, QUICK_DESIGN_TORSO_CENTERS } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
+// DTF upper-edge check: near-invisible semi-transparent storm pixels
+// must be cleared BEFORE compositing faces/text. Bright intended storm
+// survives inside the central/lower background without a boxy boundary.
+assert.equal(getQuickDesignDTFStormAlpha(255, .50, .25), 0,
+  'Storm must be transparent above its actual upper design area');
+assert.equal(getQuickDesignDTFStormAlpha(255, .03, .44), 0,
+  'Upper side shoulder must have no rectangular haze');
+assert.equal(getQuickDesignDTFStormAlpha(15, .50, .75), 0,
+  'Low-alpha haze below the white-underbase risk threshold is removed');
+assert.equal(getQuickDesignDTFStormAlpha(255, .50, .77), 255,
+  'Bright intentional lower storm effects must retain their alpha');
+assert.ok(getQuickDesignDTFStormAlpha(255, .50, .55) >
+  getQuickDesignDTFStormAlpha(255, .10, .55),
+  'Upper side taper must be softer than the center without a vertical box edge');
+assert.ok(getQuickDesignDTFStormAlpha(255, .50, .55) <
+  getQuickDesignDTFStormAlpha(255, .50, .70),
+  'Storm must fade smoothly upward rather than forming a hard top rectangle');
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
 assert.equal(quickDesignLayoutCount(), 5);
@@ -410,6 +428,13 @@ assert.match(page, /Make photo /);
 assert.match(page, /makeMainPhoto\(item.id\)/);
 
 assert.match(canvas, /paintStormBottom/);
+assert.match(canvas, /cleanQuickDesignDTFStormLayer\(bg, layer\.width, layer\.height\)/,
+  'DTF alpha cleanup must run on separate background-only layer before subjects');
+assert.ok(canvas.indexOf('cleanQuickDesignDTFStormLayer(bg, layer.width, layer.height)') <
+  canvas.indexOf('function paintPhaseCPortraits'),
+  'DTF cleanup must never alter original customer photos or lettering');
+assert.match(canvas, /stripHeight = 128/,
+  'A3 output must avoid a single full-resolution 70MB pixel copy during cleanup');
 assert.match(canvas, /destination-in/);
 assert.match(canvas, /canvas\.getContext\('2d', \{ alpha: true \}\)/);
 assert.doesNotMatch(canvas, /Promise\.all\(\['A', 'B'\]/, 'Only one artwork composition allowed');
