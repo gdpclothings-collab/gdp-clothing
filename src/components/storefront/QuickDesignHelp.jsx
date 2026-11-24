@@ -8,7 +8,7 @@ const HELP_TOPICS = [
   },
   {
     title: 'My background removal is slow or looks wrong',
-    answer: 'If you enable remove.bg, Quick Design first checks whether a PNG or WebP already has a transparent background. Those images are left exactly as uploaded, with no remove.bg call or credits used. Opaque photos (including JPGs) are sent for an optional low-resolution cutout. A solid-colour background can still need removal, and the local check cannot always identify the subject. When removal is unavailable, your original stays safe and the external remove.bg link remains available. This is not final print-ready artwork.',
+    answer: 'Quick Design automatically checks PNG/WebP transparency locally as soon as photos are uploaded. When every photo is already transparent, the remover and its help controls are hidden and no remove.bg credits are used. For mixed/opaque uploads, you may optionally enable remove.bg for eligible photos only. A solid-colour background can still need removal, and the local check cannot always identify the subject. When removal is unavailable, your original stays safe and the external remove.bg link remains available. This is not final print-ready artwork.',
   },
   {
     title: 'Can I leave the subtitle blank?',
