@@ -57,13 +57,43 @@ export function getQuickDesignStudioFabricAsset(garment, side, color) {
   return '/images/custom-studio/gildan-crewneck-' + safeSide + '-colors.svg#' + safeColor;
 }
 
-// Conservative, centered chest/back zones: source art remains transparent and
-// aspect-ratio preserved. No second side is ever implied or rendered.
+/**
+ * Phase I: large, reference-matched A3-PORTRAIT print zones on the fixed
+ * 600 × 720 studio mockup. These were calibrated against the owner-provided
+ * STORM model-shirt references: a wide name across the upper chest and a
+ * prominent uninterrupted group of pets beneath. Front and Back share
+ * identical artwork coordinates for each garment.
+ *
+ * Values here are PIXELS in a mockup, not physical dimensions or certified
+ * maximum DTF sizes. We cannot assert that 297 × 420 mm fits every blank.
+ * The hoodie is deliberately shorter to stay above the kangaroo pocket.
+ */
 export const QUICK_DESIGN_PRINT_PLACEMENTS = Object.freeze({
-  tshirt: Object.freeze({ front: Object.freeze([203, 195, 194, 245]), back: Object.freeze([203, 195, 194, 245]) }),
-  sweatshirt: Object.freeze({ front: Object.freeze([208, 205, 184, 240]), back: Object.freeze([208, 205, 184, 240]) }),
-  hoodie: Object.freeze({ front: Object.freeze([209, 212, 182, 202]), back: Object.freeze([209, 212, 182, 202]) }),
+  tshirt: Object.freeze({ front: Object.freeze([170, 151, 260, 340]), back: Object.freeze([170, 151, 260, 340]) }),
+  sweatshirt: Object.freeze({ front: Object.freeze([177, 161, 246, 314]), back: Object.freeze([177, 161, 246, 314]) }),
+  hoodie: Object.freeze({ front: Object.freeze([185, 185, 230, 268]), back: Object.freeze([185, 185, 230, 268]) }),
 });
+
+/**
+ * The approved blank garment image uses the same photographic body for
+ * every size. Reduce the print area for XS/S to avoid suggesting a full A3
+ * transfer fits smaller shirts. Never enlarge past the calibrated safe zone.
+ */
+export const QUICK_DESIGN_GARMENT_SIZE_SCALES = Object.freeze({
+  XS: .78, S: .90, M: 1, L: 1, XL: 1, '2XL': 1, '3XL': 1,
+});
+
+export function getQuickDesignGarmentPrintZone(garment = 'tshirt', side = 'front', size = 'M') {
+  const selectedGarment = Object.hasOwn(QUICK_DESIGN_PRINT_PLACEMENTS, garment) ? garment : 'tshirt';
+  const selectedSide = side === 'back' ? 'back' : 'front';
+  const [x, y, width, height] = QUICK_DESIGN_PRINT_PLACEMENTS[selectedGarment][selectedSide];
+  const factor = QUICK_DESIGN_GARMENT_SIZE_SCALES[size] ?? 1;
+  const w = width * factor;
+  const h = height * factor;
+  // Match the visual center of the owner-approved large chest print. Scaling
+  // XS/S does not slide the name or the pets off the selected torso.
+  return [300 - w / 2, y + (height - h) / 2, w, h];
+}
 
 function imageFromSource(source) {
   if (source instanceof HTMLCanvasElement || source instanceof HTMLImageElement) return Promise.resolve(source);
@@ -510,8 +540,8 @@ function measureQuickDesignArtworkContent(image) {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-function drawArtwork(ctx, artwork, garment, side, color) {
-  const position = QUICK_DESIGN_PRINT_PLACEMENTS[garment][side];
+function drawArtwork(ctx, artwork, garment, side, color, size) {
+  const position = getQuickDesignGarmentPrintZone(garment, side, size);
   const sw = artwork.naturalWidth || artwork.width;
   const sh = artwork.naturalHeight || artwork.height;
   let bounds = null;
@@ -532,6 +562,7 @@ function drawArtwork(ctx, artwork, garment, side, color) {
  *   garment?: string,
  *   side?: string,
  *   color?: string,
+ *   size?: string,
  * }} options
  */
 export async function renderQuickDesignGarmentMockup({
@@ -539,6 +570,7 @@ export async function renderQuickDesignGarmentMockup({
   garment = 'tshirt',
   side = 'front',
   color = 'black',
+  size = 'M',
 } = {}) {
   if (!artworkSource) throw new Error('Choose a sample before previewing garments.');
   const selectedGarment = QUICK_DESIGN_GARMENTS.some((item) => item.id === garment) ? garment : 'tshirt';
@@ -597,7 +629,7 @@ export async function renderQuickDesignGarmentMockup({
 
   // Only the currently selected FRONT or BACK is printed in this illustrative
   // preview. We do not imply the customer requested a two-sided print.
-  drawArtwork(ctx, artwork, selectedGarment, selectedSide, selectedColor);
+  drawArtwork(ctx, artwork, selectedGarment, selectedSide, selectedColor, size);
 
   // Readable customer choice on both grey image-backed and dark fallback stages.
   ctx.save();
