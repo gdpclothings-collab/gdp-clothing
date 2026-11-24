@@ -10,7 +10,7 @@ import {
   getQuickDesignSubjectFit,
   QUICK_DESIGN_PRINT_SIZE,
 } from '../src/lib/quickDesignCanvas.js';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement, getQuickDesignGarmentPrintZone, QUICK_DESIGN_GARMENT_SIZE_SCALES } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
@@ -105,15 +105,43 @@ for (const garment of QUICK_DESIGN_GARMENTS) {
       const position = QUICK_DESIGN_PRINT_PLACEMENTS[garment.id]?.[side.id];
       assert.equal(position?.length, 4, 'Every garment/side needs a print position');
       const [x, y, w, h] = position;
-      assert.ok(x >= 175 && x + w <= 427, 'Print should stay inside torso width');
-      assert.ok(y >= 190 && y + h <= 503, 'Print should stay above pouch/hem');
-      assert.ok(w <= 195 && h <= 260, 'Conservative centered design placement');
-      assert.ok(Math.abs((x + w / 2) - 300) <= 3, 'Artwork must be horizontally centered');
+      assert.ok(x >= 160 && x + w <= 440, 'Large print must still remain inside garment torso');
+      assert.ok(y >= 140 && y + h <= (garment.id === 'hoodie' ? 455 : 495),
+        'Large artwork must avoid the hoodie kangaroo pocket and the garment hem');
+      assert.ok(w >= 225 && w <= 260 && h >= 265 && h <= 345,
+        'Phase I design must visibly exceed old small Phase H print zone');
+      assert.ok(Math.abs((x + w / 2) - 300) < .001, 'Large artwork must be horizontally centered');
       assert.ok(color.id === 'black' || color.id === 'white');
     }
   }
 }
 assert.equal(checkedCombinations, 12, '3 garments × 2 colors × 2 print sides');
+
+// Calibrated to the owner's reference T-shirt (prominent full chest layout).
+assert.deepEqual(QUICK_DESIGN_PRINT_PLACEMENTS.tshirt.front, [170, 151, 260, 340]);
+assert.deepEqual(QUICK_DESIGN_PRINT_PLACEMENTS.sweatshirt.front, [177, 161, 246, 314]);
+assert.deepEqual(QUICK_DESIGN_PRINT_PLACEMENTS.hoodie.front, [185, 185, 230, 268]);
+assert.equal(QUICK_DESIGN_GARMENT_SIZE_SCALES.XS, .78);
+assert.equal(QUICK_DESIGN_GARMENT_SIZE_SCALES.S, .90);
+for (const garment of QUICK_DESIGN_GARMENTS) {
+  for (const side of QUICK_DESIGN_SIDES) {
+    const base = getQuickDesignGarmentPrintZone(garment.id, side.id, 'M');
+    assert.deepEqual(base, QUICK_DESIGN_PRINT_PLACEMENTS[garment.id][side.id]);
+    for (const size of ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']) {
+      const zone = getQuickDesignGarmentPrintZone(garment.id, side.id, size);
+      assert.ok(zone[2] <= base[2] && zone[3] <= base[3],
+        'Smaller or larger selected garment must not exceed verified mockup print zone');
+      assert.ok(Math.abs(zone[0] + zone[2] / 2 - 300) < 1e-8,
+        'Size adjustment must remain horizontally centered');
+      assert.ok(Math.abs(zone[1] + zone[3] / 2 - (base[1] + base[3] / 2)) < 1e-8,
+        'Size adjustment must maintain vertical alignment');
+      assert.deepEqual(getQuickDesignGarmentPrintZone(garment.id, 'front', size),
+        getQuickDesignGarmentPrintZone(garment.id, 'back', size),
+        'Front/back matching size must have the same design placement');
+    }
+  }
+}
+
 
 // Phase G: twelve real blank-image regions sourced from the customer-approved
 // black/white front/back garment sheet. All are clean, local image assets.
@@ -218,7 +246,12 @@ assert.ok(mockupCode.includes('renderStudioCrewneckFabric(ctx, studioGarment, se
 assert.match(mockupCode, /ctx\.scale\(OUTPUT_SCALE, OUTPUT_SCALE\)/);
 assert.match(mockupCode, /ctx\.imageSmoothingQuality = 'high'/);
 assert.match(mockupCode, /drawSeamDetails\(ctx, selectedGarment, selectedColor\)/);
-assert.match(mockupCode, /QUICK_DESIGN_PRINT_PLACEMENTS\[garment\]\[side\]/);
+assert.match(mockupCode, /getQuickDesignGarmentPrintZone\(garment, side, size\)/,
+  'Art renderer must respect selected garment size and larger placement zones');
+assert.match(page, /size: customer\.size/,
+  'React must pass size into the actual garment mockup renderer');
+assert.match(page, /garmentSide, customer\.size, placementChosen, previewBusy/,
+  'Switching garment size must refresh the preview');
 assert.doesNotMatch(canvas, /GDP CLOTHING  •  SAMPLE|function drawWatermark/,
   'Phase H requires a clean sample free of repeated text overlays');
 assert.match(page, /A3 portrait, 297 x 420 mm/);
@@ -241,7 +274,7 @@ assert.match(page, /only\s+\{garmentSide\}\s+printing/i);
 assert.match(mockupCode, /color === 'white'/);
 assert.match(mockupCode, /fillGarment\(ctx, outline, selectedColor\)/);
 assert.match(mockupCode, /drawHood\(ctx, selectedSide, selectedColor\)/);
-assert.match(mockupCode, /drawArtwork\(ctx, artwork, selectedGarment, selectedSide, selectedColor\)/);
+assert.match(mockupCode, /drawArtwork\(ctx, artwork, selectedGarment, selectedSide, selectedColor, size\)/);
 assert.match(mockupCode, /selectedColor\.toUpperCase\(\)/);
 assert.match(page, /Your garment preview/);
 assert.match(page, /data-gdp-garment-first="true"/, 'Garment selection must be first');
