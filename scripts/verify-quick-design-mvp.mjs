@@ -37,8 +37,12 @@ assert.equal(getQuickDesignDTFStormAlpha(9, .5, .65), 0,
   'Discard invisible haze that can cause DTF underbase artifacts');
 assert.ok(getQuickDesignDTFStormAlpha(255, .5, .66) >= 120,
   'Storm colours must remain visible behind the pets');
-assert.ok(getQuickDesignDTFStormAlpha(255, .5, .66) < 0.70 * 255,
-  'Even brightest flames remain visually secondary to dogs and letters');
+assert.ok(getQuickDesignDTFStormAlpha(255, .5, .66) >= 0.80 * 255,
+  'Selected background must be substantially visible behind pets, not over-faded');
+assert.ok(getQuickDesignDTFStormAlpha(255, .17, .67) > 80,
+  'More of original selected storm must appear around both side pets');
+assert.equal(getQuickDesignDTFStormAlpha(255, .5, .13), 0,
+  'Top remains transparent, without a rectangular image edge');
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
 assert.equal(quickDesignLayoutCount(), 5);
