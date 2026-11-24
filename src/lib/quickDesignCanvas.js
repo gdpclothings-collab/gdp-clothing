@@ -26,9 +26,21 @@ export const QUICK_DESIGN_PRINT_SIZE = Object.freeze({
  * changing the number of photos preserves a visually connected composition.
  * A curved headline's last letter strokes can sit close to the subject glow.
  */
-export function getQuickDesignHeadlineY(photoCount = 1) {
+// Physical A3 target: 12.7 mm (0.5 in) between the VISIBLE bottom of the
+// name and the top of the photo cutout. 420 mm / 1061 preview pixels.
+export const QUICK_DESIGN_NAME_PHOTO_GAP_IN = 0.5;
+export const QUICK_DESIGN_NAME_PHOTO_GAP_PX = Math.round(PREVIEW_H * 12.7 / 420);
+
+export function getQuickDesignHeadlineY(photoCount = 1, metrics = null) {
   const hero = getQuickDesignPhaseCLayout(photoCount)[0];
-  return Math.round(PREVIEW_H * (hero.y - .047));
+  const baseY = Math.round(PREVIEW_H * (hero.y - .047));
+  const top = metrics?.photoTop;
+  const bottom = metrics?.nameBottom;
+  if (!Number.isFinite(top) || !Number.isFinite(bottom)) return baseY;
+  // Measure the REAL curved/straight glyph edge, not an assumed baseline:
+  // letter contours and font size can change considerably with each choice.
+  const adjustedY = baseY + top - QUICK_DESIGN_NAME_PHOTO_GAP_PX - bottom;
+  return Math.round(Math.max(90, Math.min(PREVIEW_H * .54, adjustedY)));
 }
 // Five distinct free OFL-licensed Google Fonts with system fallbacks.
 export const QUICK_DESIGN_FONTS = Object.freeze([
@@ -383,6 +395,48 @@ function paintHeadline(ctx, content, y, maxWidth, initialSize, color, {
 }
 
 /**
+ * Locate the top of the actual photo content, not the photo slot's top.
+ * A square dog image fits centered inside a tall portrait slot, leaving
+ * additional transparent space. A fixed text Y misses that difference.
+ */
+function getQuickDesignVisiblePhotoTop(images) {
+  const slots = getQuickDesignPhaseCLayout(images.length);
+  const tops = images.map((image, index) => {
+    const slot = slots[index];
+    if (!slot) return PREVIEW_H;
+    const width = (image.naturalWidth || image.width || 1);
+    const height = (image.naturalHeight || image.height || 1);
+    const bounds = trimmedAlphaBounds(image);
+    const fit = getQuickDesignSubjectFit(width, height, slot.w * PREVIEW_W,
+      slot.h * PREVIEW_H, bounds || null);
+    // Cutout keylines extend about 5 px above the fitted source photo.
+    return slot.y * PREVIEW_H + fit.y - (bounds ? 5 : 0);
+  });
+  return Math.max(0, Math.min(...tops));
+}
+
+/**
+ * Renders the exact selected font and curve to a small temporary alpha layer
+ * and reads the last meaningful name pixel. This compensates for different
+ * font ascenders, downward arches, outlines and chrome gradients.
+ */
+function measureQuickDesignHeadlineBottom(headline, baselineY, accent, options) {
+  const sample = document.createElement('canvas');
+  sample.width = PREVIEW_W;
+  sample.height = Math.ceil(PREVIEW_H * .7);
+  const context = sample.getContext('2d', { alpha: true, willReadFrequently: true });
+  if (!context) return baselineY + 56;
+  paintHeadline(context, headline, baselineY, PREVIEW_W * .935, 112, accent, options);
+  const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+  for (let y = sample.height - 1; y >= 0; y--) {
+    for (let x = 0; x < sample.width; x++) {
+      if (pixels[(y * sample.width + x) * 4 + 3] >= 40) return y + 1;
+    }
+  }
+  return baselineY + 56;
+}
+
+/**
  * Small font preview rendered with the EXACT same paintHeadline() algorithm
  * used for the customer artwork (curvature, glyph rotation, size, and finishes).
  */
@@ -441,10 +495,19 @@ export async function renderQuickDesignArtwork({ photos, backgroundUrl, headline
   paintStormBottom(ctx, background);
   paintPhaseCPortraits(ctx, images, accent);
 
-  // STORM reference: oversized metallic name across the very top, photos
-  // in the center and warm background flames behind and below.
-  paintHeadline(ctx, headline, getQuickDesignHeadlineY(images.length), PREVIEW_W * .935, 112, accent,
-    { fontId, curve, fontSizePercent, premiumStyle });
+  // Position the personalized title 0.5 inch above the ACTUAL visible
+  // photo edge, not the invisible center-padding of each subject's tall slot.
+  // Preserve real font curvature and final A3 source-resolution rendering.
+  const headlineOptions = { fontId, curve, fontSizePercent, premiumStyle };
+  const originalHeadlineY = getQuickDesignHeadlineY(images.length);
+  const photoTop = getQuickDesignVisiblePhotoTop(images);
+  const measuredNameBottom = measureQuickDesignHeadlineBottom(headline,
+    originalHeadlineY, accent, headlineOptions);
+  const alignedHeadlineY = getQuickDesignHeadlineY(images.length, {
+    photoTop, nameBottom: measuredNameBottom,
+  });
+  paintHeadline(ctx, headline, alignedHeadlineY, PREVIEW_W * .935, 112,
+    accent, headlineOptions);
   if (subline?.trim()) {
     paintHeadline(ctx, subline, PREVIEW_H * .915, PREVIEW_W * .84, 43, '#ffffff',
       { fontId: 'black', premiumStyle: 'solid' });
