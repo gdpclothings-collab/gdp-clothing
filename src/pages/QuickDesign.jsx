@@ -90,15 +90,41 @@ export default function QuickDesign() {
   const placementChosen = Boolean(selectedGarment && selectedColor && QUICK_DESIGN_SIDES.some((item) => item.id === garmentSide));
   const selectedPremium = PREMIUM_TEXT_STYLES.find((item) => item.id === premiumStyle);
   const cutoutPending = autoCutout && photos.some((item) => item.bgStatus === 'pending' || item.bgStatus === 'checking' || item.bgStatus === 'working');
+  const hasOpaquePhoto = photos.some((item) => ['eligible', 'pending', 'checking', 'working', 'failed'].includes(item.bgStatus));
+  const showRemovalHelp = photos.length === 0 || hasOpaquePhoto;
 
   useEffect(() => () => {
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     urlsRef.current.clear();
   }, []);
 
-  // One local transparency preflight per photo. An already-transparent image
-  // is preserved unchanged (same source URL and file bytes, zero API calls).
-  // Opaque photos enter the existing remove.bg proxy only after consent.
+  // Local, zero-network transparency check on EVERY new upload before any
+  // remove.bg option appears. Already-transparent originals never leave device.
+  useEffect(() => {
+    const incoming = photos.filter((item) => item.bgStatus === 'inspecting');
+    if (!incoming.length) return undefined;
+    let cancelled = false;
+    Promise.all(incoming.map(async (item) => ({
+      id: item.id, transparency: await detectQuickDesignBackground(item.file),
+    }))).then((results) => {
+      if (cancelled) return;
+      const classifications = new Map(results.map(({ id, transparency }) => [id, transparency]));
+      setPhotos((current) => current.map((item) => {
+        if (item.bgStatus !== 'inspecting' || !classifications.has(item.id)) return item;
+        const type = classifications.get(item.id);
+        if (type === 'already-transparent') return { ...item, bgStatus: 'skipped' };
+        if (type === 'unreadable') return { ...item, bgStatus: 'failed' };
+        return { ...item, bgStatus: autoCutout ? 'pending' : 'eligible' };
+      }));
+    }).catch(() => {
+      if (!cancelled) setPhotos((current) => current.map((item) =>
+        incoming.some((candidate) => candidate.id === item.id) && item.bgStatus === 'inspecting'
+          ? { ...item, bgStatus: 'failed' } : item));
+    });
+    return () => { cancelled = true; };
+  }, [photos, autoCutout]);
+
+  // Separate consent-gated worker for opaque images only.
   useEffect(() => {
     if (!autoCutout || cutoutBusy || cutoutUnavailable) return;
     const target = photos.find((item) => item.bgStatus === 'pending');
@@ -248,7 +274,7 @@ export default function QuickDesign() {
     const items = incoming.map((file) => {
       const url = URL.createObjectURL(file);
       urlsRef.current.add(url);
-      return { id: crypto.randomUUID(), url, file, bgStatus: 'pending', cutoutUrl: '' };
+      return { id: crypto.randomUUID(), url, file, bgStatus: 'inspecting', cutoutUrl: '' };
     });
     setSubmitted(null);
     setPhotos((current) => [...current, ...items]);
@@ -399,7 +425,8 @@ export default function QuickDesign() {
     if (enabled) {
       setCutoutUnavailable(false);
       setCutoutError('');
-      setPhotos((items) => items.map((item) => !item.cutoutUrl && item.bgStatus !== 'skipped' ? { ...item, bgStatus: 'pending' } : item));
+      setPhotos((items) => items.map((item) => !item.cutoutUrl && item.bgStatus === 'eligible'
+        ? { ...item, bgStatus: 'pending' } : item));
     }
   };
 
@@ -483,24 +510,25 @@ export default function QuickDesign() {
                 <Star size={14} fill={index === 0 ? 'currentColor' : 'none'} />
               </button>
               <button type="button" onClick={() => removePhoto(item.id)} aria-label={'Remove photo ' + (index + 1)} className="absolute right-0 top-0 rounded-bl-lg bg-black/80 p-1 text-white"><Trash2 size={14}/></button>
+              {item.bgStatus === 'inspecting' && <span data-gdp-photo-status="inspecting" className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-white/80">Checking…</span>}
               {item.bgStatus === 'skipped' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="transparent">Transparent</span>}
               {item.bgStatus === 'done' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-lime-200" data-gdp-photo-status="removed">Removed</span>}
               {item.bgStatus === 'failed' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-amber-200" data-gdp-photo-status="failed">Original kept</span>}
-              {!autoCutout && item.bgStatus === 'pending' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-white" data-gdp-photo-status="off">Original</span>}
+              {!autoCutout && item.bgStatus === 'eligible' && <span className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold text-white" data-gdp-photo-status="off">Original</span>}
             </div>
           )}</div>}
           {photos.length > 1 && <p className="mt-2 text-xs leading-5 text-white/60">Tap the star on a photo to make it the largest main subject. All photos are fitted without cropping; check that every face is clear before ordering.</p>}
-          {photos.length > 0 && !autoCutout && !cutoutBusy && !cutoutUnavailable && photos.some((item) => !item.cutoutUrl && item.bgStatus !== 'skipped') && <div className="mt-3">
+          {photos.length > 0 && !autoCutout && !cutoutBusy && !cutoutUnavailable && photos.some((item) => item.bgStatus === 'eligible') && <div className="mt-3">
             <button type="button" onClick={() => switchCutouts(true)} className={BTN + ' w-full bg-lime-300 text-black hover:bg-lime-200'} data-gdp-remove-photos="true">Remove backgrounds</button>
             <p className="mt-1.5 text-center text-[11px] leading-4 text-white/55">Uses remove.bg for opaque photos only. Transparent images stay unchanged.</p>
           </div>}
           {cutoutPending && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-lime-200"><Loader2 size={15} className="animate-spin"/> Removing backgrounds…</p>}
-          {photos.length > 0 && autoCutout && !cutoutPending && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-lime-200" data-gdp-auto-remove-status="on"><span><CheckCircle2 size={14} className="mr-1 inline"/> Auto-removal on for new uploads</span><button type="button" onClick={() => switchCutouts(false)} className="min-h-9 rounded-lg border border-white/20 px-3 text-white/70 hover:bg-white/10">Turn off</button></div>}
+          {photos.length > 0 && autoCutout && hasOpaquePhoto && !cutoutPending && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-lime-200" data-gdp-auto-remove-status="on"><span><CheckCircle2 size={14} className="mr-1 inline"/> Auto-removal on for new uploads</span><button type="button" onClick={() => switchCutouts(false)} className="min-h-9 rounded-lg border border-white/20 px-3 text-white/70 hover:bg-white/10">Turn off</button></div>}
           {cutoutError && <div role="alert" className="mt-3 min-w-0 max-w-full rounded-lg bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">
             <p className="break-words">{cutoutError}</p>
             <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block font-bold text-amber-100 underline underline-offset-2">Open remove.bg (external)</a>
           </div>}
-          <details className="mt-3 min-w-0 rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-xs text-white/65" data-gdp-removal-help="true">
+          {showRemovalHelp && <details className="mt-3 min-w-0 rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-xs text-white/65" data-gdp-removal-help="true">
             <summary className="cursor-pointer py-1 font-semibold text-white/80">Background removal help</summary>
             <div className="space-y-2 pb-2 pt-3 leading-5">
               <p>Removing a background sends opaque photos to remove.bg after you tap the button. Existing transparent PNG/WebP images are kept as uploaded. Free preview limits apply; your originals stay safe.</p>
@@ -509,7 +537,9 @@ export default function QuickDesign() {
               {!cutoutError && <a href="https://www.remove.bg/" target="_blank" rel="noopener noreferrer" className="inline-block font-semibold text-lime-200 underline underline-offset-2">Open remove.bg (external)</a>}
               <p>The design uses A3 portrait proportions (297 × 420 mm). The on-screen mockup is a preview, not proof that your photos meet 300-DPI print quality.</p>
             </div>
-          </details>
+          </details>}
+          {photos.length > 0 && photos.every((item) => item.bgStatus === 'skipped' || item.bgStatus === 'done') &&
+            <p role="status" data-gdp-transparency-ready="true" className="mt-3 text-xs text-lime-200">Transparent backgrounds detected. No background removal needed.</p>}
           {message && <p role="status" className="mt-3 min-w-0 max-w-full break-words rounded-lg bg-amber-300/10 p-3 text-sm text-amber-200">{message}</p>}
         </section>
 
