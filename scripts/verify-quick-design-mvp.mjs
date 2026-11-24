@@ -10,8 +10,10 @@ import {
   getQuickDesignSubjectFit,
   QUICK_DESIGN_PRINT_SIZE,
   getQuickDesignHeadlineY,
+  QUICK_DESIGN_NAME_PHOTO_GAP_IN,
+  QUICK_DESIGN_NAME_PHOTO_GAP_PX,
 } from '../src/lib/quickDesignCanvas.js';
-import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement, getQuickDesignGarmentPrintZone, QUICK_DESIGN_GARMENT_SIZE_SCALES } from '../src/lib/quickDesignGarmentMockup.js';
+import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement, getQuickDesignGarmentPrintZone, QUICK_DESIGN_GARMENT_SIZE_SCALES, QUICK_DESIGN_TORSO_CENTERS } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
@@ -47,6 +49,21 @@ for (let count = 1; count <= 5; count += 1) {
     'Name baseline must sit about one font-half-height directly above the primary photo');
 }
 assert.equal(getQuickDesignPhaseCLayout(1)[0].role, 'hero');
+assert.equal(QUICK_DESIGN_NAME_PHOTO_GAP_IN, .5);
+assert.equal(QUICK_DESIGN_NAME_PHOTO_GAP_PX, 32,
+  'A3 portrait 0.5 inch spacing is approximately 32 pixels on the 750x1061 preview');
+for (const photoCount of [1, 2, 3, 4, 5]) {
+  for (const { photoTop, nameBottom } of [
+    { photoTop: 340, nameBottom: 255 },
+    { photoTop: 455, nameBottom: 280 },
+  ]) {
+    const y = getQuickDesignHeadlineY(photoCount, { photoTop, nameBottom });
+    const previousY = getQuickDesignHeadlineY(photoCount);
+    const resultingGap = photoTop - (nameBottom + y - previousY);
+    assert.ok(Math.abs(resultingGap - QUICK_DESIGN_NAME_PHOTO_GAP_PX) <= 1,
+      'Visible name gap must be 0.5 inch in A3 proportions, independent of photo count');
+  }
+}
 for (let count = 2; count <= 5; count += 1) {
   const layers = getQuickDesignPhaseCLayout(count);
   const connections = getQuickDesignCollageConnections(count);
@@ -133,18 +150,27 @@ assert.equal(QUICK_DESIGN_GARMENT_SIZE_SCALES.S, .90);
 for (const garment of QUICK_DESIGN_GARMENTS) {
   for (const side of QUICK_DESIGN_SIDES) {
     const base = getQuickDesignGarmentPrintZone(garment.id, side.id, 'M');
-    assert.deepEqual(base, QUICK_DESIGN_PRINT_PLACEMENTS[garment.id][side.id]);
-    for (const size of ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']) {
-      const zone = getQuickDesignGarmentPrintZone(garment.id, side.id, size);
-      assert.ok(zone[2] <= base[2] && zone[3] <= base[3],
-        'Smaller or larger selected garment must not exceed verified mockup print zone');
-      assert.ok(Math.abs(zone[0] + zone[2] / 2 - 300) < 1e-8,
-        'Size adjustment must remain horizontally centered');
-      assert.ok(Math.abs(zone[1] + zone[3] / 2 - (base[1] + base[3] / 2)) < 1e-8,
-        'Size adjustment must maintain vertical alignment');
-      assert.deepEqual(getQuickDesignGarmentPrintZone(garment.id, 'front', size),
-        getQuickDesignGarmentPrintZone(garment.id, 'back', size),
-        'Front/back matching size must have the same design placement');
+    assert.deepEqual(base.slice(1), QUICK_DESIGN_PRINT_PLACEMENTS[garment.id][side.id].slice(1));
+    assert.equal(base[0] + base[2] / 2, QUICK_DESIGN_TORSO_CENTERS[garment.id].black[side.id]);
+    for (const color of QUICK_DESIGN_COLORS) {
+      const torsoCenter = QUICK_DESIGN_TORSO_CENTERS[garment.id][color.id][side.id];
+      for (const size of ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']) {
+        const zone = getQuickDesignGarmentPrintZone(garment.id, side.id, size, color.id);
+        assert.ok(zone[2] <= base[2] && zone[3] <= base[3],
+          'Selected size may not enlarge beyond the safe mockup zone');
+        assert.ok(Math.abs(zone[0] + zone[2] / 2 - torsoCenter) < 1e-8,
+          'Optical print center must match the torso in the actual selected garment photo');
+        assert.ok(Math.abs(zone[1] + zone[3] / 2 - (base[1] + base[3] / 2)) < 1e-8,
+          'Selected size must preserve vertical placement');
+        assert.ok(zone[0] >= 155 && zone[0] + zone[2] <= 465,
+          'Garment print must remain inside torso safety bounds');
+        const otherSide = getQuickDesignGarmentPrintZone(garment.id,
+          side.id === 'front' ? 'back' : 'front', size, color.id);
+        assert.deepEqual(zone.slice(1).slice(1), otherSide.slice(2),
+          'Front/back print width and height must match each other');
+        assert.equal(zone[1], otherSide[1],
+          'Front/back print vertical placement must remain identical');
+      }
     }
   }
 }
@@ -266,6 +292,16 @@ assert.doesNotMatch(page, /Previews are watermarked|Artwork format: 12 x 16 inch
 assert.match(mockupCode, /getQuickDesignBalancedArtworkPlacement/);
 assert.match(mockupCode, /measureQuickDesignArtworkContent/,
   'Artwork must center the visible alpha content, not the transparent image bounds');
+assert.match(mockupCode, /visualCenterX/,
+  'Art placement must include alpha-weighted optical centering');
+assert.match(mockupCode, /getQuickDesignGarmentPrintZone\(garment, side, size, color\)/,
+  'Selected garment colour and print side must guide actual cloth torso axis');
+assert.notEqual(QUICK_DESIGN_TORSO_CENTERS.tshirt.white.front, 300,
+  'Generated garment images are not all centered at x=300');
+assert.match(canvas, /measureQuickDesignHeadlineBottom\(/);
+assert.match(canvas, /getQuickDesignVisiblePhotoTop\(/);
+assert.match(canvas, /paintHeadline\(ctx, headline, alignedHeadlineY/,
+  'Headline Y must derive from visible rendered photo and glyph bounds');
 for (const garment of QUICK_DESIGN_GARMENTS) {
   const zone = QUICK_DESIGN_PRINT_PLACEMENTS[garment.id].front;
   const skewedArtwork = getQuickDesignBalancedArtworkPlacement(zone, 750, 1061, { x: 220, y: 160, w: 290, h: 550 });
