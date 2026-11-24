@@ -279,7 +279,7 @@ assert.ok(mockupCode.includes('renderStudioCrewneckFabric(ctx, studioGarment, se
 assert.match(mockupCode, /ctx\.scale\(OUTPUT_SCALE, OUTPUT_SCALE\)/);
 assert.match(mockupCode, /ctx\.imageSmoothingQuality = 'high'/);
 assert.match(mockupCode, /drawSeamDetails\(ctx, selectedGarment, selectedColor\)/);
-assert.match(mockupCode, /getQuickDesignGarmentPrintZone\(garment, side, size\)/,
+assert.match(mockupCode, /getQuickDesignGarmentPrintZone\(garment, side, size, color\)/,
   'Art renderer must respect selected garment size and larger placement zones');
 assert.match(page, /size: customer\.size/,
   'React must pass size into the actual garment mockup renderer');
