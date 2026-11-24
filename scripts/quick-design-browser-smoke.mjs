@@ -97,12 +97,28 @@ try {
       ctx.fillRect(0, 0, 64, 64); // Entire image is opaque, so needs removal.
       return { transparentBase64, opaqueBase64: c.toDataURL('image/png').split(',')[1] };
     });
+    // Phase J: transparent-only uploads must NOT offer remove.bg or help.
     await page.locator('input[aria-label="Upload customer photos"]').setInputFiles([
       { name: 'already-transparent.png', mimeType: 'image/png', buffer: Buffer.from(transparentBase64, 'base64') },
-      ...Array.from({ length: 4 }, (_, i) => ({
+    ]);
+    await page.locator('[data-gdp-photo-status="transparent"]').waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[data-gdp-remove-photos="true"]').count(), 0,
+      'No remove.bg action when customer has only transparent photos');
+    assert.equal(await page.locator('[data-gdp-removal-help="true"]').count(), 0,
+      'Hide background-removal panel entirely for transparent-only uploads');
+    assert.equal(await page.locator('[data-gdp-transparency-ready="true"]').count(), 1);
+    // Mixed uploads: retain existing transparent source; offer remover only
+    // for the four opaque photos after local, free preflight has completed.
+    await page.locator('input[aria-label="Upload customer photos"]').setInputFiles(
+      Array.from({ length: 4 }, (_, i) => ({
         name: 'opaque-test-photo-' + (i + 1) + '.png', mimeType: 'image/png', buffer: Buffer.from(opaqueBase64, 'base64'),
       })),
-    ]);
+    );
+    await page.locator('[data-gdp-photo-status="off"]').first().waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[data-gdp-photo-status="off"]').count(), 4);
+    assert.equal(await page.locator('[data-gdp-remove-photos="true"]').count(), 1,
+      'Show remove.bg only when at least one opaque upload is eligible');
+    assert.equal(await page.locator('[data-gdp-removal-help="true"]').count(), 1);
     assert.equal(await page.locator('[data-gdp-photo-grid="true"] > div').count(), 5, 'Five uploaded photos must display on mobile without widening page');
     assert.equal(await page.locator('[data-gdp-main-photo="true"]').count(), 1, 'Exactly one main photo must be selected');
     assert.equal(await page.getByRole('button', { name: 'Make photo 5 main subject' }).count(), 1);
