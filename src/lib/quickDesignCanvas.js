@@ -259,6 +259,59 @@ function paintPhaseBSubject(ctx, image, slot, accent, variant) {
 }
 
 /**
+ * Apply print-aware alpha cleanup exclusively to the selected storm BACKGROUND
+ * layer. The source GDP art remains unchanged; pets, lettering, lightning and
+ * subsequent photo/keyline layers are never processed.
+ *
+ * Wide rectangular fades create low-alpha "clouds" that a DTF RIP may place
+ * white underbase beneath. A curved top shoulder and alpha floor prevent
+ * unwanted boxy edges while preserving the brighter intended storm effects.
+ *
+ * This does NOT certify RIP white-underbase behavior or print-ready pixels.
+ */
+export function getQuickDesignDTFStormAlpha(alpha, normalizedX, normalizedY) {
+  const a = Math.max(0, Math.min(255, Number(alpha) || 0));
+  if (!a) return 0;
+  const x = Math.max(0, Math.min(1, Number(normalizedX) || 0));
+  const y = Math.max(0, Math.min(1, Number(normalizedY) || 0));
+  const smoothstep = (lo, hi, value) => {
+    const t = Math.max(0, Math.min(1, (value - lo) / (hi - lo)));
+    return t * t * (3 - 2 * t);
+  };
+  const shoulder = Math.pow(Math.max(0, (0.30 - Math.min(x, 1 - x)) / 0.30), 2);
+  const topStart = 0.39 + shoulder * 0.09;
+  const topEnd = 0.60 + shoulder * 0.05;
+  const topMask = smoothstep(topStart, topEnd, y);
+  const sideMask = smoothstep(0.012, 0.13, x) *
+    (1 - smoothstep(0.87, 0.988, x));
+  const retained = a * topMask * sideMask;
+  if (retained <= 22) return 0;
+  if (retained < 78) return Math.round(78 * smoothstep(22, 78, retained));
+  return Math.round(retained);
+}
+
+function cleanQuickDesignDTFStormLayer(bg, width, height) {
+  // Small row strips avoid a single 70MB+ getImageData allocation during A3.
+  // Pixel-coordinate masks have the SAME proportions on preview and A3.
+  const stripHeight = 128;
+  for (let y0 = 0; y0 < height; y0 += stripHeight) {
+    const rows = Math.min(stripHeight, height - y0);
+    const strip = bg.getImageData(0, y0, width, rows);
+    const rgba = strip.data;
+    for (let row = 0; row < rows; row++) {
+      const ny = (y0 + row + 0.5) / height;
+      for (let col = 0; col < width; col++) {
+        const i = (row * width + col) * 4 + 3;
+        const alpha = rgba[i];
+        if (!alpha) continue;
+        rgba[i] = getQuickDesignDTFStormAlpha(alpha, (col + .5) / width, ny);
+      }
+    }
+    bg.putImageData(strip, 0, y0);
+  }
+}
+
+/**
  * STORM-reference texture: use ONLY the selected EXISTING GDP background
  * graphic, contained in a separate layer and feathered at its top/side edges.
  * No baked-in customer faces, no opaque rectangular backdrop and no external
@@ -299,6 +352,9 @@ function paintStormBottom(ctx, background) {
   bg.fillStyle = horizontal;
   bg.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
   bg.globalCompositeOperation = 'source-over';
+  // Clean ONLY the original storm artwork here. Do this after its existing
+  // artistic fades, before dogs, chrome names, lightning or secondary text.
+  cleanQuickDesignDTFStormLayer(bg, layer.width, layer.height);
   ctx.drawImage(layer, 0, 0, PREVIEW_W, PREVIEW_H);
 }
 
