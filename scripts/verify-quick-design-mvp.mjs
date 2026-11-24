@@ -19,25 +19,26 @@ import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_D
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
 import { getQuickDesignPhaseCLayout, getQuickDesignPhaseCRenderOrder, getQuickDesignFacePriorityRegion, getQuickDesignCollageConnections, QUICK_DESIGN_PHASE_C_REFERENCE } from '../src/lib/quickDesignPhaseCLayout.js';
 
-// Phase K: full original background stays present; its top SIDES are
-// compressed inward, while the base remains unchanged and DTF alpha cleanup
-// removes only nearly invisible halos (no broad storm/lighting deletion).
+// Reference-image QA: the selected GDP storm remains behind the uploaded
+// dogs, but its upper, lower and side edges MUST NOT be a printed rectangle.
 assert.equal(getQuickDesignStormTopScale(.16), .72,
-  'Upper-left and upper-right background must be tightened to 72% width');
-assert.ok(getQuickDesignStormTopScale(.5) > .72 && getQuickDesignStormTopScale(.5) < 1,
-  'Background top compression must release smoothly down its sides');
+  'Upper storm source is compressed to keep details inside the shirt');
 assert.equal(getQuickDesignStormTopScale(.70), 1,
-  'Bottom and lower storm effects must retain their full original width');
-assert.equal(getQuickDesignDTFStormAlpha(255, .50, .25), 255,
-  'DTF cleanup must no longer remove intentionally bright upper artwork');
-assert.equal(getQuickDesignDTFStormAlpha(255, .03, .44), 255,
-  'Upper side storm and lightning must no longer be cropped by a shoulder mask');
-assert.equal(getQuickDesignDTFStormAlpha(10, .50, .75), 0,
-  'Clean only near-invisible alpha pixels that can create DTF underbase haze');
-assert.equal(getQuickDesignDTFStormAlpha(255, .50, .77), 255,
-  'Bright lower storm effects must keep their original transparency');
-assert.ok(getQuickDesignDTFStormAlpha(35, .50, .55) > 10,
-  'Preserve actual softly transparent design details instead of overtrimming them');
+  'Bottom storm bitmap retains its original width');
+assert.equal(getQuickDesignDTFStormAlpha(255, .5, .2), 0,
+  'No hard poster edge should appear above the personalized name');
+assert.equal(getQuickDesignDTFStormAlpha(255, .02, .6), 0,
+  'The left edge must blend out instead of printing a straight boundary');
+assert.equal(getQuickDesignDTFStormAlpha(255, .98, .6), 0,
+  'The right edge must blend out instead of printing a straight boundary');
+assert.equal(getQuickDesignDTFStormAlpha(255, .5, .99), 0,
+  'Background must end in an irregular fade rather than a bottom box');
+assert.equal(getQuickDesignDTFStormAlpha(9, .5, .65), 0,
+  'Discard invisible haze that can cause DTF underbase artifacts');
+assert.ok(getQuickDesignDTFStormAlpha(255, .5, .66) >= 120,
+  'Storm colours must remain visible behind the pets');
+assert.ok(getQuickDesignDTFStormAlpha(255, .5, .66) < 0.70 * 255,
+  'Even brightest flames remain visually secondary to dogs and letters');
 assert.equal(QUICK_DESIGN_MAX_PHOTOS, 5);
 assert.equal(QUICK_DESIGN_MAX_FILE_BYTES, 10 * 1024 * 1024);
 assert.equal(quickDesignLayoutCount(), 5);
