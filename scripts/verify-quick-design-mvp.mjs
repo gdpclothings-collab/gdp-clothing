@@ -9,6 +9,7 @@ import {
   quickDesignLayoutCount,
   getQuickDesignSubjectFit,
   QUICK_DESIGN_PRINT_SIZE,
+  getQuickDesignHeadlineY,
 } from '../src/lib/quickDesignCanvas.js';
 import { QUICK_DESIGN_GARMENTS, QUICK_DESIGN_COLORS, QUICK_DESIGN_SIDES, QUICK_DESIGN_PRINT_PLACEMENTS, getQuickDesignStudioFabricAsset, QUICK_DESIGN_BLANK_ATLAS_URL, QUICK_DESIGN_BLANK_ATLAS_SIZE, getQuickDesignBlankGarmentCrop, getQuickDesignBalancedArtworkPlacement, getQuickDesignGarmentPrintZone, QUICK_DESIGN_GARMENT_SIZE_SCALES } from '../src/lib/quickDesignGarmentMockup.js';
 import { detectQuickDesignBackground } from '../src/lib/quickDesignTransparency.js';
@@ -38,6 +39,12 @@ for (let count = 1; count <= 5; count += 1) {
   }
   assert.deepEqual(getQuickDesignPhaseCRenderOrder(count).map((item) => item.photoIndex).sort(),
     Array.from({length: count}, (_, i) => i), 'Every uploaded pet must appear once');
+  const heroTop = layout[0].y * QUICK_DESIGN_PRINT_SIZE.previewHeightPx;
+  const nameY = getQuickDesignHeadlineY(count);
+  assert.ok(nameY > QUICK_DESIGN_PRINT_SIZE.previewHeightPx * .145,
+    'Personalized name must sit visibly closer to uploaded faces than the old floating header');
+  assert.ok(heroTop - nameY >= 42 && heroTop - nameY <= 57,
+    'Name baseline must sit about one font-half-height directly above the primary photo');
 }
 assert.equal(getQuickDesignPhaseCLayout(1)[0].role, 'hero');
 for (let count = 2; count <= 5; count += 1) {
@@ -314,6 +321,19 @@ assert.match(page, /Uses remove\.bg for opaque photos only/, 'Keep short externa
 assert.match(page, /url: item\.cutoutUrl \|\| item\.url/, 'Keep successfully processed cutouts when processing is paused or fails');
 assert.match(page, /requestQuickDesignRemoveBgCutout\(target\.file\)/);
 assert.match(page, /detectQuickDesignBackground\(target\.file\)/);
+assert.match(page, /bgStatus: 'inspecting'/,
+  'Local alpha classification must run immediately after any upload');
+assert.match(page, /bgStatus === 'inspecting'/);
+assert.match(page, /item\.bgStatus === 'eligible'/,
+  'Opaque-only button eligibility must be explicit');
+assert.match(page, /showRemovalHelp && <details/,
+  'Hide remove.bg controls entirely after transparent-only uploads');
+assert.match(page, /data-gdp-transparency-ready="true"/);
+assert.match(canvas, /getQuickDesignHeadlineY\(images\.length\)/,
+  'Name placement must use current photo layout without changing uploaded images');
+assert.ok(page.indexOf('photos.filter((item) => item.bgStatus === \'inspecting\')') <
+  page.indexOf("const target = photos.find((item) => item.bgStatus === 'pending')"),
+  'Free local transparency detection must precede remove.bg processing');
 assert.match(page, /transparency === 'already-transparent'/);
 assert.match(page, /data-gdp-photo-status="transparent"/);
 assert.doesNotMatch(page, /removeQuickDesignBackground\(/, 'Experimental device model must not process uploads anymore');
@@ -325,7 +345,7 @@ assert.match(page, /<QuickDesignHelp onClose=/);
 assert.match(help, /role="dialog" aria-modal="true"/);
 assert.match(help, /https:\/\/gdpclothing\.ca\/pages\/contact/);
 assert.match(help, /Copy design details/);
-assert.match(help, /If you enable remove\.bg, Quick Design first checks/);
+assert.match(help, /automatically checks PNG\/WebP transparency locally/);
 assert.match(help, /Step 1: choose a T-shirt/);
 assert.match(help, /then choose Black or White/);
 assert.match(help, /'Garment colour: ' \+ \(details\?\.garmentColor/);
